@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -33,6 +33,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -56,9 +56,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -118,7 +115,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         cancelDownloadTask(
             client,
             id,
-            listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)),
+            listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, task.getParentTaskId(), l)),
             request.ackTimeout()
         );
     }
@@ -159,96 +156,83 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     protected void deleteModel(
         DeleteTrainedModelAction.Request request,
         ClusterState state,
+        TaskId taskId,
         ActionListener<AcknowledgedResponse> listener
     ) {
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
-        if (modelExists(request.getId()) == false) {
-            listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, request.getId())));
-            return;
-        }
+        SubscribableListener.<Boolean>newForked(modelExistsListener -> modelExists(id, taskId, modelExistsListener))
+            .andThenAccept(exists -> {
+                if (exists == false) {
+                    listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, request.getId())));
+                    return;
+                }
 
-        if (request.isForce() == false && referencedModels.contains(id)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot delete model [{}] as it is still referenced by ingest processors; use force to delete the model",
-                    RestStatus.CONFLICT,
-                    id
-                )
-            );
-            return;
-        }
+                if (request.isForce() == false && referencedModels.contains(id)) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot delete model [{}] as it is still referenced by ingest processors; use force to delete the model",
+                            RestStatus.CONFLICT,
+                            id
+                        )
+                    );
+                    return;
+                }
 
-        final List<String> modelAliases = getModelAliases(state, id);
-        if (request.isForce() == false) {
-            Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
-            if (referencedModelAlias.isPresent()) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
-                            + " use force to delete the model",
-                        RestStatus.CONFLICT,
-                        id,
-                        referencedModelAlias.get()
-                    )
-                );
-                return;
-            }
-        }
+                final List<String> modelAliases = getModelAliases(state, id);
+                if (request.isForce() == false) {
+                    Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
+                    if (referencedModelAlias.isPresent()) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
+                                    + " use force to delete the model",
+                                RestStatus.CONFLICT,
+                                id,
+                                referencedModelAlias.get()
+                            )
+                        );
+                        return;
+                    }
+                }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(request.getId())) {
-            if (request.isForce()) {
-                forceStopDeployment(
-                    request.getId(),
-                    listener.delegateFailureAndWrap((l, stopDeploymentResponse) -> deleteAliasesAndModel(request, modelAliases, l))
-                );
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
-                        RestStatus.CONFLICT,
-                        id
-                    )
-                );
-            }
-        } else {
-            deleteAliasesAndModel(request, modelAliases, listener);
-        }
+                if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(request.getId())) {
+                    if (request.isForce()) {
+                        forceStopDeployment(
+                            request.getId(),
+                            listener.delegateFailureAndWrap((l, stopDeploymentResponse) -> deleteAliasesAndModel(request, modelAliases, l))
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
+                                RestStatus.CONFLICT,
+                                id
+                            )
+                        );
+                    }
+                } else {
+                    deleteAliasesAndModel(request, modelAliases, listener);
+                }
+            })
+            .addListener(ActionListener.wrap(v -> { /* Listener already handled in the chain */ }, listener::onFailure));
     }
 
-    protected boolean modelExists(String modelId) {
-        CountDownLatch latch = new CountDownLatch(1);
-        final AtomicBoolean modelExists = new AtomicBoolean(false);
-
-        ActionListener<TrainedModelConfig> trainedModelListener = new ActionListener<>() {
-            @Override
-            public void onResponse(TrainedModelConfig config) {
-                modelExists.set(true);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Failed to retrieve model {}: {}", modelId, e.getMessage(), e);
-                latch.countDown();
-            }
-        };
-
-        trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), null, trainedModelListener);
-
-        try {
-            boolean latchReached = latch.await(5, TimeUnit.SECONDS);
-
-            if (latchReached == false) {
-                throw new ElasticsearchException("Timeout while waiting for trained model to be retrieved");
-            }
-        } catch (InterruptedException e) {
-            throw new ElasticsearchException("Unexpected exception", e);
-        }
-
-        return modelExists.get();
+    protected void modelExists(String modelId, TaskId taskId, ActionListener<Boolean> listener) {
+        trainedModelProvider.getTrainedModel(
+            modelId,
+            GetTrainedModelsAction.Includes.empty(),
+            taskId,
+            ActionListener.wrap(model -> listener.onResponse(Boolean.TRUE), exception -> {
+                if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceNotFoundException) {
+                    listener.onResponse(Boolean.FALSE);
+                } else {
+                    listener.onFailure(exception);
+                }
+            })
+        );
     }
 
     private void forceStopDeployment(String modelId, ActionListener<StopTrainedModelDeploymentAction.Response> listener) {

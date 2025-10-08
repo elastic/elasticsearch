@@ -20,11 +20,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -41,10 +38,9 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.cancelDownloadTask;
@@ -58,9 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportDeleteTrainedModelActionTests extends ESTestCase {
@@ -160,74 +154,66 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         assertThat(listener.actionGet(TIMEOUT), is(cancelResponse));
     }
 
-    public void testModelExistsIsTrueWhenModelIsFound() {
+    public void testModelExistsIsTrueWhenModelIsFound() throws Exception {
         TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
         TrainedModelConfig expectedConfig = buildTrainedModelConfig("modelId");
 
-        Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
             listener.onResponse(expectedConfig);
             return null;
-        })
-            .when(trainedModelProvider)
-            .getTrainedModel(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.<ActionListener<TrainedModelConfig>>any());
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
 
-        TransportDeleteTrainedModelAction transportDeleteTrainedModelAction = createTransportDeleteTrainedModelAction(trainedModelProvider);
-        boolean modelExists = transportDeleteTrainedModelAction.modelExists("modelId");
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
 
-        assertThat(modelExists, is(Boolean.TRUE));
+        // Use a future to capture the async listener result
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        action.modelExists("modelId", null, future);
+
+        assertTrue(future.get());
     }
 
-    public void testModelExistsIsFalseWhenModelIsNotFound() {
+    public void testModelExistsIsFalseWhenModelIsNotFound() throws Exception {
         TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
-        Exception failureException = new Exception("Failed to retrieve model");
 
-        Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
-            listener.onFailure(failureException);
+            listener.onFailure(new ResourceNotFoundException("not found"));
             return null;
-        })
-            .when(trainedModelProvider)
-            .getTrainedModel(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.<ActionListener<TrainedModelConfig>>any());
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
 
-        TransportDeleteTrainedModelAction transportDeleteTrainedModelAction = createTransportDeleteTrainedModelAction(trainedModelProvider);
-        boolean modelExists = transportDeleteTrainedModelAction.modelExists("modelId");
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
 
-        assertThat(modelExists, is(Boolean.FALSE));
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        action.modelExists("modelId", null, future);
+
+        assertFalse(future.get());
     }
 
-    public void testDeleteModelThrowsExceptionWhenModelIsNotFound() {
+    public void testDeleteModelThrowsExceptionWhenModelIsNotFound() throws Exception {
         TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
-        Exception failureException = new Exception("Failed to retrieve model");
-        ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .put(
-                        IndexMetadata.builder(".my-system").system(true).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
-                        true
-                    )
-                    .build()
-            )
-            .build();
-        @SuppressWarnings("unchecked")
-        ActionListener<AcknowledgedResponse> mockedListener = mock(ActionListener.class);
 
-        Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
-            listener.onFailure(failureException);
+            listener.onFailure(new ResourceNotFoundException("not found"));
             return null;
-        })
-            .when(trainedModelProvider)
-            .getTrainedModel(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.<ActionListener<TrainedModelConfig>>any());
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
 
-        TransportDeleteTrainedModelAction transportDeleteTrainedModelAction = createTransportDeleteTrainedModelAction(trainedModelProvider);
-        transportDeleteTrainedModelAction.deleteModel(new DeleteTrainedModelAction.Request("modelId"), CLUSTER_STATE, mockedListener);
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
 
-        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
-        verify(mockedListener).onFailure(exceptionCaptor.capture());
-        Exception capturedException = exceptionCaptor.getValue();
-        assertThat(capturedException, is(instanceOf(ResourceNotFoundException.class)));
-        assertThat(capturedException.getMessage(), containsString("Could not find trained model [modelId]"));
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+
+        action.deleteModel(new DeleteTrainedModelAction.Request("modelId"), clusterState, null, future);
+
+        ExecutionException executionException = expectThrows(ExecutionException.class, future::get);
+        Throwable cause = executionException.getCause();
+
+        assertThat(cause, instanceOf(ResourceNotFoundException.class));
+        assertThat(cause.getMessage(), containsString("Could not find trained model"));
     }
 
     private static void mockCancelTask(Client client) {
@@ -249,25 +235,21 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
     private TransportDeleteTrainedModelAction createTransportDeleteTrainedModelAction(TrainedModelProvider configProvider) {
         TransportService mockTransportService = mock(TransportService.class);
-        doReturn(threadPool).when(mockTransportService).getThreadPool();
         ClusterService mockClusterService = mock(ClusterService.class);
         ActionFilters mockFilters = mock(ActionFilters.class);
-        doReturn(null).when(mockFilters).filters();
         Client mockClient = mock(Client.class);
-        doReturn(null).when(mockClient).settings();
-        doReturn(threadPool).when(mockClient).threadPool();
         InferenceAuditor auditor = mock(InferenceAuditor.class);
 
         return new TransportDeleteTrainedModelAction(
             mockTransportService,
             mockClusterService,
             threadPool,
-            null,
+            mockClient,
             mockFilters,
-            null,
-            configProvider,
-            auditor,
-            null
+            configProvider,  // TrainedModelProvider
+            auditor,         // InferenceAuditor
+            mock(org.elasticsearch.ingest.IngestService.class),
+            mock(org.elasticsearch.cluster.project.ProjectResolver.class)
         );
     }
 

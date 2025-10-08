@@ -143,10 +143,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = def(9_008_0_00);
     public static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = def(9_010_0_00);
     public static final TransportVersion REMOVE_REPOSITORY_CONFLICT_MESSAGE = def(9_012_0_00);
-    public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
-    public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
-    public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
-    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

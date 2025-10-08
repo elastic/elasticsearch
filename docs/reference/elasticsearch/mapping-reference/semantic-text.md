@@ -153,7 +153,7 @@ This parameter cannot be updated.
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
-The update is allowed when either no values have been indexed or the new inference endpoint is compatible with the current one.
+You can update the inference endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
 ::::{warning}
 Even though endpoint compatibility is validated, the compatibility of the produced embeddings cannot be verified.

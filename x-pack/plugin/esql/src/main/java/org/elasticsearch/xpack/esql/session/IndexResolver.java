@@ -18,6 +18,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -51,6 +53,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
+    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
@@ -91,11 +95,12 @@ public class IndexResolver {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
-            listener.delegateFailureAndWrap(
-                (l, response) -> l.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response, supportsAggregateMetricDouble, supportsDenseVector))
-                )
-            )
+            listener.delegateFailureAndWrap((l, response) -> {
+                LOGGER.debug("minimum transport version {}", response.minTransportVersion());
+                l.onResponse(
+                    mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
+                );
+            })
         );
     }
 
@@ -324,6 +329,7 @@ public class IndexResolver {
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
         req.indexFilter(requestFilter);
+        req.returnLocalAll(false);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);

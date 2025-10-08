@@ -58,7 +58,6 @@ public class SamplingService implements ClusterStateListener {
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
-
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -129,17 +128,12 @@ public class SamplingService implements ClusterStateListener {
             return;
         }
         long startTime = statsTimeSupplier.getAsLong();
-        SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
-        if (samplingMetadata == null) {
-            return;
-        }
-        SamplingConfiguration samplingConfig = samplingMetadata.getIndexToSamplingConfigMap().get(indexName);
-        ProjectId projectId = projectMetadata.id();
+        SamplingConfiguration samplingConfig = getSamplingConfiguration(projectMetadata, indexName);
         if (samplingConfig == null) {
             return;
         }
         SoftReference<SampleInfo> sampleInfoReference = samples.compute(
-            new ProjectIndex(projectId, indexName),
+            new ProjectIndex(projectMetadata.id(), indexName),
             (k, v) -> v == null || v.get() == null
                 ? new SoftReference<>(
                     new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
@@ -179,7 +173,7 @@ public class SamplingService implements ClusterStateListener {
                         sampleInfo.compilationFailed = true;
                         throw e;
                     } finally {
-                        stats.timeCompilingCondition.add((statsTimeSupplier.getAsLong() - compileScriptStartTime));
+                        stats.timeCompilingConditionInNanos.add((statsTimeSupplier.getAsLong() - compileScriptStartTime));
                     }
                 }
             }
@@ -204,8 +198,23 @@ public class SamplingService implements ClusterStateListener {
             stats.lastException = e;
             logger.debug("Error performing sampling for " + indexName, e);
         } finally {
-            stats.timeSampling.add((statsTimeSupplier.getAsLong() - startTime));
+            stats.timeSamplingInNanos.add((statsTimeSupplier.getAsLong() - startTime));
         }
+    }
+
+    /**
+     * Retrieves the sampling configuration for the specified index from the given project metadata.
+     *
+     * @param projectMetadata The project metadata containing sampling information.
+     * @param indexName The name of the index or data stream for which to retrieve the sampling configuration.
+     * @return The {@link SamplingConfiguration} for the specified index, or {@code null} if none exists.
+     */
+    public SamplingConfiguration getSamplingConfiguration(ProjectMetadata projectMetadata, String indexName) {
+        SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+        if (samplingMetadata == null) {
+            return null;
+        }
+        return samplingMetadata.getIndexToSamplingConfigMap().get(indexName);
     }
 
     /**
@@ -262,7 +271,7 @@ public class SamplingService implements ClusterStateListener {
         long conditionStartTime = statsTimeSupplier.getAsLong();
         boolean passedCondition = factory.newInstance(script.getParams(), ingestDocumentSupplier.get().getUnmodifiableSourceAndMetadata())
             .execute();
-        stats.timeEvaluatingCondition.add((statsTimeSupplier.getAsLong() - conditionStartTime));
+        stats.timeEvaluatingConditionInNanos.add((statsTimeSupplier.getAsLong() - conditionStartTime));
         return passedCondition;
     }
 
@@ -337,12 +346,43 @@ public class SamplingService implements ClusterStateListener {
         final LongAdder samplesRejectedForCondition = new LongAdder();
         final LongAdder samplesRejectedForRate = new LongAdder();
         final LongAdder samplesRejectedForException = new LongAdder();
-        final LongAdder timeSampling = new LongAdder();
-        final LongAdder timeEvaluatingCondition = new LongAdder();
-        final LongAdder timeCompilingCondition = new LongAdder();
+        final LongAdder timeSamplingInNanos = new LongAdder();
+        final LongAdder timeEvaluatingConditionInNanos = new LongAdder();
+        final LongAdder timeCompilingConditionInNanos = new LongAdder();
         Exception lastException = null;
 
         public SampleStats() {}
+
+        public SampleStats(SampleStats other) {
+            addAllFields(other, this);
+        }
+
+        /*
+         * This constructor is only meant for constructing arbitrary SampleStats for testing
+         */
+        public SampleStats(
+            long samples,
+            long potentialSamples,
+            long samplesRejectedForMaxSamplesExceeded,
+            long samplesRejectedForCondition,
+            long samplesRejectedForRate,
+            long samplesRejectedForException,
+            TimeValue timeSampling,
+            TimeValue timeEvaluatingCondition,
+            TimeValue timeCompilingCondition,
+            Exception lastException
+        ) {
+            this.samples.add(samples);
+            this.potentialSamples.add(potentialSamples);
+            this.samplesRejectedForMaxSamplesExceeded.add(samplesRejectedForMaxSamplesExceeded);
+            this.samplesRejectedForCondition.add(samplesRejectedForCondition);
+            this.samplesRejectedForRate.add(samplesRejectedForRate);
+            this.samplesRejectedForException.add(samplesRejectedForException);
+            this.timeSamplingInNanos.add(timeSampling.nanos());
+            this.timeEvaluatingConditionInNanos.add(timeEvaluatingCondition.nanos());
+            this.timeCompilingConditionInNanos.add(timeCompilingCondition.nanos());
+            this.lastException = lastException;
+        }
 
         public SampleStats(StreamInput in) throws IOException {
             potentialSamples.add(in.readLong());
@@ -351,9 +391,9 @@ public class SamplingService implements ClusterStateListener {
             samplesRejectedForRate.add(in.readLong());
             samplesRejectedForException.add(in.readLong());
             samples.add(in.readLong());
-            timeSampling.add(in.readLong());
-            timeEvaluatingCondition.add(in.readLong());
-            timeCompilingCondition.add(in.readLong());
+            timeSamplingInNanos.add(in.readLong());
+            timeEvaluatingConditionInNanos.add(in.readLong());
+            timeCompilingConditionInNanos.add(in.readLong());
             if (in.readBoolean()) {
                 lastException = in.readException();
             } else {
@@ -386,15 +426,15 @@ public class SamplingService implements ClusterStateListener {
         }
 
         public TimeValue getTimeSampling() {
-            return TimeValue.timeValueNanos(timeSampling.longValue());
+            return TimeValue.timeValueNanos(timeSamplingInNanos.longValue());
         }
 
         public TimeValue getTimeEvaluatingCondition() {
-            return TimeValue.timeValueNanos(timeEvaluatingCondition.longValue());
+            return TimeValue.timeValueNanos(timeEvaluatingConditionInNanos.longValue());
         }
 
         public TimeValue getTimeCompilingCondition() {
-            return TimeValue.timeValueNanos(timeCompilingCondition.longValue());
+            return TimeValue.timeValueNanos(timeCompilingConditionInNanos.longValue());
         }
 
         public Exception getLastException() {
@@ -416,16 +456,15 @@ public class SamplingService implements ClusterStateListener {
                 + ", samples_accepted: "
                 + samples
                 + ", time_sampling: "
-                + (timeSampling.longValue() / 1000000)
+                + TimeValue.timeValueNanos(timeSamplingInNanos.longValue())
                 + ", time_evaluating_condition: "
-                + (timeEvaluatingCondition.longValue() / 1000000)
+                + TimeValue.timeValueNanos(timeEvaluatingConditionInNanos.longValue())
                 + ", time_compiling_condition: "
-                + (timeCompilingCondition.longValue() / 1000000);
+                + TimeValue.timeValueNanos(timeCompilingConditionInNanos.longValue());
         }
 
         public SampleStats combine(SampleStats other) {
-            SampleStats result = new SampleStats();
-            addAllFields(this, result);
+            SampleStats result = new SampleStats(this);
             addAllFields(other, result);
             return result;
         }
@@ -437,9 +476,9 @@ public class SamplingService implements ClusterStateListener {
             dest.samplesRejectedForRate.add(source.samplesRejectedForRate.longValue());
             dest.samplesRejectedForException.add(source.samplesRejectedForException.longValue());
             dest.samples.add(source.samples.longValue());
-            dest.timeSampling.add(source.timeSampling.longValue());
-            dest.timeEvaluatingCondition.add(source.timeEvaluatingCondition.longValue());
-            dest.timeCompilingCondition.add(source.timeCompilingCondition.longValue());
+            dest.timeSamplingInNanos.add(source.timeSamplingInNanos.longValue());
+            dest.timeEvaluatingConditionInNanos.add(source.timeEvaluatingConditionInNanos.longValue());
+            dest.timeCompilingConditionInNanos.add(source.timeCompilingConditionInNanos.longValue());
             if (dest.lastException == null) {
                 dest.lastException = source.lastException;
             }
@@ -454,9 +493,17 @@ public class SamplingService implements ClusterStateListener {
             builder.field("samples_rejected_for_rate", samplesRejectedForRate.longValue());
             builder.field("samples_rejected_for_exception", samplesRejectedForException.longValue());
             builder.field("samples_accepted", samples.longValue());
-            builder.field("time_sampling", (timeSampling.longValue() / 1000000));
-            builder.field("time_evaluating_condition", (timeEvaluatingCondition.longValue() / 1000000));
-            builder.field("time_compiling_condition", (timeCompilingCondition.longValue() / 1000000));
+            builder.humanReadableField("time_sampling_millis", "time_sampling", TimeValue.timeValueNanos(timeSamplingInNanos.longValue()));
+            builder.humanReadableField(
+                "time_evaluating_condition_millis",
+                "time_evaluating_condition",
+                TimeValue.timeValueNanos(timeEvaluatingConditionInNanos.longValue())
+            );
+            builder.humanReadableField(
+                "time_compiling_condition_millis",
+                "time_compiling_condition",
+                TimeValue.timeValueNanos(timeCompilingConditionInNanos.longValue())
+            );
             builder.endObject();
             return builder;
         }
@@ -469,9 +516,9 @@ public class SamplingService implements ClusterStateListener {
             out.writeLong(samplesRejectedForRate.longValue());
             out.writeLong(samplesRejectedForException.longValue());
             out.writeLong(samples.longValue());
-            out.writeLong(timeSampling.longValue());
-            out.writeLong(timeEvaluatingCondition.longValue());
-            out.writeLong(timeCompilingCondition.longValue());
+            out.writeLong(timeSamplingInNanos.longValue());
+            out.writeLong(timeEvaluatingConditionInNanos.longValue());
+            out.writeLong(timeCompilingConditionInNanos.longValue());
             if (lastException == null) {
                 out.writeBoolean(false);
             } else {
@@ -511,18 +558,23 @@ public class SamplingService implements ClusterStateListener {
             if (samplesRejectedForException.longValue() != that.samplesRejectedForException.longValue()) {
                 return false;
             }
-            if (timeSampling.longValue() != that.timeSampling.longValue()) {
+            if (timeSamplingInNanos.longValue() != that.timeSamplingInNanos.longValue()) {
                 return false;
             }
-            if (timeEvaluatingCondition.longValue() != that.timeEvaluatingCondition.longValue()) {
+            if (timeEvaluatingConditionInNanos.longValue() != that.timeEvaluatingConditionInNanos.longValue()) {
                 return false;
             }
-            if (timeCompilingCondition.longValue() != that.timeCompilingCondition.longValue()) {
+            if (timeCompilingConditionInNanos.longValue() != that.timeCompilingConditionInNanos.longValue()) {
                 return false;
             }
             return exceptionsAreEqual(lastException, that.lastException);
         }
 
+        /*
+         * This is used because most Exceptions do not have an equals or hashCode, and cause trouble when testing for equality in
+         * serialization unit tests. This method returns true if the exceptions are the same class and have the same message. This is good
+         * enough for serialization unit tests.
+         */
         private boolean exceptionsAreEqual(Exception e1, Exception e2) {
             if (e1 == null && e2 == null) {
                 return true;
@@ -533,6 +585,10 @@ public class SamplingService implements ClusterStateListener {
             return e1.getClass().equals(e2.getClass()) && e1.getMessage().equals(e2.getMessage());
         }
 
+        /*
+         * equals and hashCode are implemented for the sake of testing serialization. Since this class is mutable, these ought to never be
+         * used outside of testing.
+         */
         @Override
         public int hashCode() {
             return Objects.hash(
@@ -542,9 +598,9 @@ public class SamplingService implements ClusterStateListener {
                 samplesRejectedForCondition.longValue(),
                 samplesRejectedForRate.longValue(),
                 samplesRejectedForException.longValue(),
-                timeSampling.longValue(),
-                timeEvaluatingCondition.longValue(),
-                timeCompilingCondition.longValue()
+                timeSamplingInNanos.longValue(),
+                timeEvaluatingConditionInNanos.longValue(),
+                timeCompilingConditionInNanos.longValue()
             ) + hashException(lastException);
         }
 
@@ -553,6 +609,25 @@ public class SamplingService implements ClusterStateListener {
                 return 0;
             } else {
                 return Objects.hash(e.getClass(), e.getMessage());
+            }
+        }
+
+        /*
+         * If the sample stats report more raw documents than the maximum size allowed for this sample, then this method creates a new
+         * cloned copy of the stats, but with the reported samples lowered to maxSize, and the reported rejected documents increased by the
+         * same amount. This avoids the confusing situation of the stats reporting more samples than the user has configured. This can
+         * happen in a multi-node cluster when each node has collected fewer than maxSize raw documents but the total across all nodes is
+         * greater than maxSize.
+         */
+        public SampleStats adjustForMaxSize(int maxSize) {
+            long actualSamples = samples.longValue();
+            if (actualSamples > maxSize) {
+                SampleStats adjusted = new SampleStats().combine(this);
+                adjusted.samples.add(maxSize - actualSamples);
+                adjusted.samplesRejectedForMaxSamplesExceeded.add(actualSamples - maxSize);
+                return adjusted;
+            } else {
+                return this;
             }
         }
     }

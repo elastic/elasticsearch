@@ -234,7 +234,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
             TransportVersion minTransportVersion = clusterState.getMinTransportVersion();
             new AbstractSearchAsyncAction<>(
-                actionName,
+                "open_pit",
                 logger,
                 namedWriteableRegistry,
                 searchTransportService,

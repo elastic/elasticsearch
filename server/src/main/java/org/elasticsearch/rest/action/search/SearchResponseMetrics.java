@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -43,42 +44,38 @@ public class SearchResponseMetrics {
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
-    public static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.query.duration.histogram";
+
+    private static final String SEARCH_PHASE_METRIC_FORMAT = "es.search_response.coordinator_phases.%s.duration.histogram";
+    private static final List<String> SEARCH_PHASE_NAMES = List.of("dfs", "open_pit", "query");
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
-    private final LongHistogram queryPhaseDurationHistogram;
+
+    private final Map<String, LongHistogram> phaseNameToDurationHistogram = new HashMap<>();
 
     public SearchResponseMetrics(MeterRegistry meterRegistry) {
-        this(
-            meterRegistry.registerLongHistogram(
-                TOOK_DURATION_TOTAL_HISTOGRAM_NAME,
-                "The SearchResponse.took durations in milliseconds, expressed as a histogram",
-                "millis"
-            ),
-            meterRegistry.registerLongCounter(
-                RESPONSE_COUNT_TOTAL_COUNTER_NAME,
-                "The cumulative total of search responses with an attribute to describe "
-                    + "success, partial failure, or failure, expressed as a single total counter and individual "
-                    + "attribute counters",
-                "count"
-            ),
-            meterRegistry.registerLongHistogram(
-                QUERY_SEARCH_PHASE_METRIC,
-                "Query search phase execution times at the coordinator level, expressed as a histogram",
-                "millis"
-            )
+        this.tookDurationTotalMillisHistogram = meterRegistry.registerLongHistogram(
+            TOOK_DURATION_TOTAL_HISTOGRAM_NAME,
+            "The SearchResponse.took durations in milliseconds, expressed as a histogram",
+            "millis"
         );
-    }
+        this.responseCountTotalCounter = meterRegistry.registerLongCounter(
+            RESPONSE_COUNT_TOTAL_COUNTER_NAME,
+            "The cumulative total of search responses with an attribute to describe "
+                + "success, partial failure, or failure, expressed as a single total counter and individual "
+                + "attribute counters",
+            "count"
+        );
 
-    private SearchResponseMetrics(
-        LongHistogram tookDurationTotalMillisHistogram,
-        LongCounter responseCountTotalCounter,
-        LongHistogram queryPhaseDurationHistogram
-    ) {
-        this.tookDurationTotalMillisHistogram = tookDurationTotalMillisHistogram;
-        this.responseCountTotalCounter = responseCountTotalCounter;
-        this.queryPhaseDurationHistogram = queryPhaseDurationHistogram;
+        for (String phaseName : SEARCH_PHASE_NAMES) {
+            String metricName = String.format(SEARCH_PHASE_METRIC_FORMAT, phaseName);
+            LongHistogram histogram = meterRegistry.registerLongHistogram(
+                metricName,
+                "The search phase " + phaseName + " duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            );
+            phaseNameToDurationHistogram.put(phaseName, histogram);
+        }
     }
 
     public long recordTookTimeForSearchScroll(long tookTime) {
@@ -105,7 +102,10 @@ public class SearchResponseMetrics {
         responseCountTotalCounter.incrementBy(1L, attributesWithStatus);
     }
 
-    public void recordQueryPhaseDuration(long tookInNanos) {
-        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+    public void recordSearchPhaseDuration(String phaseName, long tookInNanos) {
+        LongHistogram queryPhaseDurationHistogram = phaseNameToDurationHistogram.get(phaseName);
+        if (queryPhaseDurationHistogram != null) {
+            queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        }
     }
 }

@@ -9,11 +9,19 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -25,7 +33,6 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.rest.action.search.SearchResponseMetrics.QUERY_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -34,6 +41,10 @@ import static org.hamcrest.Matchers.hasSize;
 public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_coordinator_search_phase_metrics";
     private final int num_primaries = randomIntBetween(2, 7);
+
+    private static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.query.duration.histogram";
+    private static final String DFS_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.dfs.duration.histogram";
+    private static final String OPEN_PIT_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.open_pit.duration.histogram";
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -65,12 +76,41 @@ public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
         return pluginList(TestTelemetryPlugin.class);
     }
 
-    public void testSearchQueryThenFetch() throws InterruptedException {
+    public void testSearchQueryThenFetch() {
         assertSearchHitsWithoutFailures(
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
         assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, TOOK_DURATION_TOTAL_HISTOGRAM_NAME));
+    }
+
+    public void testDfsSearch() {
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
+            "1"
+        );
+        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC, TOOK_DURATION_TOTAL_HISTOGRAM_NAME));
+    }
+
+    public void testPointInTime() {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(10));
+        OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        BytesReference pointInTimeId = response.getPointInTimeId();
+
+        try {
+            assertSearchHitsWithoutFailures(
+                client().prepareSearch()
+                    .setPointInTime(new PointInTimeBuilder(pointInTimeId))
+                    .setSize(1)
+                    .setQuery(simpleQueryStringQuery("doc1")),
+                "1"
+            );
+            final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+            assertEquals(1, queryMeasurements.size());
+            assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC));
+        } finally {
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();
+        }
     }
 
     private void resetMeter() {

@@ -569,13 +569,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    @Override
-    protected void onPhaseDone() {
-        final long tookInNanos = System.nanoTime() - phaseStartTimeNanos;
-        searchResponseMetrics.recordQueryPhaseDuration(tookInNanos);
-        super.onPhaseDone();
-    }
-
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     static void registerNodeSearchAction(

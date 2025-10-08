@@ -7,17 +7,21 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
-import java.util.function.Predicate;
+import java.time.ZoneId;
 
-public enum QuerySettings {
+public class QuerySettings {
     // TODO check cluster state and see if project routing is allowed
     // see https://github.com/elastic/elasticsearch/pull/134446
     // PROJECT_ROUTING(..., state -> state.getRemoteClusterNames().crossProjectEnabled());
-    PROJECT_ROUTING(
+    public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
         true,
@@ -25,78 +29,41 @@ public enum QuerySettings {
         true,
         "A project routing expression, "
             + "used to define which projects to route the query to. "
-            + "Only supported if Cross-Project Search is enabled."
-    ),;
+            + "Only supported if Cross-Project Search is enabled.",
+        (value, settings) -> Foldables.stringLiteralValueOf(value, "Unexpected value")
+    );
 
-    private String settingName;
-    private DataType type;
-    private final boolean serverlessOnly;
-    private final boolean snapshotOnly;
-    private final boolean preview;
-    private final String description;
-    private final Predicate<RemoteClusterService> validator;
+    public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
+        "time_zone",
+        DataType.KEYWORD,
+        false,
+        true,
+        true,
+        "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC",
+        (value, _rcs) -> {
+            String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            try {
+                return ZoneId.of(timeZone);
+            } catch (Exception exc) {
+                throw new QlIllegalArgumentException("Invalid time zone [" + timeZone + "]");
+            }
+        }
+    );
 
-    QuerySettings(
-        String name,
-        DataType type,
-        boolean serverlessOnly,
-        boolean preview,
-        boolean snapshotOnly,
-        String description,
-        Predicate<RemoteClusterService> validator
-    ) {
-        this.settingName = name;
-        this.type = type;
-        this.serverlessOnly = serverlessOnly;
-        this.preview = preview;
-        this.snapshotOnly = snapshotOnly;
-        this.description = description;
-        this.validator = validator;
-    }
-
-    QuerySettings(String name, DataType type, boolean serverlessOnly, boolean preview, boolean snapshotOnly, String description) {
-        this(name, type, serverlessOnly, preview, snapshotOnly, description, state -> true);
-    }
-
-    public String settingName() {
-        return settingName;
-    }
-
-    public DataType type() {
-        return type;
-    }
-
-    public boolean serverlessOnly() {
-        return serverlessOnly;
-    }
-
-    public boolean snapshotOnly() {
-        return snapshotOnly;
-    }
-
-    public boolean preview() {
-        return preview;
-    }
-
-    public String description() {
-        return description;
-    }
-
-    public Predicate<RemoteClusterService> validator() {
-        return validator;
-    }
+    public static final QuerySettingDef<?>[] ALL_SETTINGS = { PROJECT_ROUTING, TIME_ZONE };
 
     public static void validate(EsqlStatement statement, RemoteClusterService clusterService) {
         for (QuerySetting setting : statement.settings()) {
             boolean found = false;
-            for (QuerySettings qs : values()) {
-                if (qs.settingName().equals(setting.name())) {
+            for (QuerySettingDef<?> def : ALL_SETTINGS) {
+                if (def.name().equals(setting.name())) {
                     found = true;
-                    if (setting.value().dataType() != qs.type()) {
-                        throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + qs.type());
+                    if (setting.value().dataType() != def.type()) {
+                        throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
                     }
-                    if (qs.validator().test(clusterService) == false) {
-                        throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is not allowed");
+                    String error = def.validator().validate(setting.value(), clusterService);
+                    if (error != null) {
+                        throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
                     }
                     break;
                 }
@@ -104,6 +71,71 @@ public enum QuerySettings {
             if (found == false) {
                 throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
             }
+        }
+    }
+
+    /**
+     * Definition of a query setting.
+     *
+     * @param name The name to be used when setting it in the query. E.g. {@code SET name=value}
+     * @param type The allowed datatype of the setting.
+     * @param serverlessOnly
+     * @param preview
+     * @param snapshotOnly
+     * @param description The user-facing description of the setting.
+     * @param validator A validation function to check the setting value.
+     *                  Defaults to calling the {@link #parser} and returning the error message of any exception it throws.
+     * @param parser A function to parse the setting value into the final object.
+     * @param <T> The type of the setting value.
+     */
+    public record QuerySettingDef<T>(
+        String name,
+        DataType type,
+        boolean serverlessOnly,
+        boolean preview,
+        boolean snapshotOnly,
+        String description,
+        Validator validator,
+        Parser<T> parser
+    ) {
+        public QuerySettingDef(
+            String name,
+            DataType type,
+            boolean serverlessOnly,
+            boolean preview,
+            boolean snapshotOnly,
+            String description,
+            Parser<T> parser
+        ) {
+            this(name, type, serverlessOnly, preview, snapshotOnly, description, (value, rcs) -> {
+                try {
+                    parser.parse(value, rcs);
+                    return null;
+                } catch (Exception exc) {
+                    return exc.getMessage();
+                }
+            }, parser);
+        }
+
+        public T get(Expression value, RemoteClusterService clusterService) {
+            return parser.parse(value, clusterService);
+        }
+
+        @FunctionalInterface
+        public interface Validator {
+            /**
+             * Validates the setting value and returns the error message if there's an error, or null otherwise.
+             */
+            @Nullable
+            String validate(Expression value, RemoteClusterService clusterService);
+        }
+
+        @FunctionalInterface
+        public interface Parser<T> {
+            /**
+             * Parses an already validated expression.
+             */
+            T parse(Expression value, RemoteClusterService clusterService);
         }
     }
 }

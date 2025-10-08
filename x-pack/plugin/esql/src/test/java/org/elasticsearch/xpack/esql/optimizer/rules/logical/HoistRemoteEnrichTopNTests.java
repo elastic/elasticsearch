@@ -65,6 +65,47 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         as(innerTopN.child(), Eval.class);
     }
 
+    /** <pre>
+     * Project[[_meta_field{f}#16, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19, languages{f}#13
+     * , last_name{f}#14, long_noidx{f}#20, salary{f}#15, id{r}#4, emp_no{r}#8, language_code{r}#24, language_name{r}#25]]
+     * \_TopN[[Order[$$emp_no$temp_name$26{r$}#27,ASC,LAST]],10[INTEGER],false]
+     *   \_Enrich[REMOTE,languages_remote[KEYWORD],id{r}#4,{"match":{"indices":[],"match_field":"id","enrich_fields":["language_cod
+     * e","language_name"]}},{=languages_idx},[language_code{r}#24, language_name{r}#25]]
+     *     \_Eval[[emp_no{f}#10 + 1[INTEGER] AS emp_no#8]]
+     *       \_Eval[[emp_no{f}#10 AS $$emp_no$temp_name$26#27]]
+     *         \_TopN[[Order[emp_no{f}#10,ASC,LAST]],10[INTEGER],true]
+     *           \_Eval[[emp_no{f}#10 AS id#4]]
+     *             \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * </pre>
+     */
+    public void testLimitWithinRemoteEnrichShadow() {
+        var plan = plan("""
+            from test
+            | EVAL id = emp_no
+            | SORT emp_no
+            | LIMIT 10
+            | EVAL emp_no = emp_no + 1
+            | ENRICH _remote:languages_remote
+            """);
+
+        var proj = as(plan, Project.class);
+        var topn = as(proj.child(), TopN.class);
+        assertFalse(topn.local());
+        var enrich = as(topn.child(), Enrich.class);
+        assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
+        // EVAL emp_no = emp_no + 1
+        var eval1 = as(enrich.child(), Eval.class);
+        var evalAlias = as(eval1.expressions().get(0), Alias.class);
+        assertThat(evalAlias.name(), equalTo("emp_no"));
+        // Generated aliasing Eval
+        var eval2 = as(eval1.child(), Eval.class);
+        var evalAlias2 = as(eval2.expressions().get(0), Alias.class);
+        var evalName2 = as(evalAlias2.child(), NamedExpression.class);
+        assertThat(evalName2.name(), equalTo("emp_no"));
+        var innerTopN = as(eval2.child(), TopN.class);
+        assertTrue(innerTopN.local());
+    }
+
     /**
      * Test case for aliasing within TopN + Enrich. This happens when Enrich had a field that overrides an existing field,
      * so we need to alias it.

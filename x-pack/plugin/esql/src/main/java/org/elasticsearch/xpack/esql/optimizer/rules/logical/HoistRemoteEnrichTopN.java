@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -39,13 +41,30 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
     @Override
     protected LogicalPlan rule(Enrich en) {
         if (en.mode() == Enrich.Mode.REMOTE) {
+            List<NamedExpression> generatedAttributes = new ArrayList<>(en.generatedAttributes());
             LogicalPlan plan = en.child();
-            // This loop only takes care of one TopN, repeated application will stack them in correct order.
+            // This loop only takes care of one TopN. Repeated TopNs may be a problem, we can't handle them here.
             while (true) {
-                if (plan instanceof TopN top && top.local() == false) {
+                if (plan instanceof GeneratingPlan<?> gen) {
+                    generatedAttributes.addAll(gen.generatedAttributes());
+                }
+                var outputs = en.output();
+                if (plan instanceof TopN topN && topN.local() == false) {
                     // Create a fake OrderBy and "push" Enrich through it to generate aliases
-                    Enrich topWithEnrich = (Enrich) en.replaceChild(new OrderBy(top.source(), en.child(), top.order()));
-                    LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(topWithEnrich);
+                    OrderBy fakeOrderBy = new OrderBy(topN.source(), topN.child(), topN.order());
+                    Enrich enrichWithOrderBy = new Enrich(
+                        en.source(),
+                        fakeOrderBy,
+                        en.mode(),
+                        en.policyName(),
+                        en.matchField(),
+                        en.policy(),
+                        en.concreteIndices(),
+                        // We add here all the attributes generated on the way, so if one of them is needed for ordering,
+                        // it will be aliased
+                        generatedAttributes
+                    );
+                    LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(enrichWithOrderBy);
                     // If we needed to alias any names, the result would look like this:
                     // Project[[host{f}#14, timestamp{f}#16, user{f}#15, ip{r}#19, os{r}#20]]
                     // \_OrderBy[[Order[timestamp{f}#16,ASC,LAST], Order[user{f}#15,ASC,LAST],
@@ -62,10 +81,10 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                         Enrich enrich = (Enrich) order.child();
                         Eval eval = (Eval) enrich.child();
                         // We insert the evals above the original TopN, so that the copy TopN works on the renamed fields
-                        LogicalPlan replacementTop = eval.replaceChild(top.withLocal(true));
+                        LogicalPlan replacementTop = eval.replaceChild(topN.withLocal(true));
                         LogicalPlan transformedEnrich = en.transformDown(p -> switch (p) {
-                            case TopN t when t == top -> replacementTop;
-                            // We only need to take care of Project because Drop can't drop our newly created fields
+                            case TopN t when t == topN -> replacementTop;
+                            // We only need to take care of Project because Drop can't possibly drop our newly created fields
                             case Project pr -> {
                                 List<NamedExpression> allFields = new LinkedList<>(pr.projections());
                                 allFields.addAll(eval.fields());
@@ -75,20 +94,20 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                         });
 
                         // Create the copied topN on top of the Enrich
-                        var copyTop = new TopN(top.source(), transformedEnrich, order.order(), top.limit(), false);
-                        // And use the project to remove the fields that we don't need anymore
-                        return proj.replaceChild(copyTop);
+                        var copyTop = new TopN(topN.source(), transformedEnrich, order.order(), topN.limit(), false);
+                        // And use the Project to remove the fields that we don't need anymore
+                        return new Project(en.source(), copyTop, en.output());
                     } else {
-                        // No need for aliasing - then it's simple, just copy the TopN on top and mark the original as local
-                        LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == top ? top.withLocal(true) : t);
-                        return new TopN(top.source(), transformedEnrich, top.order(), top.limit(), false);
+                        // No need for aliasing - then it's simple, just copy the TopN on top of Enrich and mark the original as local
+                        LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == topN ? topN.withLocal(true) : t);
+                        return new TopN(topN.source(), transformedEnrich, topN.order(), topN.limit(), false);
                     }
                 }
                 if ((plan instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a TopN from
                                                                      // under it
                     // this will fail the verifier anyway, so no need to continue
                     || (plan instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
-                    // This is essentially another remote Enrich, it can handle its own limits
+                    // This is another remote Enrich, it can handle its own limits
                     || (plan instanceof Enrich e && e.mode() == Enrich.Mode.REMOTE)
                     || plan instanceof PipelineBreaker) {
                     break;

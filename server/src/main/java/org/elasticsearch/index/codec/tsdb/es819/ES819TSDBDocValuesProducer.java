@@ -48,13 +48,12 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode.COMPRESSED_WITH_LZ4;
-import static org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode.NO_COMPRESS;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -199,7 +198,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         return switch (entry.compression) {
             case NO_COMPRESS -> getUncompressedBinary(entry);
-            case COMPRESSED_WITH_LZ4 -> getCompressedBinary(entry);
+            case COMPRESSED -> getCompressedBinary(entry);
         };
     }
 
@@ -383,6 +382,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     // Decompresses blocks of binary values to retrieve content
     static final class BinaryDecoder {
 
+        private final Zstd814StoredFieldsFormat.ZstdDecompressor decompressor;
         private final LongValues addresses;
         private final IndexInput compressedData;
         // Cache of last uncompressed block
@@ -403,6 +403,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             this.docsPerChunk = 1 << docsPerChunkShift;
             this.docsPerChunkShift = docsPerChunkShift;
             uncompressedDocStarts = new int[docsPerChunk + 1];
+            this.decompressor = new Zstd814StoredFieldsFormat.ZstdDecompressor();
         }
 
         BytesRef decode(int docNumber) throws IOException {
@@ -449,7 +450,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 assert uncompressedBlockLength <= uncompressedBlock.length;
-                LZ4.decompress(EndiannessReverserUtil.wrapDataInput(compressedData), uncompressedBlockLength, uncompressedBlock, 0);
+
+                DataInput input = EndiannessReverserUtil.wrapDataInput(compressedData);
+                BytesRef output = new BytesRef(uncompressedBlock, 0, uncompressedBlock.length);
+                decompressor.decompress(input, uncompressedBlockLength, 0, uncompressedBlockLength, output);
             }
 
             uncompressedBytesRef.offset = uncompressedDocStarts[docInBlockId];

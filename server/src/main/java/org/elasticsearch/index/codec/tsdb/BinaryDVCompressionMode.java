@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 public enum BinaryDVCompressionMode {
 
     NO_COMPRESS((byte) 0),
-    COMPRESSED_WITH_LZ4((byte) 1);
+    COMPRESSED((byte) 1);
 
     public final byte code;
 
@@ -22,7 +22,7 @@ public enum BinaryDVCompressionMode {
     public static BinaryDVCompressionMode fromMode(byte mode) {
         return switch (mode) {
             case 0 -> NO_COMPRESS;
-            case 1 -> COMPRESSED_WITH_LZ4;
+            case 1 -> COMPRESSED;
             default -> throw new IllegalStateException("unknown compression mode [" + mode + "]");
         };
     }

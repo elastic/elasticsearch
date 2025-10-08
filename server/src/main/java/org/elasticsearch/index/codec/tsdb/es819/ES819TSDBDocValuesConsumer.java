@@ -29,9 +29,11 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -46,9 +48,11 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -328,7 +332,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeByte(binaryDVCompressionMode.code);
         switch (binaryDVCompressionMode) {
             case NO_COMPRESS -> doAddUncompressedBinary(field, valuesProducer);
-            case COMPRESSED_WITH_LZ4 -> doAddCompressedBinaryLZ4(field, valuesProducer);
+            case COMPRESSED -> doAddCompressedBinary(field, valuesProducer);
         }
     }
 
@@ -461,7 +465,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
     }
 
-    public void doAddCompressedBinaryLZ4(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+    public void doAddCompressedBinary(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         try (CompressedBinaryBlockWriter blockWriter = new CompressedBinaryBlockWriter()) {
             BinaryDocValues values = valuesProducer.getBinary(field);
             long start = data.getFilePointer();
@@ -513,8 +517,18 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     static final int BINARY_BLOCK_SHIFT = 10;
     static final int BINARY_DOCS_PER_COMPRESSED_BLOCK = 1 << BINARY_BLOCK_SHIFT;
 
+    /**
+     *  best compression:
+     *      level=3
+     *      docs=1024 (stored fields use 2048)
+     *  best speed:
+     *      level=1
+     *      docs=128
+     */
+
     private class CompressedBinaryBlockWriter implements Closeable {
-        final LZ4.FastCompressionHashTable ht = new LZ4.FastCompressionHashTable();
+        Zstd814StoredFieldsFormat.ZstdCompressor compressor;
+
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
         int numDocsInCurrentBlock = 0;
@@ -527,6 +541,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final IndexOutput tempBinaryOffsets;
 
         CompressedBinaryBlockWriter() throws IOException {
+            compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(3);
             tempBinaryOffsets = EndiannessReverserUtil.createTempOutput(
                 state.directory,
                 state.segmentInfo.name,
@@ -590,7 +605,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     }
                 }
                 maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
-                LZ4.compress(block, 0, uncompressedBlockLength, EndiannessReverserUtil.wrapDataOutput(data), ht);
+
+                ByteBuffer inputBuffer = ByteBuffer.wrap(block, 0, uncompressedBlockLength);
+                ByteBuffersDataInput input = new ByteBuffersDataInput(List.of(inputBuffer));
+                DataOutput output = EndiannessReverserUtil.wrapDataOutput(data);
+                compressor.compress(input, output);
+
                 numDocsInCurrentBlock = 0;
                 // Ensure initialized with zeroes because full array is always written
                 Arrays.fill(docLengths, 0);

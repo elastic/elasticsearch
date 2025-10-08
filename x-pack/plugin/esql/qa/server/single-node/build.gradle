@@ -1,3 +1,4 @@
+apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 // Necessary to use tests in Serverless

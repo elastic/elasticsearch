@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -63,13 +64,21 @@ import java.util.function.Supplier;
 public class SamplingService implements ClusterStateListener {
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
-    private static final int MAX_SAMPLING_CONFIGURATIONS = 100;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
+
+
+    private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
+        "sampling.max_configurations_per_project",
+        100,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
@@ -792,13 +801,15 @@ public class SamplingService implements ClusterStateListener {
 
             boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
 
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
+
             // Check if adding a new configuration would exceed the maximum allowed
-            if (isUpdate == false && updatedConfigMap.size() >= MAX_SAMPLING_CONFIGURATIONS) {
+            if (isUpdate == false && updatedConfigMap.size() >= maxConfigurations) {
                 throw new IllegalStateException(
                     "Cannot add sampling configuration for index ["
                         + updateSamplingConfigurationTask.indexName
                         + "]. Maximum number of sampling configurations ("
-                        + MAX_SAMPLING_CONFIGURATIONS
+                        + maxConfigurations
                         + ") already reached."
                 );
             }

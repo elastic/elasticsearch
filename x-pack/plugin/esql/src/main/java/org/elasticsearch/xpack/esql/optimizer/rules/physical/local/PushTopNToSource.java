@@ -179,9 +179,10 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     distances.put(alias.id(), distance);
                 } else if (alias.child() instanceof Attribute attr) {
                     aliasReplacedByBuilder.put(alias.toAttribute(), attr.toAttribute());
-                } else if (alias.child().pushableOptions() == Expression.PushableOptions.PREFERRED) {
-                    pushableExpressions.put(alias.id(), alias);
-                }
+                } else if (alias.child().dataType().isNumeric()
+                    && (alias.child().pushableOptions() == Expression.PushableOptions.PREFERRED)) {
+                        pushableExpressions.put(alias.id(), alias);
+                    }
             });
             AttributeMap<Attribute> aliasReplacedBy = aliasReplacedByBuilder.build();
 

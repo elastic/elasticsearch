@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Exception indicating a cluster state update was published but not committed to all nodes.
+ * Exception indicating a cluster state update was published and may or may not have been committed.
  * <p>
  * If this exception is thrown, then the cluster state update was published, but is not guaranteed
- * to be committed on any nodes, including the next master node. This exception should only be thrown when there is
+ * to be committed, including the next master node. This exception should only be thrown when there is
  * <i>ambiguity</i> whether a cluster state update has been committed.
  * <p>
  * For exceptions thrown prior to publication,

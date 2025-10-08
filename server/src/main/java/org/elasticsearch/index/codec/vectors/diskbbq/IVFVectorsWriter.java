@@ -532,7 +532,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return numVectors;
     }
 
-
     private static int distFuncToOrd(VectorSimilarityFunction func) {
         for (int i = 0; i < SIMILARITY_FUNCTIONS.size(); i++) {
             if (SIMILARITY_FUNCTIONS.get(i).equals(func)) {

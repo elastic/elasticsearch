@@ -16,10 +16,10 @@ import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Map;

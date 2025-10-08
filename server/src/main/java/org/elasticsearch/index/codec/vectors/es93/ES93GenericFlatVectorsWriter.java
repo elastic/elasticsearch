@@ -22,21 +22,28 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
-    private final IndexOutput metaOut;
+    private final String rawVectorFormatName;
+    private final boolean useDirectIOReads;
     private final FlatVectorsWriter rawVectorWriter;
+    private final IndexOutput metaOut;
+    private final List<Integer> fieldNumbers = new ArrayList<>();
 
     @SuppressWarnings("this-escape")
     ES93GenericFlatVectorsWriter(
         GenericFormatMetaInformation metaInfo,
-        String knnFormatName,
+        String rawVectorsFormatName,
         boolean useDirectIOReads,
         SegmentWriteState state,
         FlatVectorsWriter rawWriter
     ) throws IOException {
         super(rawWriter.getFlatVectorScorer());
+        this.rawVectorFormatName = rawVectorsFormatName;
+        this.useDirectIOReads = useDirectIOReads;
         this.rawVectorWriter = rawWriter;
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
         try {
@@ -48,9 +55,6 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
-            // write the format name used for this segment
-            metaOut.writeString(knnFormatName);
-            metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;
@@ -59,7 +63,9 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        return rawVectorWriter.addField(fieldInfo);
+        var writer = rawVectorWriter.addField(fieldInfo);
+        fieldNumbers.add(fieldInfo.number);
+        return writer;
     }
 
     @Override
@@ -75,6 +81,12 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     @Override
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorWriter.flush(maxDoc, sortMap);
+
+        for (Integer field : fieldNumbers) {
+            metaOut.writeInt(field);
+            metaOut.writeString(rawVectorFormatName);
+            metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        }
     }
 
     @Override
@@ -82,6 +94,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         rawVectorWriter.finish();
 
         if (metaOut != null) {
+            metaOut.writeInt(-1);   // no more fields
             CodecUtil.writeFooter(metaOut);
         }
     }

@@ -12,13 +12,17 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
-public class GenericFieldHelper {
+public class GenericFlatVectorReaders {
 
     public interface Field {
         String rawVectorFormatName();
+
         boolean useDirectIOReads();
     }
 
@@ -38,15 +42,10 @@ public class GenericFieldHelper {
         }
     }
 
-    private final LoadFlatVectorsReader loadReader;
     private final Map<FlatVectorsReaderKey, FlatVectorsReader> readers = new HashMap<>();
     private final Map<Integer, FlatVectorsReader> readersForFields = new HashMap<>();
 
-    public GenericFieldHelper(LoadFlatVectorsReader loadReader) {
-        this.loadReader = loadReader;
-    }
-
-    public void addField(int fieldNumber, Field field) throws IOException {
+    public void loadField(int fieldNumber, Field field, LoadFlatVectorsReader loadReader) throws IOException {
         FlatVectorsReaderKey key = new FlatVectorsReaderKey(field);
         FlatVectorsReader reader = readers.get(key);
         if (reader == null) {
@@ -59,7 +58,31 @@ public class GenericFieldHelper {
         readersForFields.put(fieldNumber, reader);
     }
 
-    public Map<Integer, FlatVectorsReader> getReadersForFields() {
-        return readersForFields;
+    public FlatVectorsReader getReaderForField(int fieldNumber) {
+        FlatVectorsReader reader = readersForFields.get(fieldNumber);
+        if (reader == null) {
+            throw new IllegalArgumentException("Invalid field number [" + fieldNumber + "]");
+        }
+        return reader;
+    }
+
+    public Collection<FlatVectorsReader> allReaders() {
+        return Collections.unmodifiableCollection(readers.values());
+    }
+
+    public GenericFlatVectorReaders getMergeInstance() throws IOException {
+        GenericFlatVectorReaders mergeReaders = new GenericFlatVectorReaders();
+
+        Map<FlatVectorsReader, FlatVectorsReader> mergeInstances = new IdentityHashMap<>();
+        for (var reader : readers.entrySet()) {
+            FlatVectorsReader mergeInstance = reader.getValue().getMergeInstance();
+            mergeInstances.put(reader.getValue(), mergeInstance);
+            mergeReaders.readers.put(reader.getKey(), mergeInstance);
+        }
+        // link up the fields to the merge readers
+        for (var field : readersForFields.entrySet()) {
+            mergeReaders.readersForFields.put(field.getKey(), mergeInstances.get(field.getValue()));
+        }
+        return mergeReaders;
     }
 }

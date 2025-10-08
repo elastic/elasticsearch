@@ -30,6 +30,9 @@ public class TruncatedOutputStream extends FilterOutputStream {
         this.maxSize = maxSize;
     }
 
+    /**
+     * @return True if there is at least one byte of space left to write
+     */
     public boolean hasCapacity() {
         if (hasCapacity) {
             hasCapacity = currentSizeSupplier.getAsInt() < maxSize;
@@ -37,6 +40,12 @@ public class TruncatedOutputStream extends FilterOutputStream {
         return hasCapacity;
     }
 
+    /**
+     * If there is at least one byte of space left in the stream then write the byte
+     * @param b The byte to write to the underlying stream
+     * @throws IOException – if an I/O error occurs. In particular, an IOException
+     * may be thrown if the output stream has been closed.
+     */
     @Override
     public void write(int b) throws IOException {
         if (hasCapacity()) {
@@ -44,6 +53,13 @@ public class TruncatedOutputStream extends FilterOutputStream {
         }
     }
 
+    /**
+     * If there is at least one byte of space left in the stream then writes the byte stream.
+     * Therefore, up to b.length - 1 bytes will overflow.
+     * @param b The bytes to write to the underlying stream
+     * @throws IOException – if an I/O error occurs. In particular, an IOException
+     * may be thrown if the output stream has been closed.
+     */
     @Override
     public void write(byte[] b) throws IOException {
         if (hasCapacity()) {
@@ -51,6 +67,15 @@ public class TruncatedOutputStream extends FilterOutputStream {
         }
     }
 
+    /**
+     * If there is at least one byte of space left in the stream then writes the byte stream.
+     * Therefore, up to len - 1 bytes will overflow.
+     * @param b The byte array to write from
+     * @param off The index of the first byte to write.
+     * @param len The number of bytes to write
+     * @throws IOException – if an I/O error occurs. In particular, an IOException
+     * may be thrown if the output stream has been closed.
+     */
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         if (hasCapacity()) {

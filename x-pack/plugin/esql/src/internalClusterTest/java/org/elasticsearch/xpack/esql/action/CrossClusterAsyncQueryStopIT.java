@@ -271,7 +271,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
     // What happens here is when we run stop on subquery, the main query will still finish.
     // TODO: should we have a way to stop the main query as well?
-    public void testStopQueryInlinestats() throws Exception {
+    public void testStopQueryInlineStats() throws Exception {
         assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         // Create large index so we could be sure we're stopping before the end
@@ -282,7 +282,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
         final String asyncExecutionId = startAsyncQueryWithPragmas(
             client(),
-            "FROM logs-*,remote-b:blocking | INLINESTATS total=sum(coalesce(const,v)) | KEEP total,foo | LIMIT 100",
+            "FROM logs-*,remote-b:blocking | INLINE STATS total=sum(coalesce(const,v)) | KEEP total,foo | LIMIT 100",
             includeCCSMetadata.v1(),
             Map.of("page_size", 1, "data_partitioning", "shard", "task_concurrency", 1)
         );
@@ -314,9 +314,13 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 assertThat(asyncResponse.columns().size(), equalTo(2));
                 AtomicInteger i = new AtomicInteger(0);
                 asyncResponse.values().forEachRemaining(row -> {
-                    // We will have all rows here but total will be null since we stopped the inline stats before it could complete
-                    assertThat(row.next(), equalTo(null));
                     var v = row.next();
+                    // The sum could be null, if the stats did not manage to compute anything before being stopped
+                    // Or it could be 45L if it managed to add 0-9
+                    if (v != null) {
+                        assertThat((long) v, equalTo(45L));
+                    }
+                    v = row.next();
                     if (v != null) {
                         assertThat((long) v, lessThanOrEqualTo(10L));
                     }

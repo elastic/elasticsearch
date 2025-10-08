@@ -100,4 +100,6 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("logsdb/10_settings/end time not allowed in logs mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("tsdb/10_settings/set start_time and end_time without timeseries mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("tsdb/10_settings/set start_time, end_time and routing_path via put settings api without time_series mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
 })

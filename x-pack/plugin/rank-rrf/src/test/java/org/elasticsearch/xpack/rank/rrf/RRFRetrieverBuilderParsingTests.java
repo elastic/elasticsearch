@@ -51,7 +51,14 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         List<String> fields = null;
         String query = null;
         if (randomBoolean()) {
-            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            fields = randomList(1, 10, () -> {
+                String field = randomAlphaOfLengthBetween(1, 10);
+                if (randomBoolean()) {
+                    float weight = randomFloatBetween(0.0f, 10.1f, true);
+                    field = field + "^" + weight;
+                }
+                return field;
+            });
             query = randomAlphaOfLengthBetween(1, 10);
         }
 
@@ -357,6 +364,36 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             """;
 
         expectParsingException(retrieverAsStringContent, "retriever must be an object");
+    }
+
+    public void testSimplifiedWeightedFieldsParsing() throws IOException {
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "test": {
+                        "value": "foo"
+                      }
+                    },
+                    {
+                      "test": {
+                        "value": "bar"
+                      }
+                    }
+                  ],
+                  "fields": ["name^2.0", "description^0.5"],
+                  "query": "test",
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+        checkRRFRetrieverParsing(restContent);
     }
 
     private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {

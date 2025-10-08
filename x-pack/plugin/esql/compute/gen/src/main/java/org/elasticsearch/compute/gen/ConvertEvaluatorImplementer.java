@@ -13,6 +13,10 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.FixedArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -61,14 +65,14 @@ public class ConvertEvaluatorImplementer {
         this.processFunction = new EvaluatorImplementer.ProcessFunction(types, processFunction, warnExceptions);
         this.canProcessOrdinals = warnExceptions.isEmpty()
             && this.processFunction.returnType().equals(BYTES_REF)
-            && this.processFunction.args.getFirst() instanceof EvaluatorImplementer.StandardProcessFunctionArg s
+            && this.processFunction.args.getFirst() instanceof StandardArgument s
             && s.type().equals(BYTES_REF);
 
-        if (this.processFunction.args.getFirst() instanceof EvaluatorImplementer.StandardProcessFunctionArg == false) {
+        if (this.processFunction.args.getFirst() instanceof StandardArgument == false) {
             throw new IllegalArgumentException("first argument must be the field to process");
         }
         for (int a = 1; a < this.processFunction.args.size(); a++) {
-            if (this.processFunction.args.get(a) instanceof EvaluatorImplementer.FixedProcessFunctionArg == false) {
+            if (this.processFunction.args.get(a) instanceof FixedArgument == false) {
                 throw new IllegalArgumentException("fixed function args supported after the first");
                 // TODO support more function types when we need them
             }
@@ -101,7 +105,7 @@ public class ConvertEvaluatorImplementer {
         builder.superclass(ABSTRACT_CONVERT_FUNCTION_EVALUATOR);
         builder.addField(baseRamBytesUsed(implementation));
 
-        for (EvaluatorImplementer.ProcessFunctionArg a : processFunction.args) {
+        for (Argument a : processFunction.args) {
             a.declareField(builder);
         }
         builder.addMethod(ctor());
@@ -124,7 +128,7 @@ public class ConvertEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(SOURCE, "source");
         builder.addStatement("super(driverContext, source)");
-        for (EvaluatorImplementer.ProcessFunctionArg a : processFunction.args) {
+        for (Argument a : processFunction.args) {
             a.implementCtor(builder);
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
@@ -134,7 +138,7 @@ public class ConvertEvaluatorImplementer {
     private MethodSpec next() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("next").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.returns(EXPRESSION_EVALUATOR);
-        builder.addStatement("return $N", ((EvaluatorImplementer.StandardProcessFunctionArg) processFunction.args.getFirst()).name());
+        builder.addStatement("return $N", ((StandardArgument) processFunction.args.getFirst()).name());
         return builder.build();
     }
 

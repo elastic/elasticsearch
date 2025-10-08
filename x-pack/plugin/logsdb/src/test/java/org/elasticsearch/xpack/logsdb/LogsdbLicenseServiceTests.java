@@ -60,23 +60,23 @@ public class LogsdbLicenseServiceTests extends ESTestCase {
         Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
     }
 
-    public void testAllowPatternedTextTemplating() {
+    public void testAllowPatternTextTemplating() {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_TEMPLATING_FEATURE))).thenReturn(true);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERN_TEXT_TEMPLATING_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertTrue(licenseService.allowPatternedTextTemplating(false));
+        assertTrue(licenseService.allowPatternTextTemplating(false));
         Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
     }
 
-    public void testAllowPatternedTextTemplatingTemplateValidation() {
+    public void testAllowPatternTextTemplatingTemplateValidation() {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_TEMPLATING_FEATURE))).thenReturn(true);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERN_TEXT_TEMPLATING_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertTrue(licenseService.allowPatternedTextTemplating(true));
+        assertTrue(licenseService.allowPatternTextTemplating(true));
         Mockito.verify(licenseState, never()).featureUsed(any());
     }
 

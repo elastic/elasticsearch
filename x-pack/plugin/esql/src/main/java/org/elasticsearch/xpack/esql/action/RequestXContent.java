@@ -80,6 +80,7 @@ final class RequestXContent {
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
     private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
     private static final ParseField INCLUDE_CCS_METADATA_FIELD = new ParseField("include_ccs_metadata");
+    private static final ParseField INCLUDE_EXECUTION_METADATA_FIELD = new ParseField("include_execution_metadata");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
@@ -105,6 +106,7 @@ final class RequestXContent {
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
         parser.declareBoolean(EsqlQueryRequest::includeCCSMetadata, INCLUDE_CCS_METADATA_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::includeExecutionMetadata, INCLUDE_EXECUTION_METADATA_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
@@ -220,6 +222,18 @@ final class RequestXContent {
                     }
                 }
             }
+        } else {
+            errors.add(
+                new XContentParseException(
+                    "Unexpected token ["
+                        + token
+                        + "] at "
+                        + p.getTokenLocation()
+                        + ", expected "
+                        + XContentParser.Token.START_ARRAY
+                        + ". Please check documentation for the correct format of the 'params' field."
+                )
+            );
         }
         // don't allow mixed named and unnamed parameters
         if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {

@@ -76,29 +76,31 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (suffixBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (suffixBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (suffixBlock.getValueCount(p) != 1) {
-          if (suffixBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBoolean(EndsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch)));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef suffix = suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch);
+        result.appendBoolean(EndsWith.process(str, suffix));
       }
       return result.build();
     }
@@ -110,7 +112,9 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef suffix = suffixVector.getBytesRef(p, suffixScratch);
+        result.appendBoolean(p, EndsWith.process(str, suffix));
       }
       return result.build();
     }

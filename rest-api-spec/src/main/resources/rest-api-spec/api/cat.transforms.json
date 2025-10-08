@@ -37,17 +37,14 @@
     "params": {
       "from": {
         "type": "int",
-        "required": false,
         "description": "skips a number of transform configs, defaults to 0"
       },
       "size": {
         "type": "int",
-        "required": false,
         "description": "specifies a max number of transforms to get, defaults to 100"
       },
       "allow_no_match": {
         "type": "boolean",
-        "required": false,
         "description": "Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
       },
       "format": {
@@ -85,6 +82,18 @@
         "type": "boolean",
         "description": "Verbose mode. Display column headers",
         "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
       }
     }
   }

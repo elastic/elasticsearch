@@ -83,7 +83,7 @@ public class LogsdbRestIT extends ESRestTestCase {
                 if (feature.get("family") != null) {
                     assertThat(
                         feature.get("name"),
-                        anyOf(equalTo("synthetic-source"), equalTo("logsdb-routing-on-sort-fields"), equalTo("patterned-text-templating"))
+                        anyOf(equalTo("synthetic-source"), equalTo("logsdb-routing-on-sort-fields"), equalTo("pattern-text-templating"))
                     );
                     assertThat(feature.get("license_level"), equalTo("enterprise"));
                     found = true;

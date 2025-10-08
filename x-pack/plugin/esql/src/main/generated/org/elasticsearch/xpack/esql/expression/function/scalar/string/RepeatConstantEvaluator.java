@@ -71,19 +71,20 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         try {
-          result.appendBytesRef(Repeat.processConstantNumber(this.scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.number));
+          result.appendBytesRef(Repeat.processConstantNumber(this.scratch, str, this.number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -97,8 +98,9 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef str = strVector.getBytesRef(p, strScratch);
         try {
-          result.appendBytesRef(Repeat.processConstantNumber(this.scratch, strVector.getBytesRef(p, strScratch), this.number));
+          result.appendBytesRef(Repeat.processConstantNumber(this.scratch, str, this.number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +42,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING;
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING_8_19;
 
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
@@ -305,6 +301,8 @@ public abstract class LuceneOperator extends SourceOperator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
+
         private final int processedSlices;
         private final Set<String> processedQueries;
         private final Set<String> processedShards;
@@ -375,14 +373,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                processedQueries = in.readCollectionAsSet(StreamInput::readString);
-                processedShards = in.readCollectionAsSet(StreamInput::readString);
-            } else {
-                processedQueries = Collections.emptySet();
-                processedShards = Collections.emptySet();
-            }
-            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+            processedQueries = in.readCollectionAsSet(StreamInput::readString);
+            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -402,13 +395,9 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeCollection(processedQueries, StreamOutput::writeString);
-                out.writeCollection(processedShards, StreamOutput::writeString);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeVLong(processNanos);
-            }
+            out.writeCollection(processedQueries, StreamOutput::writeString);
+            out.writeCollection(processedShards, StreamOutput::writeString);
+            out.writeVLong(processNanos);
             out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
             out.writeVInt(pagesEmitted);
@@ -424,7 +413,7 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         private static boolean serializeShardPartitioning(TransportVersion version) {
-            return version.onOrAfter(ESQL_REPORT_SHARD_PARTITIONING) || version.isPatchFrom(ESQL_REPORT_SHARD_PARTITIONING_8_19);
+            return version.supports(ESQL_REPORT_SHARD_PARTITIONING);
         }
 
         @Override

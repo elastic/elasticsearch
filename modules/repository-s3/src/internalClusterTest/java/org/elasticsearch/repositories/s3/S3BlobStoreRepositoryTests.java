@@ -182,6 +182,13 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (region != null) {
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         }
+        if (randomBoolean()) {
+            // Sometimes explicitly set connection max idle time to ensure it is configurable
+            builder.put(
+                S3ClientSettings.CONNECTION_MAX_IDLE_TIME_SETTING.getConcreteSettingForNamespace("test").getKey(),
+                S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME
+            );
+        }
         return builder.build();
     }
 

@@ -64,18 +64,19 @@ public final class RoundToLongBinarySearchEvaluator implements EvalOperator.Expr
   public LongBlock eval(int positionCount, LongBlock fieldBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(RoundToLong.process(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.points));
+        long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
+        result.appendLong(RoundToLong.process(field, this.points));
       }
       return result.build();
     }
@@ -84,7 +85,8 @@ public final class RoundToLongBinarySearchEvaluator implements EvalOperator.Expr
   public LongVector eval(int positionCount, LongVector fieldVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, RoundToLong.process(fieldVector.getLong(p), this.points));
+        long field = fieldVector.getLong(p);
+        result.appendLong(p, RoundToLong.process(field, this.points));
       }
       return result.build();
     }

@@ -203,8 +203,9 @@ public class BytesRefBucketedSort implements Releasable {
                 if (size == 1) {
                     try (BreakingBytesRefBuilder bytes = values.get(start)) {
                         builder.appendBytesRef(bytes.bytesRefView());
+                    } finally {
+                        values.set(start, null);
                     }
-                    values.set(start, null);
                     continue;
                 }
 
@@ -218,8 +219,9 @@ public class BytesRefBucketedSort implements Releasable {
                 for (int i = 0; i < size; i++) {
                     try (BreakingBytesRefBuilder bytes = values.get(start + i)) {
                         builder.appendBytesRef(bytes.bytesRefView());
+                    } finally {
+                        values.set(start + i, null);
                     }
-                    values.set(start + i, null);
                 }
                 builder.endPositionEntry();
             }

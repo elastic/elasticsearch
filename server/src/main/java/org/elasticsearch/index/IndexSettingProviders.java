@@ -44,8 +44,8 @@ public final class IndexSettingProviders {
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,
                     combinedTemplateMappings,
-                    additionalSettings,
-                    additionalCustomMetadata) -> settingsBuilderConsumer.accept(additionalSettings)
+                    indexVersion,
+                    additionalSettings) -> settingsBuilderConsumer.accept(additionalSettings)
             )
         );
     }

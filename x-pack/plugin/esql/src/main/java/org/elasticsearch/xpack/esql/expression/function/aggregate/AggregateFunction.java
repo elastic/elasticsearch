@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -65,10 +64,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : emptyList()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -109,17 +106,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeNamedWriteable(filter);
-            out.writeNamedWriteableCollection(parameters);
-        } else {
-            deprecatedWriteParams(out);
-        }
-    }
-
-    @Deprecated(since = "8.16", forRemoval = true)
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        //
+        out.writeNamedWriteable(filter);
+        out.writeNamedWriteableCollection(parameters);
     }
 
     public Expression field() {

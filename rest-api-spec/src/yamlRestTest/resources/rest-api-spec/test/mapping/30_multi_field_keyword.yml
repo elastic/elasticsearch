@@ -1,0 +1,55 @@
+---
+Keyword with escaped characters as multi-field:
+  - requires:
+      cluster_features: [ "mapper.multi_field.unicode_optimisation_fix" ]
+      reason: "Captures the scenarios in #134770 & 135256"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                fields:
+                  bar:
+                    type: keyword
+                  bar-text:
+                    type: text
+              my-ip:
+                type: ip
+
+  # Ensure the IP is correctly parsed after a multi-field mapping that combines optimised and non-optimised fields
+  - do:
+      index:
+        index: test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "c:\\windows\\system32\\svchost.exe"
+          my-ip: "127.0.0.1"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              foo: "c:\\windows\\system32\\svchost.exe"
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"
+
+  # Test that optimisation works the same for the multi-fields as well.
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              foo.bar: "c:\\windows\\system32\\svchost.exe"
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"

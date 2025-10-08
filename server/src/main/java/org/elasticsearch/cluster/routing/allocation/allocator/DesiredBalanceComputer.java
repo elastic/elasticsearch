@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -483,7 +484,7 @@ public class DesiredBalanceComputer {
             );
         }
 
-        maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation);
+        maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation, desiredBalanceInput.index());
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
@@ -559,13 +560,23 @@ public class DesiredBalanceComputer {
     private void maybeLogAllocationExplainForUnassigned(
         DesiredBalance.ComputationFinishReason finishReason,
         RoutingNodes routingNodes,
-        RoutingAllocation routingAllocation
+        RoutingAllocation routingAllocation,
+        long inputIndex
     ) {
         if (allocationExplainLogger.isDebugEnabled()) {
+            final var clusterState = routingAllocation.getClusterState();
+            if (clusterState.metadata().nodeShutdowns().contains(clusterState.nodes().getLocalNodeId())) {
+                // Master is shutting down, the project is likely being deleted. Shards can be unassigned and no need to report
+                return;
+            }
             if (lastTrackedUnassignedShard != null) {
                 if (Stream.concat(routingNodes.unassigned().stream(), routingNodes.unassigned().ignored().stream())
                     .noneMatch(shardRouting -> shardRouting.equals(lastTrackedUnassignedShard))) {
-                    allocationExplainLogger.debug("previously tracked unassigned shard [{}] is now assigned", lastTrackedUnassignedShard);
+                    allocationExplainLogger.debug(
+                        "computation for input index [{}] assigned previously tracked unassigned shard [{}]",
+                        inputIndex,
+                        lastTrackedUnassignedShard
+                    );
                     lastTrackedUnassignedShard = null;
                 } else {
                     return; // The last tracked unassigned shard is still unassigned, keep tracking it
@@ -589,7 +600,8 @@ public class DesiredBalanceComputer {
                     routingAllocation.setDebugMode(originalDebugMode);
                 }
                 allocationExplainLogger.debug(
-                    "unassigned shard [{}] with allocation decision {}",
+                    "computation converged for input index [{}] with unassigned shard [{}] due to allocation decision {}",
+                    inputIndex,
                     lastTrackedUnassignedShard,
                     org.elasticsearch.common.Strings.toString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))

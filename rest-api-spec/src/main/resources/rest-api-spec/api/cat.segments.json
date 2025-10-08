@@ -91,6 +91,23 @@
           "micros",
           "nanos"
         ]
+      },
+      "expand_wildcards": {
+        "type": "enum",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "all",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "allow_closed": {
+        "type": "boolean",
+        "description": "If true, allow closed indices to be returned in the response otherwise if false, keep the legacy behaviour of throwing an exception if index pattern matches closed indices",
+        "default": false
       }
     }
   }

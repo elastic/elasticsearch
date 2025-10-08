@@ -724,11 +724,11 @@ public class ComputeService {
         FoldContext foldCtx,
         ExchangeSinkExec originalPlan,
         boolean runNodeLevelReduction,
-        boolean splitTopN
+        boolean reduceNodeLateMaterialization
     ) {
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        if (splitTopN == false && runNodeLevelReduction == false) {
+        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return defaultResult;
         }
 
@@ -738,7 +738,7 @@ public class ComputeService {
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
         return switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.TopNReduction topN when splitTopN ->
+            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.

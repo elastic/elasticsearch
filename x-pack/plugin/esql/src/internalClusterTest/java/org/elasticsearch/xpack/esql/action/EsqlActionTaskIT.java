@@ -39,17 +39,14 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -81,8 +78,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlActionTaskIT.class);
 
-    private boolean nodeLevelReduction;
-    private Boolean reductionLateMaterialization = null;
+    private Boolean nodeLevelReduction;
 
     /**
      * Number of docs released by {@link #startEsql}.
@@ -92,7 +88,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     @Before
     public void setup() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        nodeLevelReduction = randomBoolean();
     }
 
     public void testTaskContents() throws Exception {
@@ -251,15 +246,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         }
     }
 
-    @After
-    public void clearTransientSettings() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setTransientSettings(Settings.builder().putNull(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey()))
-            .get();
-    }
-
     private ActionFuture<EsqlQueryResponse> startEsql() {
         return startEsql("from test | stats sum(pause_me)");
     }
@@ -281,6 +267,9 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             // Report the status after every action
             .put("status_interval", "0ms");
 
+        if (nodeLevelReduction == null) {
+            nodeLevelReduction = randomBoolean();
+        }
         if (nodeLevelReduction) {
             // explicitly set the default (true) or don't
             if (randomBoolean()) {
@@ -291,16 +280,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         }
 
         var pragmas = new QueryPragmas(settingsBuilder.build());
-
-        if (reductionLateMaterialization == null) {
-            reductionLateMaterialization = randomBoolean();
-        }
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setTransientSettings(Map.of(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey(), reductionLateMaterialization))
-            .get();
-
         return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(query).pragmas(pragmas).execute();
     }
 
@@ -538,10 +517,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         testTaskContentsForTopNQueryWithReductionHelper(true);
     }
 
-    private void testTaskContentsForTopNQueryWithReductionHelper(boolean reductionLateMaterialization) throws Exception {
-        this.reductionLateMaterialization = reductionLateMaterialization;
-        var dataNodeProjectString = reductionLateMaterialization ? "0, 1" : "1";
-        var nodeReduceString = reductionLateMaterialization
+    private void testTaskContentsForTopNQueryWithReductionHelper(boolean nodeLevelReduction) throws Exception {
+        this.nodeLevelReduction = nodeLevelReduction;
+        var dataNodeProjectString = nodeLevelReduction ? "0, 1" : "1";
+        var nodeReduceString = nodeLevelReduction
             ? """
                 \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], \
                 sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]]]
@@ -568,7 +547,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 \\_ExchangeSinkOperator""", sourceStatus, dataNodeProjectString)));
             assertThat(
                 nodeReduceTasks(tasks).getFirst().description(),
-                reductionLateMaterialization
+                nodeLevelReduction
                     ? nodeLevelReduceDescriptionMatcher(nodeReduceString)
                     : nodeLevelReduceDescriptionMatcher(tasks, nodeReduceString)
             );

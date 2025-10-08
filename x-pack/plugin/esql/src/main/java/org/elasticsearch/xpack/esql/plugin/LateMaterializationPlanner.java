@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -119,27 +117,20 @@ class LateMaterializationPlanner {
         // We need to add the doc attribute to the project since otherwise when the fragment is converted to a physical plan for the data
         // driver, the resulting ProjectExec won't have the doc attribute in its output, which is needed by the reduce driver.
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(fragmentExec.withFragment(updatedFragment));
+        FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.
-        ExchangeSinkExec reductionPlan = originalPlan.replaceChild(
-            EstimatesRowSize.estimateRowSize(
-                fragmentExec.estimatedRowSize(),
-                toPhysical(fragmentExec.fragment(), context).transformDown(
-                    TopNExec.class,
-                    t -> t.replaceChild(new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */))
-                )
-            )
+        PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(
+            TopNExec.class,
+            t -> t.replaceChild(new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */))
         );
-        LOGGER.warn(
-            "Late materialization optimization applied. Data driver plan: {}, Reduce driver plan: {}",
-            updatedDataPlan,
-            reductionPlan
+        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(
+            EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)
         );
-        return Optional.of(new ReductionPlan(reductionPlan, updatedDataPlan));
-    }
 
-    private static final Logger LOGGER = LogManager.getLogger(LateMaterializationPlanner.class);
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+    }
 
     private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
         return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(new LocalMapper().map(plan)), context);

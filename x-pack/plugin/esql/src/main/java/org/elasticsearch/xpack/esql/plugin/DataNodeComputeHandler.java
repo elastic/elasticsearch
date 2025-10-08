@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -181,7 +182,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                            final boolean sameNodeAsCoordinator = transportService.getLocalNode()
+                                .getId()
+                                .equals(connection.getNode().getId());
+                            boolean enableReduceNodeLateMaterialization = Build.current().isSnapshot();
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -191,8 +195,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 dataNodePlan,
                                 originalIndices.indices(),
                                 originalIndices.indicesOptions(),
-                                queryPragmas.nodeLevelReduction() && sameNode == false,
-                                computeService.plannerSettings().reductionLateMaterialization()
+                                // If the coordinator and data node are the same, we don't need to run the node-level reduction (except for
+                                // TopN late materialization, listed below), as the node-reduce driver would end up doing the exact same
+                                // work as the final driver.
+                                queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
+                                queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization
                             );
                             transportService.sendChildRequest(
                                 connection,
@@ -538,6 +545,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
         ReductionPlan reductionPlan;
         Configuration configuration = request.configuration();
+        // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
+        // with its size being known before we start the computation.
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings(),

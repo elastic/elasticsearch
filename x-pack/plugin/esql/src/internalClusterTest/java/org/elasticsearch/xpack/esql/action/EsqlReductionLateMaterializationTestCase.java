@@ -156,6 +156,7 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
                         .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), maxConcurrentNodes)
                         .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), shardCount)
                         .put(QueryPragmas.TASK_CONCURRENCY.getKey(), taskConcurrency)
+                        .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
                         .build()
                 )
             )

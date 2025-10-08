@@ -582,3 +582,17 @@ TS k8s METADATA _tsid
 maxRate:double | tbucket:datetime
 0.058979885057471274 | 2024-05-10T00:00:00.000Z
 ;
+
+
+zwomp
+required_capability: ts_command_v0
+
+TS k8s 
+| RENAME @timestamp AS newTs 
+| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+;
+
+mx:integer | tbucket:datetime
+1174 | 2024-05-10T00:00:00.000Z
+;
+

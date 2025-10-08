@@ -10,10 +10,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
-
 import java.util.Map;
-
-
 
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
@@ -53,11 +50,7 @@ public class InferenceSemanticTextIT extends BaseMockEISAuthServerTest {
         String populatedInferenceId = path.evaluate("properties.semantic_text_field.inference_id");
         assertThat("[inference_id] should be auto-populated", populatedInferenceId, notNullValue());
 
-        assertThat(
-            populatedInferenceId,
-            anyOf(equalTo(DEFAULT_ELSER_ID), equalTo(DEFAULT_ELSER_ENDPOINT_ID_V2))
-        );
-
+        assertThat(populatedInferenceId, anyOf(equalTo(DEFAULT_ELSER_ID), equalTo(DEFAULT_ELSER_ENDPOINT_ID_V2)));
 
     }
 

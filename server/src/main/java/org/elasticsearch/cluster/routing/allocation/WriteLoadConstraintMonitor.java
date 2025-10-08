@@ -102,12 +102,14 @@ public class WriteLoadConstraintMonitor {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     """
-                        Nodes [{}] are hot-spotting, of {} total cluster nodes. Reroute for hot-spotting was last called [{}] ago. \
+                        Nodes [{}] are hot-spotting, of {} total cluster nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
                     nodeSummary(nodeIdsExceedingLatencyThreshold),
                     state.nodes().size(),
-                    lastRerouteTimeMillis == 0 ? "never" : TimeValue.timeValueMillis(timeSinceLastRerouteMillis),
+                    lastRerouteTimeMillis == 0
+                        ? "has never previously been called"
+                        : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
                     nodeSummary(lastSetOfHotSpottedNodes),
                     state.nodes().size()
                 );

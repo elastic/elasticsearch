@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -167,7 +168,7 @@ public class RequestExecutorService implements RequestExecutor {
     public void shutdown() {
         if (shutdown.compareAndSet(false, true)) {
             if (requestQueueTask != null) {
-                boolean cancelled = requestQueueTask.cancel(true);
+                boolean cancelled = FutureUtils.cancel(requestQueueTask);
                 logger.debug(() -> format("Request queue cancellation successful: %s", cancelled));
             }
 

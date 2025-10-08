@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +30,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * Clamps the values of all samples to have a lower limit of min and an upper limit of max.
  */
 public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Clamp", Clamp::new);
 
     private final Expression field;
     private final Expression min;
@@ -68,18 +64,9 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
         this.max = max;
     }
 
-    private Clamp(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
-    }
-
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("Clamp does not support serialization (as it should be replaced by ClampMin and ClampMax)");
     }
 
     @Override
@@ -135,15 +122,14 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeNamedWriteable(min);
-        out.writeNamedWriteable(max);
+        throw new UnsupportedOperationException("Clamp does not support serialization (as it should be replaced by ClampMin and ClampMax)");
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return null;
+        throw new UnsupportedOperationException(
+            "Clamp should have been replaced by ClampMin and ClampMax. Something went wrong in the ESQL engine."
+        );
     }
 
     @Override

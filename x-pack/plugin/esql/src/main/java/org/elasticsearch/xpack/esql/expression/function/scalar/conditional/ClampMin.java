@@ -34,12 +34,10 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Returns the input values clamped to have a lower limit of min.
+ * Clamps input values to have a lower limit of min.
  */
 public class ClampMin extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMin", ClampMin::new);
-
-    private DataType dataType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
@@ -80,10 +78,7 @@ public class ClampMin extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
-        return dataType;
+        return children().getFirst().dataType();
     }
 
     @Override
@@ -103,11 +98,9 @@ public class ClampMin extends EsqlScalarFunction {
             fieldDataType.typeName()
         );
         if (resolution.unresolved()) {
-            dataType = NULL;
             return resolution;
         }
         if (fieldDataType == NULL) {
-            dataType = NULL;
             return new TypeResolution("'field' must not be null in clamp()");
         }
         resolution = TypeResolutions.isType(
@@ -118,10 +111,8 @@ public class ClampMin extends EsqlScalarFunction {
             fieldDataType.typeName()
         );
         if (resolution.unresolved()) {
-            dataType = NULL;
             return resolution;
         }
-        dataType = fieldDataType;
         return TypeResolution.TYPE_RESOLVED;
     }
 

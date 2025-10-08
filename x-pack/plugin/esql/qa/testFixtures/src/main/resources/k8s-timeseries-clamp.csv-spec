@@ -75,3 +75,26 @@ bytes_in:long | clamped_network_bytes_in:long | time_bucket:datetime
 3850          | 1468                          | 2024-05-10T00:09:00.000Z
 
 ;
+
+clamp_without_stats_command
+required_capability: clamp_functions
+// tag::clamp[]
+TS k8s
+| EVAL full_clamped_cost = clamp(network.cost, 1, 20)
+| KEEP full_clamped_cost, @timestamp
+// end::clamp-max[]
+| SORT full_clamped_cost DESC, @timestamp | LIMIT 10;
+
+// tag::clamp-max-result[]
+full_clamped_cost:double | @timestamp:datetime
+12.5                     | 2024-05-10T00:09:52.000Z
+12.375                   | 2024-05-10T00:01:29.000Z
+12.375                   | 2024-05-10T00:06:42.000Z
+12.375                   | 2024-05-10T00:17:12.000Z
+12.25                    | 2024-05-10T00:19:48.000Z
+12.125                   | 2024-05-10T00:00:57.000Z
+12.125                   | 2024-05-10T00:03:26.000Z
+12.125                   | 2024-05-10T00:07:19.000Z
+12.125                   | 2024-05-10T00:17:39.000Z
+12.0                     | 2024-05-10T00:08:08.000Z
+;

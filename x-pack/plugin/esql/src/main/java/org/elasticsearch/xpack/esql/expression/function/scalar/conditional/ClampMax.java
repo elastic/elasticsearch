@@ -34,7 +34,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Returns the input values clamped to have an upper limit of max.
+ * Clamps the input values to have an upper limit of max.
  */
 public class ClampMax extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMax", ClampMax::new);

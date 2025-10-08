@@ -702,6 +702,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136157
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:comparison.IntToInt}
+  issue: https://github.com/elastic/elasticsearch/issues/136160
 
 # Examples:
 #

@@ -297,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/132249
-- class: org.elasticsearch.common.logging.JULBridgeTests
-  method: testThrowable
-  issue: https://github.com/elastic/elasticsearch/issues/132280
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testManyDistinctOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132308

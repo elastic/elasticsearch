@@ -74,6 +74,7 @@ class KnnIndexer {
     private final int numIndexThreads;
     private final MergePolicy mergePolicy;
     private final double writerBufferSizeInMb;
+    private final int writerMaxBufferedDocs;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -85,7 +86,8 @@ class KnnIndexer {
         VectorSimilarityFunction similarityFunction,
         int numDocs,
         MergePolicy mergePolicy,
-        double writerBufferSizeInMb
+        double writerBufferSizeInMb,
+        int writerMaxBufferedDocs
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -97,12 +99,13 @@ class KnnIndexer {
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
         this.writerBufferSizeInMb = writerBufferSizeInMb;
+        this.writerMaxBufferedDocs = writerMaxBufferedDocs;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
-        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
         iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
         iwc.setUseCompoundFile(false);
         if (mergePolicy != null) {

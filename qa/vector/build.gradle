@@ -60,14 +60,21 @@ tasks.register("checkVec", JavaExec) {
   }
   def asyncProfilerPath = System.getProperty("asyncProfiler.path", null)
   if (asyncProfilerPath != null) {
+    def asyncProfilerEvent = System.getProperty("asyncProfiler.event", "cpu")
     if (OS.current().equals(OS.MAC)) {
       def asyncProfilerAgent = "${asyncProfilerPath}/lib/libasyncProfiler.dylib"
       println "Using async-profiler agent ${asyncProfilerAgent}"
-      jvmArgs "-agentpath:${asyncProfilerAgent}=start,event=cpu,interval=10ms,file=${layout.buildDirectory.asFile.get()}/tmp/elasticsearch-0_%t_%p.jfr"
+
+      // MacOS implementation of async-profiler does not support wall clock profiling with another event.
+      // Wall clock times can be obtained separately invoking this task with `-DasyncProfiler.event=wall`
+      jvmArgs "-agentpath:${asyncProfilerAgent}=start,event=${asyncProfilerEvent},interval=10ms,file=${layout.buildDirectory.asFile.get()}/tmp/elasticsearch-0_%t_%p.jfr"
     } else if (OS.current().equals(OS.LINUX)) {
+      // Linux implementation of async-profiler uses perf_event, which allows wall clock profiling with another event (cpu)
+      def additionalWallInterval = asyncProfilerEvent.equals("cpu") ? ",wall=50ms" : ""
+
       def asyncProfilerAgent = "${asyncProfilerPath}/lib/libasyncProfiler.so"
       println "Using async-profiler agent ${asyncProfilerAgent}"
-      jvmArgs "-agentpath:${asyncProfilerAgent}=start,event=cpu,interval=10ms,wall=50ms,file=${layout.buildDirectory.asFile.get()}/tmp/elasticsearch-0_%t_%p.jfr"
+      jvmArgs "-agentpath:${asyncProfilerAgent}=start,event=${asyncProfilerEvent},interval=10ms${additionalWallInterval},file=${layout.buildDirectory.asFile.get()}/tmp/elasticsearch-0_%t_%p.jfr"
     } else {
       println "Ignoring 'asyncProfiler.path': not available on ${OS.current()}";
     }

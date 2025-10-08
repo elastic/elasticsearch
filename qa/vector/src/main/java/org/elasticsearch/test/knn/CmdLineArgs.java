@@ -9,10 +9,12 @@
 
 package org.elasticsearch.test.knn;
 
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -54,7 +56,8 @@ record CmdLineArgs(
     int dimensions,
     boolean earlyTermination,
     KnnIndexTester.MergePolicyType mergePolicy,
-    double writerBufferSizeInMb
+    double writerBufferSizeInMb,
+    int writerMaxBufferedDocs
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -83,9 +86,15 @@ record CmdLineArgs(
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
-    static final ParseField WRITER_BUFFER_FIELD = new ParseField("writer_buffer_mb");
+    static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
+    static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
 
-    static final double DEFAULT_WRITER_BUFFER_MB = 128;
+    /** By default, in ES the default writer buffer size is 10% of the heap space
+     * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
+     * We configure the Java heap size for this tool in {@code build.gradle}; currently we default to 16GB, so in that case
+     * the buffer size would be 1.6GB.
+     */
+    static final double DEFAULT_WRITER_BUFFER_MB = (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024.0 * 1024.0)) * 0.1;
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -121,7 +130,8 @@ record CmdLineArgs(
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
-        PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_FIELD);
+        PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
+        PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
     }
 
     @Override
@@ -157,6 +167,8 @@ record CmdLineArgs(
         builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
         builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
         builder.field(SEED_FIELD.getPreferredName(), seed);
+        builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
+        builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
         return builder.endObject();
     }
 
@@ -192,6 +204,12 @@ record CmdLineArgs(
         private long seed = 1751900822751L;
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
+
+        /**
+         * Elasticsearch does not set this explicitly, and in Lucene this setting is
+         * disabled by default (writer flushes by RAM usage).
+         */
+        private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -327,6 +345,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setWriterMaxBufferedDocs(int writerMaxBufferedDocs) {
+            this.writerMaxBufferedDocs = writerMaxBufferedDocs;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -362,7 +385,8 @@ record CmdLineArgs(
                 dimensions,
                 earlyTermination,
                 mergePolicy,
-                writerBufferSizeInMb
+                writerBufferSizeInMb,
+                writerMaxBufferedDocs
             );
         }
     }

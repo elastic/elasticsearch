@@ -45,6 +45,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         this.rawVectorFormatName = rawVectorsFormatName;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorWriter = rawWriter;
+
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
         try {
             this.metaOut = state.directory.createOutput(metaFileName, state.context);
@@ -71,11 +72,14 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     @Override
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         rawVectorWriter.mergeOneField(fieldInfo, mergeState);
+        writeMeta(fieldInfo.number);
     }
 
     @Override
     public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        return rawVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState);
+        var supplier = rawVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState);
+        writeMeta(fieldInfo.number);
+        return supplier;
     }
 
     @Override
@@ -83,10 +87,14 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         rawVectorWriter.flush(maxDoc, sortMap);
 
         for (Integer field : fieldNumbers) {
-            metaOut.writeInt(field);
-            metaOut.writeString(rawVectorFormatName);
-            metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
+            writeMeta(field);
         }
+    }
+
+    private void writeMeta(int field) throws IOException {
+        metaOut.writeInt(field);
+        metaOut.writeString(rawVectorFormatName);
+        metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
     }
 
     @Override

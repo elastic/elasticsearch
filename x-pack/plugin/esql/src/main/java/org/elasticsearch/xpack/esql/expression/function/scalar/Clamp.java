@@ -144,7 +144,8 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         throw new UnsupportedOperationException(
-            "Clamp should have been replaced by ClampMin and ClampMax. Something went wrong in the compute engine.");
+            "Clamp should have been replaced by ClampMin and ClampMax. Something went wrong in the compute engine."
+        );
     }
 
     @Override

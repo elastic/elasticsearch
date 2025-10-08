@@ -91,11 +91,4 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Maximum number of sampling configurations (100) already reached"));
     }
 
-    private void assertDoesNotThrow(Runnable runnable) {
-        try {
-            runnable.run();
-        } catch (Exception e) {
-            fail("Expected no exception but got: " + e.getClass().getSimpleName() + " with message: " + e.getMessage());
-        }
-    }
 }

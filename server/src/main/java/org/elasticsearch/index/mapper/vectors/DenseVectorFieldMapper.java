@@ -2276,7 +2276,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isSyntheticSource
         ) {
-            super(name, indexed ? IndexType.vectors() : IndexType.docValuesOnly(), false, meta);
+            super(name, indexed ? IndexType.vectors() : IndexType.NONE, false, meta);
             this.element = Element.getElement(elementType);
             this.dims = dims;
             this.indexed = indexed;

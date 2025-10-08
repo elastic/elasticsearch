@@ -699,6 +699,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluatorTests
   method: testFoldTextEmbeddingFunction
   issue: https://github.com/elastic/elasticsearch/issues/136154
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
+  method: testEsqlRcs1UnavailableRemoteScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/136157
 
 # Examples:
 #

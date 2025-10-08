@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.reshard;
 
+import co.elastic.elasticsearch.stateless.engine.HollowEngineException;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
@@ -219,9 +221,11 @@ public class ReshardIndexService {
                     // Even though we called `ensureMutable()` it is still possible that ongoing relocation
                     // hollows the engine underneath us.
                     // In this case we simply fail and retry.
-                    throw new UnsupportedOperationException(
-                        "Expected an IndexEngine but got " + engine.getClass().getSimpleName() + " instead"
-                    );
+                    if (engine instanceof HollowIndexEngine) {
+                        throw new HollowEngineException(shardId);
+                    }
+                    assert false : engine.getClass().getSimpleName();
+                    throw new IllegalStateException("Unexpected engine type: " + engine.getClass().getSimpleName());
                 }
             });
             return null;

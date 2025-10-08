@@ -298,7 +298,6 @@ public class MlDailyMaintenanceService implements Releasable {
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
 
-
         // If the index does not end in a digit then rollover does not know
         // what to name the new index so it must be specified in the request.
         // Otherwise leave null and rollover will calculate the new name

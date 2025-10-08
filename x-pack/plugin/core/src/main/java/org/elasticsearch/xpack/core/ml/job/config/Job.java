@@ -1374,9 +1374,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
                 resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
             }
 
-            resultsIndexName = MlIndexAndAlias.has6DigitSuffix(resultsIndexName)
-                ? resultsIndexName
-                : resultsIndexName + "-000001";
+            resultsIndexName = MlIndexAndAlias.has6DigitSuffix(resultsIndexName) ? resultsIndexName : resultsIndexName + "-000001";
 
             if (indexNameExpressionResolver.get() != null && clusterState.get() != null) {
                 String tmpResultsIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(

@@ -99,13 +99,9 @@ public class ResolvedRepositoriesTests extends ESTestCase {
         for (final var repoName : repoNames) {
             repositories.add(new RepositoryMetadata(repoName, "test", Settings.EMPTY));
         }
-        return ClusterState.EMPTY_STATE.copyAndUpdateMetadata(b -> {
-            ProjectMetadata.Builder projectBuilder = b.getProject(projectId);
-            if (projectBuilder == null) {
-                projectBuilder = ProjectMetadata.builder(projectId);
-            }
-            b.put(projectBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositories)));
-        });
+        final var projectBuilder = ProjectMetadata.builder(projectId)
+            .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repositories));
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectBuilder).build();
     }
 
 }

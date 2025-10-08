@@ -966,7 +966,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         Set<String> indicesInSnapshot = new HashSet<>();
         preSnapshotDataStream.getIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
         preSnapshotDataStream.getFailureIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
-        var reconciledDataStream = postSnapshotDataStream.snapshot(indicesInSnapshot, Metadata.builder());
+        var reconciledDataStream = postSnapshotDataStream.snapshot(indicesInSnapshot, ProjectMetadata.builder(randomProjectIdOrDefault()));
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
         assertThat(reconciledDataStream.getGeneration(), equalTo(postSnapshotDataStream.getGeneration()));
@@ -1006,7 +1006,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertNull(
             postSnapshotDataStream.snapshot(
                 preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toSet()),
-                Metadata.builder()
+                ProjectMetadata.builder(randomProjectIdOrDefault())
             )
         );
     }

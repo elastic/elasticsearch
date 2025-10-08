@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -1182,7 +1183,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
             final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
-            builder.put(projectBuilder);
             final Function<String, MappingMetadata> mappingLookup;
             final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
             if (mappingMetadataMap.isEmpty() == false) {
@@ -1198,12 +1198,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             for (int i = 0; i < size; i++) {
                 projectBuilder.put(IndexTemplateMetadata.readFrom(in));
             }
-            readBwcCustoms(in, builder);
+            readBwcCustoms(in, builder, projectBuilder);
 
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
+            builder.put(projectBuilder);
         } else {
             readClusterCustoms(in, builder);
 
@@ -1217,8 +1218,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return builder.build();
     }
 
-    private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
-        final ProjectMetadata.Builder projectBuilder = builder.getProject(ProjectId.DEFAULT);
+    private static void readBwcCustoms(StreamInput in, Builder builder, ProjectMetadata.Builder projectBuilder) throws IOException {
         final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
         final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
         final int count = in.readVInt();
@@ -1344,11 +1344,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         private final ImmutableOpenMap.Builder<String, ClusterCustom> customs;
 
-        /**
-         * TODO: This should map to {@link ProjectMetadata} (not Builder), but that's tricky to do due to
-         * legacy delegation methods such as {@link #indices(Map)} which expect to have a mutable project
-         */
-        private final Map<ProjectId, ProjectMetadata.Builder> projectMetadata;
+        // All the deprecated methods that make use of getSingleProject are converting the project to a builder, making a change,
+        // and building the project again. This is obviously very inefficient, so these methods should not be used in production code.
+        // When all test usages of these methods are converted to using counterparts on ProjectMetadata.Builder directly, these methods
+        // can be removed.
+        private final Map<ProjectId, ProjectMetadata> projectMetadata;
 
         private final ImmutableOpenMap.Builder<String, ReservedStateMetadata> reservedStateMetadata;
 
@@ -1369,7 +1369,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
             this.customs = ImmutableOpenMap.builder(metadata.customs);
-            this.projectMetadata = Maps.transformValues(metadata.projectMetadata, ProjectMetadata::builder);
+            this.projectMetadata = new HashMap<>(metadata.projectMetadata);
             this.reservedStateMetadata = ImmutableOpenMap.builder(metadata.reservedStateMetadata);
         }
 
@@ -1379,24 +1379,24 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             } else if (projectMetadata.size() != 1) {
                 throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
             }
-            return projectMetadata.values().iterator().next();
+            return ProjectMetadata.builder(projectMetadata.values().iterator().next());
         }
 
         public Builder projectMetadata(Map<ProjectId, ProjectMetadata> projectMetadata) {
             assert projectMetadata.entrySet().stream().allMatch(e -> e.getValue().id().equals(e.getKey()))
                 : "Project metadata map is inconsistent";
             this.projectMetadata.clear();
-            projectMetadata.forEach((k, v) -> this.projectMetadata.put(k, ProjectMetadata.builder(v)));
+            this.projectMetadata.putAll(projectMetadata);
             return this;
         }
 
         public Builder put(ProjectMetadata projectMetadata) {
-            return put(ProjectMetadata.builder(projectMetadata));
+            this.projectMetadata.put(projectMetadata.id(), projectMetadata);
+            return this;
         }
 
         public Builder put(ProjectMetadata.Builder projectMetadata) {
-            this.projectMetadata.put(projectMetadata.getId(), projectMetadata);
-            return this;
+            return put(projectMetadata.build());
         }
 
         public Builder removeProject(ProjectId projectId) {
@@ -1404,25 +1404,31 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
-        public ProjectMetadata.Builder getProject(ProjectId projectId) {
+        public ProjectMetadata getProject(ProjectId projectId) {
             return projectMetadata.get(projectId);
         }
 
+        public ProjectMetadata.Builder createNewProjectBuilder(ProjectId projectId) {
+            final var project = projectMetadata.get(projectId);
+            if (project == null) {
+                return ProjectMetadata.builder(projectId);
+            }
+            return ProjectMetadata.builder(project);
+        }
+
         public Builder forEachProject(UnaryOperator<ProjectMetadata.Builder> modifier) {
-            projectMetadata.replaceAll((p, b) -> modifier.apply(b));
+            projectMetadata.replaceAll((i, p) -> modifier.apply(ProjectMetadata.builder(p)).build());
             return this;
         }
 
         @Deprecated(forRemoval = true)
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
-            getSingleProject().put(indexMetadataBuilder);
-            return this;
+            return put(getSingleProject().put(indexMetadataBuilder));
         }
 
         @Deprecated(forRemoval = true)
         public Builder put(IndexMetadata indexMetadata, boolean incrementVersion) {
-            getSingleProject().put(indexMetadata, incrementVersion);
-            return this;
+            return put(getSingleProject().put(indexMetadata, incrementVersion));
         }
 
         @Deprecated(forRemoval = true)
@@ -1437,74 +1443,62 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @Deprecated(forRemoval = true)
         public Builder remove(String index) {
-            getSingleProject().remove(index);
-            return this;
+            return put(getSingleProject().remove(index));
         }
 
         @Deprecated(forRemoval = true)
         public Builder removeAllIndices() {
-            getSingleProject().removeAllIndices();
-            return this;
+            return put(getSingleProject().removeAllIndices());
         }
 
         @Deprecated(forRemoval = true)
         public Builder indices(Map<String, IndexMetadata> indices) {
-            getSingleProject().indices(indices);
-            return this;
+            return put(getSingleProject().indices(indices));
         }
 
         @Deprecated(forRemoval = true)
         public Builder put(IndexTemplateMetadata.Builder template) {
-            getSingleProject().put(template);
-            return this;
+            return put(getSingleProject().put(template));
         }
 
         @Deprecated(forRemoval = true)
         public Builder put(IndexTemplateMetadata template) {
-            getSingleProject().put(template);
-            return this;
+            return put(getSingleProject().put(template));
         }
 
         @Deprecated(forRemoval = true)
         public Builder removeTemplate(String templateName) {
-            getSingleProject().removeTemplate(templateName);
-            return this;
+            return put(getSingleProject().removeTemplate(templateName));
         }
 
         @Deprecated(forRemoval = true)
         public Builder templates(Map<String, IndexTemplateMetadata> templates) {
-            getSingleProject().templates(templates);
-            return this;
+            return put(getSingleProject().templates(templates));
         }
 
         @Deprecated(forRemoval = true)
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
-            getSingleProject().componentTemplates(componentTemplates);
-            return this;
+            return put(getSingleProject().componentTemplates(componentTemplates));
         }
 
         @Deprecated(forRemoval = true)
         public Builder indexTemplates(Map<String, ComposableIndexTemplate> indexTemplates) {
-            getSingleProject().indexTemplates(indexTemplates);
-            return this;
+            return put(getSingleProject().indexTemplates(indexTemplates));
         }
 
         @Deprecated(forRemoval = true)
         public Builder put(String name, ComposableIndexTemplate indexTemplate) {
-            getSingleProject().put(name, indexTemplate);
-            return this;
+            return put(getSingleProject().put(name, indexTemplate));
         }
 
         @Deprecated(forRemoval = true)
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
-            getSingleProject().dataStreams(dataStreams, dataStreamAliases);
-            return this;
+            return put(getSingleProject().dataStreams(dataStreams, dataStreamAliases));
         }
 
         @Deprecated(forRemoval = true)
         public Builder put(DataStream dataStream) {
-            getSingleProject().put(dataStream);
-            return this;
+            return put(getSingleProject().put(dataStream));
         }
 
         @Deprecated(forRemoval = true)
@@ -1514,7 +1508,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @Deprecated(forRemoval = true)
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
-            return getSingleProject().put(aliasName, dataStream, isWriteDataStream, filter);
+            final var singleProject = getSingleProject();
+            final var put = singleProject.put(aliasName, dataStream, isWriteDataStream, filter);
+            put(singleProject);
+            return put;
         }
 
         public Builder putCustom(String type, ClusterCustom custom) {
@@ -1524,8 +1521,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @Deprecated(forRemoval = true)
         public Builder putCustom(String type, ProjectCustom custom) {
-            getSingleProject().putCustom(type, Objects.requireNonNull(custom, type));
-            return this;
+            return put(getSingleProject().putCustom(type, Objects.requireNonNull(custom, type)));
         }
 
         public ClusterCustom getCustom(String type) {
@@ -1551,8 +1547,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         @Deprecated(forRemoval = true)
         public Builder projectCustoms(Map<String, ProjectCustom> projectCustoms) {
             projectCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
-            getSingleProject().customs(projectCustoms);
-            return this;
+            return put(getSingleProject().customs(projectCustoms));
         }
 
         /**
@@ -1587,8 +1582,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @Deprecated(forRemoval = true)
         public Builder updateSettings(Settings settings, String... indices) {
-            getSingleProject().updateSettings(settings, indices);
-            return this;
+            return put(getSingleProject().updateSettings(settings, indices));
         }
 
         /**
@@ -1600,8 +1594,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
          */
         @Deprecated(forRemoval = true)
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
-            getSingleProject().updateNumberOfReplicas(numberOfReplicas, indices);
-            return this;
+            return put(getSingleProject().updateNumberOfReplicas(numberOfReplicas, indices));
         }
 
         public Builder coordinationMetadata(CoordinationMetadata coordinationMetadata) {
@@ -1691,19 +1684,19 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 final var entry = projectMetadata.entrySet().iterator().next();
                 // Map.of() with a single entry is highly optimized
                 // so we want take advantage of that performance boost for this common case of a single project
-                return Map.of(entry.getKey(), entry.getValue().build(skipNameCollisionChecks));
+                return Map.of(entry.getKey(), entry.getValue());
             } else {
-                return Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks)));
+                return Collections.unmodifiableMap(projectMetadata);
             }
         }
 
-        private ProjectMetadata.Builder createDefaultProject() {
-            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0).id(DEFAULT_PROJECT_ID));
+        private void createDefaultProject() {
+            projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0).id(DEFAULT_PROJECT_ID).build());
         }
 
         private boolean assertProjectIdAndProjectMetadataConsistency() {
             projectMetadata.forEach((id, project) -> {
-                assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
+                assert project.id().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.id() + "]";
             });
             return true;
         }
@@ -1742,20 +1735,19 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
-            /**
-             * Used when reading BWC fields from when indices etc used to be directly on metadata
+            /*
+             * Used when reading BWC fields from when indices etc used to be directly on metadata.
+             * Due to the way we handle repository metadata (we changed it from cluster scoped to project scoped),
+             * we may have cases where we have both project scoped XContent (with its own indices, customs etc)
+             * and also cluster scoped XContent that needs to be applied to the default project.
+             * And, in this case there may be multiple projects even while we're applying BWC logic to the default project.
              */
-            final Supplier<ProjectMetadata.Builder> projectBuilderForBwc = () -> {
-                // Due to the way we handle repository metadata (we changed it from cluster scoped to project scoped)
-                // we may have cases where we have both project scoped XContent (with its own indices, customs etc)
-                // and also cluster scoped XContent that needs to be applied to the default project
-                // And, in this case there may be multiple projects even while we're applying BWC logic to the default project
-                ProjectMetadata.Builder pmb = builder.getProject(ProjectId.DEFAULT);
-                if (pmb == null) {
-                    pmb = ProjectMetadata.builder(ProjectId.DEFAULT);
-                    builder.put(pmb);
+            final SetOnce<ProjectMetadata.Builder> projectBuilderForBwc = new SetOnce<>();
+            final Supplier<ProjectMetadata.Builder> projectBuilderForBwcSupplier = () -> {
+                if (projectBuilderForBwc.get() == null) {
+                    projectBuilderForBwc.set(builder.createNewProjectBuilder(ProjectId.DEFAULT));
                 }
-                return pmb;
+                return projectBuilderForBwc.get();
             };
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -1782,12 +1774,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                         /* BwC Top-level project things */
                         case "indices" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                projectBuilderForBwc.get().put(IndexMetadata.Builder.fromXContent(parser), false);
+                                projectBuilderForBwcSupplier.get().put(IndexMetadata.Builder.fromXContent(parser), false);
                             }
                         }
                         case "templates" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                projectBuilderForBwc.get().put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                                projectBuilderForBwcSupplier.get()
+                                    .put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
                             }
                         }
                         /* Cluster customs (and project customs in older formats) */
@@ -1804,10 +1797,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                         assert PersistentTasksCustomMetadata.TYPE.equals(name)
                                             : name + " != " + PersistentTasksCustomMetadata.TYPE;
                                         final var tuple = persistentTasksCustomMetadata.split();
-                                        projectBuilderForBwc.get().putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
+                                        projectBuilderForBwcSupplier.get().putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
                                         builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
                                     } else {
-                                        projectBuilderForBwc.get().putCustom(name, projectCustom);
+                                        projectBuilderForBwcSupplier.get().putCustom(name, projectCustom);
                                     }
                                 });
                             } else {
@@ -1828,6 +1821,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            // If we built the default project for BwC reasons, put it in the builder.
+            if (projectBuilderForBwc.get() != null) {
+                builder.put(projectBuilderForBwc.get());
+            }
             return builder.build();
         }
 

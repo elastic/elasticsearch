@@ -70,9 +70,8 @@ public class TimestampFieldMapperServiceTests extends ESTestCase {
             var indexService = mock(IndexService.class);
             when(indexService.mapperService()).thenReturn(mapperService);
             when(indicesService.indexService(index.getIndex())).thenReturn(indexService);
-            metadataBuilder.put(
-                metadataBuilder.getProject(randomFrom(initialState.metadata().projects().keySet())).put(index, false).build()
-            );
+            final var projectId = randomFrom(initialState.metadata().projects().keySet());
+            metadataBuilder.put(metadataBuilder.createNewProjectBuilder(projectId).put(index, false).build());
         }
         final var newState = ClusterState.builder(initialState).metadata(metadataBuilder.build()).build();
         final var event = new ClusterChangedEvent("source", newState, initialState);

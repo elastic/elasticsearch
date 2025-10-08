@@ -1598,7 +1598,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         List<ProjectMetadata.Builder> projects = randomList(1, 3, () -> ProjectMetadata.builder(randomUniqueProjectId()));
-        projects.forEach(b::put);
         for (IndexVersion indexVersion : indexVersions) {
             String indexUUID = UUIDs.randomBase64UUID(random());
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
@@ -1611,6 +1610,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
         }
 
+        projects.forEach(b::put);
         Metadata metadata = b.build();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {

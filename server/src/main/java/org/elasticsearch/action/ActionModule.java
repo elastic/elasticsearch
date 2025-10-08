@@ -69,8 +69,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSna
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
-import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageMetric;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;

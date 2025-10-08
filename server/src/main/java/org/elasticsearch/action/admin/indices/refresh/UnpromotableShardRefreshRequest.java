@@ -75,9 +75,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(segmentGeneration);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeVLong(primaryTerm);
-        }
+        out.writeVLong(primaryTerm);
     }
 
     public long getSegmentGeneration() {

@@ -220,21 +220,9 @@ public record Build(
         final String minWireVersion;
         final String minIndexVersion;
         final String displayString;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            version = in.readString();
-            qualifier = in.readOptionalString();
-            snapshot = in.readBoolean();
-        } else {
-            snapshot = in.readBoolean();
-            String rawVersion = in.readString();
-            // need to separate out qualifiers from older nodes
-            var versionMatcher = qualfiedVersionRegex.matcher(rawVersion);
-            if (versionMatcher.matches() == false) {
-                throw new IllegalStateException(String.format(Locale.ROOT, "Malformed elasticsearch compile version: %s", rawVersion));
-            }
-            version = versionMatcher.group(1);
-            qualifier = versionMatcher.group(2);
-        }
+        version = in.readString();
+        qualifier = in.readOptionalString();
+        snapshot = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             minWireVersion = in.readString();
             minIndexVersion = in.readString();
@@ -258,14 +246,9 @@ public record Build(
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeString(build.version());
-            out.writeOptionalString(build.qualifier());
-            out.writeBoolean(build.isSnapshot());
-        } else {
-            out.writeBoolean(build.isSnapshot());
-            out.writeString(build.qualifiedVersion());
-        }
+        out.writeString(build.version());
+        out.writeOptionalString(build.qualifier());
+        out.writeBoolean(build.isSnapshot());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeString(build.minWireCompatVersion());
             out.writeString(build.minIndexCompatVersion());

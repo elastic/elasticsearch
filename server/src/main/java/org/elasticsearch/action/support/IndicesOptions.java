@@ -910,12 +910,6 @@ public record IndicesOptions(
         }
         if (out.getTransportVersion()
             .between(TransportVersions.V_8_16_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
-            if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-                out.writeVInt(1); // Enum set sized 1
-                out.writeVInt(0); // ordinal 0 (::data selector)
-            } else {
-                out.writeByte((byte) 0); // ordinal 0 (::data selector)
-            }
         }
     }
 
@@ -954,14 +948,6 @@ public record IndicesOptions(
         if (in.getTransportVersion()
             .between(TransportVersions.V_8_16_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
             // Reading from an older node, which will be sending either an enum set or a single byte that needs to be read out and ignored.
-            if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-                int size = in.readVInt();
-                for (int i = 0; i < size; i++) {
-                    in.readVInt();
-                }
-            } else {
-                in.readByte();
-            }
         }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)

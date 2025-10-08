@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -164,25 +163,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.inferenceEntityId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.input = in.readStringCollectionAsList();
-            } else {
-                this.input = List.of(in.readString());
-            }
+            this.input = in.readStringCollectionAsList();
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                this.inputType = in.readEnum(InputType.class);
-            } else {
-                this.inputType = InputType.UNSPECIFIED;
-            }
+            this.inputType = in.readEnum(InputType.class);
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                this.query = in.readOptionalString();
-                this.inferenceTimeout = in.readTimeValue();
-            } else {
-                this.query = null;
-                this.inferenceTimeout = DEFAULT_TIMEOUT;
-            }
+            this.query = in.readOptionalString();
+            this.inferenceTimeout = in.readTimeValue();
 
             if (in.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 this.returnDocuments = in.readOptionalBoolean();
@@ -298,21 +284,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(inferenceEntityId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeStringCollection(input);
-            } else {
-                out.writeString(input.get(0));
-            }
+            out.writeStringCollection(input);
             out.writeGenericMap(taskSettings);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
-            }
+            out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalString(query);
-                out.writeTimeValue(inferenceTimeout);
-            }
+            out.writeOptionalString(query);
+            out.writeTimeValue(inferenceTimeout);
 
             if (out.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 out.writeOptionalBoolean(returnDocuments);
@@ -322,13 +300,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.V_8_13_0)) {
-                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                    return InputType.INGEST;
-                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
-                    return InputType.UNSPECIFIED;
-                }
-            }
 
             return inputType;
         }
@@ -509,13 +480,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                results = in.readNamedWriteable(InferenceServiceResults.class);
-            } else {
-                // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
-                // hugging face elser and elser
-                results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
-            }
+            results = in.readNamedWriteable(InferenceServiceResults.class);
             // streaming isn't supported via Writeable yet
             this.isStreaming = false;
             this.publisher = null;

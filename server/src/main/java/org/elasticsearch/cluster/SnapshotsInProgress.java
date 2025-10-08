@@ -363,11 +363,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeStringCollection(nodesIdsForRemoval);
-        } else {
-            assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
-        }
+        out.writeStringCollection(nodesIdsForRemoval);
     }
 
     @Override
@@ -1895,11 +1891,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeStringCollection(nodeIdsForRemoval);
-            } else {
-                assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;
-            }
+            out.writeStringCollection(nodeIdsForRemoval);
         }
     }
 

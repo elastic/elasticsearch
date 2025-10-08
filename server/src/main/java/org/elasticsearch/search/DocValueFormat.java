@@ -291,9 +291,7 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeString(formatter.locale().toString());
-            }
+            out.writeString(formatter.locale().toString());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
             out.writeBoolean(formatSortValues);

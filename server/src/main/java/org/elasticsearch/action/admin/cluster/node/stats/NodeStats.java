@@ -339,12 +339,8 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(repositoriesStats);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(nodeAllocationStats);
-        }
+        out.writeOptionalWriteable(repositoriesStats);
+        out.writeOptionalWriteable(nodeAllocationStats);
     }
 
     @Override

@@ -179,11 +179,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         maxInputTokens = in.readOptionalVInt();
         modelId = in.readOptionalString();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
         if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
@@ -283,9 +279,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
         if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }

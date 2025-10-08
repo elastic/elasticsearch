@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -87,15 +86,6 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                numberOfAllocations = in.readVInt();
-                adaptiveAllocationsSettings = null;
-                isInternal = false;
-            } else {
-                numberOfAllocations = in.readOptionalVInt();
-                adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-                isInternal = in.readBoolean();
-            }
         }
 
         public final void setDeploymentId(String deploymentId) {
@@ -134,13 +124,6 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                out.writeVInt(numberOfAllocations);
-            } else {
-                out.writeOptionalVInt(numberOfAllocations);
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-                out.writeBoolean(isInternal);
-            }
         }
 
         @Override

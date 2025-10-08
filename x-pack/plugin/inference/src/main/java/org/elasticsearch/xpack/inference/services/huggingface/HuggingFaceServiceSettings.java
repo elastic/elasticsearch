@@ -103,21 +103,11 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            similarity = in.readOptionalEnum(SimilarityMeasure.class);
-            dimensions = in.readOptionalVInt();
-            maxInputTokens = in.readOptionalVInt();
-        } else {
-            similarity = null;
-            dimensions = null;
-            maxInputTokens = null;
-        }
+        similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        dimensions = in.readOptionalVInt();
+        maxInputTokens = in.readOptionalVInt();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -158,15 +148,11 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
-            out.writeOptionalVInt(dimensions);
-            out.writeOptionalVInt(maxInputTokens);
-        }
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalVInt(dimensions);
+        out.writeOptionalVInt(maxInputTokens);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

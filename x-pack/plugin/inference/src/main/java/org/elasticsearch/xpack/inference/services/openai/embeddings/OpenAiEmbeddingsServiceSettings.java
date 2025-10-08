@@ -183,29 +183,14 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
     public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
         organizationId = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            similarity = in.readOptionalEnum(SimilarityMeasure.class);
-            dimensions = in.readOptionalVInt();
-            maxInputTokens = in.readOptionalVInt();
-        } else {
-            similarity = null;
-            dimensions = null;
-            maxInputTokens = null;
-        }
+        similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        dimensions = in.readOptionalVInt();
+        maxInputTokens = in.readOptionalVInt();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            dimensionsSetByUser = in.readBoolean();
-            modelId = in.readString();
-        } else {
-            dimensionsSetByUser = false;
-            modelId = "unset";
-        }
+        dimensionsSetByUser = in.readBoolean();
+        modelId = in.readString();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     private OpenAiEmbeddingsServiceSettings(CommonFields fields, Boolean dimensionsSetByUser) {
@@ -318,20 +303,14 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(organizationId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
-            out.writeOptionalVInt(dimensions);
-            out.writeOptionalVInt(maxInputTokens);
-        }
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalVInt(dimensions);
+        out.writeOptionalVInt(maxInputTokens);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(dimensionsSetByUser);
-            out.writeString(modelId);
-        }
+        out.writeBoolean(dimensionsSetByUser);
+        out.writeString(modelId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

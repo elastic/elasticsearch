@@ -11,7 +11,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -118,17 +117,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            elasticsearchVersion = Version.readVersion(in).toString();
-        } else {
-            elasticsearchVersion = in.readString();
-        }
         javaVersion = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.classname = in.readOptionalString();
-        } else {
-            this.classname = in.readString();
-        }
+        this.classname = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             this.moduleName = in.readOptionalString();
         } else {
@@ -143,13 +133,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         }
         isLicensed = in.readBoolean();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            isModular = in.readBoolean();
-            isStable = in.readBoolean();
-        } else {
-            isModular = moduleName != null;
-            isStable = false;
-        }
+        isModular = in.readBoolean();
+        isStable = in.readBoolean();
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -159,17 +144,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            Version.writeVersion(Version.fromString(elasticsearchVersion), out);
-        } else {
-            out.writeString(elasticsearchVersion);
-        }
         out.writeString(javaVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalString(classname);
-        } else {
-            out.writeString(classname);
-        }
+        out.writeOptionalString(classname);
         if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             out.writeOptionalString(moduleName);
         }
@@ -181,10 +157,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             out.writeOptionalString(null);
         }
         out.writeBoolean(isLicensed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(isModular);
-            out.writeBoolean(isStable);
-        }
+        out.writeBoolean(isModular);
+        out.writeBoolean(isStable);
     }
 
     private void ensureCorrectArgumentsForPluginType() {

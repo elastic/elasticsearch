@@ -183,9 +183,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             multiGetShardResponse.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVLong(primaryTerm);
-            }
+            out.writeVLong(primaryTerm);
         }
 
         public long segmentGeneration() {

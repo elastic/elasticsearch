@@ -594,9 +594,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
         out.writeBoolean(forceMergeIndex);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalInt(totalShardsPerNode);
-        }
+        out.writeOptionalInt(totalShardsPerNode);
         if (out.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)) {
             out.writeOptionalTimeValue(replicateFor);
         }

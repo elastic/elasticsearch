@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -57,15 +56,9 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            this.maxConcurrentShardRequests = in.readVInt();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.allowPartialSearchResults = in.readBoolean();
-        }
+        this.maxConcurrentShardRequests = in.readVInt();
+        this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.allowPartialSearchResults = in.readBoolean();
     }
 
     @Override
@@ -76,17 +69,9 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeVInt(maxConcurrentShardRequests);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(indexFilter);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        } else if (allowPartialSearchResults) {
-            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
-        }
+        out.writeVInt(maxConcurrentShardRequests);
+        out.writeOptionalWriteable(indexFilter);
+        out.writeBoolean(allowPartialSearchResults);
     }
 
     @Override

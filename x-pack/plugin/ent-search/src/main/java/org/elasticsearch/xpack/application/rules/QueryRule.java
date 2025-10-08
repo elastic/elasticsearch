@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -133,11 +132,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
         this.actions = in.readGenericMap();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.priority = in.readOptionalVInt();
-        } else {
-            this.priority = null;
-        }
+        this.priority = in.readOptionalVInt();
 
         validate();
     }
@@ -184,9 +179,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         out.writeString(type.toString());
         out.writeCollection(criteria);
         out.writeGenericMap(actions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalVInt(priority);
-        }
+        out.writeOptionalVInt(priority);
     }
 
     @SuppressWarnings("unchecked")

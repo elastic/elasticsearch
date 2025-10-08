@@ -62,11 +62,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         } else {
             this.indexMappingHash = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.indexMode = IndexMode.readFrom(in);
-        } else {
-            this.indexMode = IndexMode.STANDARD;
-        }
+        this.indexMode = IndexMode.readFrom(in);
     }
 
     @Override
@@ -77,9 +73,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
             out.writeOptionalString(indexMappingHash);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            IndexMode.writeTo(indexMode, out);
-        }
+        IndexMode.writeTo(indexMode, out);
     }
 
     private record CompressedGroup(String[] indices, IndexMode indexMode, String mappingHash, int[] fields) {}
@@ -94,11 +88,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             responses.add(new FieldCapabilitiesIndexResponse(input));
         }
         final int groups = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            collectCompressedResponses(input, groups, responses);
-        } else {
-            collectResponsesLegacyFormat(input, groups, responses);
-        }
+        collectCompressedResponses(input, groups, responses);
         return responses;
     }
 
@@ -154,11 +144,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         }
 
         output.writeCollection(ungroupedResponses);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            writeCompressedResponses(output, groupedResponsesMap);
-        } else {
-            writeResponsesLegacyFormat(output, groupedResponsesMap);
-        }
+        writeCompressedResponses(output, groupedResponsesMap);
     }
 
     private static void writeResponsesLegacyFormat(
@@ -179,9 +165,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
-            if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                IndexMode.writeTo(first.indexMode, o);
-            }
+            IndexMode.writeTo(first.indexMode, o);
             o.writeString(first.indexMappingHash);
             o.writeVInt(first.responseMap.size());
             for (IndexFieldCapabilities ifc : first.responseMap.values()) {

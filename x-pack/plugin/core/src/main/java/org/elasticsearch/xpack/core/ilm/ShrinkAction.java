@@ -133,9 +133,7 @@ public class ShrinkAction implements LifecycleAction {
         } else {
             maxPrimaryShardSize.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeBoolean(this.allowWriteAfterShrink);
-        }
+        out.writeBoolean(this.allowWriteAfterShrink);
     }
 
     @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -78,11 +77,7 @@ public final class RRFRankDoc extends RankDoc {
         } else {
             positions = in.readIntArray();
             scores = in.readFloatArray();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.rankConstant = in.readVInt();
-            } else {
-                this.rankConstant = DEFAULT_RANK_CONSTANT;
-            }
+            this.rankConstant = in.readVInt();
         }
     }
 
@@ -147,9 +142,7 @@ public final class RRFRankDoc extends RankDoc {
         } else {
             out.writeIntArray(positions == null ? new int[0] : positions);
             out.writeFloatArray(scores == null ? new float[0] : scores);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVInt(rankConstant == null ? DEFAULT_RANK_CONSTANT : rankConstant);
-            }
+            out.writeVInt(rankConstant == null ? DEFAULT_RANK_CONSTANT : rankConstant);
         }
     }
 

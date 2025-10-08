@@ -156,9 +156,6 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         }
 
         public static Result readFrom(final StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                return new Result(in.readBoolean(), null, in.readString());
-            }
             return new Result(in.readBoolean(), Reason.readFrom(in), in.readString());
         }
 

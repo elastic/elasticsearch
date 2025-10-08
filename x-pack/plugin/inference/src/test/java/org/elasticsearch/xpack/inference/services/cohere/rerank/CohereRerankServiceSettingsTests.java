@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -83,22 +82,6 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected CohereRerankServiceSettings mutateInstanceForVersion(CohereRerankServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_15_0)) {
-            // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
-            return new CohereRerankServiceSettings(
-                instance.uri(),
-                instance.modelId(),
-                CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
-                CohereServiceSettings.CohereApiVersion.V1
-            );
-        } else if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
-            return new CohereRerankServiceSettings(
-                instance.uri(),
-                instance.modelId(),
-                instance.rateLimitSettings(),
-                CohereServiceSettings.CohereApiVersion.V1
-            );
-        }
         return instance;
     }
 

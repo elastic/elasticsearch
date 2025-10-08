@@ -185,11 +185,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         maxInputTokens = in.readOptionalVInt();
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     private AzureOpenAiEmbeddingsServiceSettings(CommonFields fields) {
@@ -303,9 +299,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

@@ -116,9 +116,6 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
         CoordinatedInferenceAction.Request instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.V_8_13_0)) {
-            instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
-        }
 
         var newInstance = new CoordinatedInferenceAction.Request(
             instance.getModelId(),

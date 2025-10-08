@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,15 +123,9 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
 
     public CustomElandInternalTextEmbeddingServiceSettings(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            dimensions = in.readOptionalVInt();
-            similarityMeasure = in.readEnum(SimilarityMeasure.class);
-            elementType = in.readEnum(DenseVectorFieldMapper.ElementType.class);
-        } else {
-            dimensions = null;
-            similarityMeasure = SimilarityMeasure.COSINE;
-            elementType = DenseVectorFieldMapper.ElementType.FLOAT;
-        }
+        dimensions = in.readOptionalVInt();
+        similarityMeasure = in.readEnum(SimilarityMeasure.class);
+        elementType = in.readEnum(DenseVectorFieldMapper.ElementType.class);
     }
 
     private CustomElandInternalTextEmbeddingServiceSettings(CommonFields commonFields) {
@@ -183,11 +176,9 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalVInt(dimensions);
-            out.writeEnum(similarityMeasure);
-            out.writeEnum(elementType);
-        }
+        out.writeOptionalVInt(dimensions);
+        out.writeEnum(similarityMeasure);
+        out.writeEnum(elementType);
     }
 
     @Override

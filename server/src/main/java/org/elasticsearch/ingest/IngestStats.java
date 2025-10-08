@@ -117,9 +117,7 @@ public record IngestStats(
             }
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                pipelineStat.byteStats().writeTo(out);
-            }
+            pipelineStat.byteStats().writeTo(out);
             List<ProcessorStat> processorStatsForPipeline = processorStats.getOrDefault(pipelineStat.projectId(), Map.of())
                 .get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {

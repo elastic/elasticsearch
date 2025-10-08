@@ -53,11 +53,7 @@ public class SimulateIndexResponse extends IndexResponse {
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
         setShardInfo(ShardInfo.EMPTY);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.exception = in.readException();
-        } else {
-            this.exception = null;
-        }
+        this.exception = in.readException();
         if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
             this.ignoredFields = in.readStringCollectionAsList();
         } else {
@@ -149,9 +145,7 @@ public class SimulateIndexResponse extends IndexResponse {
         super.writeTo(out);
         out.writeBytesReference(source);
         out.writeString(sourceXContentType.name());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeException(exception);
-        }
+        out.writeException(exception);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
             out.writeStringCollection(ignoredFields);
         }

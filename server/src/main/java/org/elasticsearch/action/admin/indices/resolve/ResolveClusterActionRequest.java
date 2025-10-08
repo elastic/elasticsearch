@@ -78,9 +78,6 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
     @SuppressWarnings("this-escape")
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(createVersionErrorMessage(in.getTransportVersion()));
-        }
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.localIndicesRequested = localIndicesPresent(names);
@@ -99,9 +96,6 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            throw new UnsupportedOperationException(createVersionErrorMessage(out.getTransportVersion()));
-        }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {

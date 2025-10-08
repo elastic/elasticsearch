@@ -86,11 +86,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
-        } else {
-            this.tokenPruningConfig = null;
-        }
+        this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
     private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
@@ -129,9 +125,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalWriteable(tokenPruningConfig);
-        }
+        out.writeOptionalWriteable(tokenPruningConfig);
     }
 
     @Override

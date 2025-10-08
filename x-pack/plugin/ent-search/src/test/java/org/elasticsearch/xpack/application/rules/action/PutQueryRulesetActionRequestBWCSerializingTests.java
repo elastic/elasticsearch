@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -63,15 +62,9 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
                 rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions(), null));
             }
             return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
-        } else if (version.before(TransportVersions.V_8_15_0)) {
-            List<QueryRule> rules = new ArrayList<>();
-            for (QueryRule rule : instance.queryRuleset().rules()) {
-                rules.add(new QueryRule(rule.id(), rule.type(), rule.criteria(), rule.actions(), null));
-            }
-            return new PutQueryRulesetAction.Request(new QueryRuleset(instance.queryRuleset().id(), rules));
-        }
+        } else
 
-        // Default to current instance
-        return instance;
+            // Default to current instance
+            return instance;
     }
 }

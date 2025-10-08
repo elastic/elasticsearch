@@ -133,9 +133,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalNamedWriteable(chunkingSettings);
-        }
+        out.writeOptionalNamedWriteable(chunkingSettings);
     }
 
     public String getInferenceEntityId() {

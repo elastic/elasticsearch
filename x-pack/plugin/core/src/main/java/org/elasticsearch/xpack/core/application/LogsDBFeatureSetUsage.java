@@ -28,13 +28,8 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super(input);
         indicesCount = input.readVInt();
         indicesWithSyntheticSource = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            numDocs = input.readVLong();
-            sizeInBytes = input.readVLong();
-        } else {
-            numDocs = 0;
-            sizeInBytes = 0;
-        }
+        numDocs = input.readVLong();
+        sizeInBytes = input.readVLong();
         var transportVersion = input.getTransportVersion();
         if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
             || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
@@ -49,10 +44,8 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super.writeTo(out);
         out.writeVInt(indicesCount);
         out.writeVInt(indicesWithSyntheticSource);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeVLong(numDocs);
-            out.writeVLong(sizeInBytes);
-        }
+        out.writeVLong(numDocs);
+        out.writeVLong(sizeInBytes);
         var transportVersion = out.getTransportVersion();
         if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
             || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {

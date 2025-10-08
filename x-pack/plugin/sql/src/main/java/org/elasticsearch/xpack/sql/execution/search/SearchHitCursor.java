@@ -80,9 +80,7 @@ public class SearchHitCursor implements Cursor {
         out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        }
+        out.writeBoolean(allowPartialSearchResults);
     }
 
     @Override

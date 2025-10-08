@@ -156,9 +156,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         out.writeByte(type.value());
         out.writeString(dataStream);
         out.writeString(index);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeBoolean(failureStore);
-        }
+        out.writeBoolean(failureStore);
     }
 
     public static DataStreamAction fromXContent(XContentParser parser) throws IOException {

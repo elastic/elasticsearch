@@ -152,9 +152,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeBoolean(keyedBucket);
-        }
+        out.writeBoolean(keyedBucket);
         out.writeCollection(buckets);
     }
 

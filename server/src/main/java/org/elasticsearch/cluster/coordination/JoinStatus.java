@@ -36,11 +36,6 @@ public record JoinStatus(DiscoveryNode remoteNode, long term, String message, Ti
         remoteNode.writeTo(out);
         out.writeLong(term);
         out.writeString(message);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeTimeValue(age);
-        } else {
-            out.writeLong(age.duration());
-            out.writeString(age.timeUnit().name());
-        }
+        out.writeTimeValue(age);
     }
 }

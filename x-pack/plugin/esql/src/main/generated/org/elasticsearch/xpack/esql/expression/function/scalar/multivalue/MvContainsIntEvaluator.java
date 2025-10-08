@@ -26,27 +26,27 @@ public final class MvContainsIntEvaluator implements EvalOperator.ExpressionEval
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field1;
+  private final EvalOperator.ExpressionEvaluator superset;
 
-  private final EvalOperator.ExpressionEvaluator field2;
+  private final EvalOperator.ExpressionEvaluator subset;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MvContainsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
-      EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
+  public MvContainsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator superset,
+      EvalOperator.ExpressionEvaluator subset, DriverContext driverContext) {
     this.source = source;
-    this.field1 = field1;
-    this.field2 = field2;
+    this.superset = superset;
+    this.subset = subset;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock field1Block = (IntBlock) field1.eval(page)) {
-      try (IntBlock field2Block = (IntBlock) field2.eval(page)) {
-        return eval(page.getPositionCount(), field1Block, field2Block);
+    try (IntBlock supersetBlock = (IntBlock) superset.eval(page)) {
+      try (IntBlock subsetBlock = (IntBlock) subset.eval(page)) {
+        return eval(page.getPositionCount(), supersetBlock, subsetBlock);
       }
     }
   }
@@ -54,15 +54,15 @@ public final class MvContainsIntEvaluator implements EvalOperator.ExpressionEval
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field1.baseRamBytesUsed();
-    baseRamBytesUsed += field2.baseRamBytesUsed();
+    baseRamBytesUsed += superset.baseRamBytesUsed();
+    baseRamBytesUsed += subset.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, IntBlock field1Block, IntBlock field2Block) {
+  public BooleanBlock eval(int positionCount, IntBlock supersetBlock, IntBlock subsetBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(MvContains.process(p, field1Block, field2Block));
+        result.appendBoolean(MvContains.process(p, supersetBlock, subsetBlock));
       }
       return result.build();
     }
@@ -70,12 +70,12 @@ public final class MvContainsIntEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "MvContainsIntEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+    return "MvContainsIntEvaluator[" + "superset=" + superset + ", subset=" + subset + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field1, field2);
+    Releasables.closeExpectNoException(superset, subset);
   }
 
   private Warnings warnings() {
@@ -93,25 +93,25 @@ public final class MvContainsIntEvaluator implements EvalOperator.ExpressionEval
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field1;
+    private final EvalOperator.ExpressionEvaluator.Factory superset;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field2;
+    private final EvalOperator.ExpressionEvaluator.Factory subset;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
-        EvalOperator.ExpressionEvaluator.Factory field2) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory superset,
+        EvalOperator.ExpressionEvaluator.Factory subset) {
       this.source = source;
-      this.field1 = field1;
-      this.field2 = field2;
+      this.superset = superset;
+      this.subset = subset;
     }
 
     @Override
     public MvContainsIntEvaluator get(DriverContext context) {
-      return new MvContainsIntEvaluator(source, field1.get(context), field2.get(context), context);
+      return new MvContainsIntEvaluator(source, superset.get(context), subset.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvContainsIntEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+      return "MvContainsIntEvaluator[" + "superset=" + superset + ", subset=" + subset + "]";
     }
   }
 }

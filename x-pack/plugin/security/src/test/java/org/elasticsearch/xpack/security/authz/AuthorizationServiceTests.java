@@ -1415,7 +1415,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             )
         );
         assertThat(e.getCause().getMessage(), containsString("project authz failure"));
-        
+
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),

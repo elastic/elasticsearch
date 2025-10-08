@@ -130,21 +130,18 @@ public class PutSampleConfigurationActionIT extends ESIntegTestCase {
         createIndex(indexName1);
         createIndex(indexName2);
 
-        // According to the transport action implementation, only the first index should be used
         SamplingConfiguration config = new SamplingConfiguration(0.7d, 70, ByteSizeValue.ofMb(12), TimeValue.timeValueMinutes(90), null);
         PutSampleConfigurationAction.Request request = new PutSampleConfigurationAction.Request(
             config,
             TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(10)
         );
-        request.indices(indexName1, indexName2);
 
-        AcknowledgedResponse response = client().execute(PutSampleConfigurationAction.INSTANCE, request).actionGet();
-        assertTrue("Put sampling configuration should be acknowledged", response.isAcknowledged());
-
-        // Only the first index should have the configuration
-        assertSamplingConfigurationExists(indexName1, config);
-        assertSamplingConfigurationNotExists(indexName2);
+        // Setting multiple indices should fail
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+            request.indices(indexName1, indexName2);
+        });
+        assertTrue(exception.getMessage().contains("Exactly one index or data stream must be specified"));
     }
 
     public void testPutSampleConfigurationNonExistentIndex() throws Exception {

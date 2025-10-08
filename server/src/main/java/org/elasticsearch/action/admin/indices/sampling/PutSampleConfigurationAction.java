@@ -78,11 +78,12 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          * @param ackTimeout the timeout for acknowledgment, or null for default
          */
         public Request(
-            @Nullable SamplingConfiguration samplingConfiguration,
+            SamplingConfiguration samplingConfiguration,
             @Nullable TimeValue masterNodeTimeout,
             @Nullable TimeValue ackTimeout
         ) {
             super(masterNodeTimeout, ackTimeout);
+            Objects.requireNonNull(samplingConfiguration, "samplingConfiguration must not be null");
             this.samplingConfiguration = samplingConfiguration;
         }
 
@@ -129,6 +130,9 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         @Override
         public Request indices(String... indices) {
+            if (indices.length != 1) {
+                throw new IllegalArgumentException("Exactly one index or data stream must be specified.");
+            }
             this.indices = indices;
             return this;
         }
@@ -146,7 +150,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
         /**
          * Returns the indices options for this request, which control how index names are resolved and expanded.
          *
-         * @return the indices options, configured to be lenient and expand both open and closed indices
+         * @return the indices options, configured to be strict about single index, no expansion, forbid closed indices, and allow selectors
          */
         @Override
         public IndicesOptions indicesOptions() {

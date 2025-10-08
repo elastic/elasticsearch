@@ -768,7 +768,7 @@ public class SamplingService implements ClusterStateListener {
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
 
-            boolean isNewConfiguration = samplingMetadata == null;
+            boolean isNewConfiguration = samplingMetadata == null; // for logging
             int existingConfigCount = isNewConfiguration ? 0 : samplingMetadata.getIndexToSamplingConfigMap().size();
 
             logger.trace(
@@ -784,7 +784,7 @@ public class SamplingService implements ClusterStateListener {
                 updatedConfigMap.putAll(samplingMetadata.getIndexToSamplingConfigMap());
             }
 
-            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
+            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName); // for logging
             updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
 
             logger.trace(

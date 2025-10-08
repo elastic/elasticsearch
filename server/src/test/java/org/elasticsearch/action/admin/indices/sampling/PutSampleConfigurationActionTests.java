@@ -58,7 +58,7 @@ public class PutSampleConfigurationActionTests extends AbstractWireSerializingTe
                 mutated.indices(
                     randomValueOtherThan(
                         instance.indices(),
-                        () -> randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))
+                        () -> new String[]{randomAlphaOfLengthBetween(1, 10)}
                     )
                 );
                 yield mutated;
@@ -75,9 +75,7 @@ public class PutSampleConfigurationActionTests extends AbstractWireSerializingTe
         );
 
         // Randomly set some indices
-        if (randomBoolean()) {
-            request.indices(randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(1, 10)));
-        }
+        request.indices(randomAlphaOfLengthBetween(1, 10));
 
         return request;
     }

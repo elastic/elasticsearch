@@ -24,17 +24,17 @@ public class ElasticInferenceServiceMinimalSettings {
     public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
     // elser-2
-    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
+    public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
+    public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
 
     // multilingual-text-embed
-    static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
-    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+    public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
+    public static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
+    public static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
 
     // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+    public static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
+    public static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
 
     public static final Set<String> EIS_PRECONFIGURED_ENDPOINTS = Set.of(
         DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,

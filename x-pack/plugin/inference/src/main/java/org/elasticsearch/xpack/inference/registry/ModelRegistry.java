@@ -96,6 +96,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -416,6 +417,7 @@ public class ModelRegistry implements ClusterStateListener {
         getModelsHelper(
             QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString())),
             () -> taskTypeMatchedDefaults(taskType, defaultConfigIds.values()),
+            unparsedModel -> unparsedModel.taskType() == taskType,
             true,
             listener
         );
@@ -424,6 +426,7 @@ public class ModelRegistry implements ClusterStateListener {
     private void getModelsHelper(
         BoolQueryBuilder boolQueryBuilder,
         Supplier<List<InferenceService.DefaultConfigId>> defaultConfigIdsSupplier,
+        Predicate<UnparsedModel> eisResponseFilter,
         boolean persistDefaultEndpoints,
         ActionListener<List<UnparsedModel>> listener
     ) {
@@ -431,6 +434,7 @@ public class ModelRegistry implements ClusterStateListener {
             (delegate, searchResponse) -> includeDefaultAndEisEndpoints(
                 searchResponse,
                 defaultConfigIdsSupplier,
+                eisResponseFilter,
                 persistDefaultEndpoints,
                 delegate
             )
@@ -454,6 +458,7 @@ public class ModelRegistry implements ClusterStateListener {
     private void includeDefaultAndEisEndpoints(
         SearchResponse searchResponse,
         Supplier<List<InferenceService.DefaultConfigId>> defaultConfigIdsSupplier,
+        Predicate<UnparsedModel> eisResponseFilter,
         boolean persistDefaultEndpoints,
         ActionListener<List<UnparsedModel>> listener
     ) {
@@ -467,15 +472,18 @@ public class ModelRegistry implements ClusterStateListener {
                 defaultConfigIdsSupplier.get(),
                 missingDefaultConfigsAddedListener
             );
-        }).<List<UnparsedModel>>andThen((eisPreconfiguredEndpointsAddedListener, unparsedModels) -> {
-            ActionListener<List<UnparsedModel>> eisListener = ActionListener.wrap(response -> {
-                var allModels = new ArrayList<>(unparsedModels);
-                allModels.addAll(response);
+        }).<List<UnparsedModel>>andThen((eisPreconfiguredEndpointsAddedListener, defaultModelsAndFromIndex) -> {
+            ActionListener<List<UnparsedModel>> eisListener = ActionListener.wrap(allEisAuthorizedModels -> {
+                var filteredEisModels = allEisAuthorizedModels.stream().filter(eisResponseFilter).toList();
+
+                var allModels = new ArrayList<>(defaultModelsAndFromIndex);
+                allModels.addAll(filteredEisModels);
                 allModels.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
+
                 eisPreconfiguredEndpointsAddedListener.onResponse(allModels);
             }, e -> {
                 logger.debug("Failed to retrieve preconfigured endpoint from EIS", e);
-                eisPreconfiguredEndpointsAddedListener.onResponse(unparsedModels);
+                eisPreconfiguredEndpointsAddedListener.onResponse(defaultModelsAndFromIndex);
             });
 
             preconfiguredEndpointsRequestHandler.getAllPreconfiguredEndpointsAsUnparsedModels(eisListener);
@@ -498,6 +506,7 @@ public class ModelRegistry implements ClusterStateListener {
         getModelsHelper(
             QueryBuilders.boolQuery().filter(QueryBuilders.constantScoreQuery(QueryBuilders.existsQuery(TASK_TYPE_FIELD))),
             () -> new ArrayList<>(defaultConfigIds.values()),
+            eisResponse -> true,
             persistDefaultEndpoints,
             listener
         );

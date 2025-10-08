@@ -245,12 +245,38 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
     }
 
     public void testGetMinimalServiceSettings_ReturnsEisPreconfiguredEndpoint() {
-        var minimalSettings = registry.getMinimalServiceSettings(
-            ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1
-        );
+        {
+            var minimalSettings = registry.getMinimalServiceSettings(
+                ElasticInferenceServiceMinimalSettings.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1
+            );
 
-        assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
-        assertThat(minimalSettings.taskType(), is(TaskType.CHAT_COMPLETION));
+            assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
+            assertThat(minimalSettings.taskType(), is(TaskType.CHAT_COMPLETION));
+        }
+        {
+            var minimalSettings = registry.getMinimalServiceSettings(
+                ElasticInferenceServiceMinimalSettings.DEFAULT_ELSER_ENDPOINT_ID_V2
+            );
+
+            assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
+            assertThat(minimalSettings.taskType(), is(TaskType.SPARSE_EMBEDDING));
+        }
+        {
+            var minimalSettings = registry.getMinimalServiceSettings(
+                ElasticInferenceServiceMinimalSettings.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID
+            );
+
+            assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
+            assertThat(minimalSettings.taskType(), is(TaskType.TEXT_EMBEDDING));
+        }
+        {
+            var minimalSettings = registry.getMinimalServiceSettings(
+                ElasticInferenceServiceMinimalSettings.DEFAULT_RERANK_ENDPOINT_ID_V1
+            );
+
+            assertThat(minimalSettings.service(), is(ElasticInferenceService.NAME));
+            assertThat(minimalSettings.taskType(), is(TaskType.RERANK));
+        }
     }
 
     public static void assertStoreModel(ModelRegistry registry, Model model) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -26,9 +27,6 @@ import java.util.stream.Collectors;
 public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> preconfiguredEndpoints) {
 
     public static PreconfiguredEndpointsModel of(ElasticInferenceServiceAuthorizationModel authModel) {
-        // TODO convert the auth model to a list of preconfigured endpoints
-        // iterate over the authorized model ids and retrieve the configurations from a new class that has the information
-
         var endpoints = authModel.getAuthorizedModelIds()
             .stream()
             .filter(ElasticInferenceServiceMinimalSettings::containsModelName)
@@ -106,14 +104,19 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
     ) {
         return new HashMap<>(
             Map.of(
-                ServiceFields.MODEL_ID,
-                modelId,
-                ServiceFields.SIMILARITY,
-                similarityMeasure.toString(),
-                ServiceFields.DIMENSIONS,
-                dimension,
-                ServiceFields.ELEMENT_TYPE,
-                elementType.toString()
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ServiceFields.MODEL_ID,
+                        modelId,
+                        ServiceFields.SIMILARITY,
+                        similarityMeasure.toString(),
+                        ServiceFields.DIMENSIONS,
+                        dimension,
+                        ServiceFields.ELEMENT_TYPE,
+                        elementType.toString()
+                    )
+                )
             )
         );
     }
@@ -126,7 +129,7 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
     }
 
     private static Map<String, Object> settingsWithModelId(String modelId) {
-        return new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId));
+        return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId))));
     }
 
     public UnparsedModel toUnparsedModel(String inferenceId) {

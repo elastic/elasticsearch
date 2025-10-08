@@ -109,7 +109,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         plugins.add(MockReadinessService.TestPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
-
+    
     private void assertMasterNode(Client client, String node) {
         assertThat(
             client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
@@ -124,7 +124,6 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108613")
     public void testReadinessDuringRestarts() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         writeFileSettings(testJSON);
@@ -276,7 +275,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
         assertFalse(dataFileSettingsService.watching());
 
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
@@ -333,7 +332,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
@@ -387,7 +386,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
         assertFalse(dataFileSettingsService.watching());
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);

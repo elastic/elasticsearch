@@ -574,6 +574,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
+                // This runs after the move commands have been applied, we assert that the relocating shards caused by the move
+                // commands are all started by the simulation.
                 assertThat(
                     "unexpected relocating shards: " + allocation.routingNodes(),
                     allocation.routingNodes().getRelocatingShardCount(),
@@ -637,6 +639,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
+                // This runs after the move commands have been executed and failed, we assert that no movement should be seen
+                // in the routing nodes.
                 assertThat(
                     "unexpected relocating shards: " + allocation.routingNodes(),
                     allocation.routingNodes().getRelocatingShardCount(),

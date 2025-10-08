@@ -43,9 +43,6 @@ public class PreconfiguredEndpointsRequestHandler {
     public void getAllPreconfiguredEndpointsAsUnparsedModels(ActionListener<List<UnparsedModel>> listener) {
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authListener -> {
             eisAuthorizationRequestHandler.getAuthorization(authListener, sender);
-        })
-            .andThenApply(PreconfiguredEndpointsModel::of)
-            .andThenApply(PreconfiguredEndpointsModel::toUnparsedModels)
-            .addListener(listener);
+        }).andThenApply(PreconfiguredEndpointsModel::of).andThenApply(PreconfiguredEndpointsModel::toUnparsedModels).addListener(listener);
     }
 }

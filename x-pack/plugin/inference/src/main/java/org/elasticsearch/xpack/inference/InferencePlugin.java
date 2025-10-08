@@ -322,9 +322,7 @@ public class InferencePlugin extends Plugin
 
         var eisSender = elasicInferenceServiceFactory.get().createSender();
         var preconfigEndpointsHandler = new PreconfiguredEndpointsRequestHandler(authorizationHandler, eisSender);
-        modelRegistry.set(
-            new ModelRegistry(services.clusterService(), services.client(), preconfigEndpointsHandler)
-        );
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), preconfigEndpointsHandler));
         services.clusterService().addListener(modelRegistry.get());
 
         var sageMakerSchemas = new SageMakerSchemas();

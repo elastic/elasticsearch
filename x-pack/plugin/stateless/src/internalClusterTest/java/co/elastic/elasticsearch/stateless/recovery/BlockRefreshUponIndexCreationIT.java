@@ -21,11 +21,16 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -440,6 +445,36 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
 
         blockedIndices.forEach(
             index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(false))
+        );
+    }
+
+    public void testUnrelatedClusterBlocksAreNotTakenIntoAccount() {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
+                .put(useRefreshBlockSetting(true))
+                .build()
+        );
+
+        String indexName = randomIdentifier();
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, 0)));
+        ensureGreen(indexName);
+
+        // The cluster state listener that's in charge of removing refresh blocks should only care about REFRESH blocks.
+        // This test just ensures that we can add random blocks and it still works.
+        var block = randomValueOtherThan(IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE, () -> randomFrom(IndexMetadata.APIBlock.values()));
+        assertAcked(client().execute(TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(block, indexName)));
+
+        assertAcked(
+            client().execute(
+                TransportRemoveIndexBlockAction.TYPE,
+                new RemoveIndexBlockRequest(
+                    AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                    AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                    block,
+                    indexName
+                )
+            )
         );
     }
 

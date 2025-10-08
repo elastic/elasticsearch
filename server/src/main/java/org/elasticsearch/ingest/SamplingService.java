@@ -752,7 +752,8 @@ public class SamplingService implements ClusterStateListener {
             ClusterState clusterState
         ) {
             logger.debug(
-                "Updating sampling configuration for index [{}] in project [{}] with rate [{}], maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
+                "Updating sampling configuration for index [{}] in project [{}] with rate [{}],"
+                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
                 updateSamplingConfigurationTask.indexName,
                 updateSamplingConfigurationTask.projectId,
                 updateSamplingConfigurationTask.samplingConfiguration.rate(),

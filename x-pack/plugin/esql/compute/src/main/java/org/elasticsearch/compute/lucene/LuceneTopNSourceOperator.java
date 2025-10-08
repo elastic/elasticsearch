@@ -124,6 +124,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     // We use the same value as the INITIAL_INTERVAL from CancellableBulkScorer
     private static final int NUM_DOCS_INTERVAL = 1 << 12;
 
+    // The max time we should be spending scoring docs in one getOutput call, before we return to update the driver status
+    private static final long MAX_EXEC_TIME = TimeUnit.SECONDS.toNanos(1);
+
     private final DriverContext driverContext;
     private final List<SortBuilder<?>> sorts;
     private final long estimatedPerRowSortSize;
@@ -231,9 +234,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 scorer = nextScorer;
             }
 
-            // If we stayed longer than 1 second to execute getOutput, we should return back to the driver, so we can update its status.
+            // When it takes a long time to start emitting pages we need to return back to the driver so we can update its status.
             // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-            if (TimeUnit.SECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS) >= 1) {
+            if (System.nanoTime() - start > MAX_EXEC_TIME) {
                 return null;
             }
         }

@@ -40,7 +40,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
@@ -348,6 +350,26 @@ public class EsqlCCSUtils {
             } else {
                 throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
+        }
+    }
+
+    public static void initCrossClusterState(Set<String> resolvedIndices, EsqlExecutionInfo executionInfo, XPackLicenseState licenseState) {
+        executionInfo.clusterInfoInitializing(true);
+        try {
+            resolvedIndices.stream()
+                .map(RemoteClusterAware::splitIndexName)
+                .collect(groupingBy(it -> it[0], mapping(it -> it[1], joining(","))))
+                .forEach((clusterAlias, indexExpr) -> {
+                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                    });
+                });
+        } finally {
+            executionInfo.clusterInfoInitializing(false);
+        }
+        if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+            throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
         }
     }
 

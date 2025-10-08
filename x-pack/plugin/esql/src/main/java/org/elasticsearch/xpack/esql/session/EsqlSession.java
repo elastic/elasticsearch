@@ -453,8 +453,6 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
-
         SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
             .andThenApply(r -> {
                 if (r.indices.isValid()
@@ -731,6 +729,7 @@ public class EsqlSession {
                     preAnalysis.supportsAggregateMetricDouble(),
                     preAnalysis.supportsDenseVector(),
                     listener.delegateFailureAndWrap((l, indexResolution) -> {
+                        EsqlCCSUtils.initCrossClusterState(indexResolution.resolvedIndices(), executionInfo, verifier.licenseState());
                         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
                         l.onResponse(result.withIndices(indexResolution));
                     })

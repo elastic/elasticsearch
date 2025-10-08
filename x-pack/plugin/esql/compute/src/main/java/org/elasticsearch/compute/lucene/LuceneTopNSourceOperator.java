@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -197,6 +198,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     private Page collect() throws IOException {
         assert doneCollecting == false;
+        long start = System.nanoTime();
+
         var scorer = getCurrentOrLoadNextScorer();
 
         while (scorer != null) {
@@ -226,6 +229,12 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     return emit();
                 }
                 scorer = nextScorer;
+            }
+
+            // If we stayed longer than 1 second to execute getOutput, we should return back to the driver, so we can update its status.
+            // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
+            if (TimeUnit.SECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS) >= 1) {
+                return null;
             }
         }
 

@@ -71,27 +71,27 @@ public final class ClampMaxIntegerEvaluator implements EvalOperator.ExpressionEv
   public IntBlock eval(int positionCount, IntBlock fieldBlock, IntBlock maxBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (maxBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (maxBlock.getValueCount(p) != 1) {
-          if (maxBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (maxBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
         int max = maxBlock.getInt(maxBlock.getFirstValueIndex(p));

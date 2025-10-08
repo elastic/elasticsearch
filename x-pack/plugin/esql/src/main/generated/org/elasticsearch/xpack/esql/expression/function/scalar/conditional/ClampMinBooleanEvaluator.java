@@ -71,27 +71,27 @@ public final class ClampMinBooleanEvaluator implements EvalOperator.ExpressionEv
   public BooleanBlock eval(int positionCount, BooleanBlock fieldBlock, BooleanBlock minBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (minBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (minBlock.getValueCount(p) != 1) {
-          if (minBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (minBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         boolean field = fieldBlock.getBoolean(fieldBlock.getFirstValueIndex(p));
         boolean min = minBlock.getBoolean(minBlock.getFirstValueIndex(p));

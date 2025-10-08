@@ -92,6 +92,7 @@ public class ScalarFunctionWritables {
         entries.add(MonthName.ENTRY);
         entries.add(IpPrefix.ENTRY);
         entries.add(Least.ENTRY);
+        entries.add(Clamp.ENTRY);
         entries.add(ClampMax.ENTRY);
         entries.add(ClampMin.ENTRY);
         entries.add(Left.ENTRY);

@@ -182,10 +182,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, int asyncPrefetchLimit) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
-            if (Constants.WINDOWS) {
-                // disable prefetching for WINDOWS, see https://github.com/elastic/elasticsearch/issues/136151
-                asyncPrefetchLimit = 0;
-            }
+            // disable prefetching, see https://github.com/elastic/elasticsearch/issues/136151
+            asyncPrefetchLimit = 0;
 
             DirectIODirectory directIO;
             try {

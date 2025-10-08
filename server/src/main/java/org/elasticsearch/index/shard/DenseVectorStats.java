@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +29,9 @@ import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
  * Statistics about indexed dense vector
  */
 public class DenseVectorStats implements Writeable, ToXContentFragment {
+
+    private static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = TransportVersion.fromName("dense_vector_off_heap_stats");
+
     private long valueCount = 0;
 
     /** Per-field off-heap desired memory byte size, categorized by file extension. */
@@ -47,7 +50,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
 
     public DenseVectorStats(StreamInput in) throws IOException {
         this.valueCount = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DENSE_VECTOR_OFF_HEAP_STATS)) {
+        if (in.getTransportVersion().supports(DENSE_VECTOR_OFF_HEAP_STATS)) {
             this.offHeapStats = readOptionalOffHeapStats(in);
         }
     }
@@ -55,7 +58,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(valueCount);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DENSE_VECTOR_OFF_HEAP_STATS)) {
+        if (out.getTransportVersion().supports(DENSE_VECTOR_OFF_HEAP_STATS)) {
             writeOptionalOffHeapStats(out);
         }
     }

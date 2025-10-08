@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -29,12 +28,14 @@ import java.util.Set;
 
 public class ClusterStateSerializationTests extends ESTestCase {
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
     public void testSerializationInCurrentVersion() throws IOException {
         assertSerializationRoundTrip(TransportVersion.current());
     }
 
     public void testSerializationPreMultiProject() throws IOException {
-        assertSerializationRoundTrip(TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT));
+        assertSerializationRoundTrip(TransportVersionUtils.getPreviousVersion(MULTI_PROJECT));
     }
 
     private void assertSerializationRoundTrip(TransportVersion transportVersion) throws IOException {

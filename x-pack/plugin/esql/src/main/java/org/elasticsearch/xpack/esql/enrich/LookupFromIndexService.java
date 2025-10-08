@@ -133,6 +133,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final String matchField;
 
+        private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
         private static final TransportVersion JOIN_ON_ALIASES = TransportVersion.fromName("join_on_aliases");
 
         TransportRequest(
@@ -176,7 +177,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
             // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
@@ -215,7 +216,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
         }

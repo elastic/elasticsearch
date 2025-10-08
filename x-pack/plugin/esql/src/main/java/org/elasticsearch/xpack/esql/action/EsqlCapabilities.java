@@ -1158,6 +1158,11 @@ public class EsqlCapabilities {
         FIX_JOIN_MASKING_REGEX_EXTRACT,
 
         /**
+         * Allow the merging of the children to use {@code Aliase}s, instead of just {@code ReferenceAttribute}s.
+         */
+        FIX_JOIN_OUTPUT_MERGING,
+
+        /**
          * Avid GROK and DISSECT attributes being removed when resolving fields.
          * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
          */
@@ -1238,7 +1243,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
          */
-        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+        TEXT_EMBEDDING_FUNCTION,
 
         /**
          * Support for the LIKE operator with a list of wildcards.

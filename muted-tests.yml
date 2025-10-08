@@ -672,6 +672,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.*.EsqlSpecIT
   method: test {csv-spec:text-embedding.*}
   issue: https://github.com/elastic/elasticsearch/issues/136090
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:categorize.Values aggs}
+  issue: https://github.com/elastic/elasticsearch/issues/136230
 
 # Examples:
 #

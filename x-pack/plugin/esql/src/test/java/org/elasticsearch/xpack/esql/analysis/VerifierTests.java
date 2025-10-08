@@ -80,6 +80,7 @@ public class VerifierTests extends ESTestCase {
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
     private final Analyzer oddSampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-odd-timestamp.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
+    private final Analyzer k8s = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.k8sIndexResolution());
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
@@ -1149,6 +1150,18 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS present(name) BY network.bytes_in", tsdb),
             equalTo("1:36: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testRenameOrDropTimestmapWithRate() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)"),
+            equalTo("Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))"),
+            equalTo("Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
         );
     }
 

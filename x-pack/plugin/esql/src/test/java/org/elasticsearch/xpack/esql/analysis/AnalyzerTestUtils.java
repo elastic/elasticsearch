@@ -275,6 +275,10 @@ public final class AnalyzerTestUtils {
         return loadMapping("tsdb-mapping.json", "test");
     }
 
+    public static IndexResolution k8sIndexResolution() {
+        return loadMapping("k8s-mappings.json", "k8s");
+    }
+
     public static <E> E randomValueOtherThanTest(Predicate<E> exclude, Supplier<E> supplier) {
         while (true) {
             E value = supplier.get();

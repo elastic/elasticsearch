@@ -547,3 +547,38 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | two
 1        | prod            | three
 ;
+
+Max of Rate with Bucket
+required_capability: ts_command_v0
+
+TS k8s
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, rename _tsid
+required_capability: ts_command_v0
+
+TS k8s METADATA _tsid
+| RENAME _tsid AS newTsid
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;
+
+Max of Rate with Bucket, drop _tsid
+required_capability: ts_command_v0
+
+TS k8s METADATA _tsid
+| DROP _tsid
+| STATS maxRate = max(rate(network.total_cost))  BY tbucket = bucket(@timestamp, 1hour) 
+;
+
+maxRate:double | tbucket:datetime
+0.058979885057471274 | 2024-05-10T00:00:00.000Z
+;

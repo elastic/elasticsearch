@@ -139,7 +139,7 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
             if (base.dataType().isWholeNumber() == false) {
                 throw new UnsupportedOperationException("base must be a whole number");
             }
-            // return new ToLongBase(source(), field, base);
+            return new ToLongBase(source(), field, base);
         }
         return new ToLong(source(), field);
     }

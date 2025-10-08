@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
@@ -228,6 +229,7 @@ public class ExpressionWritables {
         entries.add(ToIpLeadingZerosRejected.ENTRY);
         entries.add(ToInteger.ENTRY);
         entries.add(ToLong.ENTRY);
+        entries.add(ToLongBase.ENTRY);
         entries.add(ToRadians.ENTRY);
         entries.add(ToString.ENTRY);
         entries.add(ToUnsignedLong.ENTRY);

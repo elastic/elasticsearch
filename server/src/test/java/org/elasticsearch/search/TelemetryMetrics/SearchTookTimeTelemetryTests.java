@@ -745,6 +745,65 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("1_hour", attributes.get("time_range_filter_from"));
     }
 
+    public void testStandardRetrieverWithTimeRangeQuery() {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.retriever(new StandardRetrieverBuilder(new RangeQueryBuilder("event.ingested").from("2024-12-01")));
+        SearchResponse searchResponse = client().prepareSearch(indexName).setSource(searchSourceBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        assertThat(measurements.getFirst().getLong(), Matchers.lessThanOrEqualTo(searchResponse.getTook().millis()));
+        assertEquals(searchResponse.getTook().millis(), measurements.getLast().getLong());
+        for (Measurement measurement : measurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(5, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals("event.ingested", attributes.get("time_range_filter_field"));
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+        }
+    }
+
+    public void testCompoundRetrieverWithTimeRangeQuery() {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.retriever(
+            new RescorerRetrieverBuilder(
+                new StandardRetrieverBuilder(new RangeQueryBuilder("@timestamp").from("2024-12-01")),
+                List.of(new QueryRescorerBuilder(new MatchAllQueryBuilder()))
+            )
+        );
+        SearchResponse searchResponse = client().prepareSearch(indexName).setSource(searchSourceBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        // compound retriever does its own search as an async action, whose took time is recorded separately
+        assertEquals(2, measurements.size());
+        assertThat(measurements.getFirst().getLong(), Matchers.lessThan(searchResponse.getTook().millis()));
+        assertEquals(searchResponse.getTook().millis(), measurements.getLast().getLong());
+        for (Measurement measurement : measurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(6, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals("pit", attributes.get("pit_scroll"));
+            assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+        }
+    }
+
     private void resetMeter() {
         getTestTelemetryPlugin().resetMeter();
     }

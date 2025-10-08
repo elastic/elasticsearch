@@ -575,11 +575,19 @@ public final class EsqlTestUtils {
     }
 
     public static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
-        return Iterators.toList(Iterators.map(values, Iterators::toList));
+        return toList(Iterators.map(values, EsqlTestUtils::toList));
     }
 
     public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
-        return Iterators.toList(Iterators.map(values.iterator(), row -> Iterators.toList(row.iterator())));
+        return toList(Iterators.map(values.iterator(), row -> toList(row.iterator())));
+    }
+
+    private static <T> List<T> toList(Iterator<T> iterator) {
+        var list = new ArrayList<T>();
+        while (iterator.hasNext()) {
+            list.add(iterator.next());
+        }
+        return list;
     }
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {

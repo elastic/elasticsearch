@@ -28,13 +28,7 @@ public class ModelRegistryEisInvalidUrlIT extends ModelRegistryEisBase {
         modelRegistry.getAllModels(false, listener);
 
         var results = listener.actionGet(TIMEOUT);
-        var expected = Stream.of(
-            "sparse-1",
-            "sparse-2",
-            "sparse-3",
-            "embedding-1",
-            "embedding-2"
-        ).toArray(String[]::new);
+        var expected = Stream.of("sparse-1", "sparse-2", "sparse-3", "embedding-1", "embedding-2").toArray(String[]::new);
         assertThat(results.size(), is(expected.length));
         assertThat(results.stream().map(UnparsedModel::inferenceEntityId).sorted().toList(), containsInAnyOrder(expected));
     }

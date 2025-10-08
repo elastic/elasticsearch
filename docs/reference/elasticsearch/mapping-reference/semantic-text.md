@@ -138,11 +138,32 @@ While we do encourage experimentation, we do not recommend implementing producti
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. By default, `.elser-2-elasticsearch` is used. This
-parameter cannot be updated. Use
-the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
+embeddings for the field. By default, `.elser-2-elasticsearch` is used.
+Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 to create the endpoint. If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time.
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "ga 9.0" }
+This parameter cannot be updated.
+:::
+
+:::{applies-item} { "stack": "ga 9.3" }
+
+You can update this parameter by using
+the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
+The update is allowed when either no values have been indexed or the new inference endpoint is compatible with the current one.
+
+::::{warning}
+Even though endpoint compatibility is validated, the compatibility of the produced embeddings cannot be verified.
+You must be certain the new inference endpoint produces compatible embeddings.
+
+::::
+
+:::
+
+::::
 
 `search_inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate

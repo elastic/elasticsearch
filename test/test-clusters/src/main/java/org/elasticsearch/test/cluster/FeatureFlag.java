@@ -25,7 +25,8 @@ public enum FeatureFlag {
         "es.index_dimensions_tsid_optimization_feature_flag_enabled=true",
         Version.fromString("9.2.0"),
         null
-    );
+    ),
+    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null);
 
     public final String systemProperty;
     public final Version from;

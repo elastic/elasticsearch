@@ -147,10 +147,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
     public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
     public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
-    public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
-    public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
-    public static final TransportVersion INDEX_RESHARDING_METADATA = def(9_031_0_00);
-    public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

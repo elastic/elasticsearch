@@ -25,12 +25,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.TransportVersions.INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD;
-
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
 
+        private static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = TransportVersion.fromName(
+            "indexing_stats_includes_recent_write_load"
+        );
         private static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = TransportVersion.fromName(
             "index_stats_and_metadata_include_peak_write_load"
         );
@@ -79,7 +80,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 totalIndexingTimeSinceShardStartedInNanos = in.readLong();
                 totalActiveTimeInNanos = in.readLong();
             }
-            if (in.getTransportVersion().onOrAfter(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
+            if (in.getTransportVersion().supports(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 recentIndexingLoad = in.readDouble();
             } else {
                 // When getting stats from an older version which doesn't have the recent indexing load, better to fall back to the
@@ -319,7 +320,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
                 out.writeLong(totalActiveTimeInNanos);
             }
-            if (out.getTransportVersion().onOrAfter(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
+            if (out.getTransportVersion().supports(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 out.writeDouble(recentIndexingLoad);
             }
             if (out.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {

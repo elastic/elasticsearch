@@ -2,5 +2,5 @@
 
 **Description**
 
-Converts a constant text into dense vector embeddings using a inference endpoint. The resulting vectors can be used for knn search, and other vector-based operations. Requires an inference endpoint configured with the `text_embedding` task type. See [Inference API documentation](docs-content://explore-analyze/elastic-inference/inference-api.md) for how to create inference endpoints.
+Generates dense vector embeddings from text input using a specified [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). Use this function to generate query vectors for KNN searches against your vectorized data or other dense vector based operations.
 

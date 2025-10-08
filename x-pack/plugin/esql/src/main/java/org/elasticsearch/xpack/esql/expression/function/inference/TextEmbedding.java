@@ -40,11 +40,10 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Converts a constant text into dense vector embeddings using a inference endpoint. "
-            + "The resulting vectors can be used for knn search, and other vector-based operations. "
-            + "Requires an inference endpoint configured with the `text_embedding` task type. "
-            + "See [Inference API documentation](docs-content://explore-analyze/elastic-inference/inference-api.md) "
-            + "for how to create inference endpoints.",
+        description = "Generates dense vector embeddings from text input using a specified "
+            + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
+            + "Use this function to generate query vectors for KNN searches against your vectorized data "
+            + "or other dense vector based operations.",
         appliesTo = { @FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         preview = true,
         examples = {
@@ -59,13 +58,14 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         @Param(
             name = "text",
             type = { "keyword" },
-            description = "Text to generate embeddings from. Must be a non-null keyword constant."
+            description = "Text string to generate embeddings from. Must be a non-null keyword constant."
         ) Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
             description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
-                + "The inference endpoint must have the `text_embedding` task type."
+                + "The inference endpoint must have the `text_embedding` task type and should use the same model "
+                + "that was used to embed your indexed data."
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));

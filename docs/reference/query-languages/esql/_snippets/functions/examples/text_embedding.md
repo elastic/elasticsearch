@@ -7,7 +7,6 @@ Generate text embeddings using the 'test_dense_inference' inference endpoint.
 ```esql
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
-;
 ```
 
 

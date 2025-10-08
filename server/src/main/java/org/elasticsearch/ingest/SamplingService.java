@@ -71,7 +71,6 @@ public class SamplingService implements ClusterStateListener {
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
 
-
     private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
         "sampling.max_configurations_per_project",
         100,

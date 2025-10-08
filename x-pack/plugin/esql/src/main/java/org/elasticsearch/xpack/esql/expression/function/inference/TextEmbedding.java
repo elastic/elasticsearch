@@ -43,22 +43,22 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         description = "Generates dense vector embeddings from text input using a specified "
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
             + "Use this function to generate query vectors for KNN searches against your vectorized data "
-            + "or other dense vector based operations.",
+            + "or others dense vector based operations.",
         appliesTo = { @FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         preview = true,
         examples = {
             @Example(
-                description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
+                description = "Basic text embedding generation from a text string using an inference endpoint.",
                 file = "text-embedding",
                 tag = "text-embedding-eval"
             ),
             @Example(
-                description = "Generate text embeddings for use within a KNN search.",
+                description = "Generate text embeddings and store them in a variable for reuse in KNN vector search queries.",
                 file = "text-embedding",
                 tag = "text-embedding-knn"
             ),
             @Example(
-                description = "Generate text embeddings inline within a KNN search.",
+                description = "Directly embed text within a KNN query for streamlined vector search without intermediate variables.",
                 file = "text-embedding",
                 tag = "text-embedding-knn-inline"
             ) }

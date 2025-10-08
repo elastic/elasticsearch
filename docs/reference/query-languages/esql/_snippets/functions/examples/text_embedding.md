@@ -2,14 +2,14 @@
 
 **Examples**
 
-Generate text embeddings using the 'test_dense_inference' inference endpoint.
+Basic text embedding generation from a text string using an inference endpoint.
 
 ```esql
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
 ```
 
-Generate text embeddings for use within a KNN search.
+Generate text embeddings and store them in a variable for reuse in KNN vector search queries.
 
 ```esql
 FROM semantic_text METADATA _score
@@ -17,7 +17,7 @@ FROM semantic_text METADATA _score
 | WHERE KNN(semantic_text_dense_field, query_embedding)
 ```
 
-Generate text embeddings inline within a KNN search.
+Directly embed text within a KNN query for streamlined vector search without intermediate variables.
 
 ```esql
 FROM semantic_text METADATA _score

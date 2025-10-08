@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -153,9 +152,8 @@ public class SamplingService implements ClusterStateListener {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
             }
-            if (sampleInfo.hasExceededMaxBytesSize || sampleInfo.getSizeInBytes() > samplingConfig.maxSize().getBytes()) {
+            if (sampleInfo.getSizeInBytes() > samplingConfig.maxSize().getBytes()) {
                 stats.samplesRejectedForSize.increment();
-                sampleInfo.hasExceededMaxBytesSize = true;
                 return;
             }
             if (Math.random() >= samplingConfig.rate()) {
@@ -670,8 +668,7 @@ public class SamplingService implements ClusterStateListener {
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
-        private volatile boolean hasExceededMaxBytesSize = false;
-        private final AtomicReference<Tuple<Integer, Long>> sizeInBytesAtIndex = new AtomicReference<>(Tuple.tuple(-1, 0L));
+        private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
         private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
         SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
@@ -700,7 +697,7 @@ public class SamplingService implements ClusterStateListener {
              * the computed size if all raw documents up to that index are non-null (i.e. no documents were still in flight as we were
              * counting). That way we don't have to re-compute the size for documents we've already looked at.
              */
-            Tuple<Integer, Long> knownIndexAndSize = sizeInBytesAtIndex.get();
+            Tuple<Integer, Long> knownIndexAndSize = sizeInBytesAtIndex;
             int knownIndex = knownIndexAndSize.v1();
             long knownSize = knownIndexAndSize.v2();
             int nextInsertionIndex = arrayIndex.get(); // The value in arrayIndex is always the _next_ insertion point
@@ -725,8 +722,8 @@ public class SamplingService implements ClusterStateListener {
              * The most important thing is for this method to be fast. It is OK if we store the same value twice, or even if we store a
              * slightly out-of-date copy, as long as we don't do any locking.
              */
-            if (anyNulls == false && sizeInBytesAtIndex.get().v1() + 1 < nextInsertionIndex) {
-                sizeInBytesAtIndex.set(Tuple.tuple(nextInsertionIndex - 1, size));
+            if (anyNulls == false && sizeInBytesAtIndex.v1() + 1 < nextInsertionIndex) {
+                sizeInBytesAtIndex = Tuple.tuple(nextInsertionIndex - 1, size);
             }
             return size;
         }

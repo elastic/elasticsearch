@@ -693,6 +693,9 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:semantic_text.Repeat}
+  issue: https://github.com/elastic/elasticsearch/issues/136150
 
 # Examples:
 #

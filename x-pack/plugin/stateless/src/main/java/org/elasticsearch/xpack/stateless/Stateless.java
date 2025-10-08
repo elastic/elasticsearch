@@ -1437,7 +1437,7 @@ public class Stateless extends Plugin
                     translogConfig.getBigArrays(),
                     translogConfig.getBufferSize(),
                     translogConfig.getDiskIoBufferPool(),
-                    (data, seqNo, location) -> replicator.add(translogConfig.getShardId(), data, seqNo, location),
+                    (operation, seqNo, location) -> replicator.add(translogConfig.getShardId(), operation, seqNo, location),
                     false // translog is replicated to the object store, no need fsync that
                 );
                 var collectorRefreshListener = refreshListenerForShardMappingSizeCollector(config.getShardId());

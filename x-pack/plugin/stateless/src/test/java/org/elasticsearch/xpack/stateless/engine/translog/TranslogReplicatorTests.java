@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,6 +34,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -59,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.zip.CRC32;
 
 import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_NETWORK_TIME_METRIC;
 import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_FILES_SIZE_METRIC;
@@ -121,16 +125,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -167,26 +171,26 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(6);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
-        translogReplicator.add(shardId, operationsBytes[3], 3, intermediateLocation);
-        currentLocation += operationsBytes[3].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, serialized[3].length());
+        translogReplicator.add(shardId, serialized[3], 3, intermediateLocation);
+        currentLocation += serialized[3].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
         future.actionGet();
 
-        translogReplicator.add(shardId, operationsBytes[5], 5, new Translog.Location(0, currentLocation, operationsBytes[5].length()));
-        currentLocation += operationsBytes[5].length();
-        translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
-        currentLocation += operationsBytes[2].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[4].length());
-        translogReplicator.add(shardId, operationsBytes[4], 4, finalLocation);
+        translogReplicator.add(shardId, serialized[5], 5, new Translog.Location(0, currentLocation, serialized[5].length()));
+        currentLocation += serialized[5].length();
+        translogReplicator.add(shardId, serialized[2], 2, new Translog.Location(0, currentLocation, serialized[2].length()));
+        currentLocation += serialized[2].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[4].length());
+        translogReplicator.add(shardId, serialized[4], 4, finalLocation);
 
         future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -244,15 +248,15 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(6);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, intermediateLocation);
-        currentLocation += operationsBytes[2].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, intermediateLocation);
+        currentLocation += serialized[2].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
@@ -266,12 +270,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
         long startRecoveryFile = translogReplicator.getMaxUploadedFile() + 1;
 
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[5].length();
-        translogReplicator.add(shardId, operationsBytes[4], 4, new Translog.Location(0, currentLocation, operationsBytes[4].length()));
-        currentLocation += operationsBytes[2].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[5].length());
-        translogReplicator.add(shardId, operationsBytes[5], 5, finalLocation);
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[5].length();
+        translogReplicator.add(shardId, serialized[4], 4, new Translog.Location(0, currentLocation, serialized[4].length()));
+        currentLocation += serialized[2].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[5].length());
+        translogReplicator.add(shardId, serialized[5], 5, finalLocation);
 
         future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -325,14 +329,14 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(6);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
-        currentLocation += operationsBytes[2].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        translogReplicator.add(shardId, serialized[2], 2, new Translog.Location(0, currentLocation, serialized[2].length()));
+        currentLocation += serialized[2].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -346,10 +350,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
         long commitFileNewStartingPoint = translogReplicator.getMaxUploadedFile() + 1;
 
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        translogReplicator.add(shardId, operationsBytes[4], 4, new Translog.Location(0, currentLocation, operationsBytes[4].length()));
-        currentLocation += operationsBytes[4].length();
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[3].length();
+        translogReplicator.add(shardId, serialized[4], 4, new Translog.Location(0, currentLocation, serialized[4].length()));
+        currentLocation += serialized[4].length();
 
         future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -377,7 +381,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             equalTo(0L)
         );
 
-        translogReplicator.add(shardId, operationsBytes[5], 5, new Translog.Location(0, currentLocation, operationsBytes[5].length()));
+        translogReplicator.add(shardId, serialized[5], 5, new Translog.Location(0, currentLocation, serialized[5].length()));
 
         future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -411,9 +415,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.doStart();
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 0, location);
+        Translog.Serialized serialized = new Translog.Serialized(new BytesArray(new byte[4]), new BytesArray(new byte[16]), 0);
+        Translog.Location location = new Translog.Location(0, 0, serialized.length());
+        translogReplicator.add(shardId, serialized, 0, location);
 
         AtomicReference<String> value = new AtomicReference<>();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -467,24 +471,24 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         ArrayList<Translog.Operation> operations = new ArrayList<>();
-        ArrayList<BytesReference> operationsBytes = new ArrayList<>();
+        ArrayList<Translog.Serialized> serialized = new ArrayList<>();
         int bytes = 0;
         int seqNo = 0;
         while (bytes <= threshold) {
             Translog.Operation operation = generateOperation(seqNo++);
             operations.add(operation);
-            BytesReference ref = convertOperationsToBytes(new Translog.Operation[] { operation })[0];
-            operationsBytes.add(ref);
-            bytes += ref.length();
+            Translog.Serialized s = serializeOperations(new Translog.Operation[] { operation })[0];
+            serialized.add(s);
+            bytes += s.length();
         }
 
         Translog.Location location = new Translog.Location(0, 0, 0);
         long currentLocation = 0;
         seqNo = 0;
-        for (BytesReference ref : operationsBytes) {
-            location = new Translog.Location(0, currentLocation, ref.length());
-            translogReplicator.add(shardId, ref, seqNo++, location);
-            currentLocation += ref.length();
+        for (Translog.Serialized s : serialized) {
+            location = new Translog.Location(0, currentLocation, s.length());
+            translogReplicator.add(shardId, s, seqNo++, location);
+            currentLocation += s.length();
         }
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -543,16 +547,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -589,10 +593,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.doStart();
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
+        Translog.Serialized serialized = new Translog.Serialized(new BytesArray(new byte[4]), new BytesArray(new byte[16]), 0);
+        Translog.Location location = new Translog.Location(0, 0, serialized.length());
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        translogReplicator.add(shardId, bytesArray, 0, location);
+        translogReplicator.add(shardId, serialized, 0, location);
         translogReplicator.sync(shardId, location, future);
         future.actionGet();
 
@@ -604,11 +608,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location incompleteLocation = new Translog.Location(
             location.generation(),
             location.translogLocation() + location.size(),
-            1
+            5
         );
         CountDownLatch blocker = new CountDownLatch(1);
         blockerRef.set(blocker);
-        translogReplicator.add(shardId, new BytesArray(new byte[1]), 1, incompleteLocation);
+        translogReplicator.add(shardId, new Translog.Serialized(new BytesArray(new byte[1]), null, 0), 1, incompleteLocation);
         translogReplicator.sync(shardId, incompleteLocation, synchronouslyIncompleteFuture);
         assertFalse(synchronouslyIncompleteFuture.isDone());
         blocker.countDown();
@@ -641,12 +645,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, (seqNo) -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[1].length());
-        translogReplicator.add(shardId, operationsBytes[1], 1, intermediateLocation);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, serialized[1].length());
+        translogReplicator.add(shardId, serialized[1], 1, intermediateLocation);
 
         expectThrows(ElasticsearchTimeoutException.class, () -> syncStartedFuture.actionGet(300, TimeUnit.MILLISECONDS));
 
@@ -697,23 +701,23 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[1].length());
-        translogReplicator.add(shardId, operationsBytes[1], 1, intermediateLocation);
-        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, serialized[1].length());
+        translogReplicator.add(shardId, serialized[1], 1, intermediateLocation);
+        currentLocation += serialized[1].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
         safeAwait(intermediateStartedLatch);
         expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(300, TimeUnit.MILLISECONDS));
 
-        translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
-        currentLocation += operationsBytes[2].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
-        translogReplicator.add(shardId, operationsBytes[3], 3, finalLocation);
+        translogReplicator.add(shardId, serialized[2], 2, new Translog.Location(0, currentLocation, serialized[2].length()));
+        currentLocation += serialized[2].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[3].length());
+        translogReplicator.add(shardId, serialized[3], 3, finalLocation);
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future2);
@@ -747,18 +751,18 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId2, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId2, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        translogReplicator.add(shardId1, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        Translog.Location finalLocationShard1 = new Translog.Location(0, currentLocation, operationsBytes[1].length());
-        translogReplicator.add(shardId1, operationsBytes[1], 1, finalLocationShard1);
-        translogReplicator.add(shardId2, operationsBytes[1], 1, finalLocationShard1);
-        currentLocation += operationsBytes[1].length();
-        Translog.Location intermediateLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[3].length());
-        translogReplicator.add(shardId2, operationsBytes[3], 3, intermediateLocationShard2);
-        currentLocation += operationsBytes[3].length();
+        translogReplicator.add(shardId2, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        translogReplicator.add(shardId1, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        Translog.Location finalLocationShard1 = new Translog.Location(0, currentLocation, serialized[1].length());
+        translogReplicator.add(shardId1, serialized[1], 1, finalLocationShard1);
+        translogReplicator.add(shardId2, serialized[1], 1, finalLocationShard1);
+        currentLocation += serialized[1].length();
+        Translog.Location intermediateLocationShard2 = new Translog.Location(0, currentLocation, serialized[3].length());
+        translogReplicator.add(shardId2, serialized[3], 3, intermediateLocationShard2);
+        currentLocation += serialized[3].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId1, future);
@@ -771,10 +775,10 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertTranslogContains(objectStoreService.getTranslogBlobContainer(), shardId2, operations[0], operations[1], operations[3]);
 
-        Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, serialized[2].length());
 
         PlainActionFuture<Void> future3 = new PlainActionFuture<>();
-        translogReplicator.add(shardId2, operationsBytes[2], 2, finalLocationShard2);
+        translogReplicator.add(shardId2, serialized[2], 2, finalLocationShard2);
         translogReplicator.sync(shardId2, finalLocationShard2, future3);
         future3.actionGet();
 
@@ -809,16 +813,16 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -849,9 +853,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(1);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -886,23 +890,23 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, intermediateLocation);
-        currentLocation += operationsBytes[2].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, intermediateLocation);
+        currentLocation += serialized[2].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
         future.actionGet();
 
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
-        translogReplicator.add(shardId, operationsBytes[3], 3, finalLocation);
+        currentLocation += serialized[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[3].length());
+        translogReplicator.add(shardId, serialized[3], 3, finalLocation);
 
         future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -969,9 +973,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(1);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
-        Translog.Location location = new Translog.Location(0, 0, operationsBytes[0].length());
-        translogReplicator.add(shardId, operationsBytes[0], 0, location);
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        Translog.Location location = new Translog.Location(0, 0, serialized[0].length());
+        translogReplicator.add(shardId, serialized[0], 0, location);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         if (randomBoolean()) {
@@ -1003,11 +1007,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(1);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
-        Translog.Location location = new Translog.Location(0, 0, operationsBytes[0].length());
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        Translog.Location location = new Translog.Location(0, 0, serialized[0].length());
 
         translogReplicator.unregister(shardId);
-        expectThrows(AlreadyClosedException.class, () -> translogReplicator.add(shardId, operationsBytes[0], 0, location));
+        expectThrows(AlreadyClosedException.class, () -> translogReplicator.add(shardId, serialized[0], 0, location));
     }
 
     public void testReplicatorReaderHandlesConcurrentDeleteIfNotInDirectory() throws IOException {
@@ -1031,10 +1035,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId2, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(3);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -1042,7 +1046,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
 
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future2);
@@ -1053,7 +1057,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         // Unregister so that the last translog file will not contain a directory
         translogReplicator.unregister(shardId);
 
-        translogReplicator.add(shardId2, operationsBytes[2], 2, new Translog.Location(0, 0, operationsBytes[2].length()));
+        translogReplicator.add(shardId2, serialized[2], 2, new Translog.Location(0, 0, serialized[2].length()));
 
         PlainActionFuture<Void> future3 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId2, future3);
@@ -1090,10 +1094,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -1101,8 +1105,8 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
 
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future2);
@@ -1110,10 +1114,10 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(2));
 
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, finalLocation);
 
         PlainActionFuture<Void> future3 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future3);
@@ -1158,10 +1162,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
         Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Serialized[] serialized = serializeOperations(operations);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, currentLocation, serialized[0].length()));
+        currentLocation += serialized[0].length();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
@@ -1169,8 +1173,8 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
 
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, serialized[1], 1, new Translog.Location(0, currentLocation, serialized[1].length()));
+        currentLocation += serialized[1].length();
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future2);
@@ -1178,10 +1182,10 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(2));
 
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+        translogReplicator.add(shardId, serialized[3], 3, new Translog.Location(0, currentLocation, serialized[3].length()));
+        currentLocation += serialized[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, serialized[2].length());
+        translogReplicator.add(shardId, serialized[2], 2, finalLocation);
 
         PlainActionFuture<Void> future3 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future3);
@@ -1228,16 +1232,45 @@ public class TranslogReplicatorTests extends ESTestCase {
         return operations;
     }
 
-    private static BytesReference[] convertOperationsToBytes(Translog.Operation[] operations) throws IOException {
-        BytesReference[] bytesReferences = new BytesReference[operations.length];
-        for (int i = 0; i < bytesReferences.length; i++) {
+    private static Translog.Serialized[] serializeOperations(Translog.Operation[] operations) throws IOException {
+        Translog.Serialized[] serialized = new Translog.Serialized[operations.length];
+        for (int i = 0; i < operations.length; i++) {
             Translog.Operation operation = operations[i];
-            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-                Translog.writeOperationWithSize(bytesStreamOutput, operation);
-                bytesReferences[i] = bytesStreamOutput.bytes();
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(new Recycler<>() {
+                @Override
+                public V<BytesRef> obtain() {
+                    BytesRef ref = new BytesRef(new byte[128]);
+                    return new V<>() {
+                        @Override
+                        public BytesRef v() {
+                            return ref;
+                        }
+
+                        @Override
+                        public boolean isRecycled() {
+                            return false;
+                        }
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public int pageSize() {
+                    return 128;
+                }
+            })) {
+                Translog.writeHeaderWithSize(out, operation);
+                final BytesReference header = out.bytes();
+                serialized[i] = Translog.Serialized.create(
+                    header,
+                    operation instanceof Translog.Index index ? index.source() : null,
+                    new CRC32()
+                );
             }
         }
-        return bytesReferences;
+        return serialized;
     }
 
     private static BytesReference getBytes(BytesReference reference) throws IOException {

@@ -3816,6 +3816,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
 
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
@@ -3888,6 +3889,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));

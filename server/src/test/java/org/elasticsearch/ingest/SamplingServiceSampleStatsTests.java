@@ -36,9 +36,9 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
         stats.samplesRejectedForCondition.add(randomReasonableLong());
         stats.samplesRejectedForRate.add(randomReasonableLong());
         stats.samplesRejectedForException.add(randomReasonableLong());
-        stats.timeSampling.add(randomReasonableLong());
-        stats.timeEvaluatingCondition.add(randomReasonableLong());
-        stats.timeCompilingCondition.add(randomReasonableLong());
+        stats.timeSamplingInNanos.add(randomReasonableLong());
+        stats.timeEvaluatingConditionInNanos.add(randomReasonableLong());
+        stats.timeCompilingConditionInNanos.add(randomReasonableLong());
         stats.lastException = randomBoolean() ? null : new ElasticsearchException(randomAlphanumericOfLength(10));
         return stats;
     }
@@ -65,9 +65,9 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
             case 3 -> mutated.samplesRejectedForCondition.add(1);
             case 4 -> mutated.samplesRejectedForRate.add(1);
             case 5 -> mutated.samplesRejectedForException.add(1);
-            case 6 -> mutated.timeSampling.add(1);
-            case 7 -> mutated.timeEvaluatingCondition.add(1);
-            case 8 -> mutated.timeCompilingCondition.add(1);
+            case 6 -> mutated.timeSamplingInNanos.add(1);
+            case 7 -> mutated.timeEvaluatingConditionInNanos.add(1);
+            case 8 -> mutated.timeCompilingConditionInNanos.add(1);
             case 9 -> mutated.lastException = mutated.lastException == null
                 ? new ElasticsearchException(randomAlphanumericOfLength(10))
                 : null;

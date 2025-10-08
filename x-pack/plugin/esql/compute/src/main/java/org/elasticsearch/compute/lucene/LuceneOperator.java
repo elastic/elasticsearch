@@ -43,9 +43,6 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING;
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING_8_19;
-
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
 
@@ -304,6 +301,8 @@ public abstract class LuceneOperator extends SourceOperator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
+
         private final int processedSlices;
         private final Set<String> processedQueries;
         private final Set<String> processedShards;
@@ -414,7 +413,7 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         private static boolean serializeShardPartitioning(TransportVersion version) {
-            return version.onOrAfter(ESQL_REPORT_SHARD_PARTITIONING) || version.isPatchFrom(ESQL_REPORT_SHARD_PARTITIONING_8_19);
+            return version.supports(ESQL_REPORT_SHARD_PARTITIONING);
         }
 
         @Override

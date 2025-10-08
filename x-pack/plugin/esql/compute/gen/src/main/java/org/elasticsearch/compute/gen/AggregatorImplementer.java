@@ -428,7 +428,8 @@ public class AggregatorImplementer {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
             for (AggregationParameter p : aggParams) {
-                builder.beginControlFlow("if ($L.isNull(p))", p.blockName());
+                builder.addStatement("int $LValueCount = $L.getValueCount(p)", p.name(), p.blockName());
+                builder.beginControlFlow("if ($LValueCount == 0)", p.name());
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
@@ -447,7 +448,7 @@ public class AggregatorImplementer {
                 }
                 for (AggregationParameter p : aggParams) {
                     builder.addStatement("int $L = $L.getFirstValueIndex(p)", p.startName(), p.blockName());
-                    builder.addStatement("int $L = $L + $L.getValueCount(p)", p.endName(), p.startName(), p.blockName());
+                    builder.addStatement("int $L = $L + $LValueCount", p.endName(), p.startName(), p.name());
                     builder.beginControlFlow(
                         "for (int $L = $L; $L < $L; $L++)",
                         p.offsetName(),

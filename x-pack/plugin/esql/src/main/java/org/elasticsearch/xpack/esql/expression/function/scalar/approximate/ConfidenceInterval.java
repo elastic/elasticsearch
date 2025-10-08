@@ -21,11 +21,13 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -33,7 +35,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -42,6 +43,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
+/**
+ * This function is used internally by {@link Approximate}, and is not exposed
+ * to users via the {@link EsqlFunctionRegistry}.
+ */
 public class ConfidenceInterval extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -60,7 +65,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         @Param(name = "bestEstimate", type = { "double", "int", "long" }) Expression bestEstimate,
         @Param(name = "estimates", type = { "double", "int", "long" }) Expression estimates
     ) {
-        super(source, Arrays.asList(bestEstimate, estimates));
+        super(source, List.of(bestEstimate, estimates));
         this.bestEstimate = bestEstimate;
         this.estimates = estimates;
     }
@@ -144,6 +149,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock bestEstimateBlock, DoubleBlock estimatesBlock) {
         if (bestEstimateBlock.getValueCount(position) != 1) {
             builder.appendNull();
+            return;
         }
         Number bestEstimate = bestEstimateBlock.getDouble(bestEstimateBlock.getFirstValueIndex(position));
 

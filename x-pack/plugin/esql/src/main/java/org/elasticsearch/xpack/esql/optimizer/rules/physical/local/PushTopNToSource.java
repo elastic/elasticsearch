@@ -133,7 +133,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             for (EsQueryExec.Sort pushableSort : pushableSorts) {
                 if (pushableSort instanceof EsQueryExec.ScriptSort scriptSort) {
                     // Change eval alias to the script sort field
-                    for(int i = 0; i < evalExecAlias.size(); i++) {
+                    for (int i = 0; i < evalExecAlias.size(); i++) {
                         Alias alias = evalExecAlias.get(i);
                         if (alias.id().equals(scriptSort.alias().id())) {
                             evalExecAlias.set(i, alias.replaceChild(scriptSort.field()));
@@ -224,11 +224,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             Script script = new Script(scriptText);
 
                             // Create a script sort that computes the value
-                            EsQueryExec.ScriptSort scriptSort = new EsQueryExec.ScriptSort(
-                                expressionAlias,
-                                script,
-                                order.direction()
-                            );
+                            EsQueryExec.ScriptSort scriptSort = new EsQueryExec.ScriptSort(expressionAlias, script, order.direction());
                             pushableSorts.add(scriptSort);
                         } else {
                             // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,

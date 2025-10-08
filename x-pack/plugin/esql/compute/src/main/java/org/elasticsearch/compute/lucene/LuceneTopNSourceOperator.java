@@ -275,7 +275,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
         int extractSortCount = (int) sorts.stream().filter(s -> s instanceof ScriptSortBuilder).count();
         DoubleBlock.Builder[] sortValuesBlockBuilders = new DoubleBlock.Builder[extractSortCount];
-        for(int i = 0; i < sortValuesBlockBuilders.length; i++) {
+        for (int i = 0; i < sortValuesBlockBuilders.length; i++) {
             sortValuesBlockBuilders[i] = blockFactory.newDoubleBlockBuilder(size);
         }
         try (
@@ -331,7 +331,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 scores = currentScoresBuilder.build().asBlock();
                 page = new Page(size, docBlock, scores);
             }
-            for(int i = 0; i < extractSortCount; i++) {
+            for (int i = 0; i < extractSortCount; i++) {
                 page = page.appendBlock(sortValuesBlockBuilders[i].build());
             }
         } finally {

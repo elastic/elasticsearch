@@ -144,20 +144,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             this.alias = alias;
             this.script = script;
             this.direction = direction;
-            EsField esField = new EsField(
-                alias.name(),
-                alias.dataType(),
-                Map.of(),
-                false,
-                EsField.TimeSeriesFieldType.NONE
-            );
-            this.field = new FieldAttribute(
-                alias.source(),
-                null,
-                null,
-                alias.name() + "_script",
-                esField
-            );
+            EsField esField = new EsField(alias.name(), alias.dataType(), Map.of(), false, EsField.TimeSeriesFieldType.NONE);
+            this.field = new FieldAttribute(alias.source(), null, null, alias.name() + "_script", esField);
         }
 
         @Override
@@ -166,19 +154,19 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         @Override
-            public SortBuilder<?> sortBuilder() {
-                ScriptSortBuilder.ScriptSortType sortType = field.dataType().isNumeric()
-                    ? ScriptSortBuilder.ScriptSortType.NUMBER
-                    : ScriptSortBuilder.ScriptSortType.STRING;
-                ScriptSortBuilder builder = new ScriptSortBuilder(script, sortType);
-                builder.order(Direction.from(direction).asOrder());
-                return builder;
-            }
+        public SortBuilder<?> sortBuilder() {
+            ScriptSortBuilder.ScriptSortType sortType = field.dataType().isNumeric()
+                ? ScriptSortBuilder.ScriptSortType.NUMBER
+                : ScriptSortBuilder.ScriptSortType.STRING;
+            ScriptSortBuilder builder = new ScriptSortBuilder(script, sortType);
+            builder.order(Direction.from(direction).asOrder());
+            return builder;
+        }
 
-            @Override
-            public DataType resulType() {
-                return field.dataType();
-            }
+        @Override
+        public DataType resulType() {
+            return field.dataType();
+        }
 
         public Alias alias() {
             return alias;
@@ -198,10 +186,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             if (obj == this) return true;
             if (obj == null || obj.getClass() != this.getClass()) return false;
             var that = (ScriptSort) obj;
-            return Objects.equals(this.alias, that.alias) &&
-                Objects.equals(this.field, that.field) &&
-                Objects.equals(this.script, that.script) &&
-                Objects.equals(this.direction, that.direction);
+            return Objects.equals(this.alias, that.alias)
+                && Objects.equals(this.field, that.field)
+                && Objects.equals(this.script, that.script)
+                && Objects.equals(this.direction, that.direction);
         }
 
         @Override
@@ -211,14 +199,22 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
         @Override
         public String toString() {
-            return "ScriptSort[" +
-                "alias=" + alias + ", " +
-                "field=" + field + ", " +
-                "script=" + script + ", " +
-                "direction=" + direction + ']';
+            return "ScriptSort["
+                + "alias="
+                + alias
+                + ", "
+                + "field="
+                + field
+                + ", "
+                + "script="
+                + script
+                + ", "
+                + "direction="
+                + direction
+                + ']';
         }
 
-        }
+    }
 
     public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
         @Override

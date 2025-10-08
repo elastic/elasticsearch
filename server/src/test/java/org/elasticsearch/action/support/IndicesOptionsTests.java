@@ -376,10 +376,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        assertThat(
-            map.get("resolve_cross_project_index_expression"),
-            equalTo(crossProjectModeOptions.resolveIndexExpression() ? true : null)
-        );
     }
 
     public void testFromXContent() throws IOException {
@@ -391,12 +387,10 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         ConcreteTargetOptions concreteTargetOptions = new ConcreteTargetOptions(randomBoolean());
-        CrossProjectModeOptions crossProjectModeOptions = new CrossProjectModeOptions(randomBoolean());
 
         IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(concreteTargetOptions)
             .wildcardOptions(wildcardOptions)
-            .crossProjectModeOptions(crossProjectModeOptions)
             .build();
 
         XContentType type = randomFrom(XContentType.values());
@@ -415,7 +409,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(indicesOptions.ignoreUnavailable(), fromXContentOptions.ignoreUnavailable());
         assertEquals(indicesOptions.allowNoIndices(), fromXContentOptions.allowNoIndices());
         assertEquals(indicesOptions.ignoreThrottled(), fromXContentOptions.ignoreThrottled());
-        assertEquals(indicesOptions.resolveCrossProjectIndexExpression(), fromXContentOptions.resolveCrossProjectIndexExpression());
     }
 
     public void testFromXContentWithWildcardSpecialValues() throws IOException {

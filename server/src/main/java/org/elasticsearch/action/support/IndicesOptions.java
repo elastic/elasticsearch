@@ -421,7 +421,7 @@ public record IndicesOptions(
      * These options may contextually change over the lifetime of the request.
      * @param resolveIndexExpression determines that the index expression must be resolved for cross-project requests, defaults to false.
      */
-    public record CrossProjectModeOptions(boolean resolveIndexExpression) implements ToXContentFragment, Writeable {
+    public record CrossProjectModeOptions(boolean resolveIndexExpression) implements Writeable {
 
         public static final CrossProjectModeOptions DEFAULT = new CrossProjectModeOptions(false);
 
@@ -430,18 +430,6 @@ public record IndicesOptions(
         );
 
         private static final String INDEX_EXPRESSION_NAME = "resolve_cross_project_index_expression";
-
-        public static CrossProjectModeOptions parseParameter(Object resolveIndexExpression, CrossProjectModeOptions defaultOptions) {
-            if (resolveIndexExpression == null) {
-                return defaultOptions != null ? defaultOptions : DEFAULT;
-            }
-            return new CrossProjectModeOptions(nodeBooleanValue(resolveIndexExpression, INDEX_EXPRESSION_NAME));
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return resolveIndexExpression ? builder.field(INDEX_EXPRESSION_NAME, resolveIndexExpression) : builder;
-        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -1205,7 +1193,6 @@ public record IndicesOptions(
                 : map.get("ignoreUnavailable"),
             map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
             map.containsKey(GatekeeperOptions.IGNORE_THROTTLED) ? map.get(GatekeeperOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
-            map.get(CrossProjectModeOptions.INDEX_EXPRESSION_NAME),
             defaultSettings
         );
     }
@@ -1240,27 +1227,7 @@ public record IndicesOptions(
         Object ignoreUnavailableString,
         Object allowNoIndicesString,
         Object ignoreThrottled,
-        Object resolveCrossProject,
-        IndicesOptions defaultSettings
-    ) {
-        return fromParameters(
-            wildcardsString,
-            ignoreUnavailableString,
-            allowNoIndicesString,
-            ignoreThrottled,
-            null,
-            resolveCrossProject,
-            defaultSettings
-        );
-    }
-
-    public static IndicesOptions fromParameters(
-        Object wildcardsString,
-        Object ignoreUnavailableString,
-        Object allowNoIndicesString,
-        Object ignoreThrottled,
         Object failureStoreString,
-        Object resolveCrossProject,
         IndicesOptions defaultSettings
     ) {
         if (wildcardsString == null
@@ -1271,15 +1238,18 @@ public record IndicesOptions(
             return defaultSettings;
         }
 
-        WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
-        GatekeeperOptions gatekeeperOptions = GatekeeperOptions.parseParameter(ignoreThrottled, defaultSettings.gatekeeperOptions);
+        var wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
+        var gatekeeperOptions = GatekeeperOptions.parseParameter(ignoreThrottled, defaultSettings.gatekeeperOptions);
+        var crossProjectModeOptions = defaultSettings.crossProjectModeOptions != null
+            ? defaultSettings.crossProjectModeOptions
+            : CrossProjectModeOptions.DEFAULT;
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return IndicesOptions.builder()
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(gatekeeperOptions)
-            .crossProjectModeOptions(CrossProjectModeOptions.parseParameter(resolveCrossProject, defaultSettings.crossProjectModeOptions))
+            .crossProjectModeOptions(crossProjectModeOptions)
             .build();
     }
 
@@ -1288,7 +1258,6 @@ public record IndicesOptions(
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
         gatekeeperOptions.toXContent(builder, params);
-        crossProjectModeOptions.toXContent(builder, params);
         return builder;
     }
 
@@ -1296,7 +1265,6 @@ public record IndicesOptions(
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
     private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
-    private static final ParseField RESOLVE_CROSS_PROJECT = new ParseField(CrossProjectModeOptions.INDEX_EXPRESSION_NAME);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, null);
@@ -1309,9 +1277,6 @@ public record IndicesOptions(
             .ignoreThrottled(defaults != null && defaults.gatekeeperOptions().ignoreThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
-        boolean resolveCrossProjectIndexExpression = defaults == null
-            ? CrossProjectModeOptions.DEFAULT.resolveIndexExpression()
-            : defaults.resolveCrossProjectIndexExpression();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -1359,8 +1324,6 @@ public record IndicesOptions(
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
-                } else if (RESOLVE_CROSS_PROJECT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    resolveCrossProjectIndexExpression = parser.booleanValue();
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read indices options. Unexpected index option [" + currentFieldName + "]"
@@ -1391,7 +1354,6 @@ public record IndicesOptions(
             .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
             .wildcardOptions(wildcards)
             .gatekeeperOptions(generalOptions)
-            .crossProjectModeOptions(new CrossProjectModeOptions(resolveCrossProjectIndexExpression))
             .build();
     }
 

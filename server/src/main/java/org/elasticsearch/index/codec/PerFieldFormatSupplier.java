@@ -60,7 +60,7 @@ public class PerFieldFormatSupplier {
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.NO_COMPRESS);
-    private static final DocValuesFormat compressedBinaryDocValuesFormat = new ES819TSDBDocValuesFormat(
+    private static final DocValuesFormat tsdbCompressedBinaryDocValuesFormat = new ES819TSDBDocValuesFormat(
         BinaryDVCompressionMode.COMPRESSED_WITH_LZ4
     );
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
@@ -132,14 +132,13 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        if (mapperService != null) {
-            Mapper mapper = mapperService.mappingLookup().getMapper(field);
-            if (mapper != null && KeywordFieldMapper.CONTENT_TYPE.equals(mapper.typeName())) {
-                return compressedBinaryDocValuesFormat;
-            }
-        }
-
         if (useTSDBDocValuesFormat(field)) {
+            if (mapperService != null) {
+                Mapper mapper = mapperService.mappingLookup().getMapper(field);
+                if (mapper != null && KeywordFieldMapper.CONTENT_TYPE.equals(mapper.typeName())) {
+                    return tsdbCompressedBinaryDocValuesFormat;
+                }
+            }
             return tsdbDocValuesFormat;
         }
         return docValuesFormat;

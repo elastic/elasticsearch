@@ -34,6 +34,7 @@ import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -67,7 +68,6 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -106,7 +106,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
-        if (indexVersion.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION) || indexed) {
+        if (indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION) || indexed) {
             // Serialize if it's new index version, or it was not the default for previous indices
             b.field("index", indexed);
         }
@@ -1463,7 +1463,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
-        assertEquals(fieldType.isIndexed(), indexed);
+        if (indexed) {
+            assertTrue(fieldType.indexType().hasVectors());
+        } else {
+            assertThat(fieldType.indexType(), equalTo(IndexType.NONE));
+        }
         assertEquals(fieldType.isSearchable(), indexed);
     }
 
@@ -2147,7 +2151,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
-        assertFalse(denseVectorFieldType.isIndexed());
+        assertTrue(denseVectorFieldType.indexType().hasOnlyDocValues());
         assertNull(denseVectorFieldType.getSimilarity());
     }
 
@@ -2158,7 +2162,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
-        assertTrue(denseVectorFieldType.isIndexed());
+        assertTrue(denseVectorFieldType.indexType().hasVectors());
         assertEquals(VectorSimilarity.DOT_PRODUCT, denseVectorFieldType.getSimilarity());
     }
 
@@ -2167,7 +2171,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
-        assertTrue(denseVectorFieldType.isIndexed());
+        assertTrue(denseVectorFieldType.indexType().hasVectors());
         assertEquals(VectorSimilarity.COSINE, denseVectorFieldType.getSimilarity());
     }
 

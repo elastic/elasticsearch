@@ -726,7 +726,12 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = new SamplingService(scriptService, clusterService);
+        SamplingService samplingService = new SamplingService(
+            scriptService,
+            clusterService,
+            projectResolver,
+            threadPool.relativeTimeInMillisSupplier()
+        );
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 
@@ -1091,7 +1096,7 @@ class NodeConstruction {
             clusterService,
             rerouteService,
             buildReservedClusterStateHandlers(reservedStateHandlerProviders, settingsModule),
-            buildReservedProjectStateHandlers(reservedStateHandlerProviders, settingsModule, metadataIndexTemplateService),
+            buildReservedProjectStateHandlers(reservedStateHandlerProviders, metadataIndexTemplateService),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
             projectResolver
@@ -1692,12 +1697,11 @@ class NodeConstruction {
 
     private List<ReservedProjectStateHandler<?>> buildReservedProjectStateHandlers(
         List<? extends ReservedStateHandlerProvider> handlers,
-        SettingsModule settingsModule,
         MetadataIndexTemplateService templateService
     ) {
         List<ReservedProjectStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
-        reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
+        reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService));
 
         // add all reserved state handlers from plugins
         handlers.forEach(h -> reservedStateHandlers.addAll(h.projectHandlers()));

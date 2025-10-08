@@ -16,9 +16,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -42,12 +46,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -75,11 +81,16 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -324,6 +335,15 @@ public abstract class TransportReplicationAction<
         return Map.of(request.shardId(), request);
     }
 
+    protected Tuple<Response, Exception> combineSplitResponses(
+        Request originalRequest,
+        Map<ShardId, Request> splitRequests,
+        Map<ShardId, Tuple<Response, Exception>> responses
+    ) {
+        assert responses.size() == 1;
+        return responses.entrySet().iterator().next().getValue();
+    }
+
     /**
      * Cluster level block to check before request execution. Returning null means that no blocks need to be checked.
      */
@@ -490,107 +510,125 @@ public abstract class TransportReplicationAction<
                     // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
                     final ShardRouting primary = primaryShardReference.routingEntry();
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
-                    final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
-                    transportService.sendRequest(
-                        relocatingNode,
-                        transportPrimaryAction,
-                        new ConcreteShardRequest<>(
-                            primaryRequest.getRequest(),
-                            primary.allocationId().getRelocationId(),
-                            primaryRequest.getPrimaryTerm()
-                        ),
-                        transportOptions,
-                        new ActionListenerResponseHandler<>(onCompletionListener, reader, TransportResponseHandler.TRANSPORT_WORKER) {
-                            @Override
-                            public void handleResponse(Response response) {
-                                setPhase(replicationTask, "finished");
-                                super.handleResponse(response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                setPhase(replicationTask, "finished");
-                                super.handleException(exp);
-                            }
-                        }
-                    );
+                    delegate(relocatingNode, primary.allocationId().getRelocationId(), onCompletionListener);
                 } else if (reshardSplitShardCountSummary.isUnset()
                     || reshardSplitShardCountSummary.equals(
                         SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.getRequest().shardId().getId())
                     ) == false) {
                         // Split Request
-                        Map<ShardId, Request> splitRequests = splitRequestOnPrimary(primaryRequest.getRequest());
+                        Map<ShardId, Request> splitRequests = Collections.unmodifiableMap(
+                            splitRequestOnPrimary(primaryRequest.getRequest())
+                        );
                         int numSplitRequests = splitRequests.size();
 
                         // splitRequestOnPrimary must handle the case when the request has no items
-                        assert numSplitRequests > 0 : "expected atleast 1 split request";
+                        assert numSplitRequests > 0 : "expected at-least 1 split request";
                         assert numSplitRequests <= 2 : "number of split requests too many";
 
                         if (numSplitRequests == 1) {
-                            // System.out.println("shardId = " + splitRequests.entrySet().iterator().next().getKey().toString());
                             // If the request is for source, same behaviour as before
                             if (splitRequests.containsKey(primaryRequest.getRequest().shardId())) {
-                                // System.out.println("Execute request on source");
-                                executePrimaryRequest(primaryShardReference, "primary");
-                                // executePrimaryRequest(primaryShardReference, "primary_reshardSplit");
+                                executePrimaryRequest(primaryShardReference, "primary", onCompletionListener);
                             } else {
-                                // System.out.println("Execute request on target");
                                 // If the request is for target, forward request to target.
                                 // TODO: Note that the request still contains the original shardId. We need to test if this will be a
                                 // problem.
-                                setPhase(replicationTask, "primary_reshardSplit_delegation");
+                                setPhase(replicationTask, "primary_reshard_target_delegation");
                                 // If the request is for target, send request to target node
                                 ShardId targetShardId = splitRequests.entrySet().iterator().next().getKey();
                                 final IndexShard targetShard = getIndexShard(targetShardId);
                                 final ShardRouting target = targetShard.routingEntry();
-                                final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
                                 DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
-                                transportService.sendRequest(
-                                    targetNode,
-                                    transportPrimaryAction,
-                                    new ConcreteShardRequest<>(
-                                        primaryRequest.getRequest(),
-                                        target.allocationId().getRelocationId(),
-                                        primaryRequest.getPrimaryTerm()
-                                    ),
-                                    transportOptions,
-                                    new ActionListenerResponseHandler<>(
-                                        onCompletionListener,
-                                        reader,
-                                        TransportResponseHandler.TRANSPORT_WORKER
-                                    ) {
-
-                                        @Override
-                                        public void handleResponse(Response response) {
-                                            setPhase(replicationTask, "finished");
-                                            super.handleResponse(response);
-                                        }
-
-                                        @Override
-                                        public void handleException(TransportException exp) {
-                                            setPhase(replicationTask, "finished");
-                                            super.handleException(exp);
-                                        }
-                                    }
-                                );
+                                String allocationID = target.allocationId().getId();
+                                delegate(targetNode, allocationID, onCompletionListener);
                             }
                         } else {
-                            // TODO:
-                            // We have requests for both source and target shards.
-                            // Use a refcounted listener to run both requests async in parallel and collect the responses from both requests
+                            Map<ShardId, Tuple<Response, Exception>> results = new ConcurrentHashMap<>(splitRequests.size());
+                            CountDown countDown = new CountDown(splitRequests.size());
+                            for (Map.Entry<ShardId, Request> splitRequest : splitRequests.entrySet()) {
+                                ActionListener<Response> listener = new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(Response response) {
+                                        results.put(splitRequest.getKey(), new Tuple<>(response, null));
+                                        if (countDown.countDown()) {
+                                            finish();
+                                        }
+                                    }
 
-                            // Merge responses from source and target before calling onCompletionListener
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        results.put(splitRequest.getKey(), new Tuple<>(null, e));
+                                        if (countDown.countDown()) {
+                                            finish();
+                                        }
+                                    }
+
+                                    private void finish() {
+                                        Tuple<Response, Exception> finalResponse = combineSplitResponses(
+                                            primaryRequest.getRequest(),
+                                            splitRequests,
+                                            results
+                                        );
+                                        if (finalResponse.v1() != null) {
+                                            onCompletionListener.onResponse(finalResponse.v1());
+                                        } else {
+                                            onCompletionListener.onFailure(finalResponse.v2());
+                                        }
+                                    }
+                                };
+                                if (splitRequest.getKey().equals(primaryRequest.getRequest().shardId())) {
+                                    executePrimaryRequest(primaryShardReference, "primary", listener);
+                                } else {
+                                    final IndexShard targetShard = getIndexShard(splitRequest.getKey());
+                                    final ShardRouting target = targetShard.routingEntry();
+                                    DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
+                                    String allocationID = target.allocationId().getId();
+                                    delegate(targetNode, allocationID, listener);
+                                }
+                            }
                         }
                     } else {
-                        executePrimaryRequest(primaryShardReference, "primary");
+                        executePrimaryRequest(primaryShardReference, "primary", onCompletionListener);
                     }
             } catch (Exception e) {
-                handleException(primaryShardReference, e);
+                Releasables.closeWhileHandlingException(primaryShardReference);
+                onFailure(e);
             }
         }
 
-        private void executePrimaryRequest(final PrimaryShardReference primaryShardReference, String phase) throws Exception {
+        private void delegate(DiscoveryNode targetNode, String allocationID, ActionListener<Response> listener) {
+            transportService.sendRequest(
+                targetNode,
+                transportPrimaryAction,
+                new ConcreteShardRequest<>(primaryRequest.getRequest(), allocationID, primaryRequest.getPrimaryTerm()),
+                transportOptions,
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    TransportReplicationAction.this::newResponseInstance,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
+
+                    @Override
+                    public void handleResponse(Response response) {
+                        setPhase(replicationTask, "finished");
+                        super.handleResponse(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        setPhase(replicationTask, "finished");
+                        super.handleException(exp);
+                    }
+                }
+            );
+        }
+
+        private void executePrimaryRequest(
+            final PrimaryShardReference primaryShardReference,
+            String phase,
+            final ActionListener<Response> listener
+        ) throws Exception {
             setPhase(replicationTask, phase);
 
             final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
@@ -617,7 +655,7 @@ public abstract class TransportReplicationAction<
                 assert primaryShardReference.indexShard.isPrimaryMode();
                 primaryShardReference.close(); // release shard operation lock before responding to caller
                 setPhase(replicationTask, "finished");
-                onCompletionListener.onResponse(response);
+                listener.onResponse(response);
             }, e -> handleException(primaryShardReference, e));
 
             new ReplicationOperation<>(

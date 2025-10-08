@@ -75,6 +75,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -197,7 +199,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 new ShardId(index, newShardId),
                 shardNum -> new ArrayList<>()
             );
-            shardRequests.add(new BulkItemRequest(newShardId, bulkItemRequest.request()));
+            shardRequests.add(new BulkItemRequest(bulkItemRequest.id(), bulkItemRequest.request()));
         }
 
         // All items belong to either the source shard or target shard.
@@ -221,6 +223,33 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             bulkRequestsPerShard.put(shardId, bulkShardRequest);
         }
         return bulkRequestsPerShard;
+    }
+
+    @Override
+    protected Tuple<BulkShardResponse, Exception> combineSplitResponses(
+        BulkShardRequest originalRequest,
+        Map<ShardId, BulkShardRequest> splitRequests,
+        Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
+    ) {
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalRequest.items().length];
+        for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
+            ShardId shardId = entry.getKey();
+            Tuple<BulkShardResponse, Exception> value = entry.getValue();
+            Exception exception = value.v2();
+            if (exception != null) {
+                BulkShardRequest bulkShardRequest = splitRequests.get(shardId);
+                for (BulkItemRequest item : bulkShardRequest.items()) {
+                    DocWriteRequest<?> request = item.request();
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), request.id(), exception);
+                    bulkItemResponses[item.id()] = BulkItemResponse.failure(item.id(), request.opType(), failure);
+                }
+            } else {
+                for (BulkItemResponse bulkItemResponse : value.v1().getResponses()) {
+                    bulkItemResponses[bulkItemResponse.getItemId()] = bulkItemResponse;
+                }
+            }
+        }
+        return new Tuple<>(new BulkShardResponse(originalRequest.shardId(), bulkItemResponses), null);
     }
 
     @Override

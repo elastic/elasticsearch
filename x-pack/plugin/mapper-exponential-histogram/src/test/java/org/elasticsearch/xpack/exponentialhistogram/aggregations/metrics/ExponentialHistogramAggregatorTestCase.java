@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class ExponentialHistogramAggregatorTestCase extends AggregatorTestCase {
+public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {

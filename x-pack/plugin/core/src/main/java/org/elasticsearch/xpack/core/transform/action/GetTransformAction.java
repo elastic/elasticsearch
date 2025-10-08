@@ -179,7 +179,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.readBoolean()) {
-                this.errors = in.readCollectionAsList(java.lang.Error::new);
+                this.errors = in.readCollectionAsList(Error::new);
             } else {
                 this.errors = null;
             }

@@ -239,6 +239,13 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        private IndexType indexType() {
+            if (indexCreatedVersion.isLegacyIndexVersion()) {
+                return IndexType.archivedPoints();
+            }
+            return IndexType.points(indexed.get(), hasDocValues.get());
+        }
+
         private FieldValues<Number> scriptValues() {
             if (this.script.get() == null) {
                 return null;
@@ -450,7 +457,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     HalfFloatDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -644,7 +651,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     FloatDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -804,7 +811,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     DoubleDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -938,7 +945,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ByteDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -1066,7 +1073,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     ShortDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -1268,7 +1275,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     IntegerDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -1430,7 +1437,7 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     valuesSourceType,
                     LongDocValuesField::new,
-                    ft.isIndexed()
+                    ft.indexType.hasPoints()
                 );
             }
 
@@ -1903,9 +1910,8 @@ public class NumberFieldMapper extends FieldMapper {
         public NumberFieldType(
             String name,
             NumberType type,
-            boolean isIndexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             boolean coerce,
             Number nullValue,
             Map<String, String> meta,
@@ -1915,7 +1921,7 @@ public class NumberFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
-            super(name, isIndexed, isStored, hasDocValues, meta);
+            super(name, indexType, isStored, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -1930,9 +1936,8 @@ public class NumberFieldMapper extends FieldMapper {
             this(
                 name,
                 builder.type,
-                builder.indexed.getValue() && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
+                builder.indexType(),
                 builder.stored.getValue(),
-                builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(),
                 builder.nullValue.getValue(),
                 builder.meta.getValue(),
@@ -1949,7 +1954,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed) {
-            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null, null, false);
+            this(name, type, IndexType.points(isIndexed, true), false, true, null, Collections.emptyMap(), null, false, null, null, false);
         }
 
         @Override
@@ -1987,19 +1992,19 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed());
+            return type.termQuery(name(), value, indexType.hasPoints());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 return type.termsQuery(name(), values);
             } else {
                 return super.termsQuery(values, context);
@@ -2015,12 +2020,21 @@ public class NumberFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed());
+            return type.rangeQuery(
+                name(),
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                hasDocValues(),
+                context,
+                indexType.hasPoints()
+            );
         }
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 return this::parsePoint;
             }
             return null;
@@ -2037,7 +2051,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce, blContext);
             }
 
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || indexType.hasPoints())
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();

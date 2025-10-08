@@ -97,6 +97,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
+    private volatile ByteSizeValue rolloverMaxSize;
 
     MlDailyMaintenanceService(
         Settings settings,
@@ -117,6 +118,7 @@ public class MlDailyMaintenanceService implements Releasable {
         this.schedulerProvider = Objects.requireNonNull(schedulerProvider);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
+        this.rolloverMaxSize = MachineLearning.NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE.get(settings);
         this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
@@ -150,6 +152,10 @@ public class MlDailyMaintenanceService implements Releasable {
 
     void setDeleteExpiredDataRequestsPerSecond(float value) {
         this.deleteExpiredDataRequestsPerSecond = value;
+    }
+
+    void setRolloverMaxSize(ByteSizeValue value) {
+        this.rolloverMaxSize = value;
     }
 
     /**
@@ -355,8 +361,9 @@ public class MlDailyMaintenanceService implements Releasable {
                 originSettingClient,
                 new RolloverRequestBuilder(originSettingClient).setRolloverTarget(rolloverAlias)
                     .setNewIndexName(newIndexName)
-                    // TODO Make these conditions configurable settings?
-                    .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(ByteSizeValue.of(50, ByteSizeUnit.GB)).build())
+                    .setConditions(
+                        RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build()
+                    )
                     .request(),
                 rolloverListener
             );

@@ -41,7 +41,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPA
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 
 /**
- * Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.
+ * Returns the direction type (inbound, outbound, internal, external) given
+ * a source IP address, destination IP address, and a list of internal networks.
  */
 public class NetworkDirection extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -56,7 +57,8 @@ public class NetworkDirection extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.",
+        description = "Returns the direction type (inbound, outbound, internal, external) given "
+            + "a source IP address, destination IP address, and a list of internal networks.",
         examples = @Example(file = "ip", tag = "networkDirectionFromRowWithInlineNetworks")
     )
     public NetworkDirection(

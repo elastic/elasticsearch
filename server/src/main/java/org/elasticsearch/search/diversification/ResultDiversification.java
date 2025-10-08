@@ -10,40 +10,17 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Base interface for result diversification.
  */
 public abstract class ResultDiversification {
 
-    public abstract TopDocs diversify(TopDocs hits, ResultDiversificationContext diversificationContext) throws IOException;
-
-    protected Map<Integer, VectorData> getFieldVectorsForHits(
-        ScoreDoc[] docs,
-        ResultDiversificationContext context,
-        Map<Integer, Integer> docIdIndexMapping
-    ) {
-        Map<Integer, VectorData> fieldVectors = new HashMap<>();
-        for (int i = 0; i < docs.length; i++) {
-            ScoreDoc hit = docs[i];
-            int docId = hit.doc;
-            docIdIndexMapping.put(docId, i);
-            // hit.Object collapseValue = hit.field(context.getField()).getValue();
-            // if (collapseValue instanceof float[] vecData) {
-            // fieldVectors.put(docId, new VectorData(vecData));
-            // } else if (collapseValue instanceof byte[] byteVecData) {
-            // fieldVectors.put(docId, new VectorData(byteVecData));
-            // }
-        }
-        return fieldVectors;
-    }
+    public abstract RankDoc[] diversify(RankDoc[] docs, ResultDiversificationContext diversificationContext) throws IOException;
 
     protected float getVectorComparisonScore(
         VectorSimilarityFunction similarityFunction,

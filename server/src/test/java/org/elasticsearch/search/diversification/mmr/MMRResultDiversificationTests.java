@@ -9,12 +9,11 @@
 
 package org.elasticsearch.search.diversification.mmr;
 
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,7 +32,6 @@ public class MMRResultDiversificationTests extends ESTestCase {
             .dimensions(4)
             .build(context);
 
-        // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
         DenseVectorFieldMapper fieldMapper = builder.build(context);
@@ -63,25 +61,24 @@ public class MMRResultDiversificationTests extends ESTestCase {
             fieldVectors
         );
 
-        ScoreDoc[] scoreDocs = new ScoreDoc[] {
-            new ScoreDoc(1, 2.0f),
-            new ScoreDoc(2, 1.8f),
-            new ScoreDoc(3, 1.8f),
-            new ScoreDoc(4, 1.0f),
-            new ScoreDoc(5, 0.8f),
-            new ScoreDoc(6, 0.8f) };
+        RankDoc[] docs = new RankDoc[] {
+            new RankDoc(1, 2.0f, 1),
+            new RankDoc(2, 1.8f, 1),
+            new RankDoc(3, 1.8f, 1),
+            new RankDoc(4, 1.0f, 1),
+            new RankDoc(5, 0.8f, 1),
+            new RankDoc(6, 0.8f, 1) };
 
         TotalHits totalHits = new TotalHits(6L, TotalHits.Relation.EQUAL_TO);
-        TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification();
-        TopDocs diversifiedTopDocs = resultDiversification.diversify(topDocs, diversificationContext);
-        assertNotSame(topDocs, diversifiedTopDocs);
+        RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs, diversificationContext);
+        assertNotSame(docs, diversifiedTopDocs);
 
-        assertEquals(3, diversifiedTopDocs.scoreDocs.length);
-        assertEquals(1, diversifiedTopDocs.scoreDocs[0].doc);
-        assertEquals(6, diversifiedTopDocs.scoreDocs[1].doc);
-        assertEquals(3, diversifiedTopDocs.scoreDocs[2].doc);
+        assertEquals(3, diversifiedTopDocs.length);
+        assertEquals(1, diversifiedTopDocs[0].doc);
+        assertEquals(6, diversifiedTopDocs[1].doc);
+        assertEquals(3, diversifiedTopDocs[2].doc);
     }
 
     public void testMMRDiversificationIfNoSearchHits() throws IOException {
@@ -107,11 +104,11 @@ public class MMRResultDiversificationTests extends ESTestCase {
             IndexVersion.current(),
             new HashMap<>()
         );
-        TopDocs emptyTopDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {});
+        RankDoc[] emptyDocs = new RankDoc[0];
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification();
 
-        assertSame(emptyTopDocs, resultDiversification.diversify(emptyTopDocs, diversificationContext));
+        assertSame(emptyDocs, resultDiversification.diversify(emptyDocs, diversificationContext));
         assertNull(resultDiversification.diversify(null, diversificationContext));
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -24,7 +23,6 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
@@ -435,72 +433,6 @@ public abstract class MappedFieldType {
                 + "["
                 + DistanceFeatureQueryBuilder.NAME
                 + "] query can only be run on a date, date_nanos or geo_point field type!"
-        );
-    }
-
-    /**
-     * Create an {@link IntervalsSource} for the given term.
-     */
-    public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create an {@link IntervalsSource} for the given prefix.
-     */
-    public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a fuzzy {@link IntervalsSource} for the given term.
-     */
-    public IntervalsSource fuzzyIntervals(
-        String term,
-        int maxDistance,
-        int prefixLength,
-        boolean transpositions,
-        SearchExecutionContext context
-    ) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a wildcard {@link IntervalsSource} for the given pattern.
-     */
-    public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a regexp {@link IntervalsSource} for the given pattern.
-     */
-    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
-    }
-
-    /**
-     * Create a range {@link IntervalsSource} for the given ranges
-     */
-    public IntervalsSource rangeIntervals(
-        BytesRef lowerTerm,
-        BytesRef upperTerm,
-        boolean includeLower,
-        boolean includeUpper,
-        SearchExecutionContext context
-    ) {
-        throw new IllegalArgumentException(
-            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 

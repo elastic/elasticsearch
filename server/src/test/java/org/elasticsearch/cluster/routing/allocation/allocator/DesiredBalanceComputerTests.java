@@ -1596,6 +1596,46 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 mockLog.assertAllExpectationsMatched();
             }
         }
+
+        // No logging if master is shutting down
+        {
+            var clusterState = createInitialClusterState(1, 1, 1).copyAndUpdateMetadata(
+                b -> b.putCustom(
+                    NodesShutdownMetadata.TYPE,
+                    new NodesShutdownMetadata(
+                        Map.of(
+                            "master",
+                            SingleNodeShutdownMetadata.builder()
+                                .setNodeId("master")
+                                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                                .setReason("test")
+                                .setStartedAtMillis(0L)
+                                .setGracePeriod(TimeValue.THIRTY_SECONDS)
+                                .build()
+                        )
+                    )
+                )
+            );
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                clusterState,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain since all shards are assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "*unassigned shard * due to allocation decision *"
+                    )
+                );
+                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
     }
 
     public void testMaybeSimulateAlreadyStartedShards() {

@@ -132,28 +132,28 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     record PushableCompoundExec(EvalExec evalExec, EsQueryExec queryExec, List<EsQueryExec.Sort> pushableSorts) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
-//            List<Alias> evalExecAlias = evalExec.fields();
-//            List<FieldAttribute> additionalQueryAttrs = new ArrayList<>();
-//            boolean aliasChanged = false;
-//            for (EsQueryExec.Sort pushableSort : pushableSorts) {
-//                if (pushableSort instanceof EsQueryExec.ScriptSort scriptSort) {
-//                    // Change eval alias to the script sort field
-//                    for(int i = 0; i < evalExecAlias.size(); i++) {
-//                        Alias alias = evalExecAlias.get(i);
-//                        if (alias.id().equals(scriptSort.alias().id())) {
-//                            evalExecAlias.set(i, alias.replaceChild(scriptSort.field()));
-//                            additionalQueryAttrs.add(scriptSort.field());
-//                            aliasChanged = true;
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
-//            if (aliasChanged) {
-//                EsQueryExec newQueryExec = queryExec.withSorts(pushableSorts).withLimit(topNExec.limit());
-////                newQueryExec.attrs().addAll(additionalQueryAttrs);
-//                EvalExec newEvalExec = new EvalExec(evalExec.source(), evalExec.child(), evalExecAlias);
-//            }
+            List<Alias> evalExecAlias = evalExec.fields();
+            List<FieldAttribute> additionalQueryAttrs = new ArrayList<>();
+            boolean aliasChanged = false;
+            for (EsQueryExec.Sort pushableSort : pushableSorts) {
+                if (pushableSort instanceof EsQueryExec.ScriptSort scriptSort) {
+                    // Change eval alias to the script sort field
+                    for(int i = 0; i < evalExecAlias.size(); i++) {
+                        Alias alias = evalExecAlias.get(i);
+                        if (alias.id().equals(scriptSort.alias().id())) {
+                            evalExecAlias.set(i, alias.replaceChild(scriptSort.field()));
+                            additionalQueryAttrs.add(scriptSort.field());
+                            aliasChanged = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (aliasChanged) {
+                EsQueryExec newQueryExec = queryExec.withSorts(pushableSorts).withLimit(topNExec.limit());
+//                newQueryExec.attrs().addAll(additionalQueryAttrs);
+                EvalExec newEvalExec = new EvalExec(evalExec.source(), evalExec.child(), evalExecAlias);
+            }
 
             // We need to keep the EVAL in place because the coordinator will have its own TopNExec so we need to keep the distance
             return evalExec.replaceChild(queryExec.withSorts(pushableSorts).withLimit(topNExec.limit()));

@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -271,11 +272,20 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         DocBlock docBlock = null;
         DoubleBlock scores = null;
         Page page = null;
+
+        int extractSortCount = (int) sorts.stream().filter(s -> s instanceof ScriptSortBuilder).count();
+        DoubleBlock.Builder[] sortValuesBlockBuilders = new DoubleBlock.Builder[extractSortCount];
+        for(int i = 0; i < sortValuesBlockBuilders.length; i++) {
+            sortValuesBlockBuilders[i] = blockFactory.newDoubleBlockBuilder(size);
+        }
+        DoubleBlock[] sortValuesBlocks = null;
+
         try (
             IntVector.Builder currentSegmentBuilder = blockFactory.newIntVectorFixedBuilder(size);
             IntVector.Builder currentDocsBuilder = blockFactory.newIntVectorFixedBuilder(size);
             DoubleVector.Builder currentScoresBuilder = scoreVectorOrNull(size);
         ) {
+
             int start = offset;
             offset += size;
             List<LeafReaderContext> leafContexts = perShardCollector.shardContext.searcher().getLeafContexts();
@@ -287,6 +297,27 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 if (currentScoresBuilder != null) {
                     float score = getScore(topDocs[i]);
                     currentScoresBuilder.appendDouble(score);
+                }
+                // TODO Get the blocks according to the sort types for the sorts to extract - could be different types
+                // Should we do the script field type materialization later? So it's part of loading the field via a script?
+                // We don't reuse the order, but it's similar to how fetching source works.
+                if ((extractSortCount > 0) && topDocs[i] instanceof FieldDoc fieldDoc) {
+                    int sortIndex = 0;
+                    int extractedSortIndex = 0;
+                    for (SortBuilder<?> sortBuilder : sorts) {
+                        if (sortBuilder instanceof ScriptSortBuilder) {
+                            Object sortValue = ((FieldDoc) topDocs[i]).fields[sortIndex];
+                            if (sortValue == null) {
+                                sortValuesBlockBuilders[extractedSortIndex].appendNull();
+                            } else if (sortValue instanceof Number numberSort) {
+                                sortValuesBlockBuilders[extractedSortIndex].appendDouble(numberSort.doubleValue());
+                            } else {
+                                throw new IllegalArgumentException("Unsupported sort value type: " + sortValue.getClass());
+                            }
+                            extractedSortIndex++;
+                        }
+                        sortIndex++;
+                    }
                 }
                 // Null the top doc so it can be GCed early, just in case.
                 topDocs[i] = null;
@@ -306,6 +337,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 scores = currentScoresBuilder.build().asBlock();
                 page = new Page(size, docBlock, scores);
             }
+            sortValuesBlocks = new DoubleBlock[extractSortCount];
+            for(int i = 0; i < extractSortCount; i++) {
+                sortValuesBlocks[i] = sortValuesBlockBuilders[i].build();
+            }
+            page = page.appendBlocks(sortValuesBlocks);
         } finally {
             if (page == null) {
                 Releasables.closeExpectNoException(shard, segments, docs, docBlock, scores);

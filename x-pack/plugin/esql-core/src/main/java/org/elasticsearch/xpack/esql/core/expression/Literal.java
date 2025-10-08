@@ -244,6 +244,6 @@ public class Literal extends LeafExpression implements Accountable {
 
     @Override
     public String asScript() {
-        return value().toString();
+        return Objects.toString(value());
     }
 }

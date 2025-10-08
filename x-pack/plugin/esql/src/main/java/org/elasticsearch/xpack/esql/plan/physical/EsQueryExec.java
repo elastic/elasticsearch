@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final EsField DOC_ID_FIELD = new EsField(
@@ -311,7 +312,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
-        return attrs;
+        if (sorts == null || sorts.isEmpty()) {
+            return attrs;
+        }
+        // Concat attributes with the fields used in script sorts, as they need to be extracted too
+        return Stream.concat(attrs.stream(), sorts.stream().filter(s -> s instanceof ScriptSort).map(Sort::field)).toList();
     }
 
     public Expression limit() {

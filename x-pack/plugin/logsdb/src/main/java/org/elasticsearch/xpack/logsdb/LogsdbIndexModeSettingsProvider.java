@@ -48,6 +48,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED;
@@ -55,12 +57,10 @@ import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger LOGGER = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     static final String LOGS_PATTERN = "logs-*-*";
-    private static final Set<String> MAPPING_INCLUDES = Set.of(
-        "_doc._source.*",
-        "_doc.properties.host**",
-        "_doc.properties.resource**",
-        "_doc.subobjects"
-    );
+    private static final Set<String> MAPPING_INCLUDES = Set.of("_source.*", "properties.host**", "properties.resource**", "subobjects")
+        .stream()
+        .flatMap(v -> Stream.of(v, "_doc." + v))
+        .collect(Collectors.toSet());
 
     private final LogsdbLicenseService licenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
@@ -305,11 +305,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     @SuppressWarnings("unchecked")
     private boolean checkMappingForPatternText(Map<String, Object> mapping) {
         var docMapping = mapping.get("_doc");
-        if ((docMapping instanceof Map) == false) {
-            return false;
+        if (docMapping instanceof Map) {
+            mapping = (Map<String, Object>) docMapping;
         }
         boolean[] usesPatternText = { false };
-        MappingVisitor.visitMapping((Map<String, Object>) docMapping, (field, fieldMapping) -> {
+        MappingVisitor.visitMapping(mapping, (field, fieldMapping) -> {
             if (Objects.equals(fieldMapping.get("type"), PatternTextFieldType.CONTENT_TYPE)) {
                 usesPatternText[0] = true;
             }

@@ -369,9 +369,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/132249
-- class: org.elasticsearch.common.logging.JULBridgeTests
-  method: testThrowable
-  issue: https://github.com/elastic/elasticsearch/issues/132280
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testManyDistinctOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132308
@@ -393,9 +390,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
-  method: testTransformRollingUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/132892
 - class: org.elasticsearch.xpack.eql.planner.QueryTranslatorTests
   method: testMatchOptimization
   issue: https://github.com/elastic/elasticsearch/issues/132894
@@ -612,15 +606,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettingsMappingsMerging
-  issue: https://github.com/elastic/elasticsearch/issues/135884
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLuceneOnSortedIndex
   issue: https://github.com/elastic/elasticsearch/issues/135939
-- class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
-  method: testGetAdditionalIndexSettings
-  issue: https://github.com/elastic/elasticsearch/issues/135972
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=indices.get_sample/10_basic/Test get sample for index with no sample config}
   issue: https://github.com/elastic/elasticsearch/issues/135975
@@ -681,6 +669,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join-expression.LookupMultiColTwoExprAndNoMatch}
   issue: https://github.com/elastic/elasticsearch/issues/136121
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:bucket.BucketByWeekInString}
+  issue: https://github.com/elastic/elasticsearch/issues/136136
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:text-embedding.Text_embedding with knn (inline) on semantic_text_dense_field}
+  issue: https://github.com/elastic/elasticsearch/issues/136142
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:text-embedding.Text_embedding with multiple knn queries in fork}
+  issue: https://github.com/elastic/elasticsearch/issues/136090
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:semantic_text.Repeat}
+  issue: https://github.com/elastic/elasticsearch/issues/136150
+- class: org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluatorTests
+  method: testFoldTextEmbeddingFunction
+  issue: https://github.com/elastic/elasticsearch/issues/136154
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
+  method: testEsqlRcs1UnavailableRemoteScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/136157
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:comparison.IntToInt}
+  issue: https://github.com/elastic/elasticsearch/issues/136160
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:math.LeastGreatestMany}
+  issue: https://github.com/elastic/elasticsearch/issues/136161
 
 # Examples:
 #

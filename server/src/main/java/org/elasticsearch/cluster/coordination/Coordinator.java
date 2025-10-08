@@ -1568,7 +1568,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             clusterStatePublicationEvent.getSummary()
                         )
                     );
-                    throw new FailedToCommitClusterStateException("publication " + currentPublication.get() + " already in progress");
+                    // If there is another publication in progress then we are not the master node
+                    throw new NotMasterException("publication " + currentPublication.get() + " already in progress");
                 }
 
                 assert assertPreviousStateConsistency(clusterStatePublicationEvent);
@@ -1586,8 +1587,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     publicationContext = publicationHandler.newPublicationContext(clusterStatePublicationEvent);
                 } catch (Exception e) {
                     logger.debug(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing failed during context creation", e);
+                    // Calling becomeCandidate here means this node steps down from being master
                     becomeCandidate("publication context creation");
-                    throw new FailedToCommitClusterStateException("publishing failed during context creation", e);
+                    throw new NotMasterException("publishing failed during context creation", e);
                 }
 
                 try (Releasable ignored = publicationContext::decRef) {
@@ -1607,8 +1609,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                 + "]",
                             e
                         );
+                        // Calling becomeCandidate here means this node steps down from being master
                         becomeCandidate("publication creation");
-                        throw new FailedToCommitClusterStateException("publishing failed while starting", e);
+                        throw new NotMasterException("publishing failed while starting", e);
                     }
 
                     try {

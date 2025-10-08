@@ -9,15 +9,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 
 /**
  * The SplitShardCountSummary has been added to accommodate in-place index resharding.
@@ -57,12 +51,7 @@ import java.io.IOException;
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary implements Writeable {
-    // superseded
-    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SUMMARY = TransportVersion.fromName("index_reshard_shardcount_summary");
-    // bumped to use VInt instead of Int
-    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_SMALL = TransportVersion.fromName("index_reshard_shardcount_small");
-
+public class SplitShardCountSummary {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
 
     /**
@@ -137,16 +126,22 @@ public class SplitShardCountSummary implements Writeable {
         return new SplitShardCountSummary(shardCount);
     }
 
+    /**
+     * Construct a SplitShardCountSummary from an integer
+     * Used for deserialization.
+     */
+    public static SplitShardCountSummary fromInt(int payload) {
+        return new SplitShardCountSummary(payload);
+    }
+
     private final int shardCountSummary;
 
-    public SplitShardCountSummary(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-            this.shardCountSummary = in.readVInt();
-        } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-            this.shardCountSummary = in.readInt();
-        } else {
-            this.shardCountSummary = UNSET.shardCountSummary;
-        }
+    /**
+     * Return an integer representation of this summary
+     * Used for serialization.
+     */
+    public int asInt() {
+        return shardCountSummary;
     }
 
     /**
@@ -159,15 +154,6 @@ public class SplitShardCountSummary implements Writeable {
     // visible for testing
     SplitShardCountSummary(int shardCountSummary) {
         this.shardCountSummary = shardCountSummary;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-            out.writeVInt(shardCountSummary);
-        } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-            out.writeInt(shardCountSummary);
-        }
     }
 
     @Override

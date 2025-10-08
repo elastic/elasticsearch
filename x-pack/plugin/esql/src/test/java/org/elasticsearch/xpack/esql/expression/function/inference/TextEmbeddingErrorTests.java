@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Locale;
@@ -28,12 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests error conditions and type validation for TEXT_EMBEDDING function.
  */
 public class TextEmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
-
-    @Before
-    public void checkCapability() {
-        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-    }
-
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(TextEmbeddingTests.parameters());

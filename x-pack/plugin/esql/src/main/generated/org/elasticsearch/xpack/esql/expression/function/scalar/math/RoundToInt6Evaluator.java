@@ -79,16 +79,16 @@ public final class RoundToInt6Evaluator implements EvalOperator.ExpressionEvalua
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
         result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5));

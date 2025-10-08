@@ -284,6 +284,11 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             logger.warn("No remotes found. Using 'main' branch as upstream ref for transport version resources");
             return "main";
         }
+        // default the branch name to look at to that which a PR in CI is targeting
+        String branchName = System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH");
+        if (branchName == null) {
+            branchName = "main";
+        }
         List<String> remoteNames = List.of(remotesOutput.split("\n"));
         if (remoteNames.contains(UPSTREAM_REMOTE_NAME) == false) {
             // our special remote doesn't exist yet, so create it
@@ -299,14 +304,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 gitCommand("remote", "add", UPSTREAM_REMOTE_NAME, upstreamUrl);
             } else {
                 logger.warn("No elastic github remotes found to copy. Using 'main' branch as upstream ref for transport version resources");
-                return "main";
+                return branchName;
             }
         }
 
         // make sure the remote main ref is up to date
-        gitCommand("fetch", UPSTREAM_REMOTE_NAME, "main");
+        gitCommand("fetch", UPSTREAM_REMOTE_NAME, branchName);
 
-        return UPSTREAM_REMOTE_NAME + "/main";
+        return UPSTREAM_REMOTE_NAME + "/" + branchName;
     }
 
     // Return the transport version resources paths that exist in upstream

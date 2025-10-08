@@ -1,5 +1,5 @@
 pr: 136168
-summary: Add options to include closed and hidden segments in segments cat API
+summary: Opt-in closed/hidden segments in `/_cat/segments`
 area: CAT APIs
 type: enhancement
 issues:

@@ -54,17 +54,15 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     private static final String DATA_STREAM_NAME = "logs-app1";
     public static final String DEFAULT_MAPPING = """
         {
-            "_doc": {
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "message": {
-                        "type": "keyword"
-                    },
-                    "host.name": {
-                        "type": "keyword"
-                    }
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "message": {
+                    "type": "keyword"
+                },
+                "host.name": {
+                    "type": "keyword"
                 }
             }
         }
@@ -83,6 +81,14 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         logsdbLicenseService.setLicenseState(licenseState);
         logsdbLicenseService.setLicenseService(mockLicenseService);
+    }
+
+    private static String getMapping(String contents) {
+        if (randomBoolean()) {
+            return "{\"_doc\":" + contents + "}";
+        } else {
+            return contents;
+        }
     }
 
     private LogsdbIndexModeSettingsProvider withSyntheticSourceDemotionSupport(boolean enabled) {
@@ -154,7 +160,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -173,7 +179,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -192,7 +198,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -211,7 +217,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -230,7 +236,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -245,7 +251,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of()),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -260,7 +266,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -275,7 +281,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings", "logs@custom")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -290,7 +296,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@custom", "custom-component-template")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -305,7 +311,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("standard-apache-production"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -324,7 +330,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(additionalIndexSettings.isEmpty());
@@ -340,7 +346,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(additionalIndexSettings, IndexMode.LOGSDB.getName());
@@ -355,7 +361,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(beforeSettings.isEmpty());
@@ -369,7 +375,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertIndexMode(afterSettings, IndexMode.LOGSDB.getName());
@@ -383,7 +389,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             buildMetadata(List.of("*"), List.of("logs@settings")),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
-            List.of(new CompressedXContent(DEFAULT_MAPPING))
+            List.of(new CompressedXContent(getMapping(DEFAULT_MAPPING)))
         );
 
         assertTrue(laterSettings.isEmpty());
@@ -391,7 +397,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     private static ProjectMetadata buildMetadata(final List<String> indexPatterns, final List<String> componentTemplates)
         throws IOException {
-        final Template template = new Template(Settings.EMPTY, new CompressedXContent(DEFAULT_MAPPING), null);
+        final Template template = new Template(Settings.EMPTY, new CompressedXContent(getMapping(DEFAULT_MAPPING)), null);
         final ComposableIndexTemplate composableTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(indexPatterns)
             .template(template)
@@ -416,19 +422,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         {
             String mapping = """
                 {
-                    "_doc": {
-                        "_source": {
-                            "mode": "synthetic"
-                        },
-                        "properties": {
-                            "my_field": {
-                                "type": "keyword"
-                            }
+                    "_source": {
+                        "mode": "synthetic"
+                    },
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword"
                         }
                     }
                 }
                 """;
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertFalse("_source.mode is a noop", result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
@@ -440,14 +444,12 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             if (withSourceMode) {
                 mapping = """
                     {
-                        "_doc": {
-                            "_source": {
-                                "mode": "stored"
-                            },
-                            "properties": {
-                                "my_field": {
-                                    "type": "keyword"
-                                }
+                        "_source": {
+                            "mode": "stored"
+                        },
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
                             }
                         }
                     }
@@ -455,17 +457,15 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             } else {
                 mapping = """
                     {
-                        "_doc": {
-                            "properties": {
-                                "my_field": {
-                                    "type": "keyword"
-                                }
+                        "properties": {
+                            "my_field": {
+                                "type": "keyword"
                             }
                         }
                     }
                     """;
             }
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
@@ -479,21 +479,19 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         String indexName = MetadataIndexTemplateService.VALIDATE_INDEX_NAME;
         String mapping = """
             {
-                "_doc": {
-                    "_source": {
-                        "mode": "synthetic"
-                    },
-                    "properties": {
-                        "my_field": {
-                            "type": "keyword"
-                        }
+                "_source": {
+                    "mode": "synthetic"
+                },
+                "properties": {
+                    "my_field": {
+                        "type": "keyword"
                     }
                 }
             }
             """;
         Settings settings = Settings.EMPTY;
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
-        boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+        boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
             .hasSyntheticSourceUsage();
         assertFalse(result);
     }
@@ -503,11 +501,9 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
             {
-                "_doc": {
-                    "properties": {
-                        "my_field": {
-                            "type": "keyword"
-                        }
+                "properties": {
+                    "my_field": {
+                        "type": "keyword"
                     }
                 }
             }
@@ -515,7 +511,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
         {
             Settings settings = Settings.builder().put("index.mode", "logsdb").build();
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertTrue(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
@@ -532,7 +528,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             assertThat(newMapperServiceCounter.get(), equalTo(3));
         }
         {
-            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(4));
@@ -544,12 +540,10 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
             {
-                "_doc": {
-                    "properties": {
-                        "my_field": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                        }
+                "properties": {
+                    "my_field": {
+                        "type": "keyword",
+                        "time_series_dimension": true
                     }
                 }
             }
@@ -557,7 +551,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
         {
             Settings settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "my_field").build();
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertTrue(result);
         }
@@ -571,7 +565,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             assertFalse(result);
         }
         {
-            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, Settings.EMPTY, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertFalse(result);
         }
@@ -585,19 +579,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         {
             String mapping = """
                 {
-                    "_doc": {
-                        "_source": {
-                            "mode": "synthetic"
-                        },
-                        "properties": {
-                            "my_field": {
-                                "type": "keyword"
-                            }
+                    "_source": {
+                        "mode": "synthetic"
+                    },
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword"
                         }
                     }
                 }
                 """;
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
@@ -605,16 +597,14 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         {
             String mapping = """
                 {
-                    "_doc": {
-                        "properties": {
-                            "my_field": {
-                                "type": "keyword"
-                            }
+                    "properties": {
+                        "my_field": {
+                            "type": "keyword"
                         }
                     }
                 }
                 """;
-            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
+            boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(getMapping(mapping))))
                 .hasSyntheticSourceUsage();
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
@@ -902,16 +892,14 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -921,16 +909,14 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings, Version.V_8_17_0);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings), Version.V_8_17_0);
         assertTrue(result.isEmpty());
     }
 
@@ -938,19 +924,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host.name": {
-                            "type": "keyword"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host.name": {
+                        "type": "keyword"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -960,20 +944,18 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host.name": {
-                            "type": "keyword",
-                            "doc_values": false
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host.name": {
+                        "type": "keyword",
+                        "doc_values": false
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -983,19 +965,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host.name": {
-                            "type": "integer"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host.name": {
+                        "type": "integer"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1005,20 +985,18 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host.name": {
-                            "type": "integer",
-                            "doc_values": false
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host.name": {
+                        "type": "integer",
+                        "doc_values": false
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1028,19 +1006,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host.name": {
-                            "type": "boolean"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host.name": {
+                        "type": "boolean"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1050,19 +1026,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host": {
-                            "type": "object"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host": {
+                        "type": "object"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1072,19 +1046,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host": {
-                            "type": "keyword"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host": {
+                        "type": "keyword"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1094,20 +1066,18 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB).build();
         var mappings = """
             {
-                "_doc": {
-                    "subobjects": false,
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host": {
-                            "type": "keyword"
-                        }
+                "subobjects": false,
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host": {
+                        "type": "keyword"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1120,19 +1090,17 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        },
-                        "host.name.sub": {
-                            "type": "keyword"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "host.name.sub": {
+                        "type": "keyword"
                     }
                 }
             }
             """;
-        Settings result = generateLogsdbSettings(settings, mappings);
+        Settings result = generateLogsdbSettings(settings, getMapping(mappings));
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
@@ -1145,11 +1113,9 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .build();
         var mappings = """
             {
-                "_doc": {
-                    "properties": {
-                        "@timestamp": {
-                            "type": "date"
-                        }
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
                     }
                 }
             }
@@ -1175,7 +1141,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             metadata.getProject(),
             Instant.now(),
             settings,
-            List.of(new CompressedXContent(mappings))
+            List.of(new CompressedXContent(getMapping(mappings)))
         );
 
         Settings result = builder().put(additionalIndexSettings).build();

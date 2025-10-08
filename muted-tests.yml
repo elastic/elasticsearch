@@ -558,36 +558,12 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable
   issue: https://github.com/elastic/elasticsearch/issues/135737
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<small positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/135752
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<positive ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/135753
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/135754
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseTests
-  method: testGroupingAggregate {TestCase=<big positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/135755
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchDenseVector {pref=null mode=time_series}
   issue: https://github.com/elastic/elasticsearch/issues/135762
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/135775
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135787
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
-  method: testGroupingAggregate {TestCase=<positive ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/135814
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
-  method: testGroupingAggregate {TestCase=<small positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/135757
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.IrateTests
-  method: testGroupingAggregate {TestCase=<big positive doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/135756
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135787

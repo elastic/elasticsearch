@@ -33,13 +33,7 @@ public class Ai21ChatCompletionRequestEntity implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (modelId != null) {
-            // Some models require the model ID to be specified in the request body
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
-        } else {
-            // Some models do not require the model ID to be specified in the request body
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(params));
-        }
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
         builder.endObject();
         return builder;
     }

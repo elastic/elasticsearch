@@ -39,13 +39,7 @@ public class HuggingFaceUnifiedChatCompletionRequestEntity implements ToXContent
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (modelId != null) {
-            // Standard Hugging Face models require a model ID
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
-        } else {
-            // Some Hugging Face endpoints may not require a model ID
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(params));
-        }
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
         builder.endObject();
 
         return builder;

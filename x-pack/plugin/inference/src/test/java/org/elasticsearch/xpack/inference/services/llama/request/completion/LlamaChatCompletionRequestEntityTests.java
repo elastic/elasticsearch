@@ -32,10 +32,7 @@ public class LlamaChatCompletionRequestEntityTests extends ESTestCase {
                 ],
                 "model": "modelId",
                 "n": 1,
-                "stream": true,
-                "stream_options": {
-                    "include_usage": true
-                }
+                "stream": true
             }
             """);
     }

@@ -39,13 +39,7 @@ public class LlamaChatCompletionRequestEntity implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (modelId != null) {
-            // Standard Llama models require a model ID
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
-        } else {
-            // Some Llama model deployments do not require a model ID and streaming options field
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(params));
-        }
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(modelId, params));
         builder.endObject();
         return builder;
     }

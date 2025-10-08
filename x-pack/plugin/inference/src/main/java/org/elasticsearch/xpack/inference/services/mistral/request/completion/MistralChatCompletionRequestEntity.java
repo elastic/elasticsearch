@@ -33,13 +33,7 @@ public class MistralChatCompletionRequestEntity implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (modelId != null) {
-            // Some Mistral endpoints require the model ID to be specified in the request body
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(modelId, params));
-        } else {
-            // Some Mistral endpoints do not require the model ID to be specified
-            unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(params));
-        }
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(modelId, params));
         builder.endObject();
         return builder;
     }

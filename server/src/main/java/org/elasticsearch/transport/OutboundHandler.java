@@ -297,10 +297,6 @@ public final class OutboundHandler {
         byteStreamOutput.skip(TcpHeader.HEADER_SIZE);
         threadContext.writeTo(byteStreamOutput);
         if (messageDirection == MessageDirection.REQUEST) {
-            if (version.equals(TransportHandshaker.V8_HANDSHAKE_VERSION)) {
-                // empty features array
-                byteStreamOutput.writeStringArray(Strings.EMPTY_ARRAY);
-            }
             byteStreamOutput.writeString(action);
         }
 

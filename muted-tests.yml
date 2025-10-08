@@ -697,7 +697,7 @@ tests:
   method: test {csv-spec:math.LeastGreatestMany}
   issue: https://github.com/elastic/elasticsearch/issues/136161
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:Text_embedding*}
+  method: test {csv-spec:text-embedding.*}
   issue: https://github.com/elastic/elasticsearch/issues/136090
 
 # Examples:

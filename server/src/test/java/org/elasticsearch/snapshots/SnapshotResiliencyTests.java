@@ -2488,6 +2488,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .indexScopedSettings(indexScopedSettings)
                     .circuitBreakerService(new NoneCircuitBreakerService())
                     .bigArrays(bigArrays)
+                    .bytesRecycler(bigArrays.bytesRefRecycler())
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .projectResolver(DefaultProjectResolver.INSTANCE)

@@ -65,6 +65,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -131,7 +132,7 @@ public class RefreshListenersTests extends ESTestCase {
             shardId,
             createTempDir("translog"),
             indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override

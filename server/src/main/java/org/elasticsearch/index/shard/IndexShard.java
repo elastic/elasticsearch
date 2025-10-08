@@ -53,6 +53,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -336,6 +337,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ThreadPool threadPool,
         final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final BigArrays bigArrays,
+        final VariableRecycler bytesRecycler,
         final Engine.Warmer warmer,
         final List<SearchOperationListener> searchOperationListener,
         final List<IndexingOperationListener> listeners,
@@ -393,7 +395,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bytesRecycler);
         final String aId = shardRouting.allocationId().getId();
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;

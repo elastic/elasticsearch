@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -653,6 +654,10 @@ public class TransportService extends AbstractLifecycleComponent
 
     public RecyclerBytesStreamOutput newNetworkBytesStream() {
         return transport.newNetworkBytesStream();
+    }
+
+    public VariableRecycler variableRecycler() {
+        return transport.variableRecycler();
     }
 
     static class HandshakeRequest extends AbstractTransportRequest {

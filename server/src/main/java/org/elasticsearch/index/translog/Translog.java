@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.Closeable;
@@ -124,7 +125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
-    private final BigArrays bigArrays;
+    private final VariableRecycler bytesRecycler;
     private final DiskIoBufferPool diskIoBufferPool;
     protected final Lock readLock;
     protected final Lock writeLock;
@@ -180,7 +181,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.operationAsserter = operationAsserter;
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
-        this.bigArrays = config.getBigArrays();
+        this.bytesRecycler = config.getBytesRecycler();
         this.diskIoBufferPool = config.getDiskIoBufferPool();
         var rwl = new ReentrantReadWriteLock();
         this.readLock = rwl.readLock();
@@ -603,7 +604,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 primaryTermSupplier.getAsLong(),
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays,
+                bytesRecycler,
                 diskIoBufferPool,
                 operationListener,
                 operationAsserter,
@@ -623,7 +624,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bytesRecycler)) {
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
             Serialized serialized = Serialized.create(
@@ -2162,7 +2163,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             seqNo -> {
                 throw new UnsupportedOperationException();
             },
-            BigArrays.NON_RECYCLING_INSTANCE,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
             TranslogConfig.NOOP_OPERATION_LISTENER,
             TranslogOperationAsserter.DEFAULT,

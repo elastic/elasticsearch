@@ -10,9 +10,9 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.DiskIoBufferPool;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,7 +33,7 @@ public final class TranslogConfig {
     private final ShardId shardId;
     private final Path translogPath;
     private final IndexSettings indexSettings;
-    private final BigArrays bigArrays;
+    private final VariableRecycler bytesRecycler;
     private final ByteSizeValue bufferSize;
     private final DiskIoBufferPool diskIoBufferPool;
     private final OperationListener operationListener;
@@ -44,14 +44,14 @@ public final class TranslogConfig {
      * @param shardId the shard ID this translog belongs to
      * @param translogPath the path to use for the transaction log files
      * @param indexSettings the index settings used to set internal variables
-     * @param bigArrays a bigArrays instance used for temporarily allocating write operations
+     * @param bytesRecycler a bytesRecycler instance used for temporarily allocating write operations
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
+    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, VariableRecycler bytesRecycler) {
         this(
             shardId,
             translogPath,
             indexSettings,
-            bigArrays,
+            bytesRecycler,
             DEFAULT_BUFFER_SIZE,
             DiskIoBufferPool.INSTANCE,
             NOOP_OPERATION_LISTENER,
@@ -63,19 +63,19 @@ public final class TranslogConfig {
         ShardId shardId,
         Path translogPath,
         IndexSettings indexSettings,
-        BigArrays bigArrays,
+        VariableRecycler bytesRecycler,
         ByteSizeValue bufferSize,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener
     ) {
-        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true);
+        this(shardId, translogPath, indexSettings, bytesRecycler, bufferSize, diskIoBufferPool, operationListener, true);
     }
 
     public TranslogConfig(
         ShardId shardId,
         Path translogPath,
         IndexSettings indexSettings,
-        BigArrays bigArrays,
+        VariableRecycler bytesRecycler,
         ByteSizeValue bufferSize,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
@@ -85,7 +85,7 @@ public final class TranslogConfig {
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
-        this.bigArrays = bigArrays;
+        this.bytesRecycler = bytesRecycler;
         this.diskIoBufferPool = diskIoBufferPool;
         this.operationListener = operationListener;
         this.fsync = fsync;
@@ -105,11 +105,8 @@ public final class TranslogConfig {
         return shardId;
     }
 
-    /**
-     * Returns a BigArrays instance for this engine
-     */
-    public BigArrays getBigArrays() {
-        return bigArrays;
+    public VariableRecycler getBytesRecycler() {
+        return bytesRecycler;
     }
 
     /**

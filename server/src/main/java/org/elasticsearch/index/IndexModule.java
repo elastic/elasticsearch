@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -483,6 +484,7 @@ public final class IndexModule {
         IndexService.ShardStoreDeleter shardStoreDeleter,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
+        VariableRecycler bytesRecycler,
         ThreadPool threadPool,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
@@ -537,6 +539,7 @@ public final class IndexModule {
                 engineFactory,
                 circuitBreakerService,
                 bigArrays,
+                bytesRecycler,
                 threadPool,
                 threadPoolMergeExecutorService,
                 scriptService,

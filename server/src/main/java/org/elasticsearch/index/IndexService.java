@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -162,6 +163,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     @Nullable
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final BigArrays bigArrays;
+    private final VariableRecycler bytesRecycler;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
@@ -187,6 +189,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         EngineFactory engineFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
+        VariableRecycler bytesRecycler,
         ThreadPool threadPool,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
@@ -274,6 +277,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.shardStoreDeleter = shardStoreDeleter;
         this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
+        this.bytesRecycler = bytesRecycler;
         this.threadPool = threadPool;
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.scriptService = scriptService;
@@ -581,6 +585,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 threadPool,
                 threadPoolMergeExecutorService,
                 bigArrays,
+                bytesRecycler,
                 engineWarmer,
                 searchOperationListeners,
                 indexingOperationListeners,
@@ -859,6 +864,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public BigArrays getBigArrays() {
         return bigArrays;
+    }
+
+    public VariableRecycler getBytesRecycler() {
+        return bytesRecycler;
     }
 
     /**

@@ -939,6 +939,7 @@ class NodeConstruction {
             .indexScopedSettings(settingsModule.getIndexScopedSettings())
             .circuitBreakerService(circuitBreakerService)
             .bigArrays(bigArrays)
+            .bytesRecycler(bigArrays.bytesRefRecycler())
             .scriptService(scriptService)
             .clusterService(clusterService)
             .projectResolver(projectResolver)

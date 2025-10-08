@@ -18,8 +18,8 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
@@ -51,7 +51,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final ShardId shardId;
     private final FileChannel checkpointChannel;
     private final Path checkpointPath;
-    private final BigArrays bigArrays;
+    private final VariableRecycler bytesRecycler;
     // the last checkpoint that was written when the translog was last synced
     private volatile Checkpoint lastSyncedCheckpoint;
     /* the number of translog operations written to this file */
@@ -107,7 +107,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TranslogHeader header,
         TragicExceptionHolder tragedy,
         LongConsumer persistedSequenceNumberConsumer,
-        BigArrays bigArrays,
+        VariableRecycler bytesRecycler,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
         TranslogOperationAsserter operationAsserter,
@@ -134,7 +134,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
-        this.bigArrays = bigArrays;
+        this.bytesRecycler = bytesRecycler;
         this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
@@ -158,7 +158,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         long primaryTerm,
         TragicExceptionHolder tragedy,
         LongConsumer persistedSequenceNumberConsumer,
-        BigArrays bigArrays,
+        VariableRecycler bytesRecycler,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
         TranslogOperationAsserter operationAsserter,
@@ -203,7 +203,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 header,
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays,
+                bytesRecycler,
                 diskIoBufferPool,
                 operationListener,
                 operationAsserter,
@@ -245,7 +245,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
+                buffer = new RecyclerBytesStreamOutput(bytesRecycler);
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;

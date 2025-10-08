@@ -136,7 +136,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                         increase += current;
                     }
                 }
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 3));
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.5));
             }
 
             return new TestCaseSupplier.TestCase(

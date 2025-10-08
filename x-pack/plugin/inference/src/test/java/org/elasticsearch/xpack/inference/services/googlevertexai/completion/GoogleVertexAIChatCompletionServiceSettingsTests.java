@@ -35,7 +35,6 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     @Override
     protected GoogleVertexAiChatCompletionServiceSettings fromMutableMap(Map<String, Object> mutableMap) {
         return GoogleVertexAiChatCompletionServiceSettings.fromMap(mutableMap, ConfigurationParseContext.PERSISTENT);
-
     }
 
     @Override

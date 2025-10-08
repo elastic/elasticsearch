@@ -9,15 +9,23 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +34,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -41,6 +50,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,6 +68,8 @@ public class SamplingService implements ClusterStateListener {
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
+    private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
+
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -75,6 +87,11 @@ public class SamplingService implements ClusterStateListener {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.relativeMillisTimeSupplier = relativeMillisTimeSupplier;
+        this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
+            "update-sampling-configuration",
+            Priority.NORMAL,
+            new UpdateSamplingConfigurationExecutor(projectResolver)
+        );
     }
 
     /**
@@ -255,6 +272,21 @@ public class SamplingService implements ClusterStateListener {
         } else {
             return false;
         }
+    }
+
+    public void updateSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        SamplingConfiguration samplingConfiguration,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        updateSamplingConfigurationTaskQueue.submitTask(
+            "Updating Sampling Configuration",
+            new UpdateSamplingConfigurationTask(projectId, index, samplingConfiguration, ackTimeout, listener),
+            masterNodeTimeout
+        );
     }
 
     @Override
@@ -485,7 +517,7 @@ public class SamplingService implements ClusterStateListener {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("potential_samples", potentialSamples.longValue());
             builder.field("samples_rejected_for_max_samples_exceeded", samplesRejectedForMaxSamplesExceeded.longValue());
@@ -683,6 +715,102 @@ public class SamplingService implements ClusterStateListener {
         void setScript(Script script, IngestConditionalScript.Factory factory) {
             this.script = script;
             this.factory = factory;
+        }
+    }
+
+    static class UpdateSamplingConfigurationTask extends AckedBatchedClusterStateUpdateTask {
+        final ProjectId projectId;
+        private final String indexName;
+        private final SamplingConfiguration samplingConfiguration;
+
+        UpdateSamplingConfigurationTask(
+            ProjectId projectId,
+            String indexName,
+            SamplingConfiguration samplingConfiguration,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+            this.samplingConfiguration = samplingConfiguration;
+        }
+    }
+
+    static class UpdateSamplingConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateSamplingConfigurationTask> {
+        private static final Logger logger = LogManager.getLogger(UpdateSamplingConfigurationExecutor.class);
+        private final ProjectResolver projectResolver;
+
+        UpdateSamplingConfigurationExecutor(ProjectResolver projectResolver) {
+            this.projectResolver = projectResolver;
+        }
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+            UpdateSamplingConfigurationTask updateSamplingConfigurationTask,
+            ClusterState clusterState
+        ) {
+            logger.debug(
+                "Updating sampling configuration for index [{}] in project [{}] with rate [{}], maxSamples [{}]",
+                updateSamplingConfigurationTask.indexName,
+                updateSamplingConfigurationTask.projectId,
+                updateSamplingConfigurationTask.samplingConfiguration.rate(),
+                updateSamplingConfigurationTask.samplingConfiguration.maxSamples()
+            );
+
+            logger.debug(
+                "Configuration details: maxSize [{}], timeToLive [{}]",
+                updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
+                updateSamplingConfigurationTask.samplingConfiguration.timeToLive()
+            );
+
+            // Get sampling metadata
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+
+            boolean isNewConfiguration = samplingMetadata == null;
+            int existingConfigCount = isNewConfiguration ? 0 : samplingMetadata.getIndexToSamplingConfigMap().size();
+
+            logger.trace(
+                "Current sampling metadata state for project [{}]: {} (existing configurations: {})",
+                updateSamplingConfigurationTask.projectId,
+                isNewConfiguration ? "null" : "exists",
+                existingConfigCount
+            );
+
+            // Update with new sampling configuration if it exists or create new sampling metadata with the configuration
+            Map<String, SamplingConfiguration> updatedConfigMap = new HashMap<>();
+            if (samplingMetadata != null) {
+                updatedConfigMap.putAll(samplingMetadata.getIndexToSamplingConfigMap());
+            }
+
+            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
+            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
+
+            logger.trace(
+                "{} sampling configuration for index [{}], total configurations after update: {}",
+                isUpdate ? "Updated" : "Added",
+                updateSamplingConfigurationTask.indexName,
+                updatedConfigMap.size()
+            );
+
+            SamplingMetadata newSamplingMetadata = new SamplingMetadata(updatedConfigMap);
+
+            // Update cluster state
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+
+            // Return tuple with updated cluster state and the original listener
+            ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+            logger.info(
+                "Successfully {} sampling configuration for index [{}] in project [{}]",
+                isUpdate ? "updated" : "created",
+                updateSamplingConfigurationTask.indexName,
+                updateSamplingConfigurationTask.projectId
+            );
+
+            return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
         }
     }
 

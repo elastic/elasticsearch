@@ -1243,7 +1243,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
          */
-        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+        TEXT_EMBEDDING_FUNCTION,
 
         /**
          * Support for the LIKE operator with a list of wildcards.

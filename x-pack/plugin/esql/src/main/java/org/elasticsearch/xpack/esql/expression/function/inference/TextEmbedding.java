@@ -40,23 +40,42 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Generates dense vector embeddings for text using a specified inference endpoint.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
+        description = "Generates dense vector embeddings from text input using a specified "
+            + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
+            + "Use this function to generate query vectors for KNN searches against your vectorized data "
+            + "or others dense vector based operations.",
+        appliesTo = { @FunctionAppliesTo(version = "9.3", lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         preview = true,
         examples = {
             @Example(
-                description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
+                description = "Basic text embedding generation from a text string using an inference endpoint.",
                 file = "text-embedding",
-                tag = "embedding-eval"
+                tag = "text-embedding-eval"
+            ),
+            @Example(
+                description = "Generate text embeddings and store them in a variable for reuse in KNN vector search queries.",
+                file = "text-embedding",
+                tag = "text-embedding-knn"
+            ),
+            @Example(
+                description = "Directly embed text within a KNN query for streamlined vector search without intermediate variables.",
+                file = "text-embedding",
+                tag = "text-embedding-knn-inline"
             ) }
     )
     public TextEmbedding(
         Source source,
-        @Param(name = "text", type = { "keyword" }, description = "Text to generate embeddings from") Expression inputText,
+        @Param(
+            name = "text",
+            type = { "keyword" },
+            description = "Text string to generate embeddings from. Must be a non-null literal string value."
+        ) Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
-            description = "Identifier of the inference endpoint"
+            description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
+                + "The inference endpoint must have the `text_embedding` task type and should use the same model "
+                + "that was used to embed your indexed data."
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));

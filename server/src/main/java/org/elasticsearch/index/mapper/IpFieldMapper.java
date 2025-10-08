@@ -187,6 +187,13 @@ public class IpFieldMapper extends FieldMapper {
                 dimension };
         }
 
+        private IndexType indexType() {
+            if (indexCreatedVersion.isLegacyIndexVersion()) {
+                return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
+            }
+            return IndexType.points(indexed.get(), hasDocValues.get());
+        }
+
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
@@ -204,14 +211,11 @@ public class IpFieldMapper extends FieldMapper {
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP
             );
-            IndexType indexType = indexCreatedVersion.isLegacyIndexVersion()
-                ? IndexType.archivedPoints()
-                : IndexType.points(indexed.get(), hasDocValues.get());
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(
                     context.buildFullName(leafName()),
-                    indexType,
+                    indexType(),
                     stored.getValue(),
                     parseNullValue(),
                     scriptValues(),
@@ -239,7 +243,7 @@ public class IpFieldMapper extends FieldMapper {
         private final FieldValues<InetAddress> scriptValues;
         private final boolean isDimension;
         private final boolean isSyntheticSource;
-        private final boolean isIndexed;
+        private final boolean hasPoints;
 
         public IpFieldType(
             String name,
@@ -256,7 +260,7 @@ public class IpFieldMapper extends FieldMapper {
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
-            this.isIndexed = indexType.hasPoints();
+            this.hasPoints = indexType.hasPoints();
         }
 
         public IpFieldType(String name) {
@@ -278,7 +282,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed || hasDocValues() || indexType.hasPointsMetadata();
+            return hasPoints || hasDocValues();
         }
 
         @Override
@@ -353,7 +357,7 @@ public class IpFieldMapper extends FieldMapper {
                     query = InetAddressPoint.newExactQuery(name(), address);
                 }
             }
-            if (isIndexed) {
+            if (hasPoints) {
                 return query;
             } else {
                 return convertToDocValuesQuery(query);
@@ -375,7 +379,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed == false) {
+            if (hasPoints == false) {
                 return super.termsQuery(values, context);
             }
             InetAddress[] addresses = new InetAddress[values.size()];
@@ -411,7 +415,7 @@ public class IpFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
-                if (isIndexed) {
+                if (hasPoints) {
                     if (hasDocValues()) {
                         return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
                     } else {
@@ -479,7 +483,7 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             // see #indexValue
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isIndexed
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);

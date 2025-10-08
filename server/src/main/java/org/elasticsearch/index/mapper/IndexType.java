@@ -14,6 +14,11 @@ package org.elasticsearch.index.mapper;
  */
 public class IndexType {
 
+    /**
+     * An IndexType with no index structures or doc values
+     */
+    public static final IndexType NONE = new IndexType(false, false, false, false, false, false);
+
     private final boolean hasTerms;
     private final boolean hasPoints;
     private final boolean hasPointsMetadata;
@@ -83,13 +88,13 @@ public class IndexType {
      * @return {@code true} if this IndexType has doc values but no index
      */
     public boolean hasOnlyDocValues() {
-        return hasDocValues && hasIndex() == false;
+        return hasDocValues && hasDenseIndex() == false;
     }
 
     /**
-     * @return {@code true} if this IndexType has any index structure at all
+     * @return {@code true} if this IndexType has a dense index structure
      */
-    public boolean hasIndex() {
+    public boolean hasDenseIndex() {
         return hasPoints || hasTerms || hasVectors;
     }
 
@@ -99,11 +104,6 @@ public class IndexType {
     public boolean supportsSortShortcuts() {
         return hasTerms || hasPoints;
     }
-
-    /**
-     * An IndexType with no index structures or doc values
-     */
-    public static final IndexType NONE = new IndexType(false, false, false, false, false, false);
 
     /**
      * @return an inverted-index based IndexType

@@ -341,7 +341,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
         assertTrue(ft.hasDocValues());
-        assertFalse(ft.indexType().hasIndex());
+        assertFalse(ft.indexType().hasDenseIndex());
     }
 
     @Override

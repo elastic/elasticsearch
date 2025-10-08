@@ -49,8 +49,8 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
-import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -181,14 +181,16 @@ public class Top extends AggregateFunction
             .and(isNotNull(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
         if (mapToField() != null) {
-            typeResolution.and(isType(
-                mapToField(),
-                dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
-                sourceText(),
-                FIRST,
-                "date",
-                "numeric except unsigned_long or counter types"
-            ));
+            typeResolution.and(
+                isType(
+                    mapToField(),
+                    dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                    sourceText(),
+                    FIRST,
+                    "date",
+                    "numeric except unsigned_long or counter types"
+                )
+            );
         }
 
         if (typeResolution.unresolved()) {
@@ -297,17 +299,16 @@ public class Top extends AggregateFunction
         );
     }
 
-    private static final Map<DataType, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS = Map
-        .ofEntries(
-            Map.entry(DataType.LONG, TopLongAggregatorFunctionSupplier::new),
-            Map.entry(DataType.DATETIME, TopLongAggregatorFunctionSupplier::new),
-            Map.entry(DataType.INTEGER, TopIntAggregatorFunctionSupplier::new),
-            Map.entry(DataType.DOUBLE, TopDoubleAggregatorFunctionSupplier::new),
-            Map.entry(DataType.BOOLEAN, TopBooleanAggregatorFunctionSupplier::new),
-            Map.entry(DataType.IP, TopIpAggregatorFunctionSupplier::new),
-            Map.entry(DataType.KEYWORD, TopBytesRefAggregatorFunctionSupplier::new),
-            Map.entry(DataType.TEXT, TopBytesRefAggregatorFunctionSupplier::new)
-        );
+    private static final Map<DataType, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.LONG, TopLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATETIME, TopLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.INTEGER, TopIntAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DOUBLE, TopDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.BOOLEAN, TopBooleanAggregatorFunctionSupplier::new),
+        Map.entry(DataType.IP, TopIpAggregatorFunctionSupplier::new),
+        Map.entry(DataType.KEYWORD, TopBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TEXT, TopBytesRefAggregatorFunctionSupplier::new)
+    );
 
     private static final Map<Tuple<DataType, DataType>, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS_WITH_EXTRA = Map
         .ofEntries(

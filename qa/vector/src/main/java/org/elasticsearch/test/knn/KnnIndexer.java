@@ -32,9 +32,13 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -124,7 +128,7 @@ class KnnIndexer {
 
         long start = System.nanoTime();
         AtomicInteger numDocsIndexed = new AtomicInteger();
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexWriter iw = new IndexWriter(dir, iwc);) {
+        try (Directory dir = getDirectory(indexPath); IndexWriter iw = new IndexWriter(dir, iwc)) {
             for (Path docsPath : this.docsPath) {
                 int dim = this.dim;
                 try (FileChannel in = FileChannel.open(docsPath)) {
@@ -212,13 +216,21 @@ class KnnIndexer {
         iwc.setCodec(codec);
         logger.debug("KnnIndexer: forceMerge in {}", indexPath);
         long startNS = System.nanoTime();
-        try (IndexWriter iw = new IndexWriter(FSDirectory.open(indexPath), iwc)) {
+        try (IndexWriter iw = new IndexWriter(getDirectory(indexPath), iwc)) {
             iw.forceMerge(1);
         }
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);
         logger.info("forceMerge took {} ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
         results.forceMergeTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
+    }
+
+    static Directory getDirectory(Path indexPath) throws IOException {
+        Directory dir = FSDirectory.open(indexPath);
+        if (dir instanceof MMapDirectory mmapDir) {
+            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64);
+        }
+        return dir;
     }
 
     static class IndexerThread extends Thread {

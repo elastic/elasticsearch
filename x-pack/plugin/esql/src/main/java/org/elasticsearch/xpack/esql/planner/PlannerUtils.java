@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -179,16 +180,18 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
         EsqlFlags flags,
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
@@ -197,7 +200,7 @@ public class PlannerUtils {
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
@@ -215,7 +218,7 @@ public class PlannerUtils {
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
 
-        var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+        PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             if (lookupJoinExecRightChildren.contains(f)) {
                 // Do not optimize the right child of a lookup join exec
                 // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
@@ -223,9 +226,9 @@ public class PlannerUtils {
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            var physicalFragment = localMapper.map(optimizedFragment);
-            var filter = f.esFilter();
+            LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            PhysicalPlan physicalFragment = localMapper.map(optimizedFragment);
+            QueryBuilder filter = f.esFilter();
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,

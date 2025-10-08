@@ -7,17 +7,23 @@
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"]
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_resolve/cluster",
-          "methods": ["GET"]
+          "methods": [
+            "GET"
+          ]
         },
         {
           "path": "/_resolve/cluster/{name}",
-          "methods": ["GET"],
+          "methods": [
+            "GET"
+          ],
           "parts": {
             "name": {
               "type": "list",
@@ -42,7 +48,13 @@
       },
       "expand_wildcards": {
         "type": "enum",
-        "options": ["open", "closed", "hidden", "none", "all"],
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
         "default": "open",
         "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open). Only allowed when providing an index expression."
       },
@@ -53,4 +65,3 @@
     }
   }
 }
-

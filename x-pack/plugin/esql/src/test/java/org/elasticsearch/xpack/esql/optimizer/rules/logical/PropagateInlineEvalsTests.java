@@ -83,11 +83,11 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      *     \_StubRelation[[emp_no{f}#11, languages{f}#14, gender{f}#13, y{r}#10]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin() {
-        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender
-            | inlinestats max_lang = MAX(languages) BY y = gender
+            | inline stats max_lang = MAX(languages) BY y = gender
             """, LogicalPlanOptimizerTests.SubstitutionOnlyOptimizer.INSTANCE);
 
         var limit = as(plan, Limit.class);
@@ -126,12 +126,12 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      * {r}#21]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression() {
-        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender, last_name, first_name
             | eval first_name_l = left(first_name, 1)
-            | inlinestats max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), g = gender, first_name_l
+            | inline stats max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), g = gender, first_name_l
             """, LogicalPlanOptimizerTests.SubstitutionOnlyOptimizer.INSTANCE);
 
         var limit = as(plan, Limit.class);

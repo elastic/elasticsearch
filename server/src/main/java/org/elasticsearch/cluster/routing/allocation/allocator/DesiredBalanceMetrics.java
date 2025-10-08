@@ -33,8 +33,6 @@ import java.util.function.ToLongFunction;
  */
 public class DesiredBalanceMetrics {
 
-    public static DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
-
     /**
      * @param unassignedShards Shards that are not assigned to any node.
      * @param allocationStatsByRole A breakdown of the allocations stats by {@link ShardRouting.Role}
@@ -132,6 +130,7 @@ public class DesiredBalanceMetrics {
     public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
 
     public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
+    public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
 
     private final MeterRegistry meterRegistry;
     private volatile boolean nodeIsMaster = false;

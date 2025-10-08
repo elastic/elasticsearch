@@ -32,6 +32,7 @@ toc:
   - file: pipeline-processor.md
   - file: redact-processor.md
   - file: registered-domain-processor.md
+  - file: recover-failure-document-processor.md
   - file: remove-processor.md
   - file: rename-processor.md
   - file: reroute-processor.md

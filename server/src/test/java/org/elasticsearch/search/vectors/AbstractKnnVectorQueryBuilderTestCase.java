@@ -224,6 +224,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
+        Query approxFilterQuery = filterQuery != null ? new CachingEnableFilterQuery(filterQuery) : null;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             float oversample = queryBuilder.rescoreVectorBuilder().oversample();
@@ -243,7 +244,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asByteVector(),
                 k,
                 numCands,
-                filterQuery,
+                approxFilterQuery,
                 expectedStrategy
             );
             case FLOAT -> new ESKnnFloatVectorQuery(
@@ -251,7 +252,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asFloatVector(),
                 k,
                 numCands,
-                filterQuery,
+                approxFilterQuery,
                 expectedStrategy
             );
         };
@@ -338,6 +339,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     @Override
     public void testValidOutput() {
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, null, 10, 10f, null, null);
+
         String expected = """
             {
               "knn" : {
@@ -351,6 +353,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 "visit_percentage" : 10.0
               }
             }""";
+
         assertEquals(expected, query.toString());
 
         KnnVectorQueryBuilder query2 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, 10f, null, null);
@@ -408,26 +411,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
         QueryBuilder rewrittenQuery = query.rewrite(context);
         assertThat(rewrittenQuery, instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testBWCVersionSerializationFilters() throws IOException {
-        KnnVectorQueryBuilder query = createTestQueryBuilder();
-        VectorData vectorData = VectorData.fromFloats(query.queryVector().asFloatVector());
-        KnnVectorQueryBuilder queryNoFilters = new KnnVectorQueryBuilder(
-            query.getFieldName(),
-            vectorData,
-            null,
-            query.numCands(),
-            null,
-            null,
-            null
-        ).queryName(query.queryName()).boost(query.boost());
-        TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersions.V_8_1_0
-        );
-        assertBWCSerialization(query, queryNoFilters, beforeFilterVersion);
     }
 
     public void testBWCVersionSerializationSimilarity() throws IOException {

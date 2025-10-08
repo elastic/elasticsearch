@@ -40,6 +40,10 @@ gradlePlugin {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
     }
+    componentMetadataRules {
+      id = 'elasticsearch.component-metadata-rules'
+      implementationClass = 'org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
@@ -281,6 +285,9 @@ dependencies {
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
     api(buildLibs.snakeyaml)
+    api("org.slf4j:slf4j-api:2.0.6") {
+      because("Align with what we use in production")
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)

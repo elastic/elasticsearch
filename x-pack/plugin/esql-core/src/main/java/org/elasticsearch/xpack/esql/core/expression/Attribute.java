@@ -204,6 +204,11 @@ public abstract class Attribute extends NamedExpression {
      */
     public abstract boolean isDimension();
 
+    /**
+     * @return true if the attribute represents a TSDB metric type
+     */
+    public abstract boolean isMetric();
+
     protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
         if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
             out.writeOptionalCachedString(qualifier());

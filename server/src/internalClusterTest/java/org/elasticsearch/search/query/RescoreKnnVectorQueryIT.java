@@ -85,7 +85,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     public void setup() throws IOException {
         String type = randomFrom(
             Arrays.stream(VectorIndexType.values())
-                .filter(t -> t.isQuantized() && t.isEnabled())
+                .filter(VectorIndexType::isQuantized)
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toCollection(ArrayList::new))
         );

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -218,9 +217,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
-                ? DataType.fromTypeName(in.readString())
-                : null;
+            DataType inputDataType = DataType.fromTypeName(in.readString());
             String matchType = in.readString();
             String matchField = in.readString();
             Page inputPage;
@@ -229,10 +226,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
-            var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source = Source.readFrom(planIn);
-            }
+            var source = Source.readFrom(planIn);
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -253,17 +247,13 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeString(inputDataType.typeName());
-            }
+            out.writeString(inputDataType.typeName());
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source.writeTo(planOut);
-            }
+            source.writeTo(planOut);
         }
 
         @Override

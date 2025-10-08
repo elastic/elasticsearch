@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -1604,7 +1605,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             clusterStatePublicationEvent.getNewState().term()
                         )
                     );
-                    throw new FailedToCommitClusterStateException(
+                    throw new NotMasterException(
                         "node is no longer master for term "
                             + clusterStatePublicationEvent.getNewState().term()
                             + " while handling publication"
@@ -1619,7 +1620,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             clusterStatePublicationEvent.getSummary()
                         )
                     );
-                    throw new FailedToCommitClusterStateException("publication " + currentPublication.get() + " already in progress");
+                    // If there is another publication in progress then we are not the master node
+                    throw new NotMasterException("publication " + currentPublication.get() + " already in progress");
                 }
 
                 assert assertPreviousStateConsistency(clusterStatePublicationEvent);
@@ -1637,8 +1639,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     publicationContext = publicationHandler.newPublicationContext(clusterStatePublicationEvent);
                 } catch (Exception e) {
                     logger.debug(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing failed during context creation", e);
+                    // Calling becomeCandidate here means this node steps down from being master
                     becomeCandidate("publication context creation");
-                    throw new FailedToCommitClusterStateException("publishing failed during context creation", e);
+                    throw new NotMasterException("publishing failed during context creation", e);
                 }
 
                 try (Releasable ignored = publicationContext::decRef) {
@@ -1658,8 +1661,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                 + "]",
                             e
                         );
+                        // Calling becomeCandidate here means this node steps down from being master
                         becomeCandidate("publication creation");
-                        throw new FailedToCommitClusterStateException("publishing failed while starting", e);
+                        throw new NotMasterException("publishing failed while starting", e);
                     }
 
                     try {
@@ -1690,8 +1694,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     }
                 }
             }
-        } catch (FailedToCommitClusterStateException failedToCommitClusterStateException) {
-            publishListener.onFailure(failedToCommitClusterStateException);
+        } catch (FailedToCommitClusterStateException | NotMasterException e) {
+            publishListener.onFailure(e);
         } catch (Exception e) {
             assert false : e; // all exceptions should already be caught and wrapped in a FailedToCommitClusterStateException
             logger.error(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing unexpectedly failed", e);

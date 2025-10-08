@@ -5,7 +5,7 @@ applies_to:
   stack: all
 ---
 
-# Roles [built-in-roles]
+# Built-in roles [built-in-roles]
 
 This section provides detailed **reference information** for {{es}} roles.
 

@@ -75,7 +75,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
     }
 
-    private DelayableWriteable() {}
+    protected DelayableWriteable() {}
 
     /**
      * Returns a {@linkplain DelayableWriteable} that stores its contents

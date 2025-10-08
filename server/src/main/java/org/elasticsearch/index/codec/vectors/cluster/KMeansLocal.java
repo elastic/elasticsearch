@@ -13,12 +13,13 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.elasticsearch.index.codec.vectors.SampleReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+
+import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
@@ -241,7 +242,7 @@ class KMeansLocal {
             // TODO: cache these?
             float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
             if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {
-                spilledAssignments[i] = -1; // no SOAR assignment
+                spilledAssignments[i] = NO_SOAR_ASSIGNMENT; // no SOAR assignment
                 continue;
             }
 

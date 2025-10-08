@@ -302,14 +302,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 results.add(
                     new PhaseResult(
                         searchContextIdForNode.getSearchContextId(),
-                        new SearchShardTarget(searchContextIdForNode.getNode(), shardId, null)
+                        new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
                     )
                 );
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
                 results,
-                ShardSearchFailure.EMPTY_ARRAY,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 TransportVersionUtils.randomCompatibleVersion(random()),
                 searchTransportService,
@@ -326,25 +325,28 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             Set<ShardId> shardsWithSwappedNodes = new HashSet<>();
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
-                if (randomBoolean()) {
+                // only swap node for ids there have a non-null node id, i.e. those that didn't fail when opening a PIT
+                if (randomBoolean() && searchContextIdForNode.getNode() != null) {
                     // swap to a different node
+                    PhaseResult otherNode = new PhaseResult(searchContextIdForNode.getSearchContextId(),
+                            new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias()));
                     results.add(
-                        new PhaseResult(searchContextIdForNode.getSearchContextId(), new SearchShardTarget("otherNode", shardId, null))
+                            otherNode
                     );
                     shardsWithSwappedNodes.add(shardId);
                 } else {
                     results.add(
-                        new PhaseResult(
-                            searchContextIdForNode.getSearchContextId(),
-                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, null)
-                        )
+                            new PhaseResult(
+                                    searchContextIdForNode.getSearchContextId(),
+                                    new SearchShardTarget(searchContextIdForNode.getNode(), shardId,
+                                            searchContextIdForNode.getClusterAlias())
+                            )
                     );
                 }
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
                 results,
-                ShardSearchFailure.EMPTY_ARRAY,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 TransportVersionUtils.randomCompatibleVersion(random()),
                 searchTransportService,
@@ -382,7 +384,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     results.add(
                         new PhaseResult(
                             searchContextIdForNode.getSearchContextId(),
-                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, null)
+                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
                         )
                     );
                 }
@@ -390,7 +392,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
                 results,
-                ShardSearchFailure.EMPTY_ARRAY,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 TransportVersionUtils.randomCompatibleVersion(random()),
                 searchTransportService,

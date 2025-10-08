@@ -624,7 +624,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             return maybeReEncodeNodeIds(
                 source.pointInTimeBuilder(),
                 results.getAtomicArray().asList(),
-                failures,
                 namedWriteableRegistry,
                 mintransportVersion,
                 searchTransportService,
@@ -639,7 +638,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     static <Result extends SearchPhaseResult> BytesReference maybeReEncodeNodeIds(
         PointInTimeBuilder originalPit,
         List<Result> results,
-        ShardSearchFailure[] failures,
         NamedWriteableRegistry namedWriteableRegistry,
         TransportVersion mintransportVersion,
         SearchTransportService searchTransportService,
@@ -698,8 +696,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     updatedShardMap.put(shardId, original.shards().get(shardId));
                 }
             }
-
-            return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, failures);
+            return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return originalPit.getEncodedId();
         }

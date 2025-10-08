@@ -517,7 +517,7 @@ public class SamplingService implements ClusterStateListener {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field("potential_samples", potentialSamples.longValue());
             builder.field("samples_rejected_for_max_samples_exceeded", samplesRejectedForMaxSamplesExceeded.longValue());

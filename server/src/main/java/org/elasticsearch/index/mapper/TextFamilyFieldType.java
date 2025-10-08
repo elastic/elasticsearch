@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.SearchExecutionContext;
+
 import java.util.Map;
 
 /**
@@ -48,6 +52,72 @@ public abstract class TextFamilyFieldType extends StringFieldType {
      */
     public String syntheticSourceFallbackFieldName() {
         return isSyntheticSourceEnabled ? name() + "._original" : null;
+    }
+
+    /**
+     * Create an {@link IntervalsSource} for the given term.
+     */
+    public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create an {@link IntervalsSource} for the given prefix.
+     */
+    public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a fuzzy {@link IntervalsSource} for the given term.
+     */
+    public IntervalsSource fuzzyIntervals(
+        String term,
+        int maxDistance,
+        int prefixLength,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a wildcard {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a regexp {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a range {@link IntervalsSource} for the given ranges
+     */
+    public IntervalsSource rangeIntervals(
+        BytesRef lowerTerm,
+        BytesRef upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+        );
     }
 
 }

@@ -155,30 +155,6 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
-        StringBuilder sb = new StringBuilder();
-        for (String clusterAlias : executionInfo.clusterAliases()) {
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            // Exclude clusters which are either skipped or have no indices matching wildcard, or filtered out.
-            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
-                if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
-                } else {
-                    String indexExpression = executionInfo.getCluster(clusterAlias).getIndexExpression();
-                    for (String index : indexExpression.split(",")) {
-                        sb.append(clusterAlias).append(':').append(index).append(',');
-                    }
-                }
-            }
-        }
-
-        if (sb.length() > 0) {
-            return sb.substring(0, sb.length() - 1);
-        } else {
-            return "";
-        }
-    }
-
     static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
         if (executionInfo.getClusters().isEmpty()) {
             return localPattern;

@@ -1,0 +1,47 @@
+// base_conversion.csv
+// test data for TO_LONG(string, base), TO_INTEGER(string, base)
+// 
+// note format from x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/CsvTestsDataLoader.java
+// - commented lines should start with "//"
+// - the first non-comment line from the file is the schema line (comma separated field_name:ES_data_type elements)
+//   - sub-fields should be placed after the root field using a dot notation for the name:
+//       root_field:long,root_field.sub_field:integer
+//   - a special _id field can be used in the schema and the values of this field will be used in the bulk request as actual doc ids
+// - all subsequent non-comment lines represent the values that will be used to build the _bulk request
+// - an empty string "" refers to a null value
+// - a value starting with an opening square bracket "[" and ending with a closing square bracket "]" refers to a multi-value field
+//   - multi-values are comma separated
+//   - commas inside multivalue fields can be escaped with \ (backslash) character
+//
+// schema line
+group:integer,string:keyword,base:integer,expect_long:long,expect_integer:integer,notes:keyword
+//
+//
+// Test Group 0 - example of the data
+//
+// ┌────────────────── string         - string for test
+// │   ┌────────────── base           - base for test
+// │   │  ┌─────────── expect_long    - result of TO_LONG(string,base)
+// │   │  │   ┌─────── expect_integer - result of TO_INTEGER(string,base) - not used yet
+// │   │  │   │   ┌─── notes          - comments on the test
+// ▼   ▼  ▼   ▼   ▼
+0,0xff,16,255,255,              TO_LONG("0x32"\, 16)            == 50
+//
+//
+// Test Group 1
+//
+//     from GitHub issue https://github.com/elastic/elasticsearch/issues/133728
+//     This is for converting a string value to a number given a base.
+//     Something similar to what ES EQL does:
+//     https://www.elastic.co/docs/reference/query-languages/eql/eql-function-ref#eql-fn-number
+//     
+//         number("0x32", 16)
+//         number("31", 13)
+//         number("5")
+//             
+//     note when the binary TO_LONG function is given a null base it is treated as a unary function
+//     e.g TO_LONG("5",null) == TO_LONG("5") 
+//          
+1,0x32,16,50,50,                TO_LONG("0x32"\, 16)            == 50
+1,31,13,40,40,                  TO_LONG("31"\, 13)              == 40
+1,5,,5,5,                       TO_LONG("5"\, null)             == null

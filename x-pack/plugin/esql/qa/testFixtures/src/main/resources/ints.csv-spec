@@ -165,6 +165,35 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 2147483648   |2147483648.2 |foo          |2147483648  |2147483648 |null
 // end::to_long-str-result[]
 ;
+// BEGIN esql_to_long_base_133728
+// see comments for each group in base_conversion.csv
+
+convertStringToLongBaseIndexGroup0
+
+  FROM  base_conversion
+| WHERE group == 0
+| KEEP  string, base, expect_long
+;
+
+string:keyword |base:integer |expect_long:long
+0xff           |16           |255
+;
+
+convertStringToLongBaseIndexGroup1
+
+  FROM  base_conversion
+| WHERE group == 1
+| EVAL  to_long = TO_LONG(string, base)
+| KEEP  string, base, to_long
+;
+
+string:keyword |base:integer |to_long:long
+0x32           |16           |50
+31             |13           |40
+5              |null         |null
+;
+
+// END esql_to_long_base_133728
 
 convertDoubleToLong
 

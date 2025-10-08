@@ -584,7 +584,7 @@ maxRate:double | tbucket:datetime
 ;
 
 
-zwomp
+Rename timestamp when aggs don't require timestamp
 required_capability: ts_command_v0
 
 TS k8s 
@@ -593,6 +593,6 @@ TS k8s
 ;
 
 mx:integer | tbucket:datetime
-1174 | 2024-05-10T00:00:00.000Z
+1716       | 2024-05-10T00:00:00.000Z
 ;
 

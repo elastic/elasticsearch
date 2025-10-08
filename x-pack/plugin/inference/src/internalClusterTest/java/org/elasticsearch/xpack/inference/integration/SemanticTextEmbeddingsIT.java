@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -51,6 +52,8 @@ import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.USE_N
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 5)
 public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
@@ -110,7 +113,6 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
         }
     }
 
-    // TODO: Complete test once fix is implemented
     public void testSourceDisabledAndIncludeVectors() throws Exception {
         // Get a random index version after when we default to the new semantic text format, and before we exclude vectors in source by
         // default
@@ -142,7 +144,27 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
             request -> request.source().fetchSource(false).fetchField(sparseEmbeddingField),
             response -> {
                 for (SearchHit hit : response.getHits()) {
-                    hit.getDocumentFields();
+                    assertThat(hit.getSourceAsMap(), nullValue());
+
+                    Map<String, DocumentField> documentFields = hit.getDocumentFields();
+                    assertThat(documentFields.size(), is(1));
+                    assertThat(documentFields.containsKey(sparseEmbeddingField), is(true));
+                }
+            }
+        );
+
+        QueryBuilder textEmbeddingFieldQuery = new SemanticQueryBuilder(textEmbeddingField, randomAlphaOfLength(10));
+        assertSearchResponse(
+            textEmbeddingFieldQuery,
+            10,
+            request -> request.source().fetchSource(false).fetchField(textEmbeddingField),
+            response -> {
+                for (SearchHit hit : response.getHits()) {
+                    assertThat(hit.getSourceAsMap(), nullValue());
+
+                    Map<String, DocumentField> documentFields = hit.getDocumentFields();
+                    assertThat(documentFields.size(), is(1));
+                    assertThat(documentFields.containsKey(textEmbeddingField), is(true));
                 }
             }
         );
@@ -191,7 +213,7 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
         for (int i = 0; i < count; i++) {
             Map<String, Object> source = Map.of(field, randomAlphaOfLength(10));
             DocWriteResponse response = client().prepareIndex(indexName).setSource(source).get(TEST_REQUEST_TIMEOUT);
-            assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(response.getResult(), is(DocWriteResponse.Result.CREATED));
         }
 
         client().admin().indices().prepareRefresh(indexName).get();

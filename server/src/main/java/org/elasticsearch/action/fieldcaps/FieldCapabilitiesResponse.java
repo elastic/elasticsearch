@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -190,18 +191,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         return Iterators.concat(
             Iterators.single(
                 (b, p) -> b.startObject().array(INDICES_FIELD.getPreferredName(), indices).startObject(FIELDS_FIELD.getPreferredName())
-            ),
-            ChunkedToXContentHelper.array(
-                RESOLVED_FIELD.getPreferredName(),
-                Iterators.map(resolved.expressions().iterator(), e -> (b, p) -> {
-                    b.startObject();
-                    b.field("original", e.original());
-                    String[] expressions = Stream.concat(e.localExpressions().expressions().stream(), e.remoteExpressions().stream())
-                        .toArray(String[]::new);
-                    b.array("resolved", expressions);
-                    b.endObject();
-                    return b;
-                })
             ),
             Iterators.map(fields.entrySet().iterator(), r -> (b, p) -> b.xContentValuesMap(r.getKey(), r.getValue())),
             this.failures.size() > 0

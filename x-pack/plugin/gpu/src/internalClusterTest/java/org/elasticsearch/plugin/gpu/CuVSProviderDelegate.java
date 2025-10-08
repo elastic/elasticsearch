@@ -39,6 +39,17 @@ class CuVSProviderDelegate implements CuVSProvider {
     }
 
     @Override
+    public CuVSMatrix.Builder<CuVSHostMatrix> newHostMatrixBuilder(
+        long size,
+        long columns,
+        int rowStride,
+        int columnStride,
+        CuVSMatrix.DataType dataType
+    ) {
+        return delegate.newHostMatrixBuilder(size, columns, rowStride, columnStride, dataType);
+    }
+
+    @Override
     public CuVSMatrix.Builder<CuVSDeviceMatrix> newDeviceMatrixBuilder(
         CuVSResources cuVSResources,
         long l,
@@ -63,6 +74,11 @@ class CuVSProviderDelegate implements CuVSProvider {
     @Override
     public MethodHandle newNativeMatrixBuilder() {
         return delegate.newNativeMatrixBuilder();
+    }
+
+    @Override
+    public MethodHandle newNativeMatrixBuilderWithStrides() {
+        return delegate.newNativeMatrixBuilderWithStrides();
     }
 
     @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -469,11 +470,11 @@ public abstract class TransportReplicationAction<
                     throw blockException;
                 }
 
-                int reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
-                assert (reshardSplitShardCountSummary == 0
-                    || reshardSplitShardCountSummary == indexMetadata.getReshardSplitShardCountSummaryForIndexing(
-                        primaryRequest.getRequest().shardId().getId()
-                    ));
+                SplitShardCountSummary reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
+                assert reshardSplitShardCountSummary.isUnset()
+                    || reshardSplitShardCountSummary.equals(
+                        SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.getRequest().shardId().getId())
+                    );
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");

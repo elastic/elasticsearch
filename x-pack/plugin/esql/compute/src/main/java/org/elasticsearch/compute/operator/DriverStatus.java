@@ -60,14 +60,15 @@ public record DriverStatus(
         DriverStatus::readFrom
     );
 
+    private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
 
     public static DriverStatus readFrom(StreamInput in) throws IOException {
         return new DriverStatus(
             in.readString(),
             in.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION) ? in.readString() : "",
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().supports(ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().supports(ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0,
             in.readLong(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
@@ -87,7 +88,7 @@ public record DriverStatus(
         if (out.getTransportVersion().supports(ESQL_DRIVER_TASK_DESCRIPTION)) {
             out.writeString(description);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
+        if (out.getTransportVersion().supports(ESQL_DRIVER_NODE_DESCRIPTION)) {
             out.writeString(clusterName);
             out.writeString(nodeName);
         }

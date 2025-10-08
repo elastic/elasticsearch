@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,6 +52,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         "Aggregate",
         Aggregate::new
     );
+    private static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = TransportVersion.fromName("esql_remove_aggregate_type");
 
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
@@ -66,7 +68,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     public Aggregate(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
-            && in.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+            && in.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             in.readString();
         }
         this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
@@ -78,7 +80,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
-            && out.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+            && out.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             out.writeString("STANDARD");
         }
         out.writeNamedWriteableCollection(groupings);

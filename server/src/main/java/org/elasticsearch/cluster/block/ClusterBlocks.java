@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -46,6 +45,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(Set.of(), Map.of());
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
     private static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = TransportVersion.fromName("project_deletion_global_block");
 
     private final Set<ClusterBlock> global;
@@ -392,7 +392,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             writeBlockSet(global, out);
             out.writeMap(projectBlocksMap, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
         } else {
@@ -467,7 +467,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (out.getTransportVersion().supports(MULTI_PROJECT)) {
                 out.writeBoolean(true);
                 part.writeTo(out);
             } else {
@@ -488,7 +488,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             final Set<ClusterBlock> global = readBlockSet(in);
             final Map<ProjectId, ProjectBlocks> projectBlocksMap = in.readImmutableMap(ProjectId::readFrom, ProjectBlocks::readFrom);
             if (global.isEmpty()
@@ -520,7 +520,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (in.getTransportVersion().supports(MULTI_PROJECT)) {
                 return new ClusterBlocksDiff(ClusterBlocks.readFrom(in), false);
             } else {
                 return new ClusterBlocksDiff(ClusterBlocks.readFromSingleProjectNode(in), true);

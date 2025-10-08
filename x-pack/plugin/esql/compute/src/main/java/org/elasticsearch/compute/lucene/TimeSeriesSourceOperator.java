@@ -17,7 +17,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +41,9 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
+
+    private static final TransportVersion ESQL_TIME_SERIES_SOURCE_STATUS = TransportVersion.fromId(9076000);
+
     private final int maxPageSize;
     private final BlockFactory blockFactory;
     private final LuceneSliceQueue sliceQueue;
@@ -495,7 +497,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return version.onOrAfter(TransportVersions.ESQL_TIME_SERIES_SOURCE_STATUS);
+            return version.supports(ESQL_TIME_SERIES_SOURCE_STATUS);
         }
 
         @Override

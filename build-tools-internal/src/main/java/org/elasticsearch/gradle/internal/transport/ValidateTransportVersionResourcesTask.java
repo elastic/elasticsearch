@@ -130,7 +130,11 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         return allDefinitions;
     }
 
-    private void validateNamedDefinition(TransportVersionDefinition definition, Set<String> referencedNames, boolean validateModifications) {
+    private void validateNamedDefinition(
+        TransportVersionDefinition definition,
+        Set<String> referencedNames,
+        boolean validateModifications
+    ) {
         if (referencedNames.contains(definition.name()) == false) {
             throwDefinitionFailure(definition, "is not referenced");
         }
@@ -252,7 +256,8 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         if (validateModifications) {
             TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromGitBase(upperBound.name());
             if (existingUpperBound != null && getShouldValidatePrimaryIdNotPatch().get()) {
-                if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
+                if (upperBound.definitionId().patch() != 0
+                    && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                     throwUpperBoundFailure(
                         upperBound,
                         "modifies base id from " + existingUpperBound.definitionId().base() + " to " + upperBound.definitionId().base()

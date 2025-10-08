@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -107,7 +106,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         // do not allow in mixed clusters
-        if (state.getMinTransportVersion().equals(TransportVersion.current()) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot upgrade transforms while cluster upgrade is in progress.", RestStatus.CONFLICT)
             );

@@ -23,6 +23,9 @@ and require appropriate field mappings.
 :::{include} ../_snippets/functions/layout/knn.md
 :::
 
+:::{include} ../_snippets/functions/layout/text_embedding.md
+:::
+
 % V_COSINE is currently a hidden feature
 % To make it visible again, uncomment this and the line in
 % lists/dense-vector-functions.md

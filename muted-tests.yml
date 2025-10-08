@@ -690,6 +690,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:text-embedding.Text_embedding with multiple knn queries in fork}
   issue: https://github.com/elastic/elasticsearch/issues/136090
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
 
 # Examples:
 #

@@ -54,7 +54,7 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
     public void testBuildChunkingSettingsForElasticReranker_QueryTokenCountLessThanHalfOfTokenLimit() {
         // Generate a word count for a non-empty query that takes up less than half the token limit
         int maxQueryTokenCount = (ELASTIC_RERANKER_TOKEN_LIMIT - ELASTIC_RERANKER_EXTRA_TOKEN_COUNT) / 2;
-        int queryWordCount = randomIntBetween(1, (int) (maxQueryTokenCount * WORDS_PER_TOKEN));
+        int queryWordCount = randomIntBetween(1, (int) (maxQueryTokenCount * WORDS_PER_TOKEN) - 1);
         var queryTokenCount = Math.ceil(queryWordCount / WORDS_PER_TOKEN);
         ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.buildChunkingSettingsForElasticRerank(queryWordCount);
         assertTrue(chunkingSettings instanceof SentenceBoundaryChunkingSettings);

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -59,6 +58,6 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
         }
         var aliasedNulls = RuleUtils.aliasedNulls(joinRightOutput, a -> true);
         var eval = new Eval(join.source(), join.left(), aliasedNulls.v1());
-        return new Project(join.source(), eval, join.computeOutput(join.left().output(), Expressions.asAttributes(aliasedNulls.v2())));
+        return new Project(join.source(), eval, join.computeOutputExpressions(join.left().output(), aliasedNulls.v2()));
     }
 }

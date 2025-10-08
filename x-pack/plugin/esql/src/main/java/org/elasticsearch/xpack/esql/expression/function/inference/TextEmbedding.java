@@ -51,6 +51,16 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
                 description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
                 file = "text-embedding",
                 tag = "text-embedding-eval"
+            ),
+            @Example(
+                description = "Generate text embeddings for use within a KNN search.",
+                file = "text-embedding",
+                tag = "text-embedding-knn"
+            ),
+            @Example(
+                description = "Generate text embeddings inline within a KNN search.",
+                file = "text-embedding",
+                tag = "text-embedding-knn-inline"
             ) }
     )
     public TextEmbedding(

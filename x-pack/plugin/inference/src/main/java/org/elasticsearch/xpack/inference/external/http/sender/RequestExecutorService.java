@@ -33,6 +33,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,6 +54,29 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * {@link org.apache.http.client.methods.HttpUriRequest} to set a timeout for how long this executor will wait
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
+ *
+ * The request flow looks as follows:
+ *
+ *                     -------------> Execute request immediately.
+ *                     |
+ *                     |
+ *              request NOT supporting
+ *                 rate limiting
+ *                     |
+ *                     |
+ * Request ---> [-Request Queue-]
+ *                     |
+ *                     |
+ *              request supporting
+ *                 rate limiting
+ *                     |
+ *                     |
+ *                     ------------> {Rate Limit Group 1 -> Queue 1, ..., Rate Limit Group N -> Queue N}
+ *
+ *                                   Explanation: Submit request to the queue for the specific rate limiting group.
+ *                                   The rate limiting groups are polled at the same specified interval,
+ *                                   which in the worst cases introduces an additional latency of
+ *                                   {@link RequestExecutorServiceSettings#getTaskPollFrequency()}.
  */
 public class RequestExecutorService implements RequestExecutor {
 
@@ -109,6 +133,8 @@ public class RequestExecutorService implements RequestExecutor {
     private final RateLimiterCreator rateLimiterCreator;
     private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AdjustableCapacityBlockingQueue<RejectableTask> requestQueue;
+    private volatile Future<?> requestQueueTask;
 
     public RequestExecutorService(
         ThreadPool threadPool,
@@ -135,10 +161,16 @@ public class RequestExecutorService implements RequestExecutor {
         this.settings = Objects.requireNonNull(settings);
         this.clock = Objects.requireNonNull(clock);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
+        this.requestQueue = new AdjustableCapacityBlockingQueue<>(queueCreator, settings.getQueueCapacity());
     }
 
     public void shutdown() {
         if (shutdown.compareAndSet(false, true)) {
+            if (requestQueueTask != null) {
+                boolean cancelled = requestQueueTask.cancel(true);
+                logger.debug(() -> format("Request queue cancellation successful: %s", cancelled));
+            }
+
             if (cancellableCleanupTask.get() != null) {
                 logger.debug(() -> "Stopping clean up thread");
                 cancellableCleanupTask.get().cancel();
@@ -159,7 +191,7 @@ public class RequestExecutorService implements RequestExecutor {
     }
 
     public int queueSize() {
-        return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
+        return requestQueue.size() + rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
     }
 
     /**
@@ -175,8 +207,8 @@ public class RequestExecutorService implements RequestExecutor {
 
             startCleanupTask();
             signalStartInitiated();
-
-            handleTasks();
+            startRequestQueueTask();
+            startHandlingRateLimitedTasks();
         } catch (Exception e) {
             logger.warn("Failed to start request executor", e);
             cleanup();
@@ -192,6 +224,11 @@ public class RequestExecutorService implements RequestExecutor {
     private void startCleanupTask() {
         assert cancellableCleanupTask.get() == null : "The clean up task can only be set once";
         cancellableCleanupTask.set(startCleanupThread(RATE_LIMIT_GROUP_CLEANUP_INTERVAL));
+    }
+
+    private void startRequestQueueTask() {
+        assert requestQueueTask == null : "The request queue can only be started once";
+        requestQueueTask = threadPool.executor(UTILITY_THREAD_POOL_NAME).submit(this::processRequestQueue);
     }
 
     private Scheduler.Cancellable startCleanupThread(TimeValue interval) {
@@ -221,7 +258,83 @@ public class RequestExecutorService implements RequestExecutor {
             return;
         }
 
-        threadPool.schedule(this::handleTasks, timeToWait, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+        threadPool.schedule(this::startHandlingRateLimitedTasks, timeToWait, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+    }
+
+    private void processRequestQueue() {
+        try {
+            while (isShutdown() == false) {
+                // Blocks the request queue thread until a new request comes in
+                var task = (RequestTask) requestQueue.take();
+
+                if (isShutdown()) {
+                    logger.debug("Shutdown requested while handling request tasks, cleaning up");
+                    cleanup();
+                    return;
+                } else {
+                    var requestManager = task.getRequestManager();
+
+                    if (rateLimitingEnabled(requestManager)) {
+                        submitTaskToRateLimitedExecutionPath(task);
+                    } else {
+                        executeTaskImmediately(task);
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            // Restore interrupt to propagate to the calling thread
+            Thread.currentThread().interrupt();
+            logger.debug("Inference request queue interrupted, exiting");
+        } catch (Exception e) {
+            logger.warn("Error processing task in inference request queue", e);
+            cleanup();
+        }
+    }
+
+    private void executeTaskImmediately(RequestTask task) {
+        try {
+            task.getRequestManager()
+                .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+        } catch (Exception e) {
+            logger.warn(
+                format("Failed to execute fast-path request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
+                e
+            );
+
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format("Failed to execute request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
+                    false
+                )
+            );
+        }
+    }
+
+    // visible for testing
+    void submitTaskToRateLimitedExecutionPath(RequestTask task) {
+        var requestManager = task.getRequestManager();
+        var endpoint = rateLimitGroupings.computeIfAbsent(requestManager.rateLimitGrouping(), key -> {
+            var endpointHandler = new RateLimitingEndpointHandler(
+                Integer.toString(requestManager.rateLimitGrouping().hashCode()),
+                queueCreator,
+                settings,
+                requestSender,
+                clock,
+                requestManager.rateLimitSettings(),
+                this::isShutdown,
+                rateLimiterCreator,
+                rateLimitDivisor.get()
+            );
+
+            endpointHandler.init();
+            return endpointHandler;
+        });
+
+        endpoint.enqueue(task);
+    }
+
+    private boolean rateLimitingEnabled(RequestManager requestManager) {
+        return requestManager.rateLimitSettings() != null && requestManager.rateLimitSettings().isEnabled();
     }
 
     private void cleanup() {
@@ -234,12 +347,12 @@ public class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void handleTasks() {
+    private void startHandlingRateLimitedTasks() {
         try {
             TimeValue timeToWait;
             do {
-                if (shutdown.get()) {
-                    logger.debug("Shutdown requested while handling tasks, cleaning up");
+                if (isShutdown()) {
+                    logger.debug("Shutdown requested while handling rate limited tasks, cleaning up");
                     cleanup();
                     return;
                 }
@@ -253,7 +366,7 @@ public class RequestExecutorService implements RequestExecutor {
 
             scheduleNextHandleTasks(timeToWait);
         } catch (Exception e) {
-            logger.warn("Encountered an error while handling tasks", e);
+            logger.warn("Encountered an error while handling rate limited tasks", e);
             cleanup();
         }
     }
@@ -261,8 +374,38 @@ public class RequestExecutorService implements RequestExecutor {
     private void notifyRequestsOfShutdown() {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
+        // Reject rate-limited requests
         for (var endpoint : rateLimitGroupings.values()) {
             endpoint.notifyRequestsOfShutdown();
+        }
+
+        // Reject non-rate-limited requests
+        List<RejectableTask> requests = new ArrayList<>();
+        requestQueue.drainTo(requests);
+
+        for (var request : requests) {
+            rejectRequest(request);
+        }
+    }
+
+    private void rejectRequest(RejectableTask task) {
+        try {
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format(
+                        "Failed to send request for inference id [%s] has shutdown prior to executing request",
+                        task.getRequestManager().inferenceEntityId()
+                    ),
+                    true
+                )
+            );
+        } catch (Exception e) {
+            logger.warn(
+                format(
+                    "Failed to notify request for inference id [%s] of rejection after executor service shutdown",
+                    task.getRequestManager().inferenceEntityId()
+                )
+            );
         }
     }
 
@@ -308,26 +451,29 @@ public class RequestExecutorService implements RequestExecutor {
             ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
         );
 
-        var endpoint = rateLimitGroupings.computeIfAbsent(requestManager.rateLimitGrouping(), key -> {
-            var endpointHandler = new RateLimitingEndpointHandler(
-                Integer.toString(requestManager.rateLimitGrouping().hashCode()),
-                queueCreator,
-                settings,
-                requestSender,
-                clock,
-                requestManager.rateLimitSettings(),
-                this::isShutdown,
-                rateLimiterCreator,
-                rateLimitDivisor.get()
+        if (isShutdown()) {
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format(
+                        "Failed to enqueue request task for inference id [%s] because the request executor service has been shutdown",
+                        requestManager.inferenceEntityId()
+                    ),
+                    true
+                )
             );
+            return;
+        }
 
-            // TODO: add or create/compute if absent set for new map (service/task-type-key -> rate limit endpoint handler)
+        boolean taskAccepted = requestQueue.offer(task);
 
-            endpointHandler.init();
-            return endpointHandler;
-        });
-
-        endpoint.enqueue(task);
+        if (taskAccepted == false) {
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format("Failed to enqueue request task for inference id [%s]", requestManager.inferenceEntityId()),
+                    false
+                )
+            );
+        }
     }
 
     /**

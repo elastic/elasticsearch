@@ -61,14 +61,15 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this(indices, null, fields, Collections.emptyList(), Collections.emptyList());
     }
 
-    public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses,
-                                     List<FieldCapabilitiesFailure> failures) {
+    public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
         this(indexResponses, null, failures);
     }
 
-    public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses,
-                                     ResolvedIndexExpressions resolved,
-                                     List<FieldCapabilitiesFailure> failures) {
+    public FieldCapabilitiesResponse(
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        ResolvedIndexExpressions resolved,
+        List<FieldCapabilitiesFailure> failures
+    ) {
         this(Strings.EMPTY_ARRAY, resolved, Collections.emptyMap(), indexResponses, failures);
     }
 
@@ -190,7 +191,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             Iterators.single(
                 (b, p) -> b.startObject().array(INDICES_FIELD.getPreferredName(), indices).startObject(FIELDS_FIELD.getPreferredName())
             ),
-            ChunkedToXContentHelper.array(RESOLVED_FIELD.getPreferredName(),
+            ChunkedToXContentHelper.array(
+                RESOLVED_FIELD.getPreferredName(),
                 Iterators.map(resolved.expressions().iterator(), e -> (b, p) -> {
                     b.startObject();
                     b.field("original", e.original());

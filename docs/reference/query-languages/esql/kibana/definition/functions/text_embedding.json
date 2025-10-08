@@ -10,7 +10,7 @@
           "name" : "text",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Text string to generate embeddings from. Must be a non-null keyword constant."
+          "description" : "Text string to generate embeddings from. Must be a non-null literal string value."
         },
         {
           "name" : "inference_id",

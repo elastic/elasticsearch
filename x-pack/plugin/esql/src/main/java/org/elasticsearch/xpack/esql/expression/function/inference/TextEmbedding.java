@@ -68,7 +68,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         @Param(
             name = "text",
             type = { "keyword" },
-            description = "Text string to generate embeddings from. Must be a non-null keyword constant."
+            description = "Text string to generate embeddings from. Must be a non-null literal string value."
         ) Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,

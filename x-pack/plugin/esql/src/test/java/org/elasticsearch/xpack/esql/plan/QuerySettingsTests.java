@@ -19,10 +19,14 @@ import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
     public void testNonExistingSetting() {
@@ -34,6 +38,7 @@ public class QuerySettingsTests extends ESTestCase {
     public void testProjectRouting() {
         var setting = QuerySettings.PROJECT_ROUTING;
 
+        assertDefault(setting, nullValue());
         assertValid(setting, Literal.keyword(Source.EMPTY, "my-project"), equalTo("my-project"));
 
         assertInvalid(
@@ -46,6 +51,10 @@ public class QuerySettingsTests extends ESTestCase {
     public void testTimeZone() {
         var setting = QuerySettings.TIME_ZONE;
 
+        assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
+
+        assertValid(setting, Literal.keyword(Source.EMPTY, "UTC"), equalTo(ZoneId.of("UTC")));
+        assertValid(setting, Literal.keyword(Source.EMPTY, "Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
         assertValid(setting, Literal.keyword(Source.EMPTY, "Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
         assertValid(setting, Literal.keyword(Source.EMPTY, "+05:00"), equalTo(ZoneId.of("+05:00")));
         assertValid(setting, Literal.keyword(Source.EMPTY, "+05"), equalTo(ZoneId.of("+05")));
@@ -79,6 +88,12 @@ public class QuerySettingsTests extends ESTestCase {
                 .getMessage(),
             containsString(expectedMessage)
         );
+    }
+
+    private static <T> void assertDefault(QuerySettings.QuerySettingDef<T> settingDef, Matcher<? super T> defaultMatcher) {
+        T value = settingDef.get(null, null);
+
+        assertThat(value, defaultMatcher);
     }
 
     @AfterClass

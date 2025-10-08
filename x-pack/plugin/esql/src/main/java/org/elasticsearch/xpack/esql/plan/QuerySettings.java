@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.function.Function;
 
 public class QuerySettings {
     // TODO check cluster state and see if project routing is allowed
@@ -30,7 +32,8 @@ public class QuerySettings {
         "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled.",
-        (value, settings) -> Foldables.stringLiteralValueOf(value, "Unexpected value")
+        (value, settings) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
+        (_rcs) -> null
     );
 
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
@@ -47,7 +50,8 @@ public class QuerySettings {
             } catch (Exception exc) {
                 throw new QlIllegalArgumentException("Invalid time zone [" + timeZone + "]");
             }
-        }
+        },
+        (_rcs) -> ZoneOffset.UTC
     );
 
     public static final QuerySettingDef<?>[] ALL_SETTINGS = { PROJECT_ROUTING, TIME_ZONE };
@@ -86,6 +90,7 @@ public class QuerySettings {
      * @param validator A validation function to check the setting value.
      *                  Defaults to calling the {@link #parser} and returning the error message of any exception it throws.
      * @param parser A function to parse the setting value into the final object.
+     * @param defaultValueSupplier A supplier of the default value to be used when the setting is not set.
      * @param <T> The type of the setting value.
      */
     public record QuerySettingDef<T>(
@@ -96,7 +101,8 @@ public class QuerySettings {
         boolean snapshotOnly,
         String description,
         Validator validator,
-        Parser<T> parser
+        Parser<T> parser,
+        Function<RemoteClusterService, T> defaultValueSupplier
     ) {
         public QuerySettingDef(
             String name,
@@ -105,7 +111,8 @@ public class QuerySettings {
             boolean preview,
             boolean snapshotOnly,
             String description,
-            Parser<T> parser
+            Parser<T> parser,
+            Function<RemoteClusterService, T> defaultValueSupplier
         ) {
             this(name, type, serverlessOnly, preview, snapshotOnly, description, (value, rcs) -> {
                 try {
@@ -114,10 +121,13 @@ public class QuerySettings {
                 } catch (Exception exc) {
                     return exc.getMessage();
                 }
-            }, parser);
+            }, parser, defaultValueSupplier);
         }
 
         public T get(Expression value, RemoteClusterService clusterService) {
+            if (value == null) {
+                return defaultValueSupplier.apply(clusterService);
+            }
             return parser.parse(value, clusterService);
         }
 

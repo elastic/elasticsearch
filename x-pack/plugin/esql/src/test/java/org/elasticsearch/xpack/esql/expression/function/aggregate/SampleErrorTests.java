@@ -33,12 +33,14 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        if (signature.getFirst() == DataType.DENSE_VECTOR) {
+        if (signature.getFirst() == DataType.DENSE_VECTOR || signature.getFirst() == DataType.DATE_RANGE) {
             return equalTo(
                 "first argument of ["
                     + sourceForSignature(signature)
                     + "] must be [any type except counter types, dense_vector,"
-                    + " or aggregate_metric_double], found value [] type [dense_vector]"
+                    + " aggregate_metric_double, dense_vector or date_range], found value [] type ["
+                    + signature.getFirst()
+                    + "]"
             );
         }
         if (signature.getFirst() == DataType.NULL && signature.get(1) == DataType.DENSE_VECTOR) {
@@ -52,7 +54,7 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 true,
                 validPerPosition,
                 signature,
-                (v, p) -> p == 1 ? "integer" : "any type except counter types, dense_vector, or aggregate_metric_double"
+                (v, p) -> p == 1 ? "integer" : "any type except counter types, dense_vector, aggregate_metric_double or date_range"
             )
         );
     }

@@ -149,7 +149,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types or dense_vector / date_range"
+            "any type except counter types, dense_vector or date_range"
         );
     }
 

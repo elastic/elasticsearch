@@ -33,8 +33,12 @@ public sealed interface DateRangeBlock extends Block permits DateRangeArrayBlock
      * equals method works properly across different implementations of the AggregateMetricDoubleBlock interface.
      */
     static boolean equals(DateRangeBlock lhs, DateRangeBlock rhs) {
-        if (lhs == rhs) return true;
-        if (lhs.getPositionCount() != rhs.getPositionCount()) return false;
+        if (lhs == rhs) {
+            return true;
+        }
+        if (lhs.getPositionCount() != rhs.getPositionCount()) {
+            return false;
+        }
         return LongBlock.equals(lhs.getFromBlock(), rhs.getFromBlock()) && LongBlock.equals(lhs.getToBlock(), rhs.getToBlock());
     }
 

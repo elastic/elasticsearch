@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDateRangeEvaluator.class);
@@ -39,7 +40,11 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
     }
 
     private static BytesRef evalValue(DateRangeBlock block, int idx) {
-        return new BytesRef((block.getFromBlock().getLong(idx) + ".." + block.getToBlock().getLong(idx)));
+        return new BytesRef(
+            (EsqlDataTypeConverter.dateTimeToString(block.getFromBlock().getLong(idx))
+                + ".."
+                + EsqlDataTypeConverter.dateTimeToString(block.getToBlock().getLong(idx)))
+        );
     }
 
     @Override

@@ -606,7 +606,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                         // Move command works every decision except NO
-                        return randomFrom(Decision.YES, Decision.THROTTLE, Decision.THROTTLE);
+                        return randomFrom(Decision.YES, Decision.THROTTLE, Decision.NOT_PREFERRED);
                     }
                 })), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
                 List.of()

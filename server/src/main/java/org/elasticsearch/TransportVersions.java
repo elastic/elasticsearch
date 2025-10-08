@@ -151,11 +151,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
     public static final TransportVersion INDEX_RESHARDING_METADATA = def(9_031_0_00);
     public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
-    public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
-    public static final TransportVersion PROJECT_ID_IN_SNAPSHOT = def(9_040_0_00);
-    public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
-    public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
-    public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_046_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

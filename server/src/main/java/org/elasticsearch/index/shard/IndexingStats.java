@@ -26,11 +26,14 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.TransportVersions.INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD;
-import static org.elasticsearch.TransportVersions.INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD;
 
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
+
+        private static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = TransportVersion.fromName(
+            "index_stats_and_metadata_include_peak_write_load"
+        );
         private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersions.V_8_6_0;
         private static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = TransportVersion.fromName(
             "write_load_includes_buffer_writes"
@@ -85,7 +88,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                     ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos
                     : 0;
             }
-            if (in.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
+            if (in.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
                 peakIndexingLoad = in.readDouble();
             } else {
                 // When getting stats from an older version which doesn't have the recent indexing load, better to fall back to the
@@ -319,7 +322,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().onOrAfter(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 out.writeDouble(recentIndexingLoad);
             }
-            if (out.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
+            if (out.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
                 out.writeDouble(peakIndexingLoad);
             }
             if (out.getTransportVersion().supports(WRITE_LOAD_INCLUDES_BUFFER_WRITES)) {

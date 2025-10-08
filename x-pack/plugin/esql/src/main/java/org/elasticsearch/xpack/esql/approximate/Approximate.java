@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Reliable;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
@@ -581,7 +582,7 @@ public class Approximate {
         });
 
         // Compute the confidence interval for all output fields that have buckets.
-        List<Alias> confidenceIntervals = new ArrayList<>();
+        List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
         for (Attribute output : logicalPlan.output()) {
             if (fieldBuckets.containsKey(output.id())) {
                 List<Alias> buckets = fieldBuckets.get(output.id());
@@ -591,16 +592,23 @@ public class Approximate {
                 for (int i = 1; i < BUCKET_COUNT; i++) {
                     bucketsMv = new MvAppend(Source.EMPTY, bucketsMv, buckets.get(i).toAttribute());
                 }
-                confidenceIntervals.add(
+                confidenceIntervalsAndReliable.add(
                     new Alias(
                         Source.EMPTY,
                         "CONFIDENCE_INTERVAL(" + output.name() + ")",
                         new ConfidenceInterval(Source.EMPTY, output, bucketsMv)
                     )
                 );
+                confidenceIntervalsAndReliable.add(
+                    new Alias(
+                        Source.EMPTY,
+                        "RELIABLE(" + output.name() + ")",
+                        new Reliable(Source.EMPTY, bucketsMv)
+                    )
+                );
             }
         }
-        approximatePlan = new Eval(Source.EMPTY, approximatePlan, confidenceIntervals);
+        approximatePlan = new Eval(Source.EMPTY, approximatePlan, confidenceIntervalsAndReliable);
 
         // Finally, drop all bucket fields from the output.
         Set<Attribute> dropAttributes = fieldBuckets.values()

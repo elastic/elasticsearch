@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Reliable;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -110,6 +111,7 @@ public class ScalarFunctionWritables {
         entries.add(Or.ENTRY);
         entries.add(Pi.ENTRY);
         entries.add(Pow.ENTRY);
+        entries.add(Reliable.ENTRY);
         entries.add(Right.ENTRY);
         entries.add(Repeat.ENTRY);
         entries.add(Replace.ENTRY);

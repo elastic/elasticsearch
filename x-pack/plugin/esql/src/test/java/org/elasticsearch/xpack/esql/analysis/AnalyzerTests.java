@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
@@ -3151,16 +3152,14 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new IndexResolver.FieldsInfo(
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
                         fieldCapabilitiesIndexResponse("bar", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
 
@@ -3178,16 +3177,14 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new IndexResolver.FieldsInfo(
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
                         fieldCapabilitiesIndexResponse("bar", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3206,7 +3203,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new IndexResolver.FieldsInfo(
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3214,9 +3211,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("bazz", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3234,16 +3229,14 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new IndexResolver.FieldsInfo(
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
                         fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3259,7 +3252,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new IndexResolver.FieldsInfo(
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3268,9 +3261,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("qux", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3288,7 +3279,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new IndexResolver.FieldsInfo(
+            fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
                         fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
@@ -3296,9 +3287,7 @@ public class AnalyzerTests extends ESTestCase {
                         fieldCapabilitiesIndexResponse("bazz", Map.of())
                     ),
                     List.of()
-                ),
-                true,
-                true
+                )
             )
         );
         VerificationException e = expectThrows(
@@ -3318,13 +3307,19 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3342,7 +3337,10 @@ public class AnalyzerTests extends ESTestCase {
             List.of()
         );
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(
@@ -3351,7 +3349,10 @@ public class AnalyzerTests extends ESTestCase {
             );
         }
         {
-            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true));
+            IndexResolution resolution = IndexResolver.mergedMappings(
+                "foo",
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+            );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
@@ -3801,7 +3802,7 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(new FieldCapabilitiesResponse(idxResponses, List.of()), true, true);
+        IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
@@ -4691,5 +4692,9 @@ public class AnalyzerTests extends ESTestCase {
 
     static Literal literal(int value) {
         return new Literal(EMPTY, value, DataType.INTEGER);
+    }
+
+    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
     }
 }

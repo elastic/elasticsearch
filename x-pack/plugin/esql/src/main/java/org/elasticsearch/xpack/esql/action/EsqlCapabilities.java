@@ -1468,6 +1468,8 @@ public class EsqlCapabilities {
 
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
 
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSIONS,
+
         /**
          * FUSE L2_NORM score normalization support
          */

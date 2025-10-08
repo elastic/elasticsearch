@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -744,7 +745,7 @@ public enum DataType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (supportedVersion.supports(out.getTransportVersion()) == false) {
+        if (supportedVersion.supports(out.getTransportVersion(), Build.current().isSnapshot()) == false) {
             /*
              * TODO when we implement version aware planning flip this to an IllegalStateException
              * so we throw a 500 error. It'll be our bug then. Right now it's a sign that the user

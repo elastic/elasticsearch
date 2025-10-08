@@ -11,15 +11,15 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 
 public interface SupportedVersion {
-    boolean supports(TransportVersion version);
+    boolean supports(TransportVersion version, boolean currentBuildIsSnapshot);
 
     default boolean supportedLocally() {
-        return supports(TransportVersion.current());
+        return supports(TransportVersion.current(), Build.current().isSnapshot());
     }
 
     SupportedVersion SUPPORTED_ON_ALL_NODES = new SupportedVersion() {
         @Override
-        public boolean supports(TransportVersion version) {
+        public boolean supports(TransportVersion version, boolean currentBuildIsSnapshot) {
             return true;
         }
 
@@ -56,8 +56,8 @@ public interface SupportedVersion {
     // Check usage of this constant to be sure.
     SupportedVersion UNDER_CONSTRUCTION = new SupportedVersion() {
         @Override
-        public boolean supports(TransportVersion version) {
-            return Build.current().isSnapshot();
+        public boolean supports(TransportVersion version, boolean currentBuildIsSnapshot) {
+            return currentBuildIsSnapshot;
         }
 
         @Override
@@ -76,8 +76,8 @@ public interface SupportedVersion {
     static SupportedVersion supportedOn(TransportVersion supportedVersion) {
         return new SupportedVersion() {
             @Override
-            public boolean supports(TransportVersion version) {
-                return version.supports(supportedVersion) || Build.current().isSnapshot();
+            public boolean supports(TransportVersion version, boolean currentBuildIsSnapshot) {
+                return version.supports(supportedVersion) || currentBuildIsSnapshot;
             }
 
             @Override

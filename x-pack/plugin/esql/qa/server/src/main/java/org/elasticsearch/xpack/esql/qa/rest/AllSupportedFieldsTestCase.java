@@ -227,12 +227,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         profileLogger.clearProfile();
     }
 
-    // Tests a workaround and will become obsolete once we can determine the actual minimum transport version of all nodes.
+    /**
+     * Tests a workaround for fetching {@code dense_vector} fields that <strong>always</strong>
+     * fetches dense vectors, even if the remote cluster doesn't support that it supports them.
+     * <p>
+     *     Note: This work around is not required on versions with the
+     *     {@code dense_vector_agg_metric_double_if_versions} capability.
+     * </p>
+     */
     public final void testFetchDenseVector() throws IOException {
         Map<String, Object> response;
         try {
             response = esql("""
-                | EVAL k = v_l2_norm(f_dense_vector, [1])  // workaround to enable fetching dense_vector
                 | KEEP _index, f_dense_vector
                 | LIMIT 1000
                 """);

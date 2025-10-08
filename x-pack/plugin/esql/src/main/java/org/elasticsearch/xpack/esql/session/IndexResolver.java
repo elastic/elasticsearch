@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -98,13 +100,44 @@ public class IndexResolver {
             listener.delegateFailureAndWrap((l, response) -> {
                 LOGGER.debug("minimum transport version {}", response.minTransportVersion());
                 l.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
+                    mergedMappings(
+                        indexWildcard,
+                        new FieldsInfo(
+                            response.caps(),
+                            response.minTransportVersion(),
+                            Build.current().isSnapshot(),
+                            supportsAggregateMetricDouble,
+                            supportsDenseVector
+                        )
+                    )
                 );
             })
         );
     }
 
-    public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}
+    /**
+     * Information for resolving a field.
+     * @param caps {@link FieldCapabilitiesResponse} from all indices involved in the query
+     * @param minTransportVersion the minimum {@link TransportVersion} of any node that <strong>might</strong> receive the request
+     * @param currentBuildIsSnapshot is the current build a snapshot? Note: This is always {@code Build.current().isSnapshot()} in
+     *                               production but tests need more control
+     * @param useAggregateMetricDoubleWhenNotSupported does the query itself force us to use {@code aggregate_metric_double} fields
+     *                                                 even if the remotes don't report that they support the type? This exists because
+     *                                                 some remotes <strong>do</strong> support {@code aggregate_metric_double} without
+     *                                                 reporting that they do. And, for a while, we used the query itself to opt into
+     *                                                 reading these fields.
+     * @param useDenseVectorWhenNotSupported does the query itself force us to use {@code dense_vector} fields even if the remotes don't
+     *                                       report that they support the type? This exists because some remotes <strong>do</strong>
+     *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
+     *                                       query itself to opt into reading these fields.
+     */
+    public record FieldsInfo(
+        FieldCapabilitiesResponse caps,
+        TransportVersion minTransportVersion,
+        boolean currentBuildIsSnapshot,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {}
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -239,11 +272,15 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        type = switch (type) {
-            case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.supportAggregateMetricDouble ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED;
-            case DENSE_VECTOR -> fieldsInfo.supportDenseVector ? DENSE_VECTOR : UNSUPPORTED;
-            default -> type;
-        };
+        boolean typeSupported = type.supportedVersion().supports(fieldsInfo.minTransportVersion, fieldsInfo.currentBuildIsSnapshot)
+            || switch (type) {
+                case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
+                case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
+                default -> false;
+            };
+        if (false == typeSupported) {
+            type = UNSUPPORTED;
+        }
         boolean aggregatable = first.isAggregatable();
         EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
         if (rest.isEmpty() == false) {

@@ -36,7 +36,7 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
         return false;
     }
 
-        @ParametersFactory
+    @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new java.util.ArrayList<>();
         for (DataType stringType : DataType.stringTypes()) {

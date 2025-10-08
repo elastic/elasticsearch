@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -361,9 +360,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 originSettingClient,
                 new RolloverRequestBuilder(originSettingClient).setRolloverTarget(rolloverAlias)
                     .setNewIndexName(newIndexName)
-                    .setConditions(
-                        RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build()
-                    )
+                    .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build())
                     .request(),
                 rolloverListener
             );

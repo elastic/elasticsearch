@@ -172,7 +172,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_1m", "alias:l;text-align:right;desc:1m load avg");
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
-        table.addCell("available_processors", "alias:ap;text-align:right;desc:available processors");
+        table.addCell("available_processors", "default:false;alias:ap;text-align:right;desc:available processors");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
         table.addCell(
             "node.role",

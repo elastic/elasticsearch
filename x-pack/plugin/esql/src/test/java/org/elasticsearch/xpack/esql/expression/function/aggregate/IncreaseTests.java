@@ -125,18 +125,18 @@ public class IncreaseTests extends AbstractAggregationTestCase {
             if (nonNullDataRows.size() < 2) {
                 matcher = Matchers.nullValue();
             } else {
-                double increase = 0.0;
-                for (int i = nonNullDataRows.size() - 1; i > 0; i--) {
-                    double previous = ((Number) nonNullDataRows.get(i)).doubleValue();
-                    double current = ((Number) nonNullDataRows.get(i - 1)).doubleValue();
-                    if (current >= previous) {
-                        increase += current - previous;
-                    } else {
-                        // Counter reset
-                        increase += current;
+                double resets = 0.0;
+                double last = ((Number) nonNullDataRows.get(0)).doubleValue();
+                double current = last;
+                for (int i = 1; i < nonNullDataRows.size(); i++) {
+                    double prev = ((Number) nonNullDataRows.get(i)).doubleValue();
+                    if (prev > current) {
+                        resets += prev;
                     }
+                    current = prev;
                 }
-                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.5));
+                double increase = resets + (last - current);
+                matcher = Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
             }
 
             return new TestCaseSupplier.TestCase(

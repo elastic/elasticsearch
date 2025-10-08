@@ -72,7 +72,7 @@ public class SamplingService implements ClusterStateListener {
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
 
     private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
-        "sampling.max_configurations_per_project",
+        "sampling.max_configurations",
         100,
         1,
         Setting.Property.NodeScope,

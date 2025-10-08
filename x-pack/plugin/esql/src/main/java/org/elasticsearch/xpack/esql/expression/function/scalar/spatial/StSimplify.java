@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefVectorBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
@@ -18,14 +21,14 @@ import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
@@ -37,7 +40,12 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
-public class StSimplify extends ScalarFunction implements EvaluatorMapper {
+public class StSimplify extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "StSimplify",
+        StSimplify::new
+    );
     Expression geometry;
     Expression tolerance;
 
@@ -61,6 +69,14 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
         this.tolerance = tolerance;
     }
 
+    private StSimplify(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
+    }
+
     @Override
     public DataType dataType() {
         return GEO_SHAPE;
@@ -78,12 +94,14 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public String getWriteableName() {
-        return "StSimplify";
+        return ENTRY.name;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        source().writeTo(out);
+        out.writeNamedWriteable(geometry);
+        out.writeNamedWriteable(tolerance);
     }
 
     @Override
@@ -101,11 +119,11 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
                 @Override
                 public Block eval(Page page) {
                     var isGeometryFoldable = geometry.foldable();
-                    var isToleranceFoldable = tolerance.foldable();
                     var positionCount = page.getPositionCount();
                     var validator = StandardValidator.instance(true);
                     WKTReader reader = new WKTReader();
                     WKTWriter writer = new WKTWriter();
+                    DoubleVector tolerances = (DoubleVector) toleranceEvaluator.eval(page).asVector();
 
                     // TODO We are not extracting non foldable geometries
                     // TODO We are not using the tolerance
@@ -116,11 +134,13 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
 
                             try {
                                 org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
-                                org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, 0);
-                                String simplifiedWkt = writer.write(simplifiedGeometry);
-                                Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
 
                                 for (int p = 0; p < positionCount; p++) {
+                                    double distanceTolerance = tolerances.getDouble(p);
+                                    org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, distanceTolerance);
+                                    String simplifiedWkt = writer.write(simplifiedGeometry);
+                                    Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
+
                                     result.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN)));
                                 }
                             } catch (Exception e) {
@@ -133,11 +153,14 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
 
                             try {
                                 for (int p = 0; p < positionCount; p++) {
+                                    double distanceTolerance = tolerances.getDouble(p);
                                     var destRef = bytesRefVector.getBytesRef(p, new BytesRef());
                                     var wkt = WellKnownText.fromWKB(destRef.bytes, destRef.offset, destRef.length);
                                     org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
-                                    org.locationtech.jts.geom.Geometry simplifiedGeometry =
-                                        DouglasPeuckerSimplifier.simplify(jtsGeometry, 0);
+                                    org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(
+                                        jtsGeometry,
+                                        distanceTolerance
+                                    );
                                     String simplifiedWkt = writer.write(simplifiedGeometry);
                                     Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
                                     result.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN)));
@@ -145,7 +168,9 @@ public class StSimplify extends ScalarFunction implements EvaluatorMapper {
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
                             }
+                            block.close();
                         }
+                        tolerances.close();
 
                         return result.build().asBlock();
                     }

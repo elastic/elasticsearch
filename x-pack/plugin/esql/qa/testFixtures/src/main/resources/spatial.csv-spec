@@ -3024,3 +3024,75 @@ wkt:keyword                |pt:cartesian_point
 "POINT(111)"               |null
 // end::to_cartesianpoint-str-parse-error-result[]
 ;
+
+stSimplifyMultiRow
+required_capability: st_simplify
+
+FROM airports
+| SORT name
+| LIMIT 5
+| EVAL result = st_simplify(TO_GEOSHAPE("POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))"), 1.0)
+| KEEP name, result
+;
+
+name:text                | result:geo_shape
+Aba Tenna D. Yilma Int'l | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
+Abdul Rachman Saleh      | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
+Abidjan Port Bouet       | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
+Abu Dhabi Int'l          | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
+Abuja Int'l              | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
+;
+
+stSimplifyMultiRowWithPoints
+required_capability: st_simplify
+
+FROM airports
+| SORT name
+| LIMIT 5
+| EVAL result = st_simplify(location, 0.0)
+| KEEP location, result
+;
+
+location:geo_point                         | result:geo_shape
+POINT (41.857756722253 9.61267784753569)   | POINT (41.857756722253 9.61267784753569)
+POINT (112.711418617258 -7.92998002840567) | POINT (112.711418617258 -7.92998002840567)
+POINT (-3.93221929167636 5.2543984451492)  | POINT (-3.93221929167636 5.2543984451492)
+POINT (54.6463293225558 24.4272271529764)  | POINT (54.6463293225558 24.4272271529764)
+POINT (7.27025993974356 9.00437659781094)  | POINT (7.27025993974356 9.00437659781094)
+;
+
+stSimplifyNoSimplification
+required_capability: st_simplify
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
+| EVAL result = st_simplify(geo_shape, 0.01)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 0.0 2.0, 1.0 1.9, 2.0 2.0, 2.0 0.0, 1.0 0.1, 0.0 0.0))
+;
+
+stSimplifyWithSimplification
+required_capability: st_simplify
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
+| EVAL result = st_simplify(geo_shape, 0.2)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+;
+
+stSimplifyEmptySimplification
+required_capability: st_simplify
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
+| EVAL result = st_simplify(geo_shape, 2.0)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;

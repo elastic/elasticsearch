@@ -79,6 +79,11 @@ public class EsqlCapabilities {
         ST_DISJOINT,
 
         /**
+         * Support for spatial simplification {@code ST_SIMPLIFY}
+         */
+        ST_SIMPLIFY,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,

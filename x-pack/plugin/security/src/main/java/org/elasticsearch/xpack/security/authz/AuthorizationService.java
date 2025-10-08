@@ -172,7 +172,8 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        AuthorizedProjectsResolver authorizedProjectsResolver
+        AuthorizedProjectsResolver authorizedProjectsResolver,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -181,7 +182,7 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            new CrossProjectModeDecider(settings)
+            crossProjectModeDecider
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -500,80 +501,99 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             assert projectMetadata != null;
-            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(() -> {
-                if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
-                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
-                    return SubscribableListener.newSucceeded(resolvedIndices);
-                }
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
-                if (resolvedIndices != null) {
-                    return SubscribableListener.newSucceeded(resolvedIndices);
-                } else {
-                    final SubscribableListener<ResolvedIndices> resolvedIndicesListener = new SubscribableListener<>();
-                    final var authorizedIndicesListener = new SubscribableListener<AuthorizationEngine.AuthorizedIndices>();
-                    authorizedIndicesListener.<Tuple<AuthorizationEngine.AuthorizedIndices, TargetProjects>>andThen(
-                        (l, authorizedIndices) -> {
-                            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
-                                authorizedProjectsResolver.resolveAuthorizedProjects(
-                                    l.map(targetProjects -> new Tuple<>(authorizedIndices, targetProjects))
-                                );
-                            } else {
-                                l.onResponse(new Tuple<>(authorizedIndices, TargetProjects.NOT_CROSS_PROJECT));
-                            }
-                        }
-                    )
-                        .addListener(
-                            ActionListener.wrap(
-                                authorizedIndicesAndProjects -> resolvedIndicesListener.onResponse(
-                                    indicesAndAliasesResolver.resolve(
-                                        action,
-                                        request,
-                                        projectMetadata,
-                                        authorizedIndicesAndProjects.v1(),
-                                        authorizedIndicesAndProjects.v2()
-                                    )
+            final var targetProjectListener = new SubscribableListener<TargetProjects>();
+            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
+                authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
+            } else {
+                targetProjectListener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+            }
+
+            targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
+                final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
+                    targetProjects,
+                    requestInfo,
+                    requestId,
+                    request,
+                    action,
+                    projectMetadata,
+                    authzInfo,
+                    authzEngine,
+                    auditTrail,
+                    listener
+                );
+                authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
+                    .addListener(
+                        wrapPreservingContext(
+                            new AuthorizationResultListener<>(
+                                result -> handleIndexActionAuthorizationResult(
+                                    result,
+                                    requestInfo,
+                                    requestId,
+                                    authzInfo,
+                                    authzEngine,
+                                    resolvedIndicesAsyncSupplier,
+                                    projectMetadata,
+                                    listener
                                 ),
-                                e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)
-                            )
-                        );
-
-                    authzEngine.loadAuthorizedIndices(
-                        requestInfo,
-                        authzInfo,
-                        projectMetadata.getIndicesLookup(),
-                        authorizedIndicesListener
-                    );
-
-                    return resolvedIndicesListener;
-                }
-            });
-            authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
-                .addListener(
-                    wrapPreservingContext(
-                        new AuthorizationResultListener<>(
-                            result -> handleIndexActionAuthorizationResult(
-                                result,
+                                listener::onFailure,
                                 requestInfo,
                                 requestId,
-                                authzInfo,
-                                authzEngine,
-                                resolvedIndicesAsyncSupplier,
-                                projectMetadata,
-                                listener
+                                authzInfo
                             ),
-                            listener::onFailure,
-                            requestInfo,
-                            requestId,
-                            authzInfo
-                        ),
-                        threadContext
-                    )
-                );
+                            threadContext
+                        )
+                    );
+            }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)));
         } else {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));
         }
+    }
+
+    private AsyncSupplier<ResolvedIndices> makeResolvedIndicesAsyncSupplier(
+        TargetProjects targetProjects,
+        RequestInfo requestInfo,
+        String requestId,
+        TransportRequest request,
+        String action,
+        ProjectMetadata projectMetadata,
+        AuthorizationInfo authzInfo,
+        AuthorizationEngine authzEngine,
+        AuditTrail auditTrail,
+        ActionListener<Void> listener
+    ) {
+        return new CachingAsyncSupplier<>(() -> {
+            if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
+                var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
+                return SubscribableListener.newSucceeded(resolvedIndices);
+            }
+            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+            if (resolvedIndices != null) {
+                return SubscribableListener.newSucceeded(resolvedIndices);
+            } else {
+                final SubscribableListener<ResolvedIndices> resolvedIndicesListener = new SubscribableListener<>();
+                authzEngine.loadAuthorizedIndices(
+                    requestInfo,
+                    authzInfo,
+                    projectMetadata.getIndicesLookup(),
+                    ActionListener.wrap(authorizedIndices -> {
+                        resolvedIndicesListener.onResponse(
+                            indicesAndAliasesResolver.resolve(
+                                action,
+                                request,
+                                projectMetadata,
+                                authorizedIndices,
+                                targetProjects
+
+                            )
+                        );
+                    }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e))
+                );
+
+                return resolvedIndicesListener;
+            }
+        });
     }
 
     private void onAuthorizedResourceLoadFailure(
@@ -600,6 +620,11 @@ public class AuthorizationService {
                 ),
                 ex
             );
+            listener.onFailure(ex);
+            return;
+        }
+        if (ex instanceof IllegalStateException || ex instanceof IllegalArgumentException) {
+            logger.warn(() -> Strings.format("failed [%s] action authorization for [%s]", action, authentication), ex);
             listener.onFailure(ex);
             return;
         }

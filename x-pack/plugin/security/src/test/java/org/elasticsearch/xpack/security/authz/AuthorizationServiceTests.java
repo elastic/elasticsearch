@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -126,6 +127,10 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
+import org.elasticsearch.search.crossproject.ProjectTags;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -271,6 +276,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ProjectResolver projectResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private LinkedProjectConfigService linkedProjectConfigService;
+    private AuthorizedProjectsResolver authorizedProjectsResolver;
+    private CrossProjectModeDecider crossProjectModeDecider;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -325,6 +332,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         projectResolver = TestProjectResolvers.singleProject(projectId);
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(projectResolver);
         linkedProjectConfigService = new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, projectResolver);
+        authorizedProjectsResolver = mock(AuthorizedProjectsResolver.class);
+        doAnswer(invocation -> {
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        crossProjectModeDecider = mock(CrossProjectModeDecider.class);
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(false);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(false);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -343,7 +359,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            authorizedProjectsResolver,
+            crossProjectModeDecider
         );
     }
 
@@ -1270,6 +1287,145 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testResolveIndexActionWithProjectAuthorization() {
+        final String randomTransientHeader = randomAlphanumericOfLength(11);
+        final String randomTransientHeaderValue = randomAlphaOfLengthBetween(1, 5);
+        final ProjectRoutingInfo originProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(6, 10));
+        final ProjectRoutingInfo linkedProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(1, 5));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            threadContext.putTransient(randomTransientHeader, randomTransientHeaderValue);
+            callback.onResponse(new TargetProjects(originProject, List.of(linkedProject)));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+
+        // signals that cross-project authorization should be invoked
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+        final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
+
+        authorizationService = new AuthorizationService(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(settings),
+            null,
+            Collections.emptySet(),
+            new XPackLicenseState(() -> 0),
+            indexNameExpressionResolver,
+            operatorPrivilegesService,
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
+            projectResolver,
+            authorizedProjectsResolver,
+            crossProjectModeDecider
+        );
+
+        RoleDescriptor role = new RoleDescriptor(
+            "resolve_index",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("test_resolve_index_user", role.getName()));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) }
+        );
+        authorize(authentication, ResolveIndexAction.NAME, resolveIndexRequest, true, () -> {
+            verify(rolesStore).getRoles(Mockito.same(authentication), any());
+            assertThat(securityContext.getParentAuthorization(), nullValue());
+            assertThat(threadContext.getTransient(randomTransientHeader), sameInstance(randomTransientHeaderValue));
+        });
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(ResolveIndexAction.NAME),
+            eq(resolveIndexRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testResolveIndexActionWithProjectAuthorizationFailure() {
+        final Exception authzFailure = new ElasticsearchSecurityException("project authz failure");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onFailure(authzFailure);
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+
+        // signals that cross-project authorization should be invoked
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+        final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
+
+        authorizationService = new AuthorizationService(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(settings),
+            null,
+            Collections.emptySet(),
+            new XPackLicenseState(() -> 0),
+            indexNameExpressionResolver,
+            operatorPrivilegesService,
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
+            projectResolver,
+            authorizedProjectsResolver,
+            crossProjectModeDecider
+        );
+
+        RoleDescriptor role = new RoleDescriptor(
+            "resolve_index",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("test_resolve_index_user", role.getName()));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) }
+        );
+        var e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(authentication, ResolveIndexAction.NAME, resolveIndexRequest, true, null)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "action [indices:admin/resolve/index] is unauthorized for user "
+                    + "[test_resolve_index_user] with effective roles [resolve_index]"
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("project authz failure"));
+        
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(ResolveIndexAction.NAME),
+            eq(resolveIndexRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testSearchPITAgainstIndex() {
         RoleDescriptor role = new RoleDescriptor(
             "search_index",
@@ -1778,7 +1934,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CrossProjectModeDecider(settings)
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1830,7 +1987,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CrossProjectModeDecider(settings)
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3370,7 +3528,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3528,7 +3687,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3712,6 +3872,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         List<SearchPhaseResult> results = new ArrayList<>();
         results.add(testSearchPhaseResult1);
         return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY);
+    }
+
+    private static ProjectRoutingInfo createRandomProjectWithAlias(String alias) {
+        ProjectId projectId = randomUniqueProjectId();
+        String type = randomFrom("elasticsearch", "security", "observability");
+        String org = randomAlphaOfLength(10);
+        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        ProjectTags projectTags = new ProjectTags(tags);
+        return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
 
     private static class RBACAuthorizationInfoRoleMatcher implements ArgumentMatcher<AuthorizationInfo> {

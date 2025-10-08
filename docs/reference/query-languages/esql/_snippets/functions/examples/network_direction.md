@@ -3,12 +3,12 @@
 **Example**
 
 ```esql
-ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip
+ROW ip0 = "127.0.0.1"::ip, ip1 = "5.6.7.8"::ip
 | EVAL direction = network_direction(ip0, ip1, ["loopback", "private"])
 ```
 
 | ip0:ip | ip1:ip | direction:keyword |
 | --- | --- | --- |
-| 1.2.3.4 | 5.6.7.8 | external |
+| 127.0.0.1 | 5.6.7.8 | outbound |
 
 

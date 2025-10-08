@@ -52,7 +52,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/8"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_OUTBOUND))
                         )
@@ -66,7 +67,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("10.0.1.1"), DataType.IP, "destination_ip"),
                                 new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/8"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INBOUND))
                         )
@@ -81,7 +83,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("0.0.0.0"), DataType.IP, "destination_ip"),
                                 new TestCaseSupplier.TypedData(new BytesRef("unspecified"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
                         )
@@ -95,7 +98,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::"), DataType.IP, "destination_ip"),
                                 new TestCaseSupplier.TypedData(new BytesRef("unspecified"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
                         )
@@ -114,7 +118,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
                         )
@@ -132,7 +137,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
                         )
@@ -150,7 +156,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
                         )
@@ -168,7 +175,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
                         )
@@ -187,7 +195,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
                         )
@@ -205,7 +214,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
                         )
@@ -223,7 +233,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
                         )
@@ -241,7 +252,8 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                                 ),
                                 new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
                             ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1], networks=Attribute[channel=2]]",
+                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                                + " networks=Attribute[channel=2]]",
                             DataType.KEYWORD,
                             equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
                         )

@@ -8,20 +8,16 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -29,7 +25,6 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -304,61 +299,18 @@ public class EsqlCCSUtils {
     }
 
     /**
-     * Checks the index expression for the presence of remote clusters.
+     * Checks resolved indices for the presence of remote clusters.
      * If found, it will ensure that the caller has a valid Enterprise (or Trial) license on the querying cluster
      * as well as initialize corresponding cluster state in execution info.
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
-    public static void initCrossClusterState(
-        IndicesExpressionGrouper indicesGrouper,
-        XPackLicenseState licenseState,
-        IndexPattern indexPattern,
-        EsqlExecutionInfo executionInfo
-    ) throws ElasticsearchStatusException {
-        if (indexPattern == null) {
-            return;
-        }
-        try {
-            var groupedIndices = indicesGrouper.groupIndices(
-                IndicesOptions.DEFAULT,
-                Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
-                false
-            );
-
-            executionInfo.clusterInfoInitializing(true);
-            // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
-            // so that the CCS telemetry handler can recognize that this error is CCS-related
-            try {
-                for (var entry : groupedIndices.entrySet()) {
-                    final String clusterAlias = entry.getKey();
-                    final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
-                    });
-                }
-            } finally {
-                executionInfo.clusterInfoInitializing(false);
-            }
-
-            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
-        } catch (NoSuchRemoteClusterException e) {
-            if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
-                throw e;
-            } else {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
-        }
-    }
-
     public static void initCrossClusterState(Set<String> resolvedIndices, EsqlExecutionInfo executionInfo, XPackLicenseState licenseState) {
         executionInfo.clusterInfoInitializing(true);
         try {
             resolvedIndices.stream()
-                .map(RemoteClusterAware::splitIndexName)
-                .collect(groupingBy(it -> it[0], mapping(it -> it[1], joining(","))))
+                .collect(
+                    groupingBy(RemoteClusterAware::parseClusterAlias, mapping(it -> RemoteClusterAware.splitIndexName(it)[1], joining(",")))
+                )
                 .forEach((clusterAlias, indexExpr) -> {
                     executionInfo.swapCluster(clusterAlias, (k, v) -> {
                         assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";

@@ -122,26 +122,6 @@ public class PutSampleConfigurationActionIT extends ESIntegTestCase {
         assertSamplingConfigurationExists(indexName, configWithCondition);
     }
 
-    public void testPutSampleConfigurationMultipleIndices() throws Exception {
-        assumeTrue("Requires the sampling feature flag to be enabled", SamplingService.RANDOM_SAMPLING_FEATURE_FLAG);
-
-        String indexName1 = randomIdentifier();
-        String indexName2 = randomIdentifier();
-        createIndex(indexName1);
-        createIndex(indexName2);
-
-        SamplingConfiguration config = new SamplingConfiguration(0.7d, 70, ByteSizeValue.ofMb(12), TimeValue.timeValueMinutes(90), null);
-        PutSampleConfigurationAction.Request request = new PutSampleConfigurationAction.Request(
-            config,
-            TimeValue.timeValueSeconds(30),
-            TimeValue.timeValueSeconds(10)
-        );
-
-        // Setting multiple indices should fail
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> { request.indices(indexName1, indexName2); });
-        assertTrue(exception.getMessage().contains("Exactly one index or data stream must be specified"));
-    }
-
     public void testPutSampleConfigurationNonExistentIndex() throws Exception {
         assumeTrue("Requires the sampling feature flag to be enabled", SamplingService.RANDOM_SAMPLING_FEATURE_FLAG);
 

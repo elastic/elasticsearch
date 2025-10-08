@@ -63,6 +63,7 @@ import java.util.function.Supplier;
 public class SamplingService implements ClusterStateListener {
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
+    private static final int MAX_SAMPLING_CONFIGURATIONS = 100;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -751,11 +752,15 @@ public class SamplingService implements ClusterStateListener {
             ClusterState clusterState
         ) {
             logger.debug(
-                "Updating sampling configuration for index [{}] in project [{}] with rate [{}], maxSamples [{}]",
+                "Updating sampling configuration for index [{}] in project [{}] with rate [{}], maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
                 updateSamplingConfigurationTask.indexName,
                 updateSamplingConfigurationTask.projectId,
                 updateSamplingConfigurationTask.samplingConfiguration.rate(),
-                updateSamplingConfigurationTask.samplingConfiguration.maxSamples()
+                updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
+                updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
+                updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
+                updateSamplingConfigurationTask.samplingConfiguration.condition()
+
             );
 
             logger.debug(
@@ -784,7 +789,19 @@ public class SamplingService implements ClusterStateListener {
                 updatedConfigMap.putAll(samplingMetadata.getIndexToSamplingConfigMap());
             }
 
-            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName); // for logging
+            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
+
+            // Check if adding a new configuration would exceed the maximum allowed
+            if (isUpdate == false && updatedConfigMap.size() >= MAX_SAMPLING_CONFIGURATIONS) {
+                throw new IllegalStateException(
+                    "Cannot add sampling configuration for index ["
+                        + updateSamplingConfigurationTask.indexName
+                        + "]. Maximum number of sampling configurations ("
+                        + MAX_SAMPLING_CONFIGURATIONS
+                        + ") already reached."
+                );
+            }
+
             updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
 
             logger.trace(
@@ -803,7 +820,7 @@ public class SamplingService implements ClusterStateListener {
             // Return tuple with updated cluster state and the original listener
             ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
 
-            logger.info(
+            logger.debug(
                 "Successfully {} sampling configuration for index [{}] in project [{}]",
                 isUpdate ? "updated" : "created",
                 updateSamplingConfigurationTask.indexName,

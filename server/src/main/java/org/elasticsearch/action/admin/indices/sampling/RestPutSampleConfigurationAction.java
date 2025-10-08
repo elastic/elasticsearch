@@ -9,9 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -20,9 +19,10 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration.DEFAULT_MAX_SAMPLES;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -61,40 +61,21 @@ public class RestPutSampleConfigurationAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String indexName = request.param("index");
-
-        PutSampleConfigurationAction.Request putRequest;
-
-        if (request.hasContent()) {
-            // Parse the sampling configuration from request body
-            try (XContentParser parser = request.contentParser()) {
-                SamplingConfiguration samplingConfig = SamplingConfiguration.fromXContent(parser);
-                putRequest = new PutSampleConfigurationAction.Request(
-                    samplingConfig,
-                    getMasterNodeTimeout(request),
-                    getAckTimeout(request)
-                );
-            }
-        } else {
-            // Use URL parameters if no request body provided
-            if (request.hasParam("rate") == false) {
-                throw new IllegalArgumentException("Missing required parameter: rate");
-            }
-            double rate = request.paramAsDouble("rate", 0); // required parameter, default won't be used
-            int maxSamples = request.paramAsInt("max_samples", DEFAULT_MAX_SAMPLES);
-            ByteSizeValue maxSize = request.paramAsSize("max_size", null);
-            TimeValue timeToLive = request.paramAsTime("time_to_live", null);
-            String condition = request.param("if", null);
-
-            putRequest = new PutSampleConfigurationAction.Request(
-                new SamplingConfiguration(rate, maxSamples, maxSize, timeToLive, condition),
-                getMasterNodeTimeout(request),
-                getAckTimeout(request)
+        String[] indexNames = request.param("index").split(",");
+        if (indexNames.length > 1) {
+            throw new ActionRequestValidationException().addValidationError(
+                "Can only set sampling configuration for a single index at a time, but found "
+                    + Arrays.stream(indexNames).collect(Collectors.joining(", ", "[", "]"))
             );
         }
+        PutSampleConfigurationAction.Request putRequest;
+
+        XContentParser parser = request.contentParser();
+        SamplingConfiguration samplingConfig = SamplingConfiguration.fromXContent(parser);
+        putRequest = new PutSampleConfigurationAction.Request(samplingConfig, getMasterNodeTimeout(request), getAckTimeout(request));
 
         // Set the target index
-        putRequest.indices(indexName);
+        putRequest.indices(indexNames);
 
         return channel -> client.execute(PutSampleConfigurationAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

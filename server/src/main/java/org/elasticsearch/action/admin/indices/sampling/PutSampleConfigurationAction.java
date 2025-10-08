@@ -126,9 +126,6 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         @Override
         public Request indices(String... indices) {
-            if (indices.length != 1) {
-                throw new IllegalArgumentException("Exactly one index or data stream must be specified.");
-            }
             this.indices = indices;
             return this;
         }

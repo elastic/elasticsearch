@@ -240,8 +240,7 @@ public class JobManager {
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
         validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
-        // Job job = jobBuilder.build(new Date(), state, indexNameExpressionResolver);
-        Job job = jobBuilder.build(new Date());
+        Job job = jobBuilder.build(new Date(), state, indexNameExpressionResolver);
 
         ActionListener<Boolean> putJobListener = new ActionListener<>() {
             @Override

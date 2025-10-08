@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -717,6 +718,13 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE = Setting.byteSizeSetting(
+        "xpack.ml.nightly_maintenance_rollover_max_size",
+        ByteSizeValue.of(50, ByteSizeUnit.GB),
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     /**
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
@@ -841,6 +849,7 @@ public class MachineLearning extends Plugin
             ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+            NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,

@@ -114,6 +114,12 @@ public final class MlInitializationService implements ClusterStateListener {
                         MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
                         mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.NIGHTLY_MAINTENANCE_ROLLOVER_MAX_SIZE,
+                        mlDailyMaintenanceService::setRolloverMaxSize
+                    );
+
             }
 
             @Override

@@ -467,12 +467,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      *                       This is the first operation after the local checkpoint of the safe commit if exists.
      * @return a start recovery request
      */
-    public static StartRecoveryRequest getStartRecoveryRequest(
+    public static StartRecoveryRequest getStartRecoveryRequest (
         Logger logger,
         DiscoveryNode localNode,
         RecoveryTarget recoveryTarget,
         long startingSeqNo
-    ) {
+    ) throws IOException {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
@@ -497,9 +497,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
+            /*
             assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+             */
+            if (startingSeqNo == UNASSIGNED_SEQ_NO) {
+                logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+            } else {
+                throw e;
+            }
         } catch (final IOException e) {
             if (startingSeqNo != UNASSIGNED_SEQ_NO) {
                 logListingLocalFilesWarning(logger, startingSeqNo, e);

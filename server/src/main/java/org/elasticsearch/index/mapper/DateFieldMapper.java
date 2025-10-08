@@ -25,7 +25,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -551,7 +550,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, isIndexed, isStored, hasDocValues, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -663,6 +662,11 @@ public final class DateFieldMapper extends FieldMapper {
 
         public boolean hasDocValuesSkipper() {
             return hasDocValuesSkipper;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         /**
@@ -799,9 +803,7 @@ public final class DateFieldMapper extends FieldMapper {
                     if (includeLower == false) {
                         ++l;
                     }
-                    if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-                        context.setRangeTimestampFrom(l);
-                    }
+                    context.setTimeRangeFilterFromMillis(fieldName, l, resolution);
                 }
                 if (upperTerm == null) {
                     u = Long.MAX_VALUE;
@@ -944,7 +946,7 @@ public final class DateFieldMapper extends FieldMapper {
                     minValue = Long.min(minValue, skipper.minValue());
                     maxValue = Long.max(maxValue, skipper.maxValue());
                 }
-                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
@@ -954,7 +956,7 @@ public final class DateFieldMapper extends FieldMapper {
             long minValue = LongPoint.decodeDimension(minPackedValue, 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
         }
 
         public DateMathParser resolveDateMathParser(DateMathParser dateParser, Object from, Object to) {
@@ -977,7 +979,8 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             ZoneId timeZone,
             DateMathParser dateParser,
-            QueryRewriteContext context
+            QueryRewriteContext context,
+            String fieldName
         ) {
             dateParser = resolveDateMathParser(dateParser, from, to);
 
@@ -990,6 +993,9 @@ public final class DateFieldMapper extends FieldMapper {
                     }
                     ++fromInclusive;
                 }
+                // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
+                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 
             long toInclusive = Long.MAX_VALUE;

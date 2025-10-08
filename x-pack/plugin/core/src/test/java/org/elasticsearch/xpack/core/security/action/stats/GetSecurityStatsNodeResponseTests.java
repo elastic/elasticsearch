@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.core.security.action.stats;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetSecurityStatsNodeResponseTests extends AbstractWireSerializingTestCase<GetSecurityStatsNodeResponse> {
 
@@ -45,5 +48,21 @@ public class GetSecurityStatsNodeResponseTests extends AbstractWireSerializingTe
             case 1 -> new GetSecurityStatsNodeResponse(node, Map.of("key", randomValueOtherThan(value, () -> randomAlphaOfLength(5))));
             default -> throw new IllegalStateException("Unexpected value");
         };
+    }
+
+    public void testRolesStatsInOrderSerialization() throws IOException {
+        final Map<String, Object> rolesStats = Maps.newLinkedHashMapWithExpectedSize(3);
+        rolesStats.put("one", "value");
+        rolesStats.put("two", "value");
+        rolesStats.put("three", "value");
+        final GetSecurityStatsNodeResponse in = new GetSecurityStatsNodeResponse(
+            DiscoveryNodeUtils.create(randomAlphaOfLength(10)),
+            rolesStats
+        );
+
+        final GetSecurityStatsNodeResponse out = copyInstance(in);
+        assertThat(in, equalTo(out));
+
+        assertThat(out.getRolesStoreStats().keySet().toArray(new String[0]), equalTo(new String[] { "one", "two", "three" }));
     }
 }

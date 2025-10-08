@@ -378,7 +378,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             // include_ccs_metadata is considered only if include_execution_metadata is not set
             includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
         }
-        return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true), includeCcsMetadata);
+        Boolean allowPartialResults = request.allowPartialResults() != null ? request.allowPartialResults() : defaultAllowPartialResults;
+        return new EsqlExecutionInfo(
+            clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
+            includeCcsMetadata
+        );
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {

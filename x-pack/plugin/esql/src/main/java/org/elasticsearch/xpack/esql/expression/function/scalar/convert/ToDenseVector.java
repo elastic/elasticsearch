@@ -49,6 +49,7 @@ public class ToDenseVector extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "dense_vector",
         description = "Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.",
+        preview = true,
         examples = @Example(file = "dense_vector", tag = "to_dense_vector-ints")
     )
     public ToDenseVector(

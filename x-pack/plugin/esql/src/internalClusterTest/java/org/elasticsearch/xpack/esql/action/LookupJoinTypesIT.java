@@ -1024,7 +1024,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private boolean isValidDataType(DataType dataType) {
-        return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
+        return UNDER_CONSTRUCTION.contains(dataType) == false;
     }
 
     private static void saveJoinTypes(Supplier<Set<DocsV3Support.TypeSignature>> signatures) throws Exception {

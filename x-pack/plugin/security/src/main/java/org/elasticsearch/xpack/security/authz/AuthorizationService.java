@@ -628,6 +628,14 @@ public class AuthorizationService {
             listener.onFailure(ex);
             return;
         }
+        if (ex instanceof IllegalArgumentException) {
+            logger.debug(
+                () -> Strings.format("failed [%s] action authorization for [%s]. Reason [%s]", action, authentication, ex.getMessage()),
+                ex
+            );
+            listener.onFailure(ex);
+            return;
+        }
         auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
         if (ex instanceof IndexNotFoundException || ex instanceof NoMatchingProjectException) {
             listener.onFailure(ex);

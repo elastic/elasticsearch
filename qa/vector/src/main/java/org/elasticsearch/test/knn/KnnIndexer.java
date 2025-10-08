@@ -185,15 +185,20 @@ class KnnIndexer {
 
                     VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
                     try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                        List<Future<?>> threads = new ArrayList<>();
+                        List<Future<?>> futures = new ArrayList<>();
+                        List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            threads.add(t);
                             t.setDaemon(true);
-                            threads.add(exec.submit(t));
+                            futures.add(exec.submit(t));
                         }
-                        for (Future<?> t : threads) {
-                            t.get();
+                        for (Future<?> future : futures) {
+                            future.get();
                         }
+                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
+                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
+                        );
                     }
                 }
             }
@@ -288,7 +293,6 @@ class KnnIndexer {
             } catch (IOException ioe) {
                 throw new UncheckedIOException(ioe);
             }
-            logger.debug("Index thread times: [{}ms] read, [{}ms] add doc", readTime / 1_000_000, docAddTime / 1_000_000);
         }
 
         private void _run() throws IOException {

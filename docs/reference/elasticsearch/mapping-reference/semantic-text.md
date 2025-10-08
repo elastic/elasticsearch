@@ -156,8 +156,7 @@ the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/opera
 You can update the inference endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
 ::::{warning}
-Even though endpoint compatibility is validated, the compatibility of the produced embeddings cannot be verified.
-You must be certain the new inference endpoint produces compatible embeddings.
+The endpoint is validated for compatibility, but you must verify it produces the correct embeddings for your use case. This typically means using the same underlying model.
 
 ::::
 

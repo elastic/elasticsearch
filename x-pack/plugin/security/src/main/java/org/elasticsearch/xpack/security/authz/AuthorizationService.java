@@ -623,7 +623,7 @@ public class AuthorizationService {
             listener.onFailure(ex);
             return;
         }
-        if (ex instanceof IllegalStateException || ex instanceof IllegalArgumentException) {
+        if (ex instanceof IllegalStateException) {
             logger.warn(() -> Strings.format("failed [%s] action authorization for [%s]", action, authentication), ex);
             listener.onFailure(ex);
             return;

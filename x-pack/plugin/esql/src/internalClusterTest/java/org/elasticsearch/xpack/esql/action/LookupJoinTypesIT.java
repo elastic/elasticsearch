@@ -1032,8 +1032,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             return;
         }
         ArrayList<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>();
-        args.add(new EsqlFunctionRegistry.ArgSignature("field from the left index", null, null, false, false));
-        args.add(new EsqlFunctionRegistry.ArgSignature("field from the lookup index", null, null, false, false));
+        args.add(new EsqlFunctionRegistry.ArgSignature("field from the left index", null, null, false, null, false));
+        args.add(new EsqlFunctionRegistry.ArgSignature("field from the lookup index", null, null, false, null, false));
         DocsV3Support.CommandsDocsSupport docs = new DocsV3Support.CommandsDocsSupport(
             "lookup-join",
             LookupJoinTypesIT.class,

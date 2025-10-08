@@ -6,5 +6,5 @@
 :   Text to generate embeddings from
 
 `inference_id`
-:   Identifier of the inference endpoint
+:   Identifier of the inference endpoint (must be of type text_embedding).
 

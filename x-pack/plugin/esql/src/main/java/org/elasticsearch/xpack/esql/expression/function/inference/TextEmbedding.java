@@ -56,7 +56,11 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
-            description = "Identifier of the inference endpoint"
+            description = "Identifier of the inference endpoint (must be of type text_embedding).",
+            autocompleteHint = @Param.AutocompleteHint(
+                entityType = Param.AutocompleteHint.ENTITY_TYPE.INFERENCE_ENDPOINT,
+                constraints = { @Param.AutocompleteHint.Constraint(name = "task_type", value = "text_embedding") }
+            )
         ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));

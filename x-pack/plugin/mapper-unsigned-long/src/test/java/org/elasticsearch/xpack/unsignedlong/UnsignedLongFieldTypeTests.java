@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
@@ -56,8 +57,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() {
         UnsignedLongFieldType ft = new UnsignedLongFieldType(
             "my_unsigned_long",
-            true,
-            false,
+            IndexType.points(true, false),
             false,
             null,
             Collections.emptyMap(),

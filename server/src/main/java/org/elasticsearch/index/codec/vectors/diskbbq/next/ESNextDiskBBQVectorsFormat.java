@@ -13,11 +13,11 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,13 +54,16 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final String CLUSTER_EXTENSION = "clivf";
     static final String IVF_META_EXTENSION = "mivf";
 
-    public static final int VERSION_START = 0;
+    public static final int VERSION_START = 1;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(rawVectorFormat.getName(), rawVectorFormat);
+    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+        rawVectorFormat.getName(),
+        rawVectorFormat
+    );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
@@ -74,8 +77,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
+    private final boolean useDirectIO;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
+        this(vectorPerCluster, centroidsPerParentCluster, false);
+    }
+
+    public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useDirectIO) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -99,6 +107,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.useDirectIO = useDirectIO;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -109,8 +118,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ESNextDiskBBQVectorsWriter(
-            rawVectorFormat.getName(),
             state,
+            rawVectorFormat.getName(),
+            useDirectIO,
             rawVectorFormat.fieldsWriter(state),
             vectorPerCluster,
             centroidsPerParentCluster
@@ -119,10 +129,10 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ESNextDiskBBQVectorsReader(state, f -> {
+        return new ESNextDiskBBQVectorsReader(state, (f, dio) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state);
+            return format.fieldsReader(state, dio);
         });
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -103,6 +104,9 @@ class LateMaterializationPlanner {
         }
 
         LogicalPlan withAddedDocToRelation = topN.transformUp(EsRelation.class, r -> {
+            if (r.indexMode() == IndexMode.LOOKUP) {
+                return r;
+            }
             List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
             return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
         });
@@ -121,7 +125,7 @@ class LateMaterializationPlanner {
         ExchangeSinkExec reductionPlan = originalPlan.replaceChild(
             EstimatesRowSize.estimateRowSize(
                 fragmentExec.estimatedRowSize(),
-                toPhysical(fragmentExec.fragment(), context).transformUp(
+                toPhysical(fragmentExec.fragment(), context).transformDown(
                     TopNExec.class,
                     t -> t.replaceChild(new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */))
                 )

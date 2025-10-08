@@ -45,6 +45,8 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+    private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
+
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
     private final String sessionId;
@@ -260,6 +262,4 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization
         );
     }
-
-    private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
 }

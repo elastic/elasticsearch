@@ -19,7 +19,12 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 
 /**
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
- * and node-reduce drivers, although they may be released once they are no longer needed by either driver.
+ * and node-reduce drivers, such that each data driver will have its own (disjoint) set of contexts, but the node-reduce driver will have
+ * access to all contexts created for the data drivers.
+ *
+ * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
+ * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by {@link #shardContext()}
+ * reaches 0.
  */
 class ComputeSearchContext implements Releasable {
     private final int index;

@@ -22,7 +22,7 @@ import java.util.stream.IntStream;
  *
  * This class is both mutable and unsynchronized, and is thus not thread-safe. However, if the only modification to the underlying array is
  * adding immutable elements via the {@link #add} method (which probably <i>should</i> be synchronized, but that's handled by the calling
- * code) it <i>should</i> be fine.
+ * code) it <i>should</i> be fine 🐶🔥.
  */
 class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchContext>, Releasable {
     private final ComputeSearchContext[] array;
@@ -66,6 +66,9 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
      * </ol>
      */
     public IndexedByShardId<ComputeSearchContext> subRange(int fromIndex, int toIndex) {
+        if (fromIndex < 0 || toIndex > nextAddIndex || fromIndex >= toIndex) {
+            throw new IndexOutOfBoundsException("Invalid subrange: [" + fromIndex + ", " + toIndex + ") in [0, " + nextAddIndex + ")");
+        }
         return new SubRanged<>(array, fromIndex, toIndex);
     }
 

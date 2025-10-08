@@ -641,15 +641,17 @@ public class ComputeService {
                 context.description(),
                 context.foldCtx(),
                 localPlan,
-                context.searchContexts().map(ComputeSearchContext::shardContext)
+                shardContexts
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
-            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the reader
-            // operators will hold a reference to the contexts where relevant. However, we should only do this for the data computations,
-            // because in other cases the drivers won't increment the reference count of the contexts (no readers).
+            // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore
+            // incremented) by the source operators, and the DocVectors. Since The contexts are pre-created with a count of 1, and then
+            // incremented by the relevant source operators, after creating the *data* drivers (and therefore, the source operators), we can
+            // safely decrement the reference count so only the source operators and doc vectors control when these will be released.
+            // Note that only the data drivers will increment the reference count when created, hence the if below.
             if (context.description().equals(DATA_DESCRIPTION)) {
                 shardContexts.collection().forEach(RefCounted::decRef);
             }
@@ -725,8 +727,9 @@ public class ComputeService {
         boolean splitTopN
     ) {
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
+        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (splitTopN == false && runNodeLevelReduction == false) {
-            return new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
+            return defaultResult;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
@@ -734,7 +737,6 @@ public class ComputeService {
             originalPlan
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
-        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         return switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when splitTopN ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,

@@ -34,13 +34,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-/** Verifies that the value source reader operator is optimized into the reduce driver instead of the data driver. */
-public abstract class EsqlReductionLateMaterializationIT extends AbstractEsqlIntegTestCase {
+/**
+ * Verifies that the {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}} is optimized into the reduce driver instead
+ * of the data driver.
+ *
+ * For more information on why this is important, see {@link org.elasticsearch.xpack.esql.plugin.LateMaterializationPlanner}.
+ */
+public abstract class EsqlReductionLateMaterializationTestCase extends AbstractEsqlIntegTestCase {
     private final int shardCount;
     private final int maxConcurrentNodes;
     private final int taskConcurrency;
 
-    EsqlReductionLateMaterializationIT(@Name("TestCase") TestCase testCase) {
+    EsqlReductionLateMaterializationTestCase(@Name("TestCase") TestCase testCase) {
         this.shardCount = testCase.shardCount;
         this.maxConcurrentNodes = testCase.maxConcurrentNodes;
         this.taskConcurrency = testCase.taskConcurrency;
@@ -107,8 +112,8 @@ public abstract class EsqlReductionLateMaterializationIT extends AbstractEsqlInt
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
-            assertSingleKeyFiledExtracted(result, "data");
-            assertSingleKeyFiledExtracted(result, "node_reduce");
+            assertSingleKeyFieldExtracted(result, "data");
+            assertSingleKeyFieldExtracted(result, "node_reduce");
             var page = singleValue(result.pages());
             assertThat(page.getPositionCount(), equalTo(1));
             LongVectorBlock block = page.getBlock(0);
@@ -117,7 +122,7 @@ public abstract class EsqlReductionLateMaterializationIT extends AbstractEsqlInt
         }
     }
 
-    private static void assertSingleKeyFiledExtracted(EsqlQueryResponse response, String driverName) {
+    private static void assertSingleKeyFieldExtracted(EsqlQueryResponse response, String driverName) {
         long totalValuesLoader = 0;
         for (var driverProfile : response.profile().drivers().stream().filter(d -> d.description().equals(driverName)).toList()) {
             OperatorStatus operatorStatus = singleValue(

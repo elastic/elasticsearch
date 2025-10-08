@@ -538,8 +538,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
         ReductionPlan reductionPlan;
         Configuration configuration = request.configuration();
-        // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
-        // with its size being known before we start the computation.
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings(),

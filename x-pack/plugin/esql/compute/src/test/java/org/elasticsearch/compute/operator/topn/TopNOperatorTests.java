@@ -538,7 +538,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 continue;
             }
             elementTypes.add(e);
-            encoders.add(getEncoder(e));
+            encoders.add(nonKeyEncoder(e));
             List<Object> eTop = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(size, driverContext().blockFactory())) {
                 for (int i = 0; i < size; i++) {
@@ -609,7 +609,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 continue;
             }
             elementTypes.add(e);
-            encoders.add(getEncoder(e));
+            encoders.add(nonKeyEncoder(e));
             List<Object> eTop = new ArrayList<>();
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 for (int i = 0; i < rows; i++) {
@@ -669,7 +669,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    private static TopNEncoder getEncoder(ElementType elementType) {
+    private static TopNEncoder nonKeyEncoder(ElementType elementType) {
         return switch (elementType) {
             case BYTES_REF -> UTF8;
             case DOC -> new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE);

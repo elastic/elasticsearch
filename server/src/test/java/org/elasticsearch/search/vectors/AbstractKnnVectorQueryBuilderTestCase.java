@@ -449,29 +449,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertBWCSerialization(query, queryOlderVersion, differentQueryVersion);
     }
 
-    public void testBWCVersionSerializationRescoreVector() throws IOException {
-        KnnVectorQueryBuilder query = createTestQueryBuilder();
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_8_1,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)
-        );
-        VectorData vectorData = version.onOrAfter(TransportVersions.V_8_14_0)
-            ? query.queryVector()
-            : VectorData.fromFloats(query.queryVector().asFloatVector());
-        Integer k = version.before(TransportVersions.V_8_15_0) ? null : query.k();
-        KnnVectorQueryBuilder queryNoRescoreVector = new KnnVectorQueryBuilder(
-            query.getFieldName(),
-            vectorData,
-            k,
-            query.numCands(),
-            null,
-            null,
-            query.getVectorSimilarity()
-        ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
-        assertBWCSerialization(query, queryNoRescoreVector, version);
-    }
-
     private void assertBWCSerialization(QueryBuilder newQuery, QueryBuilder bwcQuery, TransportVersion version) throws IOException {
         assertSerialization(bwcQuery, version);
         try (BytesStreamOutput output = new BytesStreamOutput()) {

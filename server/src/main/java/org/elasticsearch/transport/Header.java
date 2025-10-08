@@ -95,6 +95,10 @@ public class Header {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
+            if (version.equals(TransportHandshaker.V8_HANDSHAKE_VERSION)) {
+                // discard features
+                input.readStringArray();
+            }
             this.actionName = input.readString();
         } else {
             this.actionName = RESPONSE_NAME;

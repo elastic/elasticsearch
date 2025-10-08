@@ -25,6 +25,9 @@
   - is_false: indicators.master_is_stable.details
 ---
 "cluster health test for shard capacity settings":
+  - requires:
+      cluster_features: [ "health.shard_capacity.unhealthy_threshold_setting" ]
+      reason: "these relevant settings are added in 9.3"
   - do:
         health_report:
             feature: shards_capacity

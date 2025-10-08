@@ -16,6 +16,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -95,6 +96,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         "frozen"
     );
+
+    public static final NodeFeature SHARD_CAPACITY_UNHEALTHY_THRESHOLD_SETTINGS =
+        new NodeFeature("health.shard_capacity.unhealthy_threshold_setting");
 
     public static final Setting<Integer> SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW = Setting.intSetting(
         "health.shard_capacity.unhealthy_threshold.yellow",

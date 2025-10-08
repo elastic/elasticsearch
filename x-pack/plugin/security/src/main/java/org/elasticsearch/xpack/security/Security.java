@@ -1208,6 +1208,8 @@ public class Security extends Plugin
             new SecurityServerTransportInterceptor(
                 settings,
                 threadPool,
+                authcService.get(),
+                authzService,
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,

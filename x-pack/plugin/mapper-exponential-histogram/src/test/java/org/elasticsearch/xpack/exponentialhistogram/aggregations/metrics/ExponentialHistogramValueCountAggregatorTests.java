@@ -45,7 +45,7 @@ public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHi
 
         testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), valueCount -> {
             assertThat(valueCount.getValue(), equalTo(expectedCount));
-            assertThat(AggregationInspectionHelper.hasValue(valueCount), equalTo(true));
+            assertThat(AggregationInspectionHelper.hasValue(valueCount), equalTo(expectedCount > 0));
         });
     }
 
@@ -71,7 +71,6 @@ public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHi
             .map(histo -> Map.entry(histo, randomBoolean()))
             .toList();
 
-        boolean anyMatch = histogramsWithFilter.stream().anyMatch(Map.Entry::getValue);
         long filteredCount = histogramsWithFilter.stream()
             .filter(Map.Entry::getValue)
             .mapToLong(entry -> entry.getKey().valueCount())
@@ -89,7 +88,7 @@ public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHi
             ),
             sum -> {
                 assertThat(sum.getValue(), equalTo(filteredCount));
-                assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(anyMatch));
+                assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(filteredCount > 0));
             }
         );
     }

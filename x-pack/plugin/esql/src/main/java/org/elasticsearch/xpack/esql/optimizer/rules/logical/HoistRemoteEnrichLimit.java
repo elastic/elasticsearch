@@ -42,6 +42,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             Set<Limit> seenLimits = Collections.newSetFromMap(new IdentityHashMap<>());
             en.child().forEachDownMayReturnEarly((p, stop) -> {
                 if (p instanceof Limit l && l.local() == false) {
+                    // Local limits can be ignored here as they are always duplicates that have another limit upstairs
                     seenLimits.add(l);
                     return;
                 }
@@ -65,7 +66,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             LogicalPlan transformLimits = en.transformDown(Limit.class, l -> seenLimits.contains(l) ? l.withLocal(true) : l);
             // Shouldn't actually throw because we checked seenLimits is not empty
             Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
-            // Insert new lowest limit on top of the Enrich
+            // Insert new lowest limit on top of the Enrich, and mark it as duplicated since we don't want it to be pushed down
             return new Limit(lowestLimit.source(), lowestLimit.limit(), transformLimits, true, false);
         }
         return en;

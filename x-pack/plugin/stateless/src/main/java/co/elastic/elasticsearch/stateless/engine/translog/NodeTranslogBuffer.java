@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine.translog;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -82,7 +82,8 @@ public class NodeTranslogBuffer implements Releasable {
      * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the user must try again
      * on the next node buffer.
      */
-    boolean writeToBuffer(ShardSyncState shardSyncState, BytesReference data, long seqNo, Translog.Location location) throws IOException {
+    boolean writeToBuffer(ShardSyncState shardSyncState, Translog.Serialized operation, long seqNo, Translog.Location location)
+        throws IOException {
         if (semaphore.tryAcquire()) {
             try {
                 Translog.Location newProcessedLocation = new Translog.Location(
@@ -93,10 +94,13 @@ public class NodeTranslogBuffer implements Releasable {
                 shardSyncState.updateProcessedLocation(newProcessedLocation);
                 ShardBuffer shardBuffer = buffers.computeIfAbsent(
                     shardSyncState,
-                    (k) -> new ShardBuffer(shardSyncState.getStartingPrimaryTerm(), new ReleasableBytesStreamOutput(bigArrays))
+                    (k) -> new ShardBuffer(
+                        shardSyncState.getStartingPrimaryTerm(),
+                        new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
+                    )
                 );
-                shardBuffer.append(data, seqNo, location);
-                bufferSize.getAndAdd(data.length());
+                shardBuffer.append(operation, seqNo, location);
+                bufferSize.getAndAdd(operation.length());
             } finally {
                 semaphore.release();
             }
@@ -132,7 +136,7 @@ public class NodeTranslogBuffer implements Releasable {
                 if (state.isClosed() == false) {
                     if (buffer != null) {
                         dataToSync = true;
-                        buffer.data().bytes().writeTo(compoundTranslogStream);
+                        buffer.buffer().bytes().writeTo(compoundTranslogStream);
                         metadata.put(shardId, metadata(buffer, position, compoundTranslogStream.position() - position, directory));
                         syncedLocations.put(shardId, buffer.syncMarker());
                     } else {
@@ -198,7 +202,7 @@ public class NodeTranslogBuffer implements Releasable {
     private static class ShardBuffer implements Releasable {
 
         private final long primaryTerm;
-        private final ReleasableBytesStreamOutput data;
+        private final RecyclerBytesStreamOutput buffer;
         private final ArrayList<Long> seqNos;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -206,14 +210,14 @@ public class NodeTranslogBuffer implements Releasable {
 
         private Translog.Location location;
 
-        private ShardBuffer(long primaryTerm, ReleasableBytesStreamOutput data) {
+        private ShardBuffer(long primaryTerm, RecyclerBytesStreamOutput buffer) {
             this.primaryTerm = primaryTerm;
-            this.data = data;
+            this.buffer = buffer;
             this.seqNos = new ArrayList<>();
         }
 
-        private void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
-            data.writeTo(this.data);
+        private void append(Translog.Serialized operation, long seqNo, Translog.Location location) throws IOException {
+            operation.writeToTranslogBuffer(buffer);
             seqNos.add(seqNo);
             minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
             maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
@@ -221,8 +225,8 @@ public class NodeTranslogBuffer implements Releasable {
             this.location = location;
         }
 
-        private ReleasableBytesStreamOutput data() {
-            return data;
+        private RecyclerBytesStreamOutput buffer() {
+            return buffer;
         }
 
         private long minSeqNo() {
@@ -247,7 +251,7 @@ public class NodeTranslogBuffer implements Releasable {
 
         @Override
         public void close() {
-            data.close();
+            buffer.close();
         }
     }
 }

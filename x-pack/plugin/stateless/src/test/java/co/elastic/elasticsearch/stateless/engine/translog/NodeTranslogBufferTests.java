@@ -34,6 +34,8 @@ import static org.mockito.Mockito.when;
 
 public class NodeTranslogBufferTests extends ESTestCase {
 
+    private final BytesArray header = new BytesArray(new byte[] { 'h', 'e', 'a', 'd', 'e', 'r' });
+
     public void testNoIntervalFlushIfSyncNotRequested() {
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 10);
         assertFalse(translogBuffer.markMinimumIntervalExhausted());
@@ -58,13 +60,9 @@ public class NodeTranslogBufferTests extends ESTestCase {
         if (randomBoolean()) {
             assertFalse(translogBuffer.markMinimumIntervalExhausted());
         }
-        assertTrue(
-            translogBuffer.writeToBuffer(mock(ShardSyncState.class), new BytesArray(new byte[40]), 1, new Translog.Location(0, 0, 40))
-        );
+        assertTrue(translogBuffer.writeToBuffer(mock(ShardSyncState.class), serialized(new byte[30]), 1, new Translog.Location(0, 0, 40)));
         assertFalse(translogBuffer.shouldFlushBufferDueToSize());
-        assertTrue(
-            translogBuffer.writeToBuffer(mock(ShardSyncState.class), new BytesArray(new byte[10]), 2, new Translog.Location(0, 40, 10))
-        );
+        assertTrue(translogBuffer.writeToBuffer(mock(ShardSyncState.class), serialized(new byte[10]), 2, new Translog.Location(0, 40, 20)));
 
         assertTrue(translogBuffer.shouldFlushBufferDueToSize());
         // Will only indicate flush should happen once
@@ -77,11 +75,11 @@ public class NodeTranslogBufferTests extends ESTestCase {
         when(shardSyncState.getShardId()).thenReturn(new ShardId("test1", "_na_", 0));
         when(shardSyncState.createDirectory(1, 1)).thenReturn(new TranslogMetadata.Directory(0, new int[0]));
 
-        assertTrue(translogBuffer.writeToBuffer(shardSyncState, new BytesArray(new byte[40]), 1, new Translog.Location(0, 0, 40)));
+        assertTrue(translogBuffer.writeToBuffer(shardSyncState, serialized(new byte[40]), 1, new Translog.Location(0, 0, 50)));
 
         translogBuffer.complete(1, Set.of(shardSyncState));
 
-        assertFalse(translogBuffer.writeToBuffer(shardSyncState, new BytesArray(new byte[10]), 2, new Translog.Location(0, 40, 10)));
+        assertFalse(translogBuffer.writeToBuffer(shardSyncState, serialized(new byte[10]), 2, new Translog.Location(0, 50, 20)));
     }
 
     public void testInactiveShardsAreNotIncludedInTranslog() throws IOException {
@@ -92,15 +90,16 @@ public class NodeTranslogBufferTests extends ESTestCase {
         ShardId activeShardId = new ShardId("active", "_na_", 0);
         when(activeShard.getShardId()).thenReturn(activeShardId);
         when(activeShard.createDirectory(0, 1)).thenReturn(new TranslogMetadata.Directory(1, new int[0]));
+        Translog.Serialized operation = serialized(new byte[100]);
 
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 1000);
-        assertTrue(translogBuffer.writeToBuffer(inactiveShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
+        assertTrue(translogBuffer.writeToBuffer(inactiveShard, operation, 1, new Translog.Location(0, 0, operation.length())));
         assertNull(translogBuffer.complete(0, Collections.emptySet()));
 
         translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 1000);
-        assertTrue(translogBuffer.writeToBuffer(inactiveShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
+        assertTrue(translogBuffer.writeToBuffer(inactiveShard, operation, 1, new Translog.Location(0, 0, operation.length())));
 
-        assertTrue(translogBuffer.writeToBuffer(activeShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
+        assertTrue(translogBuffer.writeToBuffer(activeShard, operation, 1, new Translog.Location(0, 0, operation.length())));
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard));
         assertThat(translog.metadata().operations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().operations().size(), equalTo(1));
@@ -120,7 +119,7 @@ public class NodeTranslogBufferTests extends ESTestCase {
         when(activeShard.createDirectory(0, 1)).thenReturn(new TranslogMetadata.Directory(1, new int[0]));
 
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 1000);
-        assertTrue(translogBuffer.writeToBuffer(activeShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
+        assertTrue(translogBuffer.writeToBuffer(activeShard, serialized(new byte[60]), 1, new Translog.Location(0, 0, 100)));
 
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard, activeButNoBufferedDataShard));
         assertThat(translog.metadata().operations().keySet(), hasItems(activeShardId, activeButNoBufferedShardId));
@@ -142,12 +141,16 @@ public class NodeTranslogBufferTests extends ESTestCase {
         when(activeShard.createDirectory(0, 1)).thenReturn(new TranslogMetadata.Directory(1, new int[0]));
 
         NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 1000);
-        assertTrue(translogBuffer.writeToBuffer(activeShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
+        assertTrue(translogBuffer.writeToBuffer(activeShard, serialized(new byte[90]), 1, new Translog.Location(0, 0, 100)));
 
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard, closedShard));
         assertThat(translog.metadata().operations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().operations().size(), equalTo(1));
         assertThat(translog.metadata().syncedLocations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().syncedLocations().size(), equalTo(1));
+    }
+
+    private Translog.Serialized serialized(byte[] source) {
+        return new Translog.Serialized(header, new BytesArray(source), 0);
     }
 }

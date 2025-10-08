@@ -207,8 +207,8 @@ public class RequestExecutorService implements RequestExecutor {
             started.set(true);
 
             startCleanupTask();
-            signalStartInitiated();
             startRequestQueueTask();
+            signalStartInitiated();
             startHandlingRateLimitedTasks();
         } catch (Exception e) {
             logger.warn("Failed to start request executor", e);

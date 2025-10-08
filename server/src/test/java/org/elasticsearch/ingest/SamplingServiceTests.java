@@ -228,9 +228,9 @@ public class SamplingServiceTests extends ESTestCase {
 
     public void testMaybeSampleMaxSize() {
         /*
-         * This tests that the max size limit on the SamplingConfiguration is enforced. Here we set maxSize to 200. The source field of
+         * This tests that the max size limit on the SamplingConfiguration is enforced. Here we set maxSize to 400. The source field of
          * each index request is an array of 150 bytes. Since the size of the raw document is approximately the size of the source byte
-         * array, we expect to be able to insert 2 raw documents before we have exceeded the max size and all others are rejected.
+         * array, we expect to be able to insert 2 raw documents before all others are rejected due to the max size limit.
          */
         assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         SamplingService samplingService = getTestSamplingService();
@@ -242,7 +242,7 @@ public class SamplingServiceTests extends ESTestCase {
                 new SamplingMetadata(
                     Map.of(
                         indexName,
-                        new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofBytes(200), TimeValue.timeValueDays(3), null)
+                        new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofBytes(400), TimeValue.timeValueDays(3), null)
                     )
                 )
             );

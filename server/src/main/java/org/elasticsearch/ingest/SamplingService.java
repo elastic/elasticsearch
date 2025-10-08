@@ -152,7 +152,7 @@ public class SamplingService implements ClusterStateListener {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
                 return;
             }
-            if (sampleInfo.getSizeInBytes() > samplingConfig.maxSize().getBytes()) {
+            if (sampleInfo.getSizeInBytes() + indexRequest.source().length() > samplingConfig.maxSize().getBytes()) {
                 stats.samplesRejectedForSize.increment();
                 return;
             }

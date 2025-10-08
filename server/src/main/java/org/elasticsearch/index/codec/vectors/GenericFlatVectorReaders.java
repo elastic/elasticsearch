@@ -18,6 +18,9 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
+/**
+ * Keeps track of field-specific raw vector readers for vector reads
+ */
 public class GenericFlatVectorReaders {
 
     public interface Field {
@@ -73,6 +76,7 @@ public class GenericFlatVectorReaders {
     public GenericFlatVectorReaders getMergeInstance() throws IOException {
         GenericFlatVectorReaders mergeReaders = new GenericFlatVectorReaders();
 
+        // link the original instance with the merge instance
         Map<FlatVectorsReader, FlatVectorsReader> mergeInstances = new IdentityHashMap<>();
         for (var reader : readers.entrySet()) {
             FlatVectorsReader mergeInstance = reader.getValue().getMergeInstance();

@@ -75,11 +75,17 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES93BinaryQuantizedVectorsFormat());
+    private KnnVectorsFormat format;
+
+    @Override
+    public void setUp() throws Exception {
+        format = new ES93BinaryQuantizedVectorsFormat(random().nextBoolean());
+        super.setUp();
+    }
 
     @Override
     protected Codec getCodec() {
-        return codec;
+        return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
     @Override
@@ -118,7 +124,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
         float[] vector = randomVector(dims);
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
-            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(codec);
+            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(getCodec());
             iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();

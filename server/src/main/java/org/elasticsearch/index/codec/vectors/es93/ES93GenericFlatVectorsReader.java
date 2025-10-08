@@ -104,7 +104,6 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
-        // we know what the reader is, so we can return it directly
         return new ES93GenericFlatVectorsReader(fieldInfos, genericReaders.getMergeInstance());
     }
 

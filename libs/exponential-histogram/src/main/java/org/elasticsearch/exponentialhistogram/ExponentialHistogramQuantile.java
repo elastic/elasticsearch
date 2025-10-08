@@ -73,6 +73,45 @@ public class ExponentialHistogramQuantile {
         return removeNegativeZero(result);
     }
 
+    /**
+     * Estimates the rank of a given value in the distribution represented by the histogram.
+     * In other words, returns the number of values which are less than (or less-or-equal, if {@code inclusive} is true)
+     * the provided value.
+     *
+     * @param histo the histogram to query
+     * @param value the value to estimate the rank for
+     * @param inclusive if true, counts values equal to the given value as well
+     * @return the number of elements less than (or less-or-equal, if {@code inclusive} is true) the given value
+     */
+    public static long estimateRank(ExponentialHistogram histo, double value, boolean inclusive) {
+        if (value >= 0) {
+            long rank = histo.negativeBuckets().valueCount();
+            if (value > 0 || inclusive) {
+                rank += histo.zeroBucket().count();
+            }
+            rank += estimateRank(histo.positiveBuckets().iterator(), value, inclusive, histo.max());
+            return rank;
+        } else {
+            long numValuesGreater = estimateRank(histo.negativeBuckets().iterator(), -value, inclusive == false, -histo.min());
+            return histo.negativeBuckets().valueCount() - numValuesGreater;
+        }
+    }
+
+    private static long estimateRank(BucketIterator buckets, double value, boolean inclusive, double maxValue) {
+        long rank = 0;
+        while (buckets.hasNext()) {
+            double bucketMidpoint = ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
+            bucketMidpoint = Math.min(bucketMidpoint, maxValue);
+            if (bucketMidpoint < value || (inclusive && bucketMidpoint == value)) {
+                rank += buckets.peekCount();
+                buckets.advance();
+            } else {
+                break;
+            }
+        }
+        return rank;
+    }
+
     private static double removeNegativeZero(double result) {
         return result == 0.0 ? 0.0 : result;
     }

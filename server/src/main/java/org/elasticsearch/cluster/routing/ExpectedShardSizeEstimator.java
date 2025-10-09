@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -21,6 +20,36 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import java.util.Set;
 
 public class ExpectedShardSizeEstimator {
+
+    public interface ShardSizeProvider {
+        /**
+         * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
+         */
+        Long getShardSize(ShardId shardId, boolean primary);
+
+        /**
+         * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
+         */
+        default Long getShardSize(ShardRouting shardRouting) {
+            return getShardSize(shardRouting.shardId(), shardRouting.primary());
+        }
+
+        /**
+         * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+         */
+        default long getShardSize(ShardRouting shardRouting, long defaultValue) {
+            final var shardSize = getShardSize(shardRouting);
+            return shardSize == null ? defaultValue : shardSize;
+        }
+
+        /**
+         * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+         */
+        default long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
+            final var shardSize = getShardSize(shardId, primary);
+            return shardSize == null ? defaultValue : shardSize;
+        }
+    }
 
     public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, RoutingAllocation allocation) {
         return shouldReserveSpaceForInitializingShard(shard, allocation.metadata());
@@ -69,7 +98,7 @@ public class ExpectedShardSizeEstimator {
     public static long getExpectedShardSize(
         ShardRouting shard,
         long defaultValue,
-        ClusterInfo clusterInfo,
+        ShardSizeProvider shardSizeProvider,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         ProjectMetadata projectMetadata,
         RoutingTable routingTable
@@ -79,15 +108,15 @@ public class ExpectedShardSizeEstimator {
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
-            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, projectMetadata, routingTable);
+            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, shardSizeProvider, projectMetadata, routingTable);
         } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
-            var shardSize = clusterInfo.getShardSize(shard.shardId(), shard.primary());
+            var shardSize = shardSizeProvider.getShardSize(shard.shardId(), shard.primary());
             if (shardSize == null && shard.primary() == false) {
                 // derive replica size from corresponding primary
-                shardSize = clusterInfo.getShardSize(shard.shardId(), true);
+                shardSize = shardSizeProvider.getShardSize(shard.shardId(), true);
             }
             return shardSize == null ? defaultValue : shardSize;
         }
@@ -97,7 +126,7 @@ public class ExpectedShardSizeEstimator {
         ShardRouting shard,
         long defaultValue,
         IndexMetadata indexMetadata,
-        ClusterInfo clusterInfo,
+        ShardSizeProvider shardSizeProvider,
         ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
@@ -120,7 +149,7 @@ public class ExpectedShardSizeEstimator {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 if (shardIds.contains(shardRoutingTable.shardId())) {
-                    targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
+                    targetShardSize += shardSizeProvider.getShardSize(shardRoutingTable.primaryShard(), 0);
                 }
             }
         }

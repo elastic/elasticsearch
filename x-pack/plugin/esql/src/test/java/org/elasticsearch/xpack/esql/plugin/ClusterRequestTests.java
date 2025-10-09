@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -44,7 +41,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterRequestTests extends AbstractWireSerializingTestCase<ClusterComputeRequest> {
 
@@ -152,23 +148,6 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             }
             default -> throw new AssertionError("invalid value");
         };
-    }
-
-    public void testFallbackIndicesOptions() throws Exception {
-        ClusterComputeRequest request = createTestInstance();
-        var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_14_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_16_0)
-        );
-        ClusterComputeRequest cloned = copyInstance(request, oldVersion);
-        assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
-        assertThat(cloned.sessionId(), equalTo(request.sessionId()));
-        RemoteClusterPlan plan = cloned.remoteClusterPlan();
-        assertThat(plan.targetIndices(), equalTo(request.remoteClusterPlan().targetIndices()));
-        OriginalIndices originalIndices = plan.originalIndices();
-        assertThat(originalIndices.indices(), equalTo(request.remoteClusterPlan().originalIndices().indices()));
-        assertThat(originalIndices.indicesOptions(), equalTo(SearchRequest.DEFAULT_INDICES_OPTIONS));
     }
 
     private static String randomQuery() {

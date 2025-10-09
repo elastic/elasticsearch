@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -57,6 +55,7 @@ public class Aggregate extends UnaryPlan
         "Aggregate",
         Aggregate::new
     );
+    private static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = TransportVersion.fromName("esql_remove_aggregate_type");
 
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
@@ -71,8 +70,7 @@ public class Aggregate extends UnaryPlan
 
     public Aggregate(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
-            && in.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             in.readString();
         }
         this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
@@ -83,8 +81,7 @@ public class Aggregate extends UnaryPlan
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
-            && out.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+        if (out.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             out.writeString("STANDARD");
         }
         out.writeNamedWriteableCollection(groupings);
@@ -245,16 +242,16 @@ public class Aggregate extends UnaryPlan
             // traverse the tree to find invalid matches
             checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
         });
-        if (anyMatch(l -> l instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES)) {
-            aggregates.forEach(a -> checkRateAggregates(a, 0, failures));
-        } else {
-            forEachExpression(
-                TimeSeriesAggregateFunction.class,
-                r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
-            );
-        }
+        checkTimeSeriesAggregates(failures);
         checkCategorizeGrouping(failures);
         checkMultipleScoreAggregations(failures);
+    }
+
+    protected void checkTimeSeriesAggregates(Failures failures) {
+        forEachExpression(
+            TimeSeriesAggregateFunction.class,
+            r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
+        );
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
@@ -353,22 +350,6 @@ public class Aggregate extends UnaryPlan
                 );
             }
         })));
-    }
-
-    private static void checkRateAggregates(Expression expr, int nestedLevel, Failures failures) {
-        if (expr instanceof AggregateFunction) {
-            nestedLevel++;
-        }
-        if (expr instanceof Rate r) {
-            if (nestedLevel != 2) {
-                failures.add(
-                    fail(expr, "the rate aggregate [{}] can only be used with the TS command and inside another aggregate", r.sourceText())
-                );
-            }
-        }
-        for (Expression child : expr.children()) {
-            checkRateAggregates(child, nestedLevel, failures);
-        }
     }
 
     // traverse the expression and look either for an agg function or a grouping match

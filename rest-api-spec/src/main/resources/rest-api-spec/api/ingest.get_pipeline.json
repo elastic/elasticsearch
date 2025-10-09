@@ -36,10 +36,12 @@
     "params": {
       "summary": {
         "type": "boolean",
+        "default": false,
         "description": "Return pipelines without their definitions (default: false)"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout for connection to master node"
       }
     }

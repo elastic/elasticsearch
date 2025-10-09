@@ -52,8 +52,8 @@
       },
       "emit_stacktraces": {
         "type": "boolean",
-        "description": "Emits stack traces of currently running watches",
-        "required": false
+        "default": false,
+        "description": "Emits stack traces of currently running watches"
       }
     }
   }

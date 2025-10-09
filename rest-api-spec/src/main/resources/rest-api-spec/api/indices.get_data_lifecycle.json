@@ -42,10 +42,12 @@
       },
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "Return all relevant default configurations for the data stream (default: false)"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       }
     }

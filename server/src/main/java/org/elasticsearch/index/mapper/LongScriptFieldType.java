@@ -109,7 +109,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        var fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
             blContext,
             NumberType.LONG,
             BlockLoader.BlockFactory::longs,

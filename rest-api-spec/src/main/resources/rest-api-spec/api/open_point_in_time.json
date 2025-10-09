@@ -41,6 +41,7 @@
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "expand_wildcards": {
@@ -62,12 +63,17 @@
       },
       "allow_partial_search_results": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether to tolerate shards missing when creating the point-in-time, or otherwise throw an exception. (default: false)"
       },
       "max_concurrent_shard_requests": {
         "type": "number",
         "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
         "default": 5
+      },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
     "body": {

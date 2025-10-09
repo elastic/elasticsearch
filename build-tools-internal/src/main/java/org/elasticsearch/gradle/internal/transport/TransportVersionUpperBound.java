@@ -23,7 +23,18 @@ record TransportVersionUpperBound(String name, String definitionName, TransportV
         int slashIndex = filename.lastIndexOf('/');
         String branch = filename.substring(slashIndex == -1 ? 0 : (slashIndex + 1), filename.length() - 4);
 
-        String[] parts = contents.split(",");
+        String idsLine = null;
+        // Regardless of whether windows newlines exist (they could be added by git), we split on line feed.
+        // All we care about skipping lines with the comment character, so the remaining \r won't matter
+        String[] lines = contents.split("\n");
+        for (String line : lines) {
+            line = line.strip();
+            if (line.startsWith("#") == false) {
+                idsLine = line;
+                break;
+            }
+        }
+        String[] parts = idsLine.split(",");
         if (parts.length != 2) {
             throw new IllegalStateException("Invalid transport version upper bound file [" + file + "]: " + contents);
         }

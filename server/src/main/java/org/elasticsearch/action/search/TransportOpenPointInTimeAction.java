@@ -94,7 +94,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ShardOpenReaderRequest::new,
             new ShardOpenReaderRequestHandler()
         );
-        TransportActionProxy.registerProxyAction(transportService, OPEN_SHARD_READER_CONTEXT_NAME, false, ShardOpenReaderResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            OPEN_SHARD_READER_CONTEXT_NAME,
+            false,
+            ShardOpenReaderResponse::new,
+            namedWriteableRegistry
+        );
     }
 
     @Override
@@ -121,7 +127,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .source(new SearchSourceBuilder().query(request.indexFilter()));
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
-        transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
+
+        transportSearchAction.executeOpenPit((SearchTask) task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
             return new OpenPointInTimeResponse(
                 r.pointInTimeId(),

@@ -40,10 +40,11 @@
       "cause": {
         "type": "string",
         "description": "User defined reason for creating/updating the index template",
-        "default": false
+        "default": "api"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       }
     },

@@ -26,7 +26,7 @@ public class UrlEncodeTests extends AbstractUrlEncodeDecodeTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return createParameters(true);
+        return createParameters(PercentCodecTestType.ENCODE);
     }
 
     @Override

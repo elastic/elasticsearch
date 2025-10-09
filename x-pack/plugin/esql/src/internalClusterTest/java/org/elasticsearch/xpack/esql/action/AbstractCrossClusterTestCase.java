@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -349,7 +350,11 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
         if (ccsMetadataInResponse != null) {
-            request.includeCCSMetadata(ccsMetadataInResponse);
+            if (randomBoolean()) {
+                request.includeExecutionMetadata(ccsMetadataInResponse);
+            } else {
+                request.includeCCSMetadata(ccsMetadataInResponse);
+            }
         }
         return runQuery(request);
     }
@@ -366,5 +371,9 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
             new ResourceNotFoundException("exchange sink was not found"),
             new EsRejectedExecutionException("node is shutting down")
         );
+    }
+
+    protected static String randomStats() {
+        return INLINE_STATS_SUPPORTS_REMOTE.isEnabled() ? randomFrom("STATS", "INLINE STATS") : "STATS";
     }
 }

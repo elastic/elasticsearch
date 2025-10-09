@@ -31,8 +31,8 @@ fi
 
 .ci/scripts/run-gradle.sh generateTransportVersion --backport-branches="${backport_branches}"
 
-if git diff --exit-code; then
-  echo "No changes found after updating transport versions. Don't need to auto commit."
+if git diff --quiet -- "server/src/main/resources/transport/**"; then
+  echo "No transport version changes found after update. Skipping auto commit."
   exit 0
 fi
 

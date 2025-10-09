@@ -44,14 +44,17 @@
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for connection to master node"
       },
       "include_yes_decisions": {
         "type": "boolean",
+        "default": false,
         "description": "Return 'YES' decisions in explanation (default: false)"
       },
       "include_disk_info": {
         "type": "boolean",
+        "default": false,
         "description": "Return information about disk usage and shard sizes (default: false)"
       }
     },

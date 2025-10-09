@@ -30,18 +30,22 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Ignore unavailable indexes (default: false)"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Ignore if a wildcard expression resolves to no concrete indices (default: false)"
       },
       "expand_wildcards": {

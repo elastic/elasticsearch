@@ -37,6 +37,7 @@
     "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout for connection to master node"
       },
       "wait_for_completion": {
@@ -47,7 +48,7 @@
       "storage": {
         "type": "string",
         "description": "Selects the kind of local storage used to accelerate searches. Experimental, and defaults to `full_copy`",
-        "default": false
+        "default": "full_copy"
       }
     },
     "body": {

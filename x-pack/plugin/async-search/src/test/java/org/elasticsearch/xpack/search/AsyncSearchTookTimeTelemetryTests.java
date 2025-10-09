@@ -11,6 +11,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -30,6 +32,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -57,8 +60,8 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(indexName).setId("2").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(indexName).setId("2").setSource("body", "foo", "@timestamp", "2024-12-01").setRefreshPolicy(IMMEDIATE).get();
     }
 
     @After
@@ -76,9 +79,10 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
      * a sync request given its execution will always be completed directly as submit async search returns.
      */
     public void testAsyncForegroundQuery() {
-        SubmitAsyncSearchRequest asyncSearchRequest = new SubmitAsyncSearchRequest(
-            new SearchSourceBuilder().query(simpleQueryStringQuery("foo"))
-        );
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SubmitAsyncSearchRequest asyncSearchRequest = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(boolQueryBuilder));
         asyncSearchRequest.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(5));
         asyncSearchRequest.setKeepOnCompletion(true);
         AsyncSearchResponse asyncSearchResponse = client().execute(SubmitAsyncSearchAction.INSTANCE, asyncSearchRequest).actionGet();
@@ -95,7 +99,8 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         }
         final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
         assertEquals(1, measurements.size());
-        assertEquals(tookInMillis, measurements.getFirst().getLong());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(tookInMillis, measurement.getLong());
 
         for (int i = 0; i < randomIntBetween(3, 10); i++) {
             AsyncSearchResponse asyncSearchResponse2 = client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id))
@@ -106,7 +111,8 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
                 asyncSearchResponse2.decRef();
             }
             assertEquals(1, measurements.size());
-            assertEquals(tookInMillis, measurements.getFirst().getLong());
+            assertEquals(tookInMillis, measurement.getLong());
+            assertAttributes(measurement.attributes());
         }
     }
 
@@ -116,9 +122,10 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
      * without any influence from get async search polling happening around the same async search request.
      */
     public void testAsyncBackgroundQuery() throws Exception {
-        SubmitAsyncSearchRequest asyncSearchRequest = new SubmitAsyncSearchRequest(
-            new SearchSourceBuilder().query(simpleQueryStringQuery("foo"))
-        );
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        boolQueryBuilder.must(simpleQueryStringQuery("foo"));
+        SubmitAsyncSearchRequest asyncSearchRequest = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(boolQueryBuilder));
         asyncSearchRequest.setWaitForCompletionTimeout(TimeValue.ZERO);
         AsyncSearchResponse asyncSearchResponse = client().execute(SubmitAsyncSearchAction.INSTANCE, asyncSearchRequest).actionGet();
         String id;
@@ -142,7 +149,9 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             SearchResponse searchResponse = asyncSearchResponse2.getSearchResponse();
             try {
                 assertSearchHits(searchResponse, "1", "2");
-                assertEquals(searchResponse.getTook().millis(), measurements.getFirst().getLong());
+                Measurement measurement = measurements.getFirst();
+                assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+                assertAttributes(measurement.attributes());
             } finally {
                 asyncSearchResponse2.decRef();
             }
@@ -151,5 +160,14 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {
         return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().getFirst();
+    }
+
+    private static void assertAttributes(Map<String, Object> attributes) {
+        assertEquals(5, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("_score", attributes.get("sort"));
+        assertEquals("@timestamp", attributes.get("time_range_filter_field"));
+        assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
     }
 }

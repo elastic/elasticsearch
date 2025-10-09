@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -38,6 +39,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
+    private static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = TransportVersion.fromName("field_caps_add_cluster_alias");
+
     private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -54,6 +57,14 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
      * in the response if required.
      */
     private transient boolean includeIndices = false;
+
+    /**
+     * Controls whether all local indices should be returned if no remotes matched
+     * See {@link org.elasticsearch.transport.RemoteClusterService#groupIndices} returnLocalAll argument.
+     * This flag is only used locally on the coordinating node for index grouping and does not need to be serialized.
+     */
+    private transient boolean returnLocalAll = true;
+
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -77,8 +88,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+        if (in.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             clusterAlias = in.readOptionalString();
         } else {
             clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -132,8 +142,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+        if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             out.writeOptionalString(clusterAlias);
         }
     }
@@ -214,6 +223,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
+    public FieldCapabilitiesRequest returnLocalAll(boolean returnLocalAll) {
+        this.returnLocalAll = returnLocalAll;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -240,6 +254,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     public boolean includeIndices() {
         return includeIndices;
+    }
+
+    public boolean returnLocalAll() {
+        return returnLocalAll;
     }
 
     public boolean includeEmptyFields() {
@@ -270,7 +288,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this.runtimeFields;
     }
 
-    Long nowInMillis() {
+    public Long nowInMillis() {
         return nowInMillis;
     }
 

@@ -13,7 +13,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -42,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -774,7 +772,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void provideAdditionalMetadata(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -782,8 +780,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
@@ -826,7 +824,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void provideAdditionalMetadata(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -834,8 +832,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override");
                 }
@@ -870,7 +868,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void provideAdditionalMetadata(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -878,8 +876,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
@@ -914,7 +912,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
-                public void provideAdditionalMetadata(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -922,8 +920,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
@@ -959,7 +957,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public void provideAdditionalMetadata(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
@@ -967,8 +965,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings,
-                    Settings.Builder additionalSettings,
-                    BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
@@ -1704,7 +1702,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
 
-            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            var expectRefreshBlock = 0 < nbReplicas;
             assertThat(updatedClusterState.blocks().indices(projectId), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
             assertThat(
                 updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
@@ -1738,10 +1736,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .build(),
             minTransportVersion
         );
-        assertThat(
-            blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
-            is(isStateless && useRefreshBlock && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
-        );
+        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
     }
 
     public void testSetPrivateSettingsFails() throws Exception {
@@ -1788,7 +1783,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 indicesService,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(10, 1000), clusterService),
                 newEnvironment(),
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,
@@ -1819,7 +1814,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 indicesService,
                 null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                createTestShardLimitService(randomIntBetween(10, 1000), clusterService),
                 newEnvironment(),
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,
@@ -1935,8 +1930,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            ImmutableOpenMap.builder()
+            indexSettingProviders
         );
     }
 }

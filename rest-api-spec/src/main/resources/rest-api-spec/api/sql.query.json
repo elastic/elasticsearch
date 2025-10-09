@@ -29,6 +29,10 @@
       "format": {
         "type": "string",
         "description": "a short version of the Accept header, e.g. json, yaml"
+      },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
     "body": {

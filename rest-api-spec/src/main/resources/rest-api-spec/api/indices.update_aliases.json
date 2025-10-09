@@ -27,10 +27,12 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Request timeout"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       }
     },

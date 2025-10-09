@@ -30,12 +30,12 @@
     "params": {
       "wait_for_completion": {
         "type": "boolean",
-        "required": false,
+        "default": false,
         "description": "True if the API should block until the job has fully stopped, false if should be executed async. Defaults to false."
       },
       "timeout": {
         "type": "time",
-        "required": false,
+        "default": "30s",
         "description": "Block for (at maximum) the specified duration while waiting for the job to stop.  Defaults to 30s."
       }
     }

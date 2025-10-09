@@ -34,12 +34,12 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
-        "required": false,
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no deployments. (This includes `_all` string or when no deployments have been specified)"
       },
       "force": {
         "type": "boolean",
-        "required": false,
+        "default": false,
         "description": "True if the deployment should be forcefully stopped"
       }
     },

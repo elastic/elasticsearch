@@ -41,7 +41,7 @@
     "params": {
       "timeout": {
         "type": "time",
-        "required": false,
+        "default": "30s",
         "description": "Controls the time to wait for the preview"
       }
     },

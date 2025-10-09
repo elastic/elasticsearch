@@ -34,7 +34,6 @@
     "params": {
       "timeout": {
         "type": "time",
-        "required": false,
         "description": "Controls the amount of time to wait for inference results.",
         "default": "10s"
       }

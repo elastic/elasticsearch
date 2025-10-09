@@ -24,14 +24,17 @@
     "params": {
       "flat_settings": {
         "type": "boolean",
+        "default": false,
         "description": "Return settings in flat format (default: false)"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "include_defaults": {

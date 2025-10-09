@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,6 +46,8 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     );
 
     public static final String EMBEDDING_TYPE = "embedding_type";
+
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return switch (context) {
@@ -227,13 +228,12 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
-            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+        return version.supports(VOYAGE_AI_INTEGRATION_ADDED);
     }
 
     @Override

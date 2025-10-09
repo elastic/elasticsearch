@@ -65,18 +65,19 @@ public final class DateTruncDateNanosEvaluator implements EvalOperator.Expressio
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(DateTrunc.processDateNanos(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), this.rounding));
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        result.appendLong(DateTrunc.processDateNanos(fieldVal, this.rounding));
       }
       return result.build();
     }
@@ -85,7 +86,8 @@ public final class DateTruncDateNanosEvaluator implements EvalOperator.Expressio
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateTrunc.processDateNanos(fieldValVector.getLong(p), this.rounding));
+        long fieldVal = fieldValVector.getLong(p);
+        result.appendLong(p, DateTrunc.processDateNanos(fieldVal, this.rounding));
       }
       return result.build();
     }

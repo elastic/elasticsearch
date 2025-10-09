@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
@@ -33,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -52,7 +51,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
-public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression, PostOptimizationVerificationAware {
+public class Top extends AggregateFunction
+    implements
+        OptionalArgument,
+        ToAggregator,
+        SurrogateExpression,
+        PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
 
     private static final String ORDER_ASC = "ASC";
@@ -73,12 +77,13 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
         @Param(
+            optional = true,
             name = "order",
             type = { "keyword" },
-            description = "The order to calculate the top values. Either `asc` or `desc`."
+            description = "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         ) Expression order
     ) {
-        this(source, field, Literal.TRUE, limit, order);
+        this(source, field, Literal.TRUE, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order);
     }
 
     public Top(Source source, Expression field, Expression filter, Expression limit, Expression order) {
@@ -89,19 +94,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         super(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : asList(in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class))
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
-    }
-
-    @Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        List<? extends Expression> params = parameters();
-        assert params.size() == 2;
-        out.writeNamedWriteable(params.get(0));
-        out.writeNamedWriteable(params.get(1));
     }
 
     @Override
@@ -289,9 +284,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         var s = source();
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1) {
             if (orderValue()) {
-                return new Min(s, field());
+                return new Min(s, field(), filter());
             } else {
-                return new Max(s, field());
+                return new Max(s, field(), filter());
             }
         }
         return null;

@@ -185,7 +185,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.translogUUID = translogUUID;
         this.bytesRecycler = config.getBytesRecycler();
         this.headerRecycler = bytesRecycler.requestRecyclerForPageSize(512);
-//        this.headerRecycler = new SimplePool(config.getIndexSettings().getSettings());
+        // this.headerRecycler = new SimplePool(config.getIndexSettings().getSettings());
         this.diskIoBufferPool = config.getDiskIoBufferPool();
         var rwl = new ReentrantReadWriteLock();
         this.readLock = rwl.readLock();

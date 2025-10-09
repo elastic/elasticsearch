@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -110,10 +111,13 @@ public final class AnalyzerRules {
             return matches;
         }
 
-        // Multiple matches (non-pattern). Do NOT throw here.
-        // Let Analyzer decide whether this is a real ambiguity (e.g., qualifiers exist but name is unqualified).
-        matches.replaceAll(fieldInspector::apply);
-        return matches;
+        // report ambiguity
+        List<String> refs = matches.stream().sorted((a, b) -> {
+            int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
+            int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
+            return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
+        }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
+        throw new VerificationException("Found ambiguous reference to [" + ua.name() + "]; " + "matches any of " + refs);
 
     }
 }

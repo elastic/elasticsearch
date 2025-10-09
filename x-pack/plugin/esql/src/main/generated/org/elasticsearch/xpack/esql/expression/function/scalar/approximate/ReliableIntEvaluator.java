@@ -28,21 +28,32 @@ public final class ReliableIntEvaluator implements EvalOperator.ExpressionEvalua
 
   private final EvalOperator.ExpressionEvaluator estimatesBlock;
 
+  private final EvalOperator.ExpressionEvaluator trialCountBlock;
+
+  private final EvalOperator.ExpressionEvaluator bucketCountBlock;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public ReliableIntEvaluator(Source source, EvalOperator.ExpressionEvaluator estimatesBlock,
-      DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator trialCountBlock,
+      EvalOperator.ExpressionEvaluator bucketCountBlock, DriverContext driverContext) {
     this.source = source;
     this.estimatesBlock = estimatesBlock;
+    this.trialCountBlock = trialCountBlock;
+    this.bucketCountBlock = bucketCountBlock;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (IntBlock estimatesBlockBlock = (IntBlock) estimatesBlock.eval(page)) {
-      return eval(page.getPositionCount(), estimatesBlockBlock);
+      try (IntBlock trialCountBlockBlock = (IntBlock) trialCountBlock.eval(page)) {
+        try (IntBlock bucketCountBlockBlock = (IntBlock) bucketCountBlock.eval(page)) {
+          return eval(page.getPositionCount(), estimatesBlockBlock, trialCountBlockBlock, bucketCountBlockBlock);
+        }
+      }
     }
   }
 
@@ -50,21 +61,30 @@ public final class ReliableIntEvaluator implements EvalOperator.ExpressionEvalua
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += estimatesBlock.baseRamBytesUsed();
+    baseRamBytesUsed += trialCountBlock.baseRamBytesUsed();
+    baseRamBytesUsed += bucketCountBlock.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, IntBlock estimatesBlockBlock) {
+  public BooleanBlock eval(int positionCount, IntBlock estimatesBlockBlock,
+      IntBlock trialCountBlockBlock, IntBlock bucketCountBlockBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!estimatesBlockBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (!trialCountBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (!bucketCountBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        Reliable.process(result, p, estimatesBlockBlock);
+        Reliable.process(result, p, estimatesBlockBlock, trialCountBlockBlock, bucketCountBlockBlock);
       }
       return result.build();
     }
@@ -72,12 +92,12 @@ public final class ReliableIntEvaluator implements EvalOperator.ExpressionEvalua
 
   @Override
   public String toString() {
-    return "ReliableIntEvaluator[" + "estimatesBlock=" + estimatesBlock + "]";
+    return "ReliableIntEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(estimatesBlock);
+    Releasables.closeExpectNoException(estimatesBlock, trialCountBlock, bucketCountBlock);
   }
 
   private Warnings warnings() {
@@ -97,19 +117,27 @@ public final class ReliableIntEvaluator implements EvalOperator.ExpressionEvalua
 
     private final EvalOperator.ExpressionEvaluator.Factory estimatesBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory estimatesBlock) {
+    private final EvalOperator.ExpressionEvaluator.Factory trialCountBlock;
+
+    private final EvalOperator.ExpressionEvaluator.Factory bucketCountBlock;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory estimatesBlock,
+        EvalOperator.ExpressionEvaluator.Factory trialCountBlock,
+        EvalOperator.ExpressionEvaluator.Factory bucketCountBlock) {
       this.source = source;
       this.estimatesBlock = estimatesBlock;
+      this.trialCountBlock = trialCountBlock;
+      this.bucketCountBlock = bucketCountBlock;
     }
 
     @Override
     public ReliableIntEvaluator get(DriverContext context) {
-      return new ReliableIntEvaluator(source, estimatesBlock.get(context), context);
+      return new ReliableIntEvaluator(source, estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ReliableIntEvaluator[" + "estimatesBlock=" + estimatesBlock + "]";
+      return "ReliableIntEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
     }
   }
 }

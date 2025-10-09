@@ -120,7 +120,6 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.BaseElasticsearchInternalService.notElasticsearchModelException;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.ELASTIC_RERANKER_CHUNKING;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
@@ -1011,12 +1010,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
     }
 
-    public void testInfer_ElasticRerankerFeatureFlagDisabledSucceedsWithTruncateConfiguration() {
-        assumeTrue(
-            "Only if 'elastic_reranker_chunking_long_documents' feature flag is disabled",
-            ELASTIC_RERANKER_CHUNKING.isEnabled() == false
-        );
-
+    public void testInfer_SucceedsWithTruncateLongDocumentStrategy() {
         var model = new ElasticRerankerModel(
             randomAlphaOfLength(10),
             TaskType.RERANK,
@@ -1031,46 +1025,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
     }
 
-    public void testInfer_ElasticRerankerFeatureFlagDisabledSucceedsIgnoringChunkConfiguration() {
-        assumeTrue(
-            "Only if 'elastic_reranker_chunking_long_documents' feature flag is disabled",
-            ELASTIC_RERANKER_CHUNKING.isEnabled() == false
-        );
-
-        var model = new ElasticRerankerModel(
-            randomAlphaOfLength(10),
-            TaskType.RERANK,
-            NAME,
-            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
-                ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK,
-                randomBoolean() ? randomIntBetween(1, 10) : null
-            ),
-            new RerankTaskSettings(randomBoolean())
-        );
-
-        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
-    }
-
-    public void testInfer_ElasticRerankerFeatureFlagEnabledAndSucceedsWithTruncateStrategy() {
-        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
-
-        var model = new ElasticRerankerModel(
-            randomAlphaOfLength(10),
-            TaskType.RERANK,
-            NAME,
-            ElasticRerankerServiceSettingsTests.createRandomWithChunkingConfiguration(
-                ElasticRerankerServiceSettings.LongDocumentStrategy.TRUNCATE,
-                null
-            ),
-            new RerankTaskSettings(randomBoolean())
-        );
-
-        testInfer_ElasticReranker(model, generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100)));
-    }
-
-    public void testInfer_ElasticRerankerFeatureFlagEnabledAndSucceedsWithChunkStrategy() {
-        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
-
+    public void testInfer_SucceedsWithChunkLongDocumentStrategy() {
         var model = new ElasticRerankerModel(
             randomAlphaOfLength(10),
             TaskType.RERANK,
@@ -1090,8 +1045,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var query = randomAlphaOfLength(10);
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
         var numResults = inputs.size();
-        if (ELASTIC_RERANKER_CHUNKING.isEnabled()
-            && ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(model.getServiceSettings().getLongDocumentStrategy())) {
+        if (ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(model.getServiceSettings().getLongDocumentStrategy())) {
             var rerankRequestChunker = new RerankRequestChunker(query, inputs, model.getServiceSettings().getMaxChunksPerDoc());
             numResults = rerankRequestChunker.getChunkedInputs().size();
         }

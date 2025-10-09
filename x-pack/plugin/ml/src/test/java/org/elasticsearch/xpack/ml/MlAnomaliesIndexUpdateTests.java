@@ -61,7 +61,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     }
 
     public void testIsAbleToRun_IndicesHaveNoRouting() {
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(".ml-anomalies-shared");
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(".ml-anomalies-shared-000001");
         indexMetadata.settings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())

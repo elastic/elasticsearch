@@ -56,7 +56,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                 cs,
                 resolver,
                 true,
-                ".ml-anomalies-shared",
+                ".ml-anomalies-shared-000001",
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 MlMetaIndex.indexName(),
                 MlConfigIndex.indexName()
@@ -69,7 +69,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             resolver.concreteIndexNames(
                 cs,
                 IndicesOptions.lenientExpandOpen(),
-                ".ml-anomalies-shared",
+                ".ml-anomalies-shared-000001",
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 MlMetaIndex.indexName(),
                 MlConfigIndex.indexName()
@@ -100,7 +100,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             csBuilder.build(),
             resolver,
             true,
-            ".ml-anomalies-shared",
+            ".ml-anomalies-shared-000001",
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlMetaIndex.indexName(),
             MlConfigIndex.indexName()

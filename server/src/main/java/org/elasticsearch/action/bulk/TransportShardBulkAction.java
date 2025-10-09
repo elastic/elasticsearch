@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -74,8 +73,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ObjLongConsumer;
@@ -169,12 +166,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
-        // TODO Needed right now for not in primary mode on the target. Need to make sure we handle that with retries.
-//        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
-        ClusterState clusterState = clusterService.state();
-        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-
-        return ShardBulkSplitHelper.splitRequests(request, project);
+        return ShardBulkSplitHelper.splitRequests(request, projectResolver.getProjectMetadata(clusterService.state()));
     }
 
     @Override

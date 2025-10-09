@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.rules.QueryRule;
@@ -17,8 +16,6 @@ import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class ListQueryRulesetsActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<

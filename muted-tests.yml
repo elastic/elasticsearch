@@ -630,6 +630,9 @@ tests:
 - class: org.elasticsearch.health.node.ShardsCapacityHealthIndicatorServiceStatelessTests
   method: testIndicatorYieldsGreenInCaseThereIsRoom
   issue: https://github.com/elastic/elasticsearch/issues/136303
+- class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
+  method: testIsLoadedOnSlice
+  issue: https://github.com/elastic/elasticsearch/issues/136331
 
 # Examples:
 #

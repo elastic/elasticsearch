@@ -84,10 +84,10 @@ public class TopNOperator implements Operator, Accountable {
         RefCounted shardRefCounter;
 
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
             this.breaker = breaker;
             boolean success = false;
             try {
-                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
                 keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
                 values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
@@ -684,8 +684,12 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
-            Releasables.close(Releasables.wrap(this), () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount)));
-
+            Releasables.close(
+                // Release all entries in the topn
+                Releasables.wrap(this),
+                // Release the array itself
+                () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
+            );
         }
 
         public static long sizeOf(int topCount) {

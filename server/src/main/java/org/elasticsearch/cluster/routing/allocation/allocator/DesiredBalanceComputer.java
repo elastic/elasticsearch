@@ -291,7 +291,25 @@ public class DesiredBalanceComputer {
         while ((commands = pendingDesiredBalanceMoves.poll()) != null) {
             for (MoveAllocationCommand command : commands) {
                 try {
-                    command.execute(routingAllocation, false);
+                    final var rerouteExplanation = command.execute(routingAllocation, false);
+                    assert rerouteExplanation.decisions().type() != Decision.Type.NO : "should have thrown for NO decision";
+                    if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
+                        final ShardRouting[] initializingShards = routingNodes.node(
+                            routingAllocation.nodes().resolveNode(command.toNode()).getId()
+                        ).initializing();
+                        assert initializingShards.length == 1
+                            : "expect exactly one relocating shard, but got: " + List.of(initializingShards);
+                        final var initializingShard = initializingShards[0];
+                        assert routingAllocation.nodes()
+                            .resolveNode(command.fromNode())
+                            .getId()
+                            .equals(initializingShard.relocatingNodeId())
+                            : initializingShard
+                                + " has unexpected relocation source node, expect node "
+                                + routingAllocation.nodes().resolveNode(command.fromNode());
+                        clusterInfoSimulator.simulateShardStarted(initializingShard);
+                        routingNodes.startShard(initializingShard, changes, 0L);
+                    }
                 } catch (RuntimeException e) {
                     logger.debug(
                         () -> "move shard ["

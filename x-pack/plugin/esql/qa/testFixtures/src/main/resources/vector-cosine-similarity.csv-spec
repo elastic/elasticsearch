@@ -41,17 +41,17 @@ gray           | 0.9082483053207397
  | keep color, score
  ;
 
-color:text   | score:double
-cyan         | 1.5
-teal         | 1.5
-turquoise    | 1.495
-aqua marine  | 1.482
-azure        | 1.458
-lavender     | 1.457
-honeydew     | 1.456
-mint cream   | 1.456
-gainsboro    | 1.454
-gray         | 1.454  
+color:text  | score:double
+cyan        | 1.5
+teal        | 1.5
+turquoise   | 1.489
+aqua marine | 1.465
+azure       | 1.416
+lavender    | 1.414
+honeydew    | 1.412
+mint cream  | 1.412
+gainsboro   | 1.408
+gray        | 1.408
 ;
 
 similarityWithLiteralVectors
@@ -64,7 +64,7 @@ row a = 1
 ;
 
 similarity:double
-0.978  
+0.956
 ;
 
  similarityWithStats
@@ -78,7 +78,7 @@ similarity:double
  ;
 
 avg:double | min:double | max:double
-0.832      | 0.5        | 1.0
+0.664      | 0.0        | 1.0
 ; 
 
 similarityWithNull
@@ -104,8 +104,8 @@ row vector = to_dense_vector([1, 2, 3])
 | eval similarity = round(v_cosine(vector, [0, 1, 2]), 3) 
 ;
 
-vector: dense_vector | similarity:double
-[1.0, 2.0, 3.0]      | 0.978  
+vector:dense_vector | similarity:double
+[1.0, 2.0, 3.0]     | 0.956
 ;
 
 similarityWithVectorField
@@ -122,15 +122,15 @@ from colors
 | keep color, similarity
 ;
 
-color:text     | similarity:double
-cyan           | 1.0
-teal           | 1.0
-turquoise      | 0.9890533685684204
-aqua marine    | 0.964962363243103
-azure          | 0.916246771812439
-lavender       | 0.9136701822280884
-mint cream     | 0.9122757911682129
-honeydew       | 0.9122424125671387
-gainsboro      | 0.9082483053207397
-gray           | 0.9082483053207397  
+color:text  | similarity:double
+cyan        | 1.0
+teal        | 1.0
+turquoise   | 0.9781067967414856
+aqua marine | 0.929924726486206
+azure       | 0.8324936032295227
+lavender    | 0.827340304851532
+mint cream  | 0.8245516419410706
+honeydew    | 0.8244848847389221
+gainsboro   | 0.8164966106414795
+gray        | 0.8164966106414795
 ;

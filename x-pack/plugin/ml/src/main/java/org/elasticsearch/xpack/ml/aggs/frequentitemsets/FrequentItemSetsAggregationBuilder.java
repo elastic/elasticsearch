@@ -171,11 +171,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         } else {
             this.filter = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.executionHint = in.readOptionalString();
-        } else {
-            this.executionHint = null;
-        }
+        this.executionHint = in.readOptionalString();
     }
 
     @Override
@@ -202,9 +198,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             out.writeOptionalNamedWriteable(filter);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalString(executionHint);
-        }
+        out.writeOptionalString(executionHint);
     }
 
     @Override

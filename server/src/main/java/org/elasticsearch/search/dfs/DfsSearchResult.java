@@ -54,12 +54,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
-        } else {
-            DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
-            knnResults = results != null ? List.of(results) : List.of();
-        }
+        knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
@@ -132,20 +127,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalCollection(knnResults);
-        } else {
-            if (knnResults != null && knnResults.size() > 1) {
-                throw new IllegalArgumentException(
-                    "Cannot serialize multiple KNN results to nodes using previous transport version ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "], minimum required transport version is ["
-                        + TransportVersions.V_8_7_0.toReleaseVersion()
-                        + "]"
-                );
-            }
-            out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
-        }
+        out.writeOptionalCollection(knnResults);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }

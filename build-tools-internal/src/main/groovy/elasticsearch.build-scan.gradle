@@ -9,9 +9,9 @@
 
 
 import org.elasticsearch.gradle.OS
-
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
+import org.elasticsearch.gradle.Architecture
 
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 

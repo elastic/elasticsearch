@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +36,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Writes a text embedding result in the follow json format
+ * Writes a dense embedding result in the follow json format
+ * <pre>
  * {
  *     "text_embedding": [
  *         {
@@ -51,17 +52,21 @@ import java.util.stream.Collectors;
  *         }
  *     ]
  * }
+ * </pre>
  */
-public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingFloatResults.Embedding> {
+public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
+    implements
+        DenseEmbeddingResults<DenseEmbeddingFloatResults.Embedding> {
+    // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
-    public TextEmbeddingFloatResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(TextEmbeddingFloatResults.Embedding::new));
+    public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(DenseEmbeddingFloatResults.Embedding::new));
     }
 
     @SuppressWarnings("deprecation")
-    TextEmbeddingFloatResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
+    DenseEmbeddingFloatResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
         this(
             legacyTextEmbeddingResults.embeddings()
                 .stream()
@@ -70,11 +75,11 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
         );
     }
 
-    public static TextEmbeddingFloatResults of(List<? extends InferenceResults> results) {
+    public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
         List<Embedding> embeddings = new ArrayList<>(results.size());
         for (InferenceResults result : results) {
-            if (result instanceof MlTextEmbeddingResults embeddingResult) {
-                embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingResult));
+            if (result instanceof MlDenseEmbeddingResults embeddingResult) {
+                embeddings.add(DenseEmbeddingFloatResults.Embedding.of(embeddingResult));
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
@@ -87,11 +92,15 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
                 }
             } else {
                 throw new IllegalArgumentException(
-                    "Received invalid inference result, of type " + result.getClass().getName() + " but expected TextEmbeddingResults."
+                    "Received invalid inference result, of type "
+                        + result.getClass().getName()
+                        + " but expected "
+                        + MlDenseEmbeddingResults.class.getName()
+                        + "."
                 );
             }
         }
-        return new TextEmbeddingFloatResults(embeddings);
+        return new DenseEmbeddingFloatResults(embeddings);
     }
 
     @Override
@@ -119,7 +128,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return embeddings.stream().map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING, embedding.asDoubleArray(), false)).toList();
+        return embeddings.stream().map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING, embedding.asDoubleArray(), false)).toList();
     }
 
     public Map<String, Object> asMap() {
@@ -133,7 +142,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingFloatResults that = (TextEmbeddingFloatResults) o;
+        DenseEmbeddingFloatResults that = (DenseEmbeddingFloatResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 
@@ -159,7 +168,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
             this(in.readFloatArray());
         }
 
-        public static Embedding of(MlTextEmbeddingResults embeddingResult) {
+        public static Embedding of(MlDenseEmbeddingResults embeddingResult) {
             float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
             return new Embedding(embeddingAsArray);
         }

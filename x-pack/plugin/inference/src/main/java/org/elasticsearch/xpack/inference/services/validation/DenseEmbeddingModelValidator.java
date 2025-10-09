@@ -16,14 +16,14 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 
-public class TextEmbeddingModelValidator implements ModelValidator {
+public class DenseEmbeddingModelValidator implements ModelValidator {
 
     private final ServiceIntegrationValidator serviceIntegrationValidator;
 
-    public TextEmbeddingModelValidator(ServiceIntegrationValidator serviceIntegrationValidator) {
+    public DenseEmbeddingModelValidator(ServiceIntegrationValidator serviceIntegrationValidator) {
         this.serviceIntegrationValidator = serviceIntegrationValidator;
     }
 
@@ -35,7 +35,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
     }
 
     private Model postValidate(InferenceService service, Model model, InferenceServiceResults results) {
-        if (results instanceof TextEmbeddingResults<?> embeddingResults) {
+        if (results instanceof DenseEmbeddingResults<?> embeddingResults) {
             var serviceSettings = model.getServiceSettings();
             var dimensions = serviceSettings.dimensions();
             int embeddingSize = getEmbeddingSize(embeddingResults);
@@ -60,7 +60,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
             throw new ElasticsearchStatusException(
                 "Validation call did not return expected results type."
                     + "Expected a result of type ["
-                    + TextEmbeddingFloatResults.NAME
+                    + DenseEmbeddingFloatResults.NAME
                     + "] got ["
                     + (results == null ? "null" : results.getWriteableName())
                     + "]",
@@ -69,7 +69,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
         }
     }
 
-    private int getEmbeddingSize(TextEmbeddingResults<?> embeddingResults) {
+    private int getEmbeddingSize(DenseEmbeddingResults<?> embeddingResults) {
         int embeddingSize;
         try {
             embeddingSize = embeddingResults.getFirstEmbeddingSize();

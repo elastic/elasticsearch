@@ -539,7 +539,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     );
                 }
 
-                return openaiResults.transformToTextEmbeddingResults();
+                return openaiResults.transformToDenseEmbeddingResults();
             } else if (parsedResults.get(0) instanceof TextExpansionResults) {
                 return transformToSparseEmbeddingResult(parsedResults);
             } else {

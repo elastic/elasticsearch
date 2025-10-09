@@ -27,6 +27,7 @@ import java.util.Objects;
 
 /**
  * Writes a text embedding result in the following json format
+ * <pre>
  * {
  *     "text_embedding": [
  *         {
@@ -41,10 +42,10 @@ import java.util.Objects;
  *         }
  *     ]
  * }
- *
+ *</pre>
  * Legacy text embedding results represents what was returned prior to the
  * {@link org.elasticsearch.TransportVersions#V_8_12_0} version.
- * @deprecated use {@link TextEmbeddingFloatResults} instead
+ * @deprecated use {@link DenseEmbeddingFloatResults} instead
  */
 @Deprecated
 public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements InferenceResults {
@@ -114,8 +115,8 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
         return Objects.hash(embeddings);
     }
 
-    public TextEmbeddingFloatResults transformToTextEmbeddingResults() {
-        return new TextEmbeddingFloatResults(this);
+    public DenseEmbeddingFloatResults transformToDenseEmbeddingResults() {
+        return new DenseEmbeddingFloatResults(this);
     }
 
     public record Embedding(float[] values) implements Writeable, ToXContentObject {

@@ -47,6 +47,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * @param gatekeeperOptions, applies to all the resolved indices and defines if throttled will be included and if certain type of
  *                        aliases or indices are allowed, or they will throw an error. It acts as a gatekeeper when an action
  *                        does not support certain options.
+ * @param crossProjectModeOptions, applies to all the indices and adds logic specific for cross-project search. These options are
+ *                                 internal-only and can change over the lifetime of a single request.
  */
 public record IndicesOptions(
     ConcreteTargetOptions concreteTargetOptions,

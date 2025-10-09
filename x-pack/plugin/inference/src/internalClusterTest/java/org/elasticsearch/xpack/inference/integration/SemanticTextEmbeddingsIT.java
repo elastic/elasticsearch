@@ -16,7 +16,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
@@ -24,6 +27,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,18 +46,19 @@ import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT;
-import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 5)
@@ -89,18 +95,7 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
 
     @After
     public void cleanUp() {
-        assertAcked(
-            safeGet(
-                client().admin()
-                    .indices()
-                    .prepareDelete(indexName)
-                    .setIndicesOptions(
-                        IndicesOptions.builder().concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true)).build()
-                    )
-                    .execute()
-            )
-        );
-
+        deleteIndex(indexName);
         for (var entry : inferenceIds.entrySet()) {
             assertAcked(
                 safeGet(
@@ -113,15 +108,20 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
         }
     }
 
-    public void testSourceDisabledAndIncludeVectors() throws Exception {
-        // Get a random index version after when we default to the new semantic text format, and before we exclude vectors in source by
-        // default
-        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT,
-            IndexVersionUtils.getPreviousVersion(EXCLUDE_SOURCE_VECTORS_DEFAULT)
-        );
+    public void testExcludeInferenceFieldsFromSource() throws Exception {
+        excludeInferenceFieldsFromSourceTestCase(IndexVersion.current(), IndexVersion.current(), 10);
+    }
 
+    public void testExcludeInferenceFieldsFromSourceOldIndexVersions() throws Exception {
+        excludeInferenceFieldsFromSourceTestCase(
+            IndexVersions.SEMANTIC_TEXT_FIELD_TYPE,
+            IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
+            40
+        );
+    }
+
+    private void excludeInferenceFieldsFromSourceTestCase(IndexVersion minIndexVersion, IndexVersion maxIndexVersion, int iterations)
+        throws Exception {
         final String sparseEmbeddingInferenceId = randomIdentifier();
         final String textEmbeddingInferenceId = randomIdentifier();
         createInferenceEndpoint(TaskType.SPARSE_EMBEDDING, sparseEmbeddingInferenceId, SPARSE_EMBEDDING_SERVICE_SETTINGS);
@@ -129,45 +129,43 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
 
         final String sparseEmbeddingField = randomIdentifier();
         final String textEmbeddingField = randomIdentifier();
-        XContentBuilder mappings = generateMapping(
-            Map.of(sparseEmbeddingField, sparseEmbeddingInferenceId, textEmbeddingField, textEmbeddingInferenceId)
-        );
 
-        assertAcked(prepareCreate(indexName).setSettings(generateIndexSettings(indexVersion)).setMapping(mappings));
-        indexDocuments(sparseEmbeddingField, 10);
-        indexDocuments(textEmbeddingField, 10);
+        for (int i = 0; i < iterations; i++) {
+            final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
+            final Settings indexSettings = generateRandomIndexSettings(indexVersion);
+            XContentBuilder mappings = generateMapping(
+                Map.of(sparseEmbeddingField, sparseEmbeddingInferenceId, textEmbeddingField, textEmbeddingInferenceId)
+            );
+            assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mappings));
 
-        QueryBuilder sparseEmbeddingFieldQuery = new SemanticQueryBuilder(sparseEmbeddingField, randomAlphaOfLength(10));
-        assertSearchResponse(
-            sparseEmbeddingFieldQuery,
-            10,
-            request -> request.source().fetchSource(false).fetchField(sparseEmbeddingField),
-            response -> {
+            final int docCount = randomIntBetween(10, 50);
+            indexDocuments(sparseEmbeddingField, docCount);
+            indexDocuments(textEmbeddingField, docCount);
+
+            QueryBuilder sparseEmbeddingFieldQuery = new SemanticQueryBuilder(sparseEmbeddingField, randomAlphaOfLength(10));
+            assertSearchResponse(sparseEmbeddingFieldQuery, indexSettings, docCount, request -> {
+                request.source().fetchSource(generateRandomFetchSourceContext()).fetchField(sparseEmbeddingField);
+            }, response -> {
                 for (SearchHit hit : response.getHits()) {
-                    assertThat(hit.getSourceAsMap(), nullValue());
-
                     Map<String, DocumentField> documentFields = hit.getDocumentFields();
                     assertThat(documentFields.size(), is(1));
                     assertThat(documentFields.containsKey(sparseEmbeddingField), is(true));
                 }
-            }
-        );
+            });
 
-        QueryBuilder textEmbeddingFieldQuery = new SemanticQueryBuilder(textEmbeddingField, randomAlphaOfLength(10));
-        assertSearchResponse(
-            textEmbeddingFieldQuery,
-            10,
-            request -> request.source().fetchSource(false).fetchField(textEmbeddingField),
-            response -> {
+            QueryBuilder textEmbeddingFieldQuery = new SemanticQueryBuilder(textEmbeddingField, randomAlphaOfLength(10));
+            assertSearchResponse(textEmbeddingFieldQuery, indexSettings, docCount, request -> {
+                request.source().fetchSource(generateRandomFetchSourceContext()).fetchField(textEmbeddingField);
+            }, response -> {
                 for (SearchHit hit : response.getHits()) {
-                    assertThat(hit.getSourceAsMap(), nullValue());
-
                     Map<String, DocumentField> documentFields = hit.getDocumentFields();
                     assertThat(documentFields.size(), is(1));
                     assertThat(documentFields.containsKey(textEmbeddingField), is(true));
                 }
-            }
-        );
+            });
+
+            deleteIndex(indexName);
+        }
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
@@ -200,13 +198,18 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
         inferenceIds.put(inferenceId, taskType);
     }
 
-    private Settings generateIndexSettings(IndexVersion indexVersion) {
+    private Settings generateRandomIndexSettings(IndexVersion indexVersion) {
         int numDataNodes = internalCluster().numDataNodes();
-        return Settings.builder()
+        Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numDataNodes)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+
+        if (randomBoolean()) {
+            settings.put(INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), randomBoolean());
+        }
+
+        return settings.build();
     }
 
     private void indexDocuments(String field, int count) {
@@ -221,20 +224,114 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
 
     private void assertSearchResponse(
         QueryBuilder queryBuilder,
-        long expectedHits,
-        Consumer<SearchRequest> searchRequestModifier,
-        Consumer<SearchResponse> searchResponseValidator
+        Settings indexSettings,
+        int expectedHits,
+        @Nullable Consumer<SearchRequest> searchRequestModifier,
+        @Nullable Consumer<SearchResponse> searchResponseValidator
     ) throws Exception {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedHits);
         SearchRequest searchRequest = new SearchRequest(new String[] { indexName }, searchSourceBuilder);
         if (searchRequestModifier != null) {
             searchRequestModifier.accept(searchRequest);
         }
 
+        ExpectedSource expectedSource = getExpectedSource(indexSettings, searchRequest.source().fetchSource());
         assertResponse(client().search(searchRequest), response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(expectedHits));
-            searchResponseValidator.accept(response);
+            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) expectedHits));
+
+            for (SearchHit hit : response.getHits()) {
+                switch (expectedSource) {
+                    case NONE -> assertThat(hit.getSourceAsMap(), nullValue());
+                    case INFERENCE_FIELDS_EXCLUDED -> {
+                        Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                        assertThat(sourceAsMap, notNullValue());
+                        assertThat(sourceAsMap.containsKey(InferenceMetadataFieldsMapper.NAME), is(false));
+                    }
+                    case INFERENCE_FIELDS_INCLUDED -> {
+                        Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                        assertThat(sourceAsMap, notNullValue());
+                        assertThat(sourceAsMap.containsKey(InferenceMetadataFieldsMapper.NAME), is(true));
+                    }
+                }
+            }
+
+            if (searchResponseValidator != null) {
+                searchResponseValidator.accept(response);
+            }
         });
+    }
+
+    private static ExpectedSource getExpectedSource(Settings indexSettings, FetchSourceContext fetchSourceContext) {
+        if (fetchSourceContext != null && fetchSourceContext.fetchSource() == false) {
+            return ExpectedSource.NONE;
+        } else if (InferenceMetadataFieldsMapper.isEnabled(indexSettings) == false) {
+            return ExpectedSource.INFERENCE_FIELDS_EXCLUDED;
+        }
+
+        if (fetchSourceContext != null) {
+            SourceFilter filter = fetchSourceContext.filter();
+            if (filter != null) {
+                if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
+                    return ExpectedSource.INFERENCE_FIELDS_EXCLUDED;
+                } else if (filter.getIncludes().length > 0) {
+                    return Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME)
+                        ? ExpectedSource.INFERENCE_FIELDS_INCLUDED
+                        : ExpectedSource.INFERENCE_FIELDS_EXCLUDED;
+                }
+            }
+
+            Boolean excludeInferenceFieldsExplicit = fetchSourceContext.excludeInferenceFields();
+            if (excludeInferenceFieldsExplicit != null) {
+                return excludeInferenceFieldsExplicit ? ExpectedSource.INFERENCE_FIELDS_EXCLUDED : ExpectedSource.INFERENCE_FIELDS_INCLUDED;
+            }
+        }
+
+        if (INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(indexSettings)) {
+            return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings)
+                ? ExpectedSource.INFERENCE_FIELDS_EXCLUDED
+                : ExpectedSource.INFERENCE_FIELDS_INCLUDED;
+        }
+
+        return ExpectedSource.INFERENCE_FIELDS_EXCLUDED;
+    }
+
+    private static FetchSourceContext generateRandomFetchSourceContext() {
+        FetchSourceContext fetchSourceContext = switch (randomIntBetween(0, 4)) {
+            case 0 -> FetchSourceContext.FETCH_SOURCE;
+            case 1 -> FetchSourceContext.FETCH_ALL_SOURCE;
+            case 2 -> FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS;
+            case 3 -> FetchSourceContext.DO_NOT_FETCH_SOURCE;
+            case 4 -> null;
+            default -> throw new IllegalStateException("Unhandled randomized case");
+        };
+
+        if (fetchSourceContext != null && fetchSourceContext.fetchSource()) {
+            String[] includes = null;
+            String[] excludes = null;
+            if (randomBoolean()) {
+                // Randomly include a non-existent field to test explicit inclusion handling
+                String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                includes = new String[] { field };
+            }
+            if (randomBoolean()) {
+                // Randomly exclude a non-existent field to test implicit inclusion handling
+                String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                excludes = new String[] { field };
+            }
+
+            if (includes != null || excludes != null) {
+                fetchSourceContext = FetchSourceContext.of(
+                    fetchSourceContext.fetchSource(),
+                    fetchSourceContext.excludeVectors(),
+                    fetchSourceContext.excludeInferenceFields(),
+                    includes,
+                    excludes
+                );
+            }
+        }
+
+        return fetchSourceContext;
     }
 
     private static XContentBuilder generateMapping(Map<String, String> semanticTextFields) throws IOException {
@@ -248,6 +345,26 @@ public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
         mapping.endObject().endObject();
 
         return mapping;
+    }
+
+    private static void deleteIndex(String indexName) {
+        assertAcked(
+            safeGet(
+                client().admin()
+                    .indices()
+                    .prepareDelete(indexName)
+                    .setIndicesOptions(
+                        IndicesOptions.builder().concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true)).build()
+                    )
+                    .execute()
+            )
+        );
+    }
+
+    private enum ExpectedSource {
+        NONE,
+        INFERENCE_FIELDS_EXCLUDED,
+        INFERENCE_FIELDS_INCLUDED
     }
 
     public static class FakeMlPlugin extends Plugin {

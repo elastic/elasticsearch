@@ -57,14 +57,14 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  *
  * The request flow looks as follows:
  *
- *                     -------------> Execute request immediately.
+ *                     -------------> Add request to fast-path request queue.
  *                     |
  *                     |
  *              request NOT supporting
  *                 rate limiting
  *                     |
  *                     |
- * Request ---> [-Request Queue-]
+ * Request ------------|
  *                     |
  *                     |
  *              request supporting
@@ -264,35 +264,27 @@ public class RequestExecutorService implements RequestExecutor {
     private void processRequestQueue() {
         try {
             while (isShutdown() == false) {
-                // Blocks the request queue thread until a new task comes in
                 var task = requestQueue.take();
 
                 if (task == NoopTask) {
                     if (isShutdown()) {
                         logger.debug("Shutdown requested, exiting request queue processing");
                         break;
-                    } else {
-                        // Skip processing NoopTask
-                        continue;
                     }
+
+                    // Skip processing NoopTask
+                    continue;
                 }
 
                 if (isShutdown()) {
                     logger.debug("Shutdown requested while handling request tasks, cleaning up");
                     rejectRequest(task);
-                } else {
-                    RequestTask requestTask = (RequestTask) task;
-                    var requestManager = requestTask.getRequestManager();
-
-                    if (rateLimitingEnabled(requestManager.rateLimitSettings())) {
-                        submitTaskToRateLimitedExecutionPath(requestTask);
-                    } else {
-                        executeTaskImmediately(requestTask);
-                    }
+                    break;
                 }
+
+                executeTaskImmediately((RequestTask) task);
             }
         } catch (InterruptedException e) {
-            // Restore interrupt to propagate to the calling thread
             Thread.currentThread().interrupt();
             logger.debug("Inference request queue interrupted, exiting");
         } catch (Exception e) {
@@ -475,15 +467,19 @@ public class RequestExecutorService implements RequestExecutor {
             return;
         }
 
-        boolean taskAccepted = requestQueue.offer(task);
+        if (rateLimitingEnabled(requestManager.rateLimitSettings())) {
+            submitTaskToRateLimitedExecutionPath(task);
+        } else {
+            boolean taskAccepted = requestQueue.offer(task);
 
-        if (taskAccepted == false) {
-            task.onRejection(
-                new EsRejectedExecutionException(
-                    format("Failed to enqueue request task for inference id [%s]", requestManager.inferenceEntityId()),
-                    false
-                )
-            );
+            if (taskAccepted == false) {
+                task.onRejection(
+                    new EsRejectedExecutionException(
+                        format("Failed to enqueue request task for inference id [%s]", requestManager.inferenceEntityId()),
+                        false
+                    )
+                );
+            }
         }
     }
 

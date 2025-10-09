@@ -431,7 +431,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("Failed to enqueue request task for inference id [id]"));
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to execute task for inference id [id] because the request service [3355] queue is full")
+        );
 
         settings.setQueueCapacity(2);
 
@@ -542,7 +545,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("Failed to enqueue request task for inference id [id]"));
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to execute task for inference id [id] because the request service [3355] queue is full")
+        );
 
         settings.setQueueCapacity(0);
 

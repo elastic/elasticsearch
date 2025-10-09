@@ -39,6 +39,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,7 +78,8 @@ public class KnnIndexTester {
     enum IndexType {
         HNSW,
         FLAT,
-        IVF
+        IVF,
+        GPU_HNSW
     }
 
     enum MergePolicyType {
@@ -90,6 +93,8 @@ public class KnnIndexTester {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
+        } else if (args.indexType() == IndexType.GPU_HNSW) {
+            suffix.add("gpu_hnsw");
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
@@ -107,6 +112,16 @@ public class KnnIndexTester {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
             format = new ES920DiskBBQVectorsFormat(args.ivfClusterSize(), ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
+        } else if (args.indexType() == IndexType.GPU_HNSW) {
+            if (args.quantizeBits() == 32) {
+                format = new ES92GpuHnswVectorsFormat();
+            } else if (args.quantizeBits() == 7) {
+                format = new ES92GpuHnswSQVectorsFormat();
+            } else {
+                throw new IllegalArgumentException(
+                    "GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + args.quantizeBits()
+                );
+            }
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {
@@ -225,7 +240,9 @@ public class KnnIndexTester {
                     cmdLineArgs.dimensions(),
                     cmdLineArgs.vectorSpace(),
                     cmdLineArgs.numDocs(),
-                    mergePolicy
+                    mergePolicy,
+                    cmdLineArgs.writerBufferSizeInMb(),
+                    cmdLineArgs.writerMaxBufferedDocs()
                 );
                 if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
@@ -286,7 +303,14 @@ public class KnnIndexTester {
                 return "No results available.";
             }
 
-            String[] indexingHeaders = { "index_name", "index_type", "num_docs", "index_time(ms)", "force_merge_time(ms)", "num_segments" };
+            String[] indexingHeaders = {
+                "index_name",
+                "index_type",
+                "num_docs",
+                "doc_add_time(ms)",
+                "total_index_time(ms)",
+                "force_merge_time(ms)",
+                "num_segments" };
 
             // Define column headers
             String[] searchHeaders = {
@@ -312,6 +336,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
                     Integer.toString(indexResult.numSegments) };
@@ -394,6 +419,7 @@ public class KnnIndexTester {
 
     static class Results {
         final String indexType, indexName;
+        public long docAddTimeMS;
         int numDocs;
         final float filterSelectivity;
         long indexTimeMS;

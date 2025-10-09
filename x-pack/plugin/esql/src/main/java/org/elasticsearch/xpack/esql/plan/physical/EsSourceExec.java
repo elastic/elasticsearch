@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
@@ -24,8 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsSourceExec extends LeafExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -64,14 +61,8 @@ public class EsSourceExec extends LeafExec {
         var source = Source.readFrom((PlanStreamInput) in);
         String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            indexPattern = in.readString();
-            indexNameWithModes = in.readMap(IndexMode::readFrom);
-        } else {
-            var index = EsIndex.readFrom(in);
-            indexPattern = index.name();
-            indexNameWithModes = index.indexNameWithModes();
-        }
+        indexPattern = in.readString();
+        indexNameWithModes = in.readMap(IndexMode::readFrom);
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
         var indexMode = IndexMode.fromString(in.readString());
@@ -81,12 +72,8 @@ public class EsSourceExec extends LeafExec {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            out.writeString(indexPattern);
-            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
-        } else {
-            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
-        }
+        out.writeString(indexPattern);
+        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
         out.writeString(indexMode().getName());

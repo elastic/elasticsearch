@@ -546,11 +546,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                allowCustomRouting = in.readBoolean();
-            } else {
-                allowCustomRouting = false;
-            }
+            allowCustomRouting = in.readBoolean();
             if (in.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
                 // Accidentally included index_mode to binary node to node protocol in previous releases.
                 // (index_mode is removed and was part of code based when tsdb was behind a feature flag)
@@ -558,10 +554,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
-            }
-            if (in.getTransportVersion()
-                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-                in.readBoolean();
             }
         }
 
@@ -594,17 +586,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeBoolean(allowCustomRouting);
-            }
+            out.writeBoolean(allowCustomRouting);
             if (out.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
                 // See comment in constructor.
-                out.writeBoolean(false);
-            }
-            if (out.getTransportVersion()
-                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-                // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
-                // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
                 out.writeBoolean(false);
             }
         }

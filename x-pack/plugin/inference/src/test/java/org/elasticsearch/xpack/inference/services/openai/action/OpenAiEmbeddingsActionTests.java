@@ -86,7 +86,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {

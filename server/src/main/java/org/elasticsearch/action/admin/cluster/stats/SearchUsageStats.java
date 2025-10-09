@@ -51,7 +51,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = new HashMap<>();
         this.rescorers = new HashMap<>();
         this.retrievers = new HashMap<>();
-        this.extendedSearchUsageStats = ExtendedSearchUsageStats.EMPTY;
+        this.extendedSearchUsageStats = new ExtendedSearchUsageStats();
     }
 
     /**

@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class IndicesServiceBuilder {
@@ -66,7 +67,7 @@ public class IndicesServiceBuilder {
     IndexScopedSettings indexScopedSettings;
     CircuitBreakerService circuitBreakerService;
     BigArrays bigArrays;
-    VariableRecycler bytesRecycler;
+    Supplier<VariableRecycler> bytesRecycler;
     ScriptService scriptService;
     ClusterService clusterService;
     ProjectResolver projectResolver;
@@ -168,7 +169,7 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder bytesRecycler(VariableRecycler bytesRecycler) {
+    public IndicesServiceBuilder bytesRecycler(Supplier<VariableRecycler> bytesRecycler) {
         this.bytesRecycler = bytesRecycler;
         return this;
     }

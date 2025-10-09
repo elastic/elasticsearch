@@ -245,7 +245,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new RecyclerBytesStreamOutput(bytesRecycler);
+                buffer = new RecyclerBytesStreamOutput(bytesRecycler.requestRecyclerForPageSize(256 * 1024));
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;

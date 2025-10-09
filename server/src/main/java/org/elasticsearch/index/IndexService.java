@@ -163,7 +163,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     @Nullable
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final BigArrays bigArrays;
-    private final VariableRecycler bytesRecycler;
+    private final Supplier<VariableRecycler> bytesRecycler;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
@@ -189,7 +189,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         EngineFactory engineFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
-        VariableRecycler bytesRecycler,
+        Supplier<VariableRecycler> bytesRecycler,
         ThreadPool threadPool,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
@@ -585,7 +585,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 threadPool,
                 threadPoolMergeExecutorService,
                 bigArrays,
-                bytesRecycler,
+                bytesRecycler.get(),
                 engineWarmer,
                 searchOperationListeners,
                 indexingOperationListeners,
@@ -867,7 +867,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public VariableRecycler getBytesRecycler() {
-        return bytesRecycler;
+        return bytesRecycler.get();
     }
 
     /**

@@ -188,6 +188,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -244,7 +245,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
-    private final VariableRecycler bytesRecycler;
+    private final Supplier<VariableRecycler> bytesRecycler;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;

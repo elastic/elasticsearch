@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
@@ -126,6 +127,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
     private final VariableRecycler bytesRecycler;
+    private final Recycler<BytesRef> headerRecycler;
     private final DiskIoBufferPool diskIoBufferPool;
     protected final Lock readLock;
     protected final Lock writeLock;
@@ -182,6 +184,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         this.bytesRecycler = config.getBytesRecycler();
+        this.headerRecycler = bytesRecycler.requestRecyclerForPageSize(2048);
         this.diskIoBufferPool = config.getDiskIoBufferPool();
         var rwl = new ReentrantReadWriteLock();
         this.readLock = rwl.readLock();

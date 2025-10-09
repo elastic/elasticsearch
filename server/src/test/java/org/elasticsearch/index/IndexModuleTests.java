@@ -234,7 +234,7 @@ public class IndexModuleTests extends ESTestCase {
             deleter,
             circuitBreakerService,
             bigArrays,
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            () -> BytesRefRecycler.NON_RECYCLING_INSTANCE,
             threadPool,
             threadPoolMergeExecutorService,
             scriptService,

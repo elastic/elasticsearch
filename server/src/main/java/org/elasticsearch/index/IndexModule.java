@@ -83,6 +83,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -484,7 +485,7 @@ public final class IndexModule {
         IndexService.ShardStoreDeleter shardStoreDeleter,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
-        VariableRecycler bytesRecycler,
+        Supplier<VariableRecycler> bytesRecycler,
         ThreadPool threadPool,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,

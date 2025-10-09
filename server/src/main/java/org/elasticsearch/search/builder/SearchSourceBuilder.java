@@ -277,6 +277,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
+        knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }

@@ -240,7 +240,9 @@ public class KnnIndexTester {
                     cmdLineArgs.dimensions(),
                     cmdLineArgs.vectorSpace(),
                     cmdLineArgs.numDocs(),
-                    mergePolicy
+                    mergePolicy,
+                    cmdLineArgs.writerBufferSizeInMb(),
+                    cmdLineArgs.writerMaxBufferedDocs()
                 );
                 if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
@@ -301,7 +303,14 @@ public class KnnIndexTester {
                 return "No results available.";
             }
 
-            String[] indexingHeaders = { "index_name", "index_type", "num_docs", "index_time(ms)", "force_merge_time(ms)", "num_segments" };
+            String[] indexingHeaders = {
+                "index_name",
+                "index_type",
+                "num_docs",
+                "doc_add_time(ms)",
+                "total_index_time(ms)",
+                "force_merge_time(ms)",
+                "num_segments" };
 
             // Define column headers
             String[] searchHeaders = {
@@ -327,6 +336,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
                     Integer.toString(indexResult.numSegments) };
@@ -409,6 +419,7 @@ public class KnnIndexTester {
 
     static class Results {
         final String indexType, indexName;
+        public long docAddTimeMS;
         int numDocs;
         final float filterSelectivity;
         long indexTimeMS;

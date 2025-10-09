@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.util;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import org.gradle.api.artifacts.ArtifactView;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvableDependencies;

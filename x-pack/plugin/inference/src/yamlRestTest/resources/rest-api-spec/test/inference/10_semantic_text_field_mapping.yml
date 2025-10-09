@@ -1603,6 +1603,154 @@ setup:
               inference_id: dense-inference-id
 
 ---
+"Updating inference_id given dense endpoints with different dimensions should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 8,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Cannot merge \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+
+---
+"Updating inference_id given dense endpoints with different similarity should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "l2_norm",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Cannot merge \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+
+---
+"Updating inference_id given dense endpoints with different element_type should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "element_type": "byte",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Cannot merge \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+
+---
 "Updating inference_id to compatible endpoint should succeed given model settings":
   - requires:
       cluster_features: "semantic_text.updatable_inference_id"
@@ -1630,7 +1778,7 @@ setup:
         inference_id: sparse-inference-id-2
         body: >
           {
-            "service": "test_service_2",
+            "service": "alternate_sparse_embedding_test_service",
             "service_settings": {
               "model": "my_model",
               "api_key": "abc64"
@@ -1653,7 +1801,7 @@ setup:
         index: test-index
   - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
   - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id-2 }
-  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service_2 }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": alternate_sparse_embedding_test_service }
 
   # We index another doc to later check inference fields new updated endpoint
   - do:
@@ -1676,8 +1824,8 @@ setup:
             exclude_vectors: false
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
-  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: test_service_2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
   - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
   - match: { hits.hits.1._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
-  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.model_settings.service: test_service_2 }
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
   - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings

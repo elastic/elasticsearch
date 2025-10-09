@@ -627,6 +627,29 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
     }
 
+    public void testUpdateInferenceId_GivenCurrentHasSparseModelSettingsAndNewSetsDefault() throws IOException {
+        String fieldName = randomAlphaOfLengthBetween(5, 15);
+        String oldInferenceId = "old_inference_id";
+        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.sparseEmbedding("previous_service");
+        givenModelSettings(oldInferenceId, previousModelSettings);
+        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
+
+        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+
+        MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
+        givenModelSettings(DEFAULT_ELSER_2_INFERENCE_ID, newModelSettings);
+        merge(
+            mapperService,
+            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").endObject())
+        );
+
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+        SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
+        assertThat(semanticFieldMapper.fieldType().getModelSettings(), equalTo(newModelSettings));
+    }
+
     public void testUpdateInferenceId_GivenCurrentHasSparseModelSettingsAndNewIsIncompatibleTaskType() throws IOException {
         String fieldName = randomAlphaOfLengthBetween(5, 15);
         String oldInferenceId = "old_inference_id";
@@ -779,6 +802,47 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 DenseVectorFieldMapper.ElementType.BYTE
             ),
             MinimalServiceSettings.textEmbedding("new_service", 48, SimilarityMeasure.L2_NORM, DenseVectorFieldMapper.ElementType.BIT)
+        );
+    }
+
+    public void testUpdateInferenceId_CurrentHasDenseModelSettingsAndNewSetsDefault_ShouldFailAsDefaultIsSparse() throws IOException {
+        String fieldName = randomAlphaOfLengthBetween(5, 15);
+        String oldInferenceId = "old_inference_id";
+        MinimalServiceSettings previousModelSettings = MinimalServiceSettings.textEmbedding(
+            "previous_service",
+            48,
+            SimilarityMeasure.L2_NORM,
+            DenseVectorFieldMapper.ElementType.BIT
+        );
+        givenModelSettings(oldInferenceId, previousModelSettings);
+        MapperService mapperService = mapperServiceForFieldWithModelSettings(fieldName, oldInferenceId, previousModelSettings);
+
+        assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
+        assertSemanticTextField(mapperService, fieldName, true, null, null);
+
+        MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
+        givenModelSettings(DEFAULT_ELSER_2_INFERENCE_ID, newModelSettings);
+
+        Exception exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, mapping(b -> b.startObject(fieldName).field("type", "semantic_text").endObject()))
+        );
+
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "Cannot merge [semantic_text] field ["
+                    + fieldName
+                    + "] because inference endpoint ["
+                    + oldInferenceId
+                    + "] with model settings ["
+                    + previousModelSettings
+                    + "] is not compatible with new inference endpoint ["
+                    + DEFAULT_ELSER_2_INFERENCE_ID
+                    + "] with model settings ["
+                    + newModelSettings
+                    + "]"
+            )
         );
     }
 

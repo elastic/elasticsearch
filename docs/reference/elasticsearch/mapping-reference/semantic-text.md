@@ -157,7 +157,6 @@ You can update the inference endpoint if no values have been indexed or if the n
 
 ::::{warning}
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces the correct embeddings for your use case. This typically means using the same underlying model.
-
 ::::
 
 :::

@@ -48,7 +48,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        return List.of(TestInferenceService::new, TestInferenceService2::new);
+        return List.of(TestInferenceService::new, TestAlternateSparseInferenceService::new);
     }
 
     public static class TestSparseModel extends Model {
@@ -74,10 +74,10 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     /**
      * A second sparse service allows testing updates from one service to another.
      */
-    public static class TestInferenceService2 extends AbstractSparseTestInferenceService {
-        public static final String NAME = "test_service_2";
+    public static class TestAlternateSparseInferenceService extends AbstractSparseTestInferenceService {
+        public static final String NAME = "alternate_sparse_embedding_test_service";
 
-        public TestInferenceService2(InferenceServiceFactoryContext inferenceServiceFactoryContext) {}
+        public TestAlternateSparseInferenceService(InferenceServiceFactoryContext inferenceServiceFactoryContext) {}
 
         @Override
         protected String testServiceName() {

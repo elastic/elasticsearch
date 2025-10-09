@@ -1085,27 +1085,36 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         }
 
         // We receive a shard mappings update from node 0
-        service.updateShardsMappingSize(new HeapMemoryUsage(2, randomMemoryMetrics(node0, clusterState1)));
+        final var node0MetricsUpdate = randomMemoryMetrics(node0, clusterState1);
+        final var node0PostingsSize = node0MetricsUpdate.values().stream().mapToLong(ShardMappingSize::postingsInMemoryBytes).sum();
+        service.updateShardsMappingSize(new HeapMemoryUsage(2, node0MetricsUpdate));
 
         // Node 0 heap estimate should have increased
         // Note that hollow shards can reduce the initial estimate, but we don't test this here
-        final long node0EstimateAfterUpdate;
+        long node0EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             node0EstimateAfterUpdate = perNodeMemoryMetrics.get(node0.getId());
             assertThat(node0EstimateAfterUpdate, greaterThan(node0EstimateBeforeUpdate));
-            assertThat(perNodeMemoryMetrics.get(node1.getId()), equalTo(node1EstimateBeforeUpdate));
+            // PostingsMemorySize is the max across all nodes, so node1's estimate should have increased by that amount
+            assertThat(perNodeMemoryMetrics.get(node1.getId()), equalTo(node1EstimateBeforeUpdate + node0PostingsSize));
         }
 
         // We receive a shard mappings update from node 1
-        service.updateShardsMappingSize(new HeapMemoryUsage(1, randomMemoryMetrics(node1, clusterState1)));
+        final var node1MetricsUpdate = randomMemoryMetrics(node1, clusterState1);
+        final var node1PostingsSize = node1MetricsUpdate.values().stream().mapToLong(ShardMappingSize::postingsInMemoryBytes).sum();
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, node1MetricsUpdate));
 
         // Node 1 heap estimate should have increased
         final long node1EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+            // PostingsMemorySize is the max across all nodes so that node0's estimate can increase if node1 has larger postings size
+            if (node0PostingsSize < node1PostingsSize) {
+                node0EstimateAfterUpdate += node1PostingsSize - node0PostingsSize;
+            }
             assertThat(perNodeMemoryMetrics.get(node0.getId()), equalTo(node0EstimateAfterUpdate));
             node1EstimateAfterUpdate = perNodeMemoryMetrics.get(node1.getId());
             assertThat(node1EstimateAfterUpdate, greaterThan(node1EstimateBeforeUpdate));

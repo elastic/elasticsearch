@@ -35,11 +35,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Confi
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Reliable;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -99,9 +100,10 @@ import java.util.stream.Collectors;
  * {@link Approximate#approximatePlan}.
  * <p>
  * In addition to approximate results, confidence intervals are also computed.
- * This is done by dividing the sampled rows in {@link Approximate#BUCKET_COUNT}
- * buckets, computing the aggregate functions for each bucket, and using these
- * sampled values to compute confidence intervals.
+ * This is done by dividing the sampled rows {@link Approximate#TRIAL_COUNT}
+ * times into {@link Approximate#BUCKET_COUNT} buckets, computing the aggregate
+ * functions for each bucket, and using these sampled values to compute
+ * confidence intervals.
  * <p>
  * To obtain an appropriate sample probability, first a target number of rows
  * is set. For now this is a fixed number ({@link Approximate#SAMPLE_ROW_COUNT}).
@@ -209,6 +211,11 @@ public class Approximate {
 
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 100000;
+
+    /**
+     * The number of times (trials) the sampled rows are divided into buckets.
+     */
+    private static final int TRIAL_COUNT = 3;
 
     /**
      * The number of buckets to use for computing confidence intervals.
@@ -413,12 +420,12 @@ public class Approximate {
      *     <li> Source command
      *     <li> {@code SAMPLE} with the provided sample probability
      *     <li> All commands before the {@code STATS} command
-     *     <li> {@code EVAL} adding a new column with a random bucket ID
+     *     <li> {@code EVAL} adding a new column with a random bucket ID for each trial
      *     <li> {@code STATS} command with:
      *          <ul>
      *              <li> Each aggregate function replaced by a sample-corrected version (if needed)
-     *              <li> {@link Approximate#BUCKET_COUNT} additional columns with a sampled values
-     *                   for each aggregate function, sample-corrected (if needed)
+     *              <li> {@link Approximate#TRIAL_COUNT} * {@link Approximate#BUCKET_COUNT} additional columns
+     *                   with a sampled values for each aggregate function, sample-corrected (if needed)
      *          </ul>
      *     <li> A filter to remove rows with empty buckets
      *     <li> All commands after the {@code STATS} command, modified to also process
@@ -436,17 +443,22 @@ public class Approximate {
      *             | EVAL s2 = s*s
      *     }
      * </pre>
-     * is rewritten to:
+     * is rewritten to (prob=sampleProbability, T=trialCount, B=bucketCount):
      * <pre>
      *     {@code
      *         FROM index
      *             | SAMPLE prob
      *             | EVAL x = 2*x
-     *             | STATS s = SUM(x)/prob, `s$bucket:0` = SUM(x) / (prob/B)), ..., `s$bucket:B-1` = SUM(x) / (prob/B) BY group
-     *             | WHERE `s$bucket:0` IS NOT NULL AND ... AND `s$bucket:B-1` IS NOT NULL
-     *             | EVAL t = s*s, `t$bucket:0` = `s$bucket:0`*`s$bucket:0`, ..., `t$bucket:B-1` = `s$bucket:B-1`*`s$bucket:B-1`
-     *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$bucket:0`, ... `s$bucket:B-1`)),
-     *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$bucket:0`, ... `t$bucket:B-1`))
+     *             | EVAL bucketId = MV_APPEND(RANDOM(B), ... , RANDOM(B))  // T times
+     *             | STATS s = SUM(x) / prob,
+     *                     `s$0` = SUM(x) / (prob/B)) WHERE MV_SLICE(bucketId, 0, 0) == 0
+     *                     ...,
+     *                     `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
+     *               BY group
+     *             | WHERE `s$0` IS NOT NULL AND ... AND `s$T*B-1` IS NOT NULL
+     *             | EVAL t = s*s, `t$0` = `s$0`*`s$0`, ..., `t$T*B-1` = `s$T*B-1`*`s$T*B-1`
+     *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.95),
+     *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.95)
      *             | KEEP s, t, `CONFIDENCE_INTERVAL(s)`, `CONFIDENCE_INTERVAL(t)`
      *     }
      * </pre>
@@ -471,11 +483,15 @@ public class Approximate {
                 // to compute confidence intervals.
                 encounteredStats.set(true);
 
-                Alias bucketIdField = new Alias(
-                    Source.EMPTY,
-                    "$bucket_id",
-                    new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
-                );
+                Expression bucketIds = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
+                for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
+                    bucketIds = new MvAppend(
+                        Source.EMPTY,
+                        bucketIds,
+                        new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
+                    );
+                }
+                Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
 
                 List<NamedExpression> aggregates = new ArrayList<>();
                 // Ensure that all buckets are non-empty, because empty buckets
@@ -498,26 +514,37 @@ public class Approximate {
                         // values, that will be used to compute a confidence interval.
                         // For multivalued aggregations, confidence intervals do not make sense.
                         List<Alias> buckets = new ArrayList<>();
-                        for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
-                            Alias bucket = new Alias(
-                                Source.EMPTY,
-                                aggOrKey.name() + "$bucket:" + bucketId,
-                                correctForSampling(
-                                    aggFn.withFilter(
-                                        new MvContains(Source.EMPTY, bucketIdField.toAttribute(), Literal.integer(Source.EMPTY, bucketId))
-                                    ),
-                                    sampleProbability / BUCKET_COUNT
-                                )
-                            );
-                            buckets.add(bucket);
-                            aggregates.add(bucket);
-                            allBucketsNonEmpty = new And(
-                                Source.EMPTY,
-                                allBucketsNonEmpty,
-                                aggFn instanceof Count
-                                    ? new NotEquals(Source.EMPTY, bucket.toAttribute(), Literal.integer(Source.EMPTY, 0))
-                                    : new IsNotNull(Source.EMPTY, bucket.toAttribute())
-                            );
+                        for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
+                            for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
+                                Alias bucket = new Alias(
+                                    Source.EMPTY,
+                                    aggOrKey.name() + "$" + (trialId * BUCKET_COUNT + bucketId),
+                                    correctForSampling(
+                                        aggFn.withFilter(
+                                            new Equals(
+                                                Source.EMPTY,
+                                                new MvSlice(
+                                                    Source.EMPTY,
+                                                    bucketIdField.toAttribute(),
+                                                    Literal.integer(Source.EMPTY, trialId),
+                                                    Literal.integer(Source.EMPTY, trialId)
+                                                ),
+                                                Literal.integer(Source.EMPTY, bucketId)
+                                            )
+                                        ),
+                                        sampleProbability / BUCKET_COUNT
+                                    )
+                                );
+                                buckets.add(bucket);
+                                aggregates.add(bucket);
+                                allBucketsNonEmpty = new And(
+                                    Source.EMPTY,
+                                    allBucketsNonEmpty,
+                                    aggFn instanceof Count
+                                        ? new NotEquals(Source.EMPTY, bucket.toAttribute(), Literal.integer(Source.EMPTY, 0))
+                                        : new IsNotNull(Source.EMPTY, bucket.toAttribute())
+                                );
+                            }
                         }
                         fieldBuckets.put(aggOrKey.id(), buckets);
                     }
@@ -549,7 +576,7 @@ public class Approximate {
                             // If any of the field's dependencies has buckets, create buckets for this field as well.
                             if (field.child().anyMatch(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()))) {
                                 List<Alias> buckets = new ArrayList<>();
-                                for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
+                                for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
                                     final int finalBucketId = bucketId;
                                     Expression bucket = field.child()
                                         .transformDown(
@@ -557,7 +584,7 @@ public class Approximate {
                                                 ? fieldBuckets.get(ne.id()).get(finalBucketId).toAttribute()
                                                 : e
                                         );
-                                    buckets.add(new Alias(Source.EMPTY, field.name() + "$bucket:" + bucketId, bucket));
+                                    buckets.add(new Alias(Source.EMPTY, field.name() + "$" + bucketId, bucket));
                                 }
                                 fields.addAll(buckets);
                                 fieldBuckets.put(field.id(), buckets);
@@ -583,6 +610,10 @@ public class Approximate {
             return plan;
         });
 
+        Expression trialCount = Literal.integer(Source.EMPTY, TRIAL_COUNT);
+        Expression bucketCount = Literal.integer(Source.EMPTY, BUCKET_COUNT);
+        Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, 0.95);
+
         // Compute the confidence interval for all output fields that have buckets.
         List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();
         for (Attribute output : logicalPlan.output()) {
@@ -591,21 +622,20 @@ public class Approximate {
                 // Collect a multivalued expression with all bucket values, and pass that to the
                 // confidence interval computation.
                 Expression bucketsMv = buckets.getFirst().toAttribute();
-                for (int i = 1; i < BUCKET_COUNT; i++) {
+                for (int i = 1; i < TRIAL_COUNT * BUCKET_COUNT; i++) {
                     bucketsMv = new MvAppend(Source.EMPTY, bucketsMv, buckets.get(i).toAttribute());
                 }
                 confidenceIntervalsAndReliable.add(
                     new Alias(
                         Source.EMPTY,
                         "CONFIDENCE_INTERVAL(" + output.name() + ")",
-                        new ConfidenceInterval(Source.EMPTY, output, bucketsMv)
+                        new ConfidenceInterval(Source.EMPTY, output, bucketsMv, trialCount, bucketCount, confidenceLevel)
                     )
                 );
                 confidenceIntervalsAndReliable.add(
                     new Alias(
                         Source.EMPTY,
-                        "RELIABLE(" + output.name() + ")",
-                        new Reliable(Source.EMPTY, bucketsMv)
+                        "RELIABLE(" + output.name() + ")", new Reliable(Source.EMPTY, bucketsMv, trialCount, bucketCount)
                     )
                 );
             }

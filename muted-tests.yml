@@ -633,6 +633,9 @@ tests:
 - class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
   method: testIsLoadedOnSlice
   issue: https://github.com/elastic/elasticsearch/issues/136331
+- class: org.elasticsearch.cluster.coordination.NodeJoiningIT
+  method: testNodeTriesToJoinClusterAndThenSameMasterIsElected
+  issue: https://github.com/elastic/elasticsearch/issues/136332
 
 # Examples:
 #

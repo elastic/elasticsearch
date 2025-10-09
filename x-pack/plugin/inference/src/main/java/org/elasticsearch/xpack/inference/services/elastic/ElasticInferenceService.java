@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -634,12 +633,6 @@ public class ElasticInferenceService extends SenderService {
                 .setUpdatable(false)
                 .setType(SettingsConfigurationFieldType.INTEGER)
                 .build()
-        );
-
-        configurationMap.putAll(
-            RateLimitSettings.toSettingsConfiguration(
-                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
-            )
         );
 
         return new InferenceServiceConfiguration.Builder().setService(NAME)

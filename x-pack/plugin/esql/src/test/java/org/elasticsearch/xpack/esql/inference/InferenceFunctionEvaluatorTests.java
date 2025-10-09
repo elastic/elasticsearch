@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -54,8 +55,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         // Create a mock TextEmbedding function
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
-            Literal.keyword(Source.EMPTY, "test-model"),
-            Literal.keyword(Source.EMPTY, "test input")
+            Literal.keyword(Source.EMPTY, "test input"),
+            Literal.keyword(Source.EMPTY, "test-model")
         );
 
         // Create a mock operator that returns a result
@@ -94,12 +95,46 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
+    public void testFoldTextEmbeddingFunctionWithNullInput() throws Exception {
+        // Create a mock TextEmbedding function
+        TextEmbedding textEmbeddingFunction = new TextEmbedding(Source.EMPTY, Literal.NULL, Literal.keyword(Source.EMPTY, "test-model"));
+
+        // Create a mock operator that returns a result
+        Operator operator = mock(Operator.class);
+
+        Float[] embedding = randomArray(1, 100, Float[]::new, ESTestCase::randomFloat);
+
+        when(operator.getOutput()).thenAnswer(i -> {
+            FloatBlock.Builder outputBlockBuilder = blockFactory().newFloatBlockBuilder(1);
+            outputBlockBuilder.appendNull();
+            return new Page(outputBlockBuilder.build());
+        });
+
+        InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
+
+        // Execute the fold operation
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+
+        AtomicReference<Expression> resultExpression = new AtomicReference<>();
+        evaluator.fold(textEmbeddingFunction, ActionListener.wrap(resultExpression::set, ESTestCase::fail));
+
+        assertBusy(() -> {
+            assertNotNull(resultExpression.get());
+            Literal result = as(resultExpression.get(), Literal.class);
+            assertThat(result.dataType(), equalTo(DataType.NULL));
+            assertThat(result.value(), nullValue());
+        });
+
+        // Check all breakers are empty after the operation is executed
+        allBreakersEmpty();
+    }
+
     public void testFoldWithNonFoldableFunction() {
         // A function with a non-literal argument is not foldable.
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
             mock(Attribute.class),
-            Literal.keyword(Source.EMPTY, "test input")
+            Literal.keyword(Source.EMPTY, "test model")
         );
 
         InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
@@ -118,8 +153,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
     public void testFoldWithAsyncFailure() throws Exception {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
-            Literal.keyword(Source.EMPTY, "test-model"),
-            Literal.keyword(Source.EMPTY, "test input")
+            Literal.keyword(Source.EMPTY, "test input"),
+            Literal.keyword(Source.EMPTY, "test-model")
         );
 
         // Mock an operator that will trigger an async failure
@@ -146,8 +181,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
     public void testFoldWithNullOutputPage() throws Exception {
         TextEmbedding textEmbeddingFunction = new TextEmbedding(
             Source.EMPTY,
-            Literal.keyword(Source.EMPTY, "test-model"),
-            Literal.keyword(Source.EMPTY, "test input")
+            Literal.keyword(Source.EMPTY, "test input"),
+            Literal.keyword(Source.EMPTY, "test-model")
         );
 
         Operator operator = mock(Operator.class);

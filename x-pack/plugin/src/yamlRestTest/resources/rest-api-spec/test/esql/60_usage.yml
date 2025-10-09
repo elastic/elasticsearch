@@ -350,7 +350,7 @@ setup:
   - gt: { esql.queries._all.total: $all_total_counter }
   - match: { esql.queries._all.failed: $all_failed_counter }
   - gt: { esql.functions.min: $functions_min }
-  - gt: { esql.functions.min: $functions_avg_over_time }
+  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay

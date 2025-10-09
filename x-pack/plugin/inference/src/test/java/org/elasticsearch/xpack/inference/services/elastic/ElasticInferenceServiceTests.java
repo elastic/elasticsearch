@@ -948,15 +948,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                    "name": "Elastic",
                    "task_types": ["sparse_embedding", "chat_completion", "text_embedding"],
                    "configurations": {
-                       "rate_limit.requests_per_minute": {
-                           "description": "Minimize the number of rate limit errors.",
-                           "label": "Rate Limit",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": false,
-                           "type": "int",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                       },
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
                            "label": "Model ID",
@@ -997,15 +988,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                    "name": "Elastic",
                    "task_types": [],
                    "configurations": {
-                       "rate_limit.requests_per_minute": {
-                           "description": "Minimize the number of rate limit errors.",
-                           "label": "Rate Limit",
-                           "required": false,
-                           "sensitive": false,
-                           "updatable": false,
-                           "type": "int",
-                           "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                       },
                        "model_id": {
                            "description": "The name of the model to use for the inference task.",
                            "label": "Model ID",

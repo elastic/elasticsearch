@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;

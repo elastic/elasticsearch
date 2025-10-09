@@ -11,6 +11,10 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'

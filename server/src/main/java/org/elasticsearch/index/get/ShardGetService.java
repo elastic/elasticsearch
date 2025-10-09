@@ -426,27 +426,25 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public static boolean shouldExcludeInferenceFieldsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
-        if (fetchSourceContext != null && fetchSourceContext.fetchSource() == false) {
-            // Source is disabled
-            return true;
-        }
-
-        Boolean filtered = null;
-        var filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
-        if (filter != null) {
-            if (filter.isPathFiltered(InferenceMetadataFieldsMapper.NAME, true)) {
-                filtered = true;
-            } else if (filter.isExplicitlyIncluded(InferenceMetadataFieldsMapper.NAME)) {
-                filtered = false;
+        if (fetchSourceContext != null) {
+            if (fetchSourceContext.fetchSource() == false) {
+                // Source is disabled
+                return true;
             }
-        }
-        if (filtered != null) {
-            return filtered;
-        }
 
-        Boolean excludeInferenceFieldsExplicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
-        if (excludeInferenceFieldsExplicit != null) {
-            return excludeInferenceFieldsExplicit;
+            var filter = fetchSourceContext.filter();
+            if (filter != null) {
+                if (filter.isPathFiltered(InferenceMetadataFieldsMapper.NAME, true)) {
+                    return true;
+                } else if (filter.isExplicitlyIncluded(InferenceMetadataFieldsMapper.NAME)) {
+                    return false;
+                }
+            }
+
+            Boolean excludeInferenceFieldsExplicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
+            if (excludeInferenceFieldsExplicit != null) {
+                return excludeInferenceFieldsExplicit;
+            }
         }
 
         // We always default to excluding the inference metadata field. We only use the index setting when it is explicitly set.

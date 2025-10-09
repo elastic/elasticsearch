@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -465,31 +464,29 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         private boolean shouldExcludeInferenceFields() {
-            if (fetchSourceContext != null && fetchSourceContext.fetchSource() == false) {
-                return true;
-            }
-
-            Boolean filtered = null;
-            SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
-            if (filter != null) {
-                if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
-                    filtered = true;
-                } else if (filter.getIncludes().length > 0) {
-                    filtered = Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME) == false;
+            if (fetchSourceContext != null) {
+                if (fetchSourceContext.fetchSource() == false) {
+                    return true;
                 }
-            }
-            if (filtered != null) {
-                return filtered;
-            }
 
-            Boolean excludeInferenceFieldsExplicit = fetchSourceContext != null ? fetchSourceContext.excludeInferenceFields() : null;
-            if (excludeInferenceFieldsExplicit != null) {
-                return excludeInferenceFieldsExplicit;
+                SourceFilter filter = fetchSourceContext.filter();
+                if (filter != null) {
+                    if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
+                        return true;
+                    } else if (filter.getIncludes().length > 0) {
+                        return Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME) == false;
+                    }
+                }
+
+                Boolean excludeInferenceFieldsExplicit = fetchSourceContext.excludeInferenceFields();
+                if (excludeInferenceFieldsExplicit != null) {
+                    return excludeInferenceFieldsExplicit;
+                }
             }
 
             Settings settings = indexSettings.getSettings();
-            return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(settings)
-                ? INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(settings)
+            return IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(settings)
+                ? IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(settings)
                 : true;
         }
 
@@ -498,9 +495,9 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+
             if (randomBoolean()) {
-                boolean excludeSourceVectors = randomBoolean();
-                settings.put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), excludeSourceVectors);
+                settings.put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), randomBoolean());
             }
 
             return new IndexSettings(IndexMetadata.builder(randomIdentifier()).settings(settings).build(), settings.build());

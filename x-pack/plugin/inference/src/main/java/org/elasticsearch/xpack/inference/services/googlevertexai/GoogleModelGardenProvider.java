@@ -102,7 +102,7 @@ public enum GoogleModelGardenProvider {
     );
 
     private static final ResponseHandler AI21_CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
-        "Google Model Garden Ai21 chat completions",
+        "Google Model Garden AI21 chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 

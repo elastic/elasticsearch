@@ -83,6 +83,11 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
     'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
+  doLast {
+    if(target.text.readLines().size() < 100) {
+      throw new GradleException("Suspiciously low number of dependencies. Double check.")
+    }
+  }
 }
 
 /*****************************************************************************

@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -240,7 +241,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     static class ExponentialHistogramFieldType extends MappedFieldType {
 
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
         }
 
         @Override
@@ -251,6 +252,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override

@@ -48,7 +48,7 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Holder<IndexMode> indexMode = new Holder<>();
-        Holder<IndexPattern> index = new Holder<>();
+        Holder<IndexPattern> indexPattern = new Holder<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
         Set<IndexPattern> subqueryIndices = new HashSet<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
@@ -56,11 +56,11 @@ public class PreAnalyzer {
                 lookupIndices.add(p.indexPattern());
             } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
                 indexMode.set(p.indexMode());
+                indexPattern.setIfAbsent(p.indexPattern());
                 // the index pattern from main query is always the first to be seen
-                index.setIfAbsent(p.indexPattern());
                 // collect subquery index patterns
                 if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-                    collectSubqueryIndexPattern(p, subqueryIndices, index.get());
+                    collectSubqueryIndexPattern(p, subqueryIndices, indexPattern.get());
                 }
             } else {
                 throw new IllegalStateException("index mode is already set");
@@ -102,7 +102,7 @@ public class PreAnalyzer {
 
         return new PreAnalysis(
             indexMode.get(),
-            index.get(),
+            indexPattern.get(),
             unresolvedEnriches,
             lookupIndices,
             indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
@@ -120,8 +120,8 @@ public class PreAnalyzer {
         boolean isLookup = relation.indexMode() == IndexMode.LOOKUP;
         boolean isMainIndexPattern = pattern == mainIndexPattern;
         /*if the subquery's index pattern is the same as the main query, it won't be added
-        * to the subquery indices set, if Analyzer doesn't find the subquery' indexResolution,
-        * it falls back to the main query's indexResolution
+         * to the subquery indices set, if Analyzer doesn't find the subquery' indexResolution,
+         * it falls back to the main query's indexResolution
          */
         if (isLookup || isMainIndexPattern) {
             return;

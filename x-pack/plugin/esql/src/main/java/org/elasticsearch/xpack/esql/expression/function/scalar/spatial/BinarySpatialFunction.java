@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
@@ -45,6 +45,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
  */
 public abstract class BinarySpatialFunction extends BinaryScalarFunction implements SpatialEvaluatorFactory.SpatialSourceResolution {
 
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
+
     private final SpatialTypeResolver spatialTypeResolver;
     private SpatialCrsType crsType;
     protected final boolean leftDocValues;
@@ -69,7 +73,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         throws IOException {
         // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         this(
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
                 ? Source.readFrom((PlanStreamInput) in)
                 : Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -83,7 +87,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
             source().writeTo(out);
         }
         out.writeNamedWriteable(left());

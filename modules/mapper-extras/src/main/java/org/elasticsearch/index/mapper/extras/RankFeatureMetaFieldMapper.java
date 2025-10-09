@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -37,7 +38,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         // made visible for tests
         RankFeatureMetaFieldType() {
-            super(NAME, false, false, false, Collections.emptyMap());
+            super(NAME, IndexType.NONE, false, Collections.emptyMap());
         }
 
         @Override

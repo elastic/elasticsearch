@@ -3821,8 +3821,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingResolveInferenceId() {
-        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-
         LogicalPlan plan = analyze(
             String.format(Locale.ROOT, """
                 FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
@@ -3840,8 +3838,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionResolveType() {
-        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-
         LogicalPlan plan = analyze(
             String.format(Locale.ROOT, """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
@@ -3860,8 +3856,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionMissingInferenceIdError() {
-        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-
         VerificationException ve = expectThrows(
             VerificationException.class,
             () -> analyze(
@@ -3875,8 +3869,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceIdError() {
-        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-
         String inferenceId = randomInferenceIdOtherThan(TEXT_EMBEDDING_INFERENCE_ID);
         VerificationException ve = expectThrows(
             VerificationException.class,
@@ -3894,8 +3886,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionWithoutModel() {
-        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-
         ParsingException ve = expectThrows(ParsingException.class, () -> analyze("""
             FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""", "mapping-books.json"));
 
@@ -3906,8 +3896,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testKnnFunctionWithTextEmbedding() {
-        assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-
         LogicalPlan plan = analyze(
             String.format(Locale.ROOT, """
                 from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),

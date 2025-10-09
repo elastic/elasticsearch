@@ -105,8 +105,6 @@ public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
                     .setQuery(simpleQueryStringQuery("doc1")),
                 "1"
             );
-            final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
-            assertEquals(1, queryMeasurements.size());
             assertMeasurements(List.of(OPEN_PIT_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC));
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId)).actionGet();

@@ -635,7 +635,8 @@ public class Approximate {
                 confidenceIntervalsAndReliable.add(
                     new Alias(
                         Source.EMPTY,
-                        "RELIABLE(" + output.name() + ")", new Reliable(Source.EMPTY, bucketsMv, trialCount, bucketCount)
+                        "RELIABLE(" + output.name() + ")",
+                        new Reliable(Source.EMPTY, bucketsMv, trialCount, bucketCount)
                     )
                 );
             }

@@ -30,21 +30,22 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.ModelRegistryIT.createModel;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 
-public class ModelRegistryEisBase extends ESSingleNodeTestCase {
+public class ModelRegistryEisBaseIT extends ESSingleNodeTestCase {
     protected static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     protected static final MockWebServer webServer = new MockWebServer();
 
     protected ModelRegistry modelRegistry;
     private String eisUrl;
 
-    public ModelRegistryEisBase() {}
+    public ModelRegistryEisBaseIT() {}
 
-    public ModelRegistryEisBase(String eisUrl) {
+    public ModelRegistryEisBaseIT(String eisUrl) {
         this.eisUrl = eisUrl;
     }
 
     @BeforeClass
     public static void init() throws Exception {
+        // This must be called prior to retrieving the hostname and port from the mock server.
         webServer.start();
     }
 

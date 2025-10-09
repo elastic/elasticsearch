@@ -353,13 +353,14 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
-        // we didn't find the configuration in the inference index, so check if it is a pre-configured endpoint
+        // we didn't find the configuration in the inference index, so check if it is a preconfigured endpoint
         var maybeDefault = defaultConfigIds.get(inferenceEntityId);
         if (maybeDefault != null) {
             getDefaultConfig(true, maybeDefault, listener);
             return;
         }
 
+        // check if the inference id is a preconfigured endpoint available from EIS
         retrievePreconfiguredEndpointFromEisElseNotFound(listener, inferenceEntityId);
     }
 

@@ -32,7 +32,10 @@ import java.util.function.BiConsumer;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 
-public class ModelRegistryEisGetModelIT extends ModelRegistryEisBase {
+/**
+ * Parameterized tests for {@link ModelRegistry#getModel} and {@link ModelRegistry#getModelWithSecrets}.
+ */
+public class ModelRegistryEisGetModelIT extends ModelRegistryEisBaseIT {
     private final TestCase testCase;
 
     public ModelRegistryEisGetModelIT(TestCase testCase) {

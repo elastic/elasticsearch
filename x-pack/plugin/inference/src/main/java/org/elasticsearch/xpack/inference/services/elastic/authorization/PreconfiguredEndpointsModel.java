@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -24,7 +26,11 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Represents the preconfigured endpoints available from the Elastic Inference Service based on the authorization information retrieved.
+ */
 public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> preconfiguredEndpoints) {
+    private static final Logger logger = LogManager.getLogger(PreconfiguredEndpointsModel.class);
 
     public static PreconfiguredEndpointsModel of(ElasticInferenceServiceAuthorizationModel authModel) {
         var endpoints = authModel.getAuthorizedModelIds()
@@ -43,7 +49,14 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
                 if (settings.minimalSettings().dimensions() == null
                     || settings.minimalSettings().similarity() == null
                     || settings.minimalSettings().elementType() == null) {
-                    // TODO log a warning
+                    logger.warn(
+                        "Skipping embedding endpoint [{}] as it is missing required settings. "
+                            + "Dimensions: [{}], Similarity: [{}], Element Type: [{}]",
+                        settings.inferenceId(),
+                        settings.minimalSettings().dimensions(),
+                        settings.minimalSettings().similarity(),
+                        settings.minimalSettings().elementType()
+                    );
                     yield null;
                 }
 
@@ -102,23 +115,24 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
         int dimension,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        return new HashMap<>(
-            Map.of(
-                ModelConfigurations.SERVICE_SETTINGS,
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        modelId,
-                        ServiceFields.SIMILARITY,
-                        similarityMeasure.toString(),
-                        ServiceFields.DIMENSIONS,
-                        dimension,
-                        ServiceFields.ELEMENT_TYPE,
-                        elementType.toString()
-                    )
+        return wrapWithServiceSettings(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    modelId,
+                    ServiceFields.SIMILARITY,
+                    similarityMeasure.toString(),
+                    ServiceFields.DIMENSIONS,
+                    dimension,
+                    ServiceFields.ELEMENT_TYPE,
+                    elementType.toString()
                 )
             )
         );
+    }
+
+    private static Map<String, Object> wrapWithServiceSettings(Map<String, Object> settings) {
+        return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, settings));
     }
 
     private record BasePreconfiguredEndpoint(String inferenceEntityId, TaskType taskType, String modelId) implements PreconfiguredEndpoint {
@@ -129,7 +143,7 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
     }
 
     private static Map<String, Object> settingsWithModelId(String modelId) {
-        return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId))));
+        return wrapWithServiceSettings(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)));
     }
 
     public UnparsedModel toUnparsedModel(String inferenceId) {

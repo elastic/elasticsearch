@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
-public class ModelRegistryEisIT extends ModelRegistryEisBase {
+public class ModelRegistryEisIT extends ModelRegistryEisBaseIT {
 
     private static final String eisAuthorizedResponse = """
         {

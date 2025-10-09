@@ -145,11 +145,16 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
 
     private void getEisAuthorization(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
         var disabledServiceListener = listener.delegateResponse((delegate, e) -> {
-            logger.warn(
-                "Failed to retrieve authorization information from the "
-                    + "Elastic Inference Service while determining service configurations. Marking service as disabled.",
-                e
-            );
+            if (eisAuthorizationRequestHandler.isServiceConfigured()) {
+                logger.warn(
+                    "Failed to retrieve authorization information from the "
+                        + "Elastic Inference Service while determining service configurations. Marking service as disabled.",
+                    e
+                );
+            } else {
+                logger.debug("The Elastic Inference Service is not configured. Marking service as disabled.", e);
+            }
+
             delegate.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
         });
 

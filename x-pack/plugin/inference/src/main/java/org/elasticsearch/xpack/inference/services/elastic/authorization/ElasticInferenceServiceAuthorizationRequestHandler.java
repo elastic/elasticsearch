@@ -77,7 +77,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         try {
             logger.debug("Retrieving authorization information from the Elastic Inference Service.");
 
-            if (Strings.isNullOrEmpty(baseUrl)) {
+            if (isServiceConfigured() == false) {
                 logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
                 listener.onFailure(new IllegalStateException("The Elastic Inference Service URL is not configured."));
                 return;
@@ -114,6 +114,10 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             requestCompleteLatch.countDown();
         }
+    }
+
+    public boolean isServiceConfigured() {
+        return Strings.isNullOrEmpty(baseUrl) == false;
     }
 
     private TraceContext getCurrentTraceInfo() {

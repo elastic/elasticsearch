@@ -104,12 +104,6 @@ public class ElasticInferenceService extends SenderService {
     // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
     public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
-    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
-        TaskType.SPARSE_EMBEDDING,
-        TaskType.CHAT_COMPLETION,
-        TaskType.RERANK,
-        TaskType.TEXT_EMBEDDING
-    );
     private static final String SERVICE_NAME = "Elastic";
 
     // TODO: revisit this value once EIS supports dense models
@@ -125,10 +119,6 @@ public class ElasticInferenceService extends SenderService {
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING
     );
-
-    public static String defaultEndpointId(String modelId) {
-        return Strings.format(".%s-elastic", modelId);
-    }
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 

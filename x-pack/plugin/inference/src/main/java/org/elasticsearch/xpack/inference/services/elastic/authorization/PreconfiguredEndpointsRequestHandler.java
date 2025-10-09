@@ -17,7 +17,7 @@ import java.util.Objects;
 
 /**
  * This class is responsible for converting the current EIS authorization response structure
- * into Models that
+ * into {@link UnparsedModel}.
  */
 public class PreconfiguredEndpointsRequestHandler {
     private final ElasticInferenceServiceAuthorizationRequestHandler eisAuthorizationRequestHandler;

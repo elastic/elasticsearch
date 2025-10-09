@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
-public class ModelRegistryEisInvalidUrlIT extends ModelRegistryEisBase {
+public class ModelRegistryEisInvalidUrlIT extends ModelRegistryEisBaseIT {
     public ModelRegistryEisInvalidUrlIT() {
         super("");
     }

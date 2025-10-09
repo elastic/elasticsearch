@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -26,8 +27,11 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.calculateIngestionLoadForExecutor;
@@ -133,10 +137,12 @@ public class IngestLoadProbeTests extends ESTestCase {
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                 MAX_TIME_TO_CLEAR_QUEUE,
                 MAX_QUEUE_CONTRIBUTION_FACTOR,
-                INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED
+                INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
+                INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION
             )
         );
-        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get);
+        AtomicLong nowInMillis = new AtomicLong(randomNonNegativeLong());
+        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get, TimeProviderUtils.create(nowInMillis::get));
 
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
@@ -161,7 +167,11 @@ public class IngestLoadProbeTests extends ESTestCase {
         statsPerExecutor.put(Names.WRITE_COORDINATION, new ExecutorStats(3.0, timeValueMillis(200).nanos(), queueSize, queueSize, 1));
         statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0, 1));
         var expectedExtraThreads = queueEmpty ? 0.0 : 1.0;
-        // No contribution to total ingestion load from coordination executors since they are excluded
+        // No contribution to total ingestion load from queueing (since we're within the
+        // DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION) and no contribution from coordination executors since they are excluded
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0, 1e-3));
+        nowInMillis.addAndGet(DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.millis() + randomNonNegativeLong());
+        // Queue contribution is now included for non-coordination write executors
         assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0 + expectedExtraThreads, 1e-3));
         // The individual executor stats are recorded regardless
         assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.WRITE_COORDINATION).total(), closeTo(3.0 + expectedExtraThreads, 1e-3));

@@ -81,6 +81,7 @@ PUT my-index-000002
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
 
@@ -105,6 +106,7 @@ PUT my-index-000003
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ### Using ELSER on EIS
 ```{applies_to}
@@ -128,6 +130,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ::::{note}
 While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
@@ -311,6 +314,7 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Use `"format": "chunks"` to return the field’s text as the original text chunks that were indexed.
 
@@ -338,6 +342,7 @@ POST test-index/_search
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Specifies the maximum number of fragments to return.
 2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
@@ -367,6 +372,7 @@ POST test-index/_search
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
@@ -392,6 +398,7 @@ POST test-index/_search
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
@@ -441,6 +448,7 @@ POST my-index/_search
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 The embeddings will appear under `_inference_fields` in `_source`.
 
@@ -467,6 +475,7 @@ POST _reindex
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Sends the source documents with their stored embeddings to the destination index.
 
@@ -497,6 +506,7 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
 Note that the `fields` option is **not** available for the Reindex API.
@@ -546,6 +556,7 @@ PUT my-index-000004
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ## Updates to `semantic_text` fields [update-script]
 
@@ -589,6 +600,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 can also be declared as multi-fields:
 
@@ -610,6 +622,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ## Querying `semantic_text` fields [querying-semantic-text-fields]
 
@@ -654,6 +667,7 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.

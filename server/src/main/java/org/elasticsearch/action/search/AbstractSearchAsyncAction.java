@@ -31,6 +31,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -620,16 +621,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchSourceBuilder source = request.source();
         // only (re-)build a search context id if we have a point in time
         if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
-            // we want to change node ids in the PIT id if any shards and its PIT context have moved
-            return maybeReEncodeNodeIds(
-                source.pointInTimeBuilder(),
-                results.getAtomicArray().asList(),
-                namedWriteableRegistry,
-                mintransportVersion,
-                searchTransportService,
-                discoveryNodes,
-                logger
-            );
+            if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+                // we want to change node ids in the PIT id if any shards and its PIT context have moved
+                return maybeReEncodeNodeIds(
+                    source.pointInTimeBuilder(),
+                    results.getAtomicArray().asList(),
+                    namedWriteableRegistry,
+                    mintransportVersion,
+                    searchTransportService,
+                    discoveryNodes,
+                    logger
+                );
+            } else {
+                return source.pointInTimeBuilder().getEncodedId();
+            }
         } else {
             return null;
         }

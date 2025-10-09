@@ -211,7 +211,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 }
             );
             logger.info("--> second search after node restart finished");
-            assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
+            if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+                assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
+            }
         } catch (Exception e) {
             logger.error("---> unexpected exception", e);
             throw e;

@@ -1075,12 +1075,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
-
-            // only when qualifiers exist and name is unqualified
-            if (childrenOutput.stream().anyMatch(a -> a.qualifier() != null) && ua.qualifier() == null) {
-                checkAmbiguousUnqualifiedName(ua, childrenOutput);
-            }
-
             var named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {

@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
-import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
@@ -39,7 +38,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         SegmentReadState state,
         GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
     ) throws IOException {
-        super(null);    // we can set this properly with flexible constructor bodies
+        super(null);    // this is not actually used by anything
 
         this.fieldInfos = state.fieldInfos;
         this.genericReaders = new GenericFlatVectorReaders();
@@ -94,12 +93,6 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
             FieldEntry entry = new FieldEntry(meta.readString(), meta.readByte() == 1);
             fieldHelper.loadField(fieldNumber, entry, loadReader);
         }
-    }
-
-    @Override
-    public FlatVectorsScorer getFlatVectorScorer() {
-        // just go with the first one
-        return genericReaders.allReaders().iterator().next().getFlatVectorScorer();
     }
 
     @Override

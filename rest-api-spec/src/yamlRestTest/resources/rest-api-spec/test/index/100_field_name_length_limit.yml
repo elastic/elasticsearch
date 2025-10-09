@@ -25,21 +25,26 @@ setup:
         id: 1
         refresh: true
         body:
-          test_really_long_field_name_that_will_be_ignored: foo
+          foo:
+            test_really_long_field_name_that_will_be_ignored: foo
 
   - do:
       indices.get_mapping:
         index: test_index
 
-  - match: { test_index.mappings.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
 
   - do:
       get:
         index: test_index
         id: 1
+        _source: true
+        stored_fields: [_ignored]
   - match:
       _source:
-        test_really_long_field_name_that_will_be_ignored: foo
+        foo:
+          test_really_long_field_name_that_will_be_ignored: foo
+  - match: { _ignored: [ "foo.test_really_long_field_name_that_will_be_ignored" ] }
 
 ---
 
@@ -63,22 +68,27 @@ setup:
         id: 1
         refresh: true
         body:
-          test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+          foo:
+            test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
 
   - do:
       indices.get_mapping:
         index: test_index
 
-  - match: { test_index.mappings.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
 
   - do:
       get:
         index: test_index
         id: 1
+        _source: true
+        stored_fields: [ _ignored ]
+
   - match:
       _source:
-        test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
-
+        foo:
+          test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+  - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
 
 ---
 
@@ -103,21 +113,70 @@ setup:
         id: 1
         refresh: true
         body:
-          test_really_long_field_name_that_will_be_ignored: foo
+          foo:
+            test_really_long_field_name_that_will_be_ignored: foo
 
   - do:
       indices.get_mapping:
         index: test_index
 
-  - match: { test_index.mappings.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
 
   - do:
       get:
         index: test_index
         id: 1
+        _source: true
+        stored_fields: [ _ignored ]
   - match:
       _source:
-        test_really_long_field_name_that_will_be_ignored: foo
+        foo:
+          test_really_long_field_name_that_will_be_ignored: foo
+  - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
+
+---
+
+"Test field name length limit array synthetic source":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                field_name_length:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 45
+          mappings:
+            dynamic: true
+
+  - do:
+      index:
+        index: test_index
+        id: 1
+        refresh: true
+        body:
+          foo:
+            test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+        _source: true
+        stored_fields: [ _ignored ]
+  - match:
+      _source:
+        foo:
+          test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+  - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
 
 ---
 

@@ -89,6 +89,7 @@
       },
       "track_total_hits": {
         "type": "boolean|long",
+        "default": "10000",
         "description": "Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
       },
       "with_labels": {

@@ -429,7 +429,7 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-     public boolean alignsWithSearchIndex() {
+    public boolean alignsWithSearchIndex() {
         boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
         return script() == null
             && missing() == null

@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -4987,6 +4988,138 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(INTEGER, literal.dataType());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    public void testSubqueryWithTimeSeriesIndexInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("""
+            FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
+            | WHERE @timestamp > "2025-10-07"
+            """, "k8s-downsampled-mappings.json");
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        // all fields from the three indices
+        assertEquals(24, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        limit = as(unionAll.children().get(0), Limit.class);
+        EsqlProject esqlProject = as(limit.child(), EsqlProject.class);
+        Eval eval = as(esqlProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        limit = as(unionAll.children().get(1), Limit.class);
+        esqlProject = as(limit.child(), EsqlProject.class);
+        eval = as(esqlProject.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        relation = as(subquery.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        limit = as(unionAll.children().get(2), Limit.class);
+        esqlProject = as(limit.child(), EsqlProject.class);
+        eval = as(esqlProject.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+    }
+
+    public void testSubqueryWithTimeSeriesIndexInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("""
+            FROM sample_data,
+                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
+                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
+            | WHERE @timestamp > "2025-10-07"
+            """, "mapping-sample_data.json");
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(26, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        limit = as(unionAll.children().get(0), Limit.class);
+        EsqlProject esqlProject = as(limit.child(), EsqlProject.class);
+        Eval eval = as(esqlProject.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        limit = as(unionAll.children().get(1), Limit.class);
+        esqlProject = as(limit.child(), EsqlProject.class);
+        eval = as(esqlProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        InlineStats inlineStats = as(subquery.child(), InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        eval = as(aggregate.child(), Eval.class);
+        relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        limit = as(unionAll.children().get(2), Limit.class);
+        esqlProject = as(limit.child(), EsqlProject.class);
+        eval = as(esqlProject.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+    }
+
+    public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("""
+            FROM k8s,
+                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
+                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
+            | WHERE @timestamp > "2025-10-07"
+            """, "k8s-downsampled-mappings.json");
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(26, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        limit = as(unionAll.children().get(0), Limit.class);
+        EsqlProject esqlProject = as(limit.child(), EsqlProject.class);
+        Eval eval = as(esqlProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        limit = as(unionAll.children().get(1), Limit.class);
+        esqlProject = as(limit.child(), EsqlProject.class);
+        eval = as(esqlProject.child(), Eval.class);
+        eval = as(eval.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        InlineStats inlineStats = as(subquery.child(), InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        eval = as(aggregate.child(), Eval.class);
+        relation = as(eval.child(), EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
+
+        limit = as(unionAll.children().get(2), Limit.class);
+        esqlProject = as(limit.child(), EsqlProject.class);
+        eval = as(esqlProject.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        filter = as(subquery.child(), Filter.class);
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("sample_data", relation.indexPattern());
+        assertEquals(IndexMode.STANDARD, relation.indexMode());
     }
 
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {

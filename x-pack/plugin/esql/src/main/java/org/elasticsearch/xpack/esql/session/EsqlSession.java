@@ -531,7 +531,7 @@ public class EsqlSession {
             );
         } else {
             // occurs when dealing with local relations (row a = 1)
-            listener.onResponse(result.withIndices(IndexResolution.invalid("[none specified]")));
+            listener.onResponse(result.addSubqueryIndexResolution("invalid subquery", IndexResolution.invalid("[none specified]")));
         }
     }
 

@@ -862,6 +862,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
+                    if (attrType.isCounter()) {
+                        attrType = attrType.noCounter();
+                    }
                     return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
                 }).toList();
 
@@ -2485,6 +2488,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t1.isDate() && t2.isDate() && t1 != t2) {
                 return DATE_NANOS;
             }
+
+            if (t1.isCounter()) {
+                t1 = t1.noCounter();
+            }
+
+            if (t2.isCounter()) {
+                t2 = t2.noCounter();
+            }
+
             return EsqlDataTypeConverter.commonType(t1, t2);
         }
 

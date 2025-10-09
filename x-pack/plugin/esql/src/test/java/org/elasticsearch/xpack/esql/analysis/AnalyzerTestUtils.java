@@ -230,7 +230,9 @@ public final class AnalyzerTestUtils {
             "sample_data",
             loadMapping("mapping-sample_data.json", "sample_data"),
             "test_mixed_types",
-            loadMapping("mapping-default-incompatible.json", "test_mixed_types")
+            loadMapping("mapping-default-incompatible.json", "test_mixed_types"),
+            "k8s",
+            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES)
         );
     }
 

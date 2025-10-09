@@ -1318,6 +1318,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());

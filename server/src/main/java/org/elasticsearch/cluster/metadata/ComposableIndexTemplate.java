@@ -547,10 +547,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
             allowCustomRouting = in.readBoolean();
-            if (in.getTransportVersion()
-                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-                in.readBoolean();
-            }
         }
 
         /**
@@ -583,12 +579,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
             out.writeBoolean(allowCustomRouting);
-            if (out.getTransportVersion()
-                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-                // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
-                // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
-                out.writeBoolean(false);
-            }
         }
 
         @Override

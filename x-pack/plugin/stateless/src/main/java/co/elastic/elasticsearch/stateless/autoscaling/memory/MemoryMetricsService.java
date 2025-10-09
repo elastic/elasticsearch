@@ -258,6 +258,14 @@ public class MemoryMetricsService implements ClusterStateListener {
                 builderForNode.add(entry.getKey(), entry.getValue());
             }
         }
+        // Take the max postings memory across all nodes and apply that to all nodes. This is to be consistent with how node memory
+        // is calculated for autoscaling, see also #getIndexingTierMemoryMetrics
+        final long maxTotalPostingsInMemoryBytes = heapUsageBuilders.values()
+            .stream()
+            .mapToLong(builder -> builder.totalPostingsInMemoryBytes)
+            .max()
+            .orElse(0L);
+        heapUsageBuilders.values().forEach(builder -> builder.totalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes);
         return Maps.transformValues(heapUsageBuilders, EstimatedHeapUsageBuilder::getHeapUsageEstimate);
     }
 

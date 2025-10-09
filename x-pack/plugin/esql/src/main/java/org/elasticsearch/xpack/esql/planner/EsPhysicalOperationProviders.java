@@ -300,7 +300,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
+                context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 sortBuilders,
                 estimatedPerRowSortSize,
@@ -311,7 +311,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
+                context.pageSize(esQueryExec, rowEstimatedSize),
                 limit
             );
         } else {
@@ -319,9 +319,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                context.autoPartitioningStrategy().get(),
+                context.autoPartitioningStrategy(),
                 context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
+                context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring
             );
@@ -407,7 +407,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize())
         );
     }
 

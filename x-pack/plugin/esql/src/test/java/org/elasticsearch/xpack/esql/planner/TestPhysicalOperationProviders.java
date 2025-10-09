@@ -136,7 +136,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts.estimatedRowSize())
+            context.pageSize(ts, ts.estimatedRowSize())
         );
     }
 

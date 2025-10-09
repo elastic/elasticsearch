@@ -591,7 +591,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
+            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class))),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
@@ -725,6 +725,7 @@ public class CsvTests extends ESTestCase {
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
+            TEST_PLANNER_SETTINGS,
             new OutputExec(coordinatorPlan, collectedPages::add),
             EmptyIndexedByShardId.instance()
         );
@@ -750,6 +751,7 @@ public class CsvTests extends ESTestCase {
             LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(
                 "data",
                 foldCtx,
+                EsqlTestUtils.TEST_PLANNER_SETTINGS,
                 csvDataNodePhysicalPlan,
                 ConstantShardContextIndexedByShardId.INSTANCE
             );

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,6 +20,7 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
     SageMakerStoredServiceSchema NO_OP = new SageMakerStoredServiceSchema() {
 
         private static final String NAME = "noop_sagemaker_service_schema";
+        private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
         @Override
         public String getWriteableName() {
@@ -30,13 +30,12 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             assert false : "should never be called when supportsVersion is used";
-            return TransportVersions.ML_INFERENCE_SAGEMAKER;
+            return ML_INFERENCE_SAGEMAKER;
         }
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER)
-                || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_8_19);
+            return version.supports(ML_INFERENCE_SAGEMAKER);
         }
 
         @Override

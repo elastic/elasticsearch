@@ -139,7 +139,7 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    public String asScript() {
+    public String asPushableScript() {
         return "doc['" + ((FieldAttribute) field()).name() + "'].magnitude";
     }
 

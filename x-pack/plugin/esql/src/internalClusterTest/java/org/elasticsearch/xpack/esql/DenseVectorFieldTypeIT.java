@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE;
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
@@ -91,7 +91,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     private final Map<Integer, List<Number>> indexedVectors = new HashMap<>();
 
     public void testRetrieveFieldType() {
-        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
+        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled());
 
         var query = """
             FROM test
@@ -107,7 +107,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRetrieveTopNDenseVectorFieldData() {
-        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
+        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled());
 
         var query = """
                 FROM test
@@ -137,7 +137,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRetrieveDenseVectorFieldData() {
-        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled());
+        assumeTrue("Need L2_NORM available for dense_vector retrieval", L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled());
 
         var query = """
             FROM test

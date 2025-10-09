@@ -266,7 +266,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    public String asScript() {
+    public String asPushableScript() {
         return "doc['" + fieldName().string() + "'].value";
     }
 }

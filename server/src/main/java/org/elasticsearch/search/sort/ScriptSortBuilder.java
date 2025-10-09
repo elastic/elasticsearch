@@ -328,6 +328,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 };
             }
             case NUMBER -> {
+                // TODO Temporary hack to allow vector similarity functions access from sorting scripts. Needs to be done properly.
                 final ScoreScript.Factory numberSortFactory = context.compile(script, ScoreScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final ScoreScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);

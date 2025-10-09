@@ -134,15 +134,21 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public static final class ScriptSort implements Sort {
+    /**
+     * A sort implemented as a painless script based on an alias with a pushable expression
+     */
+    public static final class PushableExpressionSort implements Sort {
         private final Alias alias;
         private final FieldAttribute field;
         private final Script script;
         private final Order.OrderDirection direction;
 
-        public ScriptSort(Alias alias, Script script, Order.OrderDirection direction) {
+        public PushableExpressionSort(Alias alias, Order.OrderDirection direction) {
             this.alias = alias;
-            this.script = script;
+
+            // Create a script from the expression
+            String scriptText = "return " + alias.child().asPushableScript();
+            this.script = new Script(scriptText);
             this.direction = direction;
             EsField esField = new EsField(alias.name(), alias.dataType(), Map.of(), false, EsField.TimeSeriesFieldType.NONE);
             this.field = new FieldAttribute(alias.source(), null, null, alias.name() + "_script", esField);
@@ -185,7 +191,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         public boolean equals(Object obj) {
             if (obj == this) return true;
             if (obj == null || obj.getClass() != this.getClass()) return false;
-            var that = (ScriptSort) obj;
+            var that = (PushableExpressionSort) obj;
             return Objects.equals(this.alias, that.alias)
                 && Objects.equals(this.field, that.field)
                 && Objects.equals(this.script, that.script)
@@ -311,8 +317,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         if (sorts == null || sorts.isEmpty()) {
             return attrs;
         }
-        // Concat attributes with the fields used in script sorts, as they need to be extracted too
-        return Stream.concat(attrs.stream(), sorts.stream().filter(s -> s instanceof ScriptSort).map(Sort::field)).toList();
+        // Concat attributes with the fields used in pushable sorts, as they will be extracted as well to allow usage of the sort value
+        return Stream.concat(attrs.stream(), sorts.stream().filter(s -> s instanceof PushableExpressionSort).map(Sort::field)).toList();
     }
 
     public Expression limit() {

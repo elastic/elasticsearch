@@ -212,14 +212,33 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return super.propertiesToString(false);
     }
 
+    /**
+     * Returns whether the expression is pushable to Lucene:
+     * <ul>
+     *  <li>PREFERRED: We should push whenever possible. An expression that has a PREFERRED expression and does not have a NOT_SUPPORTED one can be pushed down to Lucene.</li>
+     * <li>SUPPORTED: Expression can be pushed down but does not offer a significant advantage in terms of performance, or depends on other expressions that are part of it.</li>
+     * <li>NOT_SUPPORTED: Expression can't be pushed down.</li>
+     * </ul>
+     *
+     * @return the pushable options for this expression
+     */
     public PushableOptions pushableOptions() {
         return PushableOptions.NOT_SUPPORTED;
     }
 
-    public String asScript() {
-        throw new UnsupportedOperationException("asScript not implemented for " + getWriteableName());
+    /**
+     * Returns the expression as a painless script to be pushed down to Lucene
+     *
+     * @return the painless script representation of this expression
+     * @throws UnsupportedOperationException if the expression does not support being represented as a script
+     */
+    public String asPushableScript() {
+        throw new UnsupportedOperationException("asPushableScript not implemented for " + getWriteableName());
     }
 
+    /**
+     * See {@link #pushableOptions()}}
+     */
     public enum PushableOptions {
         SUPPORTED,
         NOT_SUPPORTED,

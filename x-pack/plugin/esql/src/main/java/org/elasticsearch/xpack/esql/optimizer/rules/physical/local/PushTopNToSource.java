@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -130,13 +129,15 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     record PushableCompoundExec(EvalExec evalExec, EsQueryExec queryExec, List<EsQueryExec.Sort> pushableSorts) implements Pushable {
         public PhysicalPlan rewrite(TopNExec topNExec) {
             List<Alias> evalExecAlias = evalExec.fields();
+            // If we have pushable sorts, we update the EVAL aliases to refer to the pushed down sort fields.
+            // It changes EVAL alias = pushable_expression to EVAL alias = alias_script
             for (EsQueryExec.Sort pushableSort : pushableSorts) {
-                if (pushableSort instanceof EsQueryExec.ScriptSort scriptSort) {
+                if (pushableSort instanceof EsQueryExec.PushableExpressionSort pushableExpressionSort) {
                     // Change eval alias to the script sort field
                     for (int i = 0; i < evalExecAlias.size(); i++) {
                         Alias alias = evalExecAlias.get(i);
-                        if (alias.id().equals(scriptSort.alias().id())) {
-                            evalExecAlias.set(i, alias.replaceChild(scriptSort.field()));
+                        if (alias.id().equals(pushableExpressionSort.alias().id())) {
+                            evalExecAlias.set(i, alias.replaceChild(pushableExpressionSort.field()));
                             break;
                         }
                     }
@@ -219,13 +220,12 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                         } else if (pushableExpressions.containsKey(resolvedAttribute.id())) {
                             Alias expressionAlias = (Alias) pushableExpressions.get(resolvedAttribute.id());
 
-                            // Create a script from the expression
-                            String scriptText = "return " + expressionAlias.child().asScript();
-                            Script script = new Script(scriptText);
-
                             // Create a script sort that computes the value
-                            EsQueryExec.ScriptSort scriptSort = new EsQueryExec.ScriptSort(expressionAlias, script, order.direction());
-                            pushableSorts.add(scriptSort);
+                            EsQueryExec.PushableExpressionSort pushableExpressionSort = new EsQueryExec.PushableExpressionSort(
+                                expressionAlias,
+                                order.direction()
+                            );
+                            pushableSorts.add(pushableExpressionSort);
                         } else {
                             // If the SORT refers to a non-pushable reference function, the EVAL must remain before the SORT,
                             // and we can no longer push down anything

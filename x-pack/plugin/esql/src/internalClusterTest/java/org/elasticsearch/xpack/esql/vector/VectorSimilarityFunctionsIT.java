@@ -50,19 +50,19 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             params.add(new Object[] { "v_cosine", (SimilarityEvaluatorFunction) CosineSimilarity::calculateSimilarity });
         }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             params.add(new Object[] { "v_dot_product", (SimilarityEvaluatorFunction) DotProduct::calculateSimilarity });
         }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             params.add(new Object[] { "v_l1_norm", (SimilarityEvaluatorFunction) L1Norm::calculateSimilarity });
         }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             params.add(new Object[] { "v_l2_norm", (SimilarityEvaluatorFunction) L2Norm::calculateSimilarity });
         }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             params.add(new Object[] { "v_hamming", (SimilarityEvaluatorFunction) Hamming::calculateSimilarity });
         }
 

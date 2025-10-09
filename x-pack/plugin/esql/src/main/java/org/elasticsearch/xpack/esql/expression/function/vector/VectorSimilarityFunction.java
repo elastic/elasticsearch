@@ -94,14 +94,14 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     @Override
-    public final String asScript() {
+    public final String asPushableScript() {
         String queryVector = left().foldable() ? queryVectorAsScript(left()) : queryVectorAsScript(right());
         String fieldName = ((FieldAttribute) (left().foldable() ? right() : left())).name();
         return "doc['" + fieldName + "'].size() == 0 ? 0 : " + scriptFunctionName() + "(" + queryVector + ", '" + fieldName + "')";
     }
 
     protected String queryVectorAsScript(Expression queryVector) {
-        return queryVector.asScript();
+        return queryVector.asPushableScript();
     }
 
     protected abstract String scriptFunctionName();

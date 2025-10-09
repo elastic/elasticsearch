@@ -170,8 +170,8 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     @Override
-    public String asScript() {
-        return left().asScript() + function().symbol() + right().asScript();
+    public String asPushableScript() {
+        return left().asPushableScript() + function().symbol() + right().asPushableScript();
     }
 
     @Override

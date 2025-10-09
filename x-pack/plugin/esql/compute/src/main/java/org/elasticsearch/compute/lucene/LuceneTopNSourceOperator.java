@@ -288,6 +288,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         DoubleBlock scores = null;
         Page page = null;
 
+        // Prepares builders for sort values extraction
         int extractSortCount = (int) sorts.stream().filter(s -> s instanceof ScriptSortBuilder).count();
         DoubleBlock.Builder[] sortValuesBlockBuilders = new DoubleBlock.Builder[extractSortCount];
         for (int i = 0; i < sortValuesBlockBuilders.length; i++) {
@@ -310,6 +311,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     float score = getScore(topDocs[i]);
                     currentScoresBuilder.appendDouble(score);
                 }
+                // Extracts sort values for script sorts, so they can be retrieved as values in the compute engine
                 if ((extractSortCount > 0) && topDocs[i] instanceof FieldDoc fieldDoc) {
                     int sortIndex = 0;
                     int extractedSortIndex = 0;

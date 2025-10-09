@@ -1145,18 +1145,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
         private LogicalPlan resolveKeep(Project p, List<Attribute> childOutput) {
-            // ---- Ambiguity check for KEEP ----
-            {
-                boolean qualifiersDefined = childOutput.stream().anyMatch(a -> a.qualifier() != null);
-                if (qualifiersDefined) {
-                    for (var proj : p.projections()) {
-                        if (proj instanceof UnresolvedAttribute ua && ua.qualifier() == null) {
-                            // Throws VerificationException if ambiguous unqualified name exists
-                            checkAmbiguousUnqualifiedName(ua, new ArrayList<>(childOutput));
-                        }
-                    }
-                }
-            }
 
             List<NamedExpression> resolvedProjections = new ArrayList<>();
             var projections = p.projections();
@@ -1205,18 +1193,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
-            // ---- Ambiguity check for DROP ----
-            {
-                boolean qualifiersDefined = childOutput.stream().anyMatch(a -> a.qualifier() != null);
-                if (qualifiersDefined) {
-                    for (var ne : drop.removals()) {
-                        if (ne instanceof UnresolvedAttribute ua && ua.qualifier() == null) {
-                            // Throws VerificationException if ambiguous unqualified name exists
-                            checkAmbiguousUnqualifiedName(ua, new ArrayList<>(childOutput));
-                        }
-                    }
-                }
-            }
 
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 

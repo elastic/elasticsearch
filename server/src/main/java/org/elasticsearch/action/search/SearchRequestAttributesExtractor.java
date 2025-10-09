@@ -11,6 +11,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -20,9 +22,14 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -47,16 +54,22 @@ public final class SearchRequestAttributesExtractor {
      * Introspects the provided search request and extracts metadata from it about some of its characteristics.
      */
     public static Map<String, Object> extractAttributes(SearchRequest searchRequest, String[] localIndices) {
-        return extractAttributes(searchRequest.source(), searchRequest.scroll(), localIndices);
+        return extractAttributes(searchRequest.source(), searchRequest.scroll(), null, -1, localIndices);
     }
 
     /**
      * Introspects the provided shard search request and extracts metadata from it about some of its characteristics.
      */
-    public static Map<String, Object> extractAttributes(ShardSearchRequest shardSearchRequest) {
+    public static Map<String, Object> extractAttributes(
+        ShardSearchRequest shardSearchRequest,
+        Long timeRangeFilterFromMillis,
+        long nowInMillis
+    ) {
         Map<String, Object> attributes = extractAttributes(
             shardSearchRequest.source(),
             shardSearchRequest.scroll(),
+            timeRangeFilterFromMillis,
+            nowInMillis,
             shardSearchRequest.shardId().getIndexName()
         );
         boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
@@ -67,6 +80,8 @@ public final class SearchRequestAttributesExtractor {
     private static Map<String, Object> extractAttributes(
         SearchSourceBuilder searchSourceBuilder,
         TimeValue scroll,
+        Long timeRangeFilterFromMillis,
+        long nowInMillis,
         String... localIndices
     ) {
         String target = extractIndices(localIndices);
@@ -77,7 +92,7 @@ public final class SearchRequestAttributesExtractor {
         }
 
         if (searchSourceBuilder == null) {
-            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, false, false, pitOrScroll);
+            return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, false, false, pitOrScroll, null);
         }
 
         if (searchSourceBuilder.pointInTimeBuilder() != null) {
@@ -98,11 +113,23 @@ public final class SearchRequestAttributesExtractor {
             try {
                 introspectQueryBuilder(searchSourceBuilder.query(), queryMetadataBuilder, 0);
             } catch (Exception e) {
-                logger.error("Failed to extract query attribute", e);
+                logger.error("Failed to extract query attributes", e);
+            }
+        }
+
+        if (searchSourceBuilder.retriever() != null) {
+            try {
+                introspectRetriever(searchSourceBuilder.retriever(), queryMetadataBuilder, 0);
+            } catch (Exception e) {
+                logger.error("Failed to extract retriever attributes", e);
             }
         }
 
         final boolean hasKnn = searchSourceBuilder.knnSearch().isEmpty() == false || queryMetadataBuilder.knnQuery;
+        String timeRangeFilterFrom = null;
+        if (timeRangeFilterFromMillis != null) {
+            timeRangeFilterFrom = introspectTimeRange(timeRangeFilterFromMillis, nowInMillis);
+        }
         return buildAttributesMap(
             target,
             primarySort,
@@ -110,7 +137,8 @@ public final class SearchRequestAttributesExtractor {
             hasKnn,
             queryMetadataBuilder.rangeOnTimestamp,
             queryMetadataBuilder.rangeOnEventIngested,
-            pitOrScroll
+            pitOrScroll,
+            timeRangeFilterFrom
         );
     }
 
@@ -121,7 +149,8 @@ public final class SearchRequestAttributesExtractor {
         boolean knn,
         boolean rangeOnTimestamp,
         boolean rangeOnEventIngested,
-        String pitOrScroll
+        String pitOrScroll,
+        String timeRangeFilterFrom
     ) {
         Map<String, Object> attributes = new HashMap<>(5, 1.0f);
         attributes.put(TARGET_ATTRIBUTE, target);
@@ -133,11 +162,18 @@ public final class SearchRequestAttributesExtractor {
         if (knn) {
             attributes.put(KNN_ATTRIBUTE, knn);
         }
-        if (rangeOnTimestamp) {
-            attributes.put(RANGE_TIMESTAMP_ATTRIBUTE, rangeOnTimestamp);
+        if (rangeOnTimestamp && rangeOnEventIngested) {
+            attributes.put(
+                TIME_RANGE_FILTER_FIELD_ATTRIBUTE,
+                DataStream.TIMESTAMP_FIELD_NAME + "_AND_" + IndexMetadata.EVENT_INGESTED_FIELD_NAME
+            );
+        } else if (rangeOnEventIngested) {
+            attributes.put(TIME_RANGE_FILTER_FIELD_ATTRIBUTE, IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+        } else if (rangeOnTimestamp) {
+            attributes.put(TIME_RANGE_FILTER_FIELD_ATTRIBUTE, DataStream.TIMESTAMP_FIELD_NAME);
         }
-        if (rangeOnEventIngested) {
-            attributes.put(RANGE_EVENT_INGESTED_ATTRIBUTE, rangeOnEventIngested);
+        if (timeRangeFilterFrom != null) {
+            attributes.put(TIME_RANGE_FILTER_FROM_ATTRIBUTE, timeRangeFilterFrom);
         }
         return attributes;
     }
@@ -153,8 +189,8 @@ public final class SearchRequestAttributesExtractor {
     static final String QUERY_TYPE_ATTRIBUTE = "query_type";
     static final String PIT_SCROLL_ATTRIBUTE = "pit_scroll";
     static final String KNN_ATTRIBUTE = "knn";
-    static final String RANGE_TIMESTAMP_ATTRIBUTE = "range_timestamp";
-    static final String RANGE_EVENT_INGESTED_ATTRIBUTE = "range_event_ingested";
+    static final String TIME_RANGE_FILTER_FIELD_ATTRIBUTE = "time_range_filter_field";
+    static final String TIME_RANGE_FILTER_FROM_ATTRIBUTE = "time_range_filter_from";
 
     private static final String TARGET_KIBANA = ".kibana";
     private static final String TARGET_ML = ".ml";
@@ -288,7 +324,19 @@ public final class SearchRequestAttributesExtractor {
             case NestedQueryBuilder nested:
                 introspectQueryBuilder(nested.query(), queryMetadataBuilder, ++level);
                 break;
+            case RankDocsQueryBuilder rankDocs:
+                QueryBuilder[] queryBuilders = rankDocs.getQueryBuilders();
+                if (queryBuilders != null) {
+                    for (QueryBuilder builder : queryBuilders) {
+                        introspectQueryBuilder(builder, queryMetadataBuilder, level + 1);
+                    }
+                }
+                break;
             case RangeQueryBuilder range:
+                // Note that the outcome of this switch differs depending on whether it is executed on the coord node, or data node.
+                // Data nodes perform query rewrite on each shard. That means that a query that reports a certain time range filter at the
+                // coordinator, may not report the same for all the shards it targets, but rather only for those that do end up executing
+                // a true range query at the shard level.
                 switch (range.fieldName()) {
                     // don't track unbounded ranges, they translate to either match_none if the field does not exist
                     // or match_all if the field is mapped
@@ -309,5 +357,59 @@ public final class SearchRequestAttributesExtractor {
                 break;
             default:
         }
+    }
+
+    private static void introspectRetriever(RetrieverBuilder retrieverBuilder, QueryMetadataBuilder queryMetadataBuilder, int level) {
+        if (level > 20) {
+            return;
+        }
+        switch (retrieverBuilder) {
+            case KnnRetrieverBuilder knn:
+                queryMetadataBuilder.knnQuery = true;
+                break;
+            case StandardRetrieverBuilder standard:
+                introspectQueryBuilder(standard.topDocsQuery(), queryMetadataBuilder, level + 1);
+                break;
+            case CompoundRetrieverBuilder<?> compound:
+                for (CompoundRetrieverBuilder.RetrieverSource retrieverSource : compound.innerRetrievers()) {
+                    introspectRetriever(retrieverSource.retriever(), queryMetadataBuilder, level + 1);
+                }
+                break;
+            default:
+        }
+    }
+
+    private enum TimeRangeBucket {
+        FifteenMinutes(TimeValue.timeValueMinutes(15).getMillis(), "15_minutes"),
+        OneHour(TimeValue.timeValueHours(1).getMillis(), "1_hour"),
+        TwelveHours(TimeValue.timeValueHours(12).getMillis(), "12_hours"),
+        OneDay(TimeValue.timeValueDays(1).getMillis(), "1_day"),
+        ThreeDays(TimeValue.timeValueDays(3).getMillis(), "3_days"),
+        SevenDays(TimeValue.timeValueDays(7).getMillis(), "7_days"),
+        FourteenDays(TimeValue.timeValueDays(14).getMillis(), "14_days");
+
+        private final long millis;
+        private final String bucketName;
+
+        TimeRangeBucket(long millis, String bucketName) {
+            this.millis = millis;
+            this.bucketName = bucketName;
+        }
+    }
+
+    public static void addTimeRangeAttribute(Long timeRangeFrom, long nowInMillis, Map<String, Object> attributes) {
+        if (timeRangeFrom != null) {
+            String timestampRangeFilter = introspectTimeRange(timeRangeFrom, nowInMillis);
+            attributes.put(TIME_RANGE_FILTER_FROM_ATTRIBUTE, timestampRangeFilter);
+        }
+    }
+
+    static String introspectTimeRange(long timeRangeFromMillis, long nowInMillis) {
+        for (TimeRangeBucket value : TimeRangeBucket.values()) {
+            if (timeRangeFromMillis >= nowInMillis - value.millis) {
+                return value.bucketName;
+            }
+        }
+        return "older_than_14_days";
     }
 }

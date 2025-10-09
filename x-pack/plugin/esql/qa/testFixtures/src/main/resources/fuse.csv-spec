@@ -4,7 +4,7 @@
 
 simpleFuse
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: match_operator_colon
 
 FROM employees METADATA _id, _index, _score
@@ -23,7 +23,7 @@ _score:double | _fork:keyword | emp_no:integer
 
 fuseWithMatchAndScore
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -46,7 +46,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithDisjunctionAndPostFilter
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -69,7 +69,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithStats
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -89,7 +89,7 @@ count_fork:long | _fork:keyword
 
 fuseWithMultipleForkBranches
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -116,7 +116,7 @@ _score:double | author:keyword                    | title:keyword        | _fork
 
 fuseWithSemanticSearch
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -137,7 +137,7 @@ _fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
 
 fuseWithSimpleRrf
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -161,7 +161,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfAndRankConstant
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -185,7 +185,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfAndWeights
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -209,7 +209,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfRankConstantAndWeights
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -233,7 +233,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfAndScoreColumn
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -257,7 +257,7 @@ my_score:double | _fork:keyword  | _id:keyword
 
 fuseWithRrfAndDiscriminatorColumn
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -281,9 +281,36 @@ _score:double | new_fork:keyword  | _id:keyword
 0.01587       | fork1             | 26
 ;
 
+fuseWithRrfAndDiscriminatorColumnWithDots
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: semantic_text_field_caps
+required_capability: metadata_score
+required_capability: dots_in_fuse
+
+FROM books METADATA _id, _index, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
+| EVAL new.fork = _fork
+| DROP _fork
+| FUSE rrf GROUP BY new.fork
+| SORT _score DESC, _id, _index
+| EVAL new.fork = mv_sort(new.fork)
+| EVAL _score = round(_score, 5)
+| KEEP _score, new.fork, _id
+;
+
+_score:double | new.fork:keyword  | _id:keyword
+0.03279       | [fork1, fork2]    | 4
+0.01613       | fork1             | 56
+0.01613       | fork2             | 60
+0.01587       | fork2             | 1
+0.01587       | fork1             | 26
+;
+
 fuseWithRrfAndKeyColumns
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -309,7 +336,7 @@ _score:double | _fork:keyword  | new_id:keyword
 
 fuseWithRrfAllOptionsScoreKeyAndGroupColumns
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -337,7 +364,7 @@ new_score:double | new_fork:keyword | new_id:keyword
 
 fuseWithSimpleLinear
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -362,9 +389,8 @@ _score:double | _fork:keyword  | _id:keyword
 fuseWithLinearAndL2Norm
 
 required_capability: fork_v9
-required_capability: fuse_v4
-required_capability: semantic_text_field_caps
-required_capability: metadata_score
+required_capability: fuse_v6
+required_capability: fuse_l2_norm
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -387,7 +413,7 @@ _score:double | _fork:keyword  | _id:keyword
 fuseWithLinearAndMinMax
 
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -411,7 +437,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearAndWeights
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -435,7 +461,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearAndPartialWeights
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -459,7 +485,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearWeightsAndMinMax
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -484,7 +510,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearAndScoreColumn
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -509,7 +535,7 @@ my_score:double | _fork:keyword  | _id:keyword
 
 fuseWithLinearAndDiscriminatorColumn
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -535,7 +561,7 @@ _score:double | new_fork:keyword | _id:keyword
 
 fuseWithLinearAndKeyColumns
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -560,7 +586,7 @@ _score:double | _fork:keyword  | new_id:keyword
 
 fuseWithLinearAllOptionsScoreGroupAndKeyColumns
 required_capability: fork_v9
-required_capability: fuse_v4
+required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -589,7 +615,7 @@ new_score:double | new_fork:keyword | new_id:keyword
 
 fuseWithRowAndRRF
 
-required_capability: fuse_v4
+required_capability: fuse_v6
 
 ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | MV_EXPAND my_score
@@ -612,7 +638,7 @@ id_4.0      | 0.01538
 
 fuseWithRowLinearAndWeights
 
-required_capability: fuse_v4
+required_capability: fuse_v6
 
 ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | MV_EXPAND my_score
@@ -634,7 +660,7 @@ id_0.0      | 0.0
 
 fuseWithRowLinearAndMinMax
 
-required_capability: fuse_v4
+required_capability: fuse_v6
 
 ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | MV_EXPAND my_score
@@ -657,7 +683,8 @@ id_0.0      | 0.0
 
 fuseWithRowLinearAndL2Norm
 
-required_capability: fuse_v4
+required_capability: fuse_v6
+required_capability: fuse_l2_norm
 
 ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", _fork = "foo"
 | MV_EXPAND my_score
@@ -676,4 +703,119 @@ id_3.0      | 0.54772
 id_2.0      | 0.36515
 id_1.0      | 0.18257
 id_0.0      | 0.0
+;
+
+fuseWithRowLinearAndMultiValueGroupColumn
+
+required_capability: fuse_v6
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string), my_fork = CASE(my_score == 0, ["foo", "bar"], my_fork)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score GROUP BY my_fork
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score, my_fork
+;
+
+warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+
+_id:keyword | my_score:double | my_fork:keyword
+id_0.0      | null            | [foo, bar]
+id_4.0      | 4.0             | foo
+id_3.0      | 3.0             | foo
+id_2.0      | 2.0             | foo
+id_1.0      | 1.0             | foo
+;
+
+fuseWithRowLinearAndMultiValueScoreColumn
+
+required_capability: fuse_v6
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string), my_score = CASE(my_score == 0, [1, 2]::double, my_score)
+| SORT my_score
+| LIMIT 10
+| FUSE LINEAR SCORE BY my_score GROUP BY my_fork
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score, my_fork
+;
+
+warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: score column contains multivalued entries; assigning null scores
+
+_id:keyword | my_score:double | my_fork:keyword
+id_0.0      | null            | foo
+id_4.0      | 4.0             | foo
+id_3.0      | 3.0             | foo
+id_2.0      | 2.0             | foo
+id_1.0      | 1.0             | foo
+;
+
+fuseWithRowRRFAndMultiValueGroupColumn
+
+required_capability: fuse_v6
+
+ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
+| MV_EXPAND my_score
+| EVAL _id = CONCAT("id_", my_score::string), my_fork = CASE(my_score == 0, ["foo", "bar"], my_fork)
+| SORT my_score
+| LIMIT 10
+| FUSE RRF SCORE BY my_score GROUP BY my_fork
+| EVAL my_score = round(my_score, 5)
+| SORT my_score DESC
+| KEEP _id, my_score, my_fork
+;
+
+warning:Line 6:3: evaluation of [FUSE RRF SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+
+_id:keyword | my_score:double | my_fork:keyword
+id_0.0      | null            | [foo, bar]
+id_1.0      | 0.01639         | foo
+id_2.0      | 0.01613         | foo
+id_3.0      | 0.01587         | foo
+id_4.0      | 0.01563         | foo
+;
+
+fuseWithRowLinearL2NormAndZeroScores
+
+required_capability: fuse_v6
+required_capability: fuse_l2_norm
+
+ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
+| MV_EXPAND _id
+| LIMIT 10
+| FUSE LINEAR GROUP BY my_fork WITH { "normalizer": "l2_norm" }
+| SORT _id
+| KEEP _id, _score
+;
+
+_id:keyword | _score:double
+a           | 0.0
+b           | 0.0
+c           | 0.0
+;
+
+fuseWithRowLinearMinMaxAndZeroScores
+
+required_capability: fuse_v6
+
+ROW _id = ["a", "b", "c"], _score = 0.0, _index = "my_index", my_fork = "foo"
+| MV_EXPAND _id
+| LIMIT 10
+| FUSE LINEAR GROUP BY my_fork WITH { "normalizer": "minmax" }
+| SORT _id
+| KEEP _id, _score
+;
+
+_id:keyword | _score:double
+a           | 0.0
+b           | 0.0
+c           | 0.0
 ;

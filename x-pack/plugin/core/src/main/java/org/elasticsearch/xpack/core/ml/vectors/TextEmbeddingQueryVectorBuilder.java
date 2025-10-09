@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -64,11 +63,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
-            this.modelId = in.readOptionalString();
-        } else {
-            this.modelId = in.readString();
-        }
+        this.modelId = in.readOptionalString();
         this.modelText = in.readString();
     }
 
@@ -84,11 +79,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
-            out.writeOptionalString(modelId);
-        } else {
-            out.writeString(modelId);
-        }
+        out.writeOptionalString(modelId);
         out.writeString(modelText);
     }
 
@@ -132,7 +123,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "expected a result of type ["
                         + MlTextEmbeddingResults.NAME
                         + "] received ["

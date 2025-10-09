@@ -426,6 +426,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public static boolean shouldExcludeInferenceFieldsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
         var explicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
+        var filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+        if (filter != null) {
+            if (filter.isPathFiltered(InferenceMetadataFieldsMapper.NAME, true)) {
+                return true;
+            } else if (filter.isExplicitlyIncluded(InferenceMetadataFieldsMapper.NAME)) {
+                return false;
+            }
+        }
         return explicit != null ? explicit : INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
     }
 
@@ -458,8 +466,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             )
             : null;
 
+        SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+
         List<String> lateExcludes = new ArrayList<>();
         var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+            // Keep the vector fields that are explicitly included and not explicitly excluded
+            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
+                return filter.isPathFiltered(f.name(), false);
+            }
             // Exclude the field specified by the `fields` option
             if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
                 lateExcludes.add(f.name());

@@ -196,7 +196,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -430,7 +430,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Arrays.stream(resolvedIndices.getConcreteLocalIndices()).map(Index::getName).toArray(String[]::new)
                 );
                 if (collectCCSTelemetry == false || resolvedIndices.getRemoteClusterIndices().isEmpty()) {
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, searchRequestAttributes);
+                    searchResponseActionListener = new SearchTelemetryListener(
+                        delegate,
+                        searchResponseMetrics,
+                        searchRequestAttributes,
+                        timeProvider.absoluteStartMillis()
+                    );
                 } else {
                     CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
                     usageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
@@ -459,6 +464,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         delegate,
                         searchResponseMetrics,
                         searchRequestAttributes,
+                        timeProvider.absoluteStartMillis(),
                         usageService,
                         usageBuilder
                     );
@@ -2052,6 +2058,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private static class SearchTelemetryListener extends DelegatingActionListener<SearchResponse, SearchResponse> {
         private final CCSUsage.Builder usageBuilder;
         private final SearchResponseMetrics searchResponseMetrics;
+        private final long nowInMillis;
         private final UsageService usageService;
         private final boolean collectCCSTelemetry;
         private final Map<String, Object> searchRequestAttributes;
@@ -2060,12 +2067,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ActionListener<SearchResponse> listener,
             SearchResponseMetrics searchResponseMetrics,
             Map<String, Object> searchRequestAttributes,
+            long nowInMillis,
             UsageService usageService,
             CCSUsage.Builder usageBuilder
         ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
             this.searchRequestAttributes = searchRequestAttributes;
+            this.nowInMillis = nowInMillis;
             this.collectCCSTelemetry = true;
             this.usageService = usageService;
             this.usageBuilder = usageBuilder;
@@ -2074,11 +2083,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTelemetryListener(
             ActionListener<SearchResponse> listener,
             SearchResponseMetrics searchResponseMetrics,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            long nowInMillis
         ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
             this.searchRequestAttributes = searchRequestAttributes;
+            this.nowInMillis = nowInMillis;
             this.collectCCSTelemetry = false;
             this.usageService = null;
             this.usageBuilder = null;
@@ -2087,7 +2098,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onResponse(SearchResponse searchResponse) {
             try {
-                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), searchRequestAttributes);
+                searchResponseMetrics.recordTookTime(
+                    searchResponse.getTookInMillis(),
+                    searchResponse.getTimeRangeFilterFromMillis(),
+                    nowInMillis,
+                    searchRequestAttributes
+                );
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                 if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
@@ -2105,7 +2121,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
-                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                searchResponseMetrics.incrementResponseCount(responseCountTotalStatus, searchRequestAttributes);
 
                 if (collectCCSTelemetry) {
                     extractCCSTelemetry(searchResponse);
@@ -2121,7 +2137,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         @Override
         public void onFailure(Exception e) {
-            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+            searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE, searchRequestAttributes);
             if (collectCCSTelemetry) {
                 usageBuilder.setFailure(e);
                 recordTelemetry();

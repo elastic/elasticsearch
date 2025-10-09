@@ -65,6 +65,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -527,6 +528,11 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         finalStats.put("hits_time_in_millis", 1L);
         finalStats.put("misses_time_in_millis", 2L);
         assertThat(cache.usageStats(), equalTo(finalStats));
+    }
+
+    public void testUsageStatsAreOrdered() {
+        final Map<String, Object> stats = newCache(Settings.EMPTY).usageStats();
+        assertThat("needs to be LinkedHashMap for order in transport", stats, instanceOf(LinkedHashMap.class));
     }
 
     private void runTestOnIndex(CheckedBiConsumer<SearchExecutionContext, LeafReaderContext, Exception> body) throws Exception {

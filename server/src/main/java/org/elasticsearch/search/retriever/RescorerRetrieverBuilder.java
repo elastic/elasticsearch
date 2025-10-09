@@ -46,7 +46,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     static {
         PARSER.declareNamedObject(constructorArg(), (parser, context, n) -> {
             RetrieverBuilder innerRetriever = parser.namedObject(RetrieverBuilder.class, n, context);
-            context.trackRetrieverUsage(innerRetriever.getName());
+            context.trackRetrieverUsage(innerRetriever);
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareField(constructorArg(), (parser, context) -> {

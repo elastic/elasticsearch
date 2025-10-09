@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+
 public class HierarchicalKMeansTests extends ESTestCase {
 
     public void testHKmeans() throws IOException {
@@ -127,7 +129,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             assertEquals(nVectors, soarAssignments.length);
             // verify no duplicates exist
             for (int i = 0; i < assignments.length; i++) {
-                assertTrue(soarAssignments[i] >= 0 && soarAssignments[i] < centroids.length);
+                assertTrue((soarAssignments[i] == NO_SOAR_ASSIGNMENT || soarAssignments[i] >= 0) && soarAssignments[i] < centroids.length);
                 assertNotEquals(assignments[i], soarAssignments[i]);
             }
         } else {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -55,7 +56,7 @@ public class InferenceFunctionEvaluator {
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
     InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
-        this.foldContext = new FoldContext(foldContext.initialAllowedBytes());
+        this.foldContext = foldContext;
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -88,7 +89,7 @@ public class InferenceFunctionEvaluator {
         // Set up a DriverContext for executing the inference operator.
         // This follows the same pattern as EvaluatorMapper but in a simplified context
         // suitable for constant folding during optimization.
-        CircuitBreaker breaker = foldContext.circuitBreakerView(f.source());
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
             @Override
             public CircuitBreaker getBreaker(String name) {

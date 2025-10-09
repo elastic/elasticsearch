@@ -52,7 +52,7 @@ public class SearchResponseMetrics {
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
 
-    private final Map<String, LongHistogram> phaseNameToDurationHistogram = new HashMap<>();
+    private final Map<String, LongHistogram> phaseNameToDurationHistogram;
 
     public SearchResponseMetrics(MeterRegistry meterRegistry) {
         this.tookDurationTotalMillisHistogram = meterRegistry.registerLongHistogram(
@@ -68,15 +68,26 @@ public class SearchResponseMetrics {
             "count"
         );
 
-        for (String phaseName : SEARCH_PHASE_NAMES) {
-            String metricName = String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, phaseName);
-            LongHistogram histogram = meterRegistry.registerLongHistogram(
-                metricName,
-                "The search phase " + phaseName + " duration in milliseconds at the coordinator, expressed as a histogram",
+        phaseNameToDurationHistogram = Map.of(
+            "dfs",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "dfs"),
+                "The search phase dfs duration in milliseconds at the coordinator, expressed as a histogram",
                 "millis"
-            );
-            phaseNameToDurationHistogram.put(phaseName, histogram);
-        }
+            ),
+            "open_pit",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "open_pit"),
+                "The search phase open_pit duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            ),
+            "query",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "query"),
+                "The search phase query duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            )
+        );
     }
 
     public long recordTookTimeForSearchScroll(long tookTime) {
@@ -105,8 +116,7 @@ public class SearchResponseMetrics {
 
     public void recordSearchPhaseDuration(String phaseName, long tookInNanos) {
         LongHistogram queryPhaseDurationHistogram = phaseNameToDurationHistogram.get(phaseName);
-        if (queryPhaseDurationHistogram != null) {
-            queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-        }
+        assert queryPhaseDurationHistogram != null;
+        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
     }
 }

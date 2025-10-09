@@ -33,12 +33,11 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
+public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_coordinator_search_phase_metrics";
     private final int num_primaries = randomIntBetween(2, 7);
 
@@ -81,7 +80,7 @@ public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC, TOOK_DURATION_TOTAL_HISTOGRAM_NAME));
+        assertMeasurements(List.of(QUERY_SEARCH_PHASE_METRIC));
     }
 
     public void testDfsSearch() {
@@ -89,7 +88,7 @@ public class SearchResponseMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC, TOOK_DURATION_TOTAL_HISTOGRAM_NAME));
+        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC));
     }
 
     public void testPointInTime() {

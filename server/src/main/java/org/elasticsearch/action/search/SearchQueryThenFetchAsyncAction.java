@@ -425,7 +425,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     @Override
     protected void doRun(Map<SearchShardIterator, Integer> shardIndexMap) {
-        phaseStartTimeNanos = System.nanoTime();
         if (this.batchQueryPhase == false) {
             super.doRun(shardIndexMap);
             return;

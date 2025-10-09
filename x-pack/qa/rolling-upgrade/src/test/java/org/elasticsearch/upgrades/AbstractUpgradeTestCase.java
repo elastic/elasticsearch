@@ -249,11 +249,13 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         var restClientById = getRestClientById();
         return nodeInfoById().entrySet().stream().map(entry -> {
             var version = (String) extractValue((Map<?, ?>) entry.getValue(), "version");
-            var transportVersion = (String) extractValue((Map<?, ?>) entry.getValue(), "transport_version");
+            assertNotNull(version);
+            var transportVersion = (Integer) extractValue((Map<?, ?>) entry.getValue(), "transport_version");
+            assertNotNull(transportVersion);
             return new TestNodeInfo(
                 entry.getKey(),
                 version,
-                TransportVersion.fromString(transportVersion),
+                TransportVersion.fromId(transportVersion),
                 nodeFeatures.getOrDefault(entry.getKey(), Set.of()),
                 restClientById.get(entry.getKey())
             );

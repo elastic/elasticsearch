@@ -371,7 +371,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation
-            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (forceRebuild || remote.shouldRebuildConnection(config)) {
@@ -382,7 +382,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             connectionMap.remove(clusterAlias);
-            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {

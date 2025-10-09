@@ -282,4 +282,4 @@ Wildcard Expansion Settings:
         allow_closed: true
   - match:
       $body: |
-        /basic-index.*false(\s)+true.*\nclosed-index.*true(\s)+false.*\nhidden-index.*false(\s)+true.*/
+        /basic-index(\s)+0(\s)+p.*\nclosed-index(\s)+0(\s)+p.*\nhidden-index(\s)+0(\s)+p.*/

@@ -24,6 +24,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
@@ -74,6 +75,11 @@ public class InferenceFunctionEvaluator {
     public void fold(InferenceFunction<?> f, ActionListener<Expression> listener) {
         if (f.foldable() == false) {
             listener.onFailure(new IllegalArgumentException("Inference function must be foldable"));
+            return;
+        }
+        if (f.dataType() == DataType.NULL) {
+            // If the function's return type is NULL, we can directly return a NULL literal without executing anything.
+            listener.onResponse(Literal.of(f, null));
             return;
         }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
@@ -41,7 +40,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersions.V_8_6_0;
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -341,11 +339,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource = null;
         }
         unassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
-        if (in.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
-            relocationFailureInfo = RelocationFailureInfo.readFrom(in);
-        } else {
-            relocationFailureInfo = RelocationFailureInfo.NO_FAILURES;
-        }
+        relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         allocationId = in.readOptionalWriteable(AllocationId::new);
         if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.STARTED) {
             expectedShardSize = in.readLong();
@@ -375,9 +369,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource.writeTo(out);
         }
         out.writeOptionalWriteable(unassignedInfo);
-        if (out.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
-            relocationFailureInfo.writeTo(out);
-        }
+        relocationFailureInfo.writeTo(out);
         out.writeOptionalWriteable(allocationId);
         if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.STARTED) {
             out.writeLong(expectedShardSize);

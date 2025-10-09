@@ -13,7 +13,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -55,9 +54,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
-        }
+        searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -128,9 +125,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
         out.writeOptionalCollection(knnResults);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
-        }
+        out.writeOptionalWriteable(searchProfileDfsPhaseResult);
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

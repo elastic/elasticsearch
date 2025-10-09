@@ -177,6 +177,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 .put(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1))
                 // Use a higher alpha than the default so that the observed ingestion load converges faster towards the expected value.
                 .put(ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), 0.1)
+                // Make sure initially queue contribution is not ignored
+                .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
                 .build()
         );
 
@@ -236,6 +238,16 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(metricsAfter.toString(), metricsAfter.size(), equalTo(1));
             assertThat(metricsAfter.toString(), metricsAfter.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(metricsAfter.toString(), metricsAfter.get(0).load(), greaterThan((double) executorThreads));
+        });
+        // Update the setting to check that the queue contribution is ignored
+        updateClusterSettings(
+            Settings.builder().put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ONE_HOUR)
+        );
+        assertBusy(() -> {
+            var metricsAfter = getNodesIngestLoad();
+            assertThat(metricsAfter.toString(), metricsAfter.size(), equalTo(1));
+            assertThat(metricsAfter.toString(), metricsAfter.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(metricsAfter.toString(), metricsAfter.get(0).load(), lessThanOrEqualTo((double) executorThreads));
         });
         barrier.await(30, TimeUnit.SECONDS);
     }
@@ -885,6 +897,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 .put(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0)
                 // Initially avoid taking into account the queue size by using 0.0
                 .put(AverageWriteLoadSampler.QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.0)
+                // Make sure queue size is always considered
+                .put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ZERO)
                 .build()
         );
         final String indexName = randomIdentifier();

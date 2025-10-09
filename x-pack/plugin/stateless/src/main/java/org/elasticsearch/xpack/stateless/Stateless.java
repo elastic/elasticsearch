@@ -678,7 +678,7 @@ public class Stateless extends Plugin
         if (hasIndexRole) {
             var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
             var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
-            var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats);
+            var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats, threadPool);
             var ingestLoadSampler = new IngestLoadSampler(
                 threadPool,
                 writeLoadSampler,
@@ -1148,6 +1148,7 @@ public class Stateless extends Plugin
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
+            IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             AverageWriteLoadSampler.QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING,
             SearchShardSizeCollector.PUSH_INTERVAL_SETTING,

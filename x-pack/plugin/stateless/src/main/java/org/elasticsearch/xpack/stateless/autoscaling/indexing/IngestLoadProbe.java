@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -70,18 +71,43 @@ public class IngestLoadProbe {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * A newly started indexing node may have a large number of tasks queued up due to buffered indexing requests on the nodes that
+     * are leaving the cluster and their shards are being relocated, or possibly due to a cold cache. To avoid a short spike in the
+     * queue size to cause an unnecessary scale up, we ignore the queue contribution to the ingestion load for this initial interval.
+     */
+    public static final TimeValue DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = TimeValue.THIRTY_SECONDS;
+    public static final Setting<TimeValue> INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = Setting.timeSetting(
+        "serverless.autoscaling.indexing.sampler.initial_interval_to_ignore_queue_contribution",
+        DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private final Function<String, ExecutorStats> executorStatsProvider;
     private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
+    private final TimeProvider timeProvider;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
     private volatile boolean includeWriteCoordinationExecutors;
+    private volatile TimeValue initialIntervalToIgnoreQueueContribution;
+    private volatile long probeStartTimeInMillis;
 
     @SuppressWarnings("this-escape")
-    public IngestLoadProbe(ClusterSettings clusterSettings, Function<String, ExecutorStats> executorStatsProvider) {
+    public IngestLoadProbe(
+        ClusterSettings clusterSettings,
+        Function<String, ExecutorStats> executorStatsProvider,
+        TimeProvider timeProvider
+    ) {
         this.executorStatsProvider = executorStatsProvider;
+        this.timeProvider = timeProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
         clusterSettings.initializeAndWatch(MAX_QUEUE_CONTRIBUTION_FACTOR, this::setMaxQueueContributionFactor);
         clusterSettings.initializeAndWatch(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED, this::setIncludeWriteCoordinationExecutors);
+        clusterSettings.initializeAndWatch(
+            INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
+            value -> this.initialIntervalToIgnoreQueueContribution = value
+        );
         ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
         AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
     }
@@ -102,6 +128,10 @@ public class IngestLoadProbe {
      * MAX_TIME_TO_CLEAR_QUEUE.
      */
     public double getIngestionLoad() {
+        long currentTimeInMillis = timeProvider.relativeTimeInMillis();
+        if (probeStartTimeInMillis == 0) {
+            probeStartTimeInMillis = currentTimeInMillis;
+        }
         double totalIngestionLoad = 0.0;
         for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
             var executorStats = executorStatsProvider.apply(executorName);
@@ -113,6 +143,19 @@ public class IngestLoadProbe {
                 maxTimeToClearQueue,
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
+            if (ingestionLoadForExecutor.queueThreadsNeeded > 0.0
+                && currentTimeInMillis - probeStartTimeInMillis < initialIntervalToIgnoreQueueContribution.millis()) {
+                // This is a newly started node as defined by the INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION
+                // setting. Drop the queue contribution.
+                logger.info(
+                    "dropping queue contribution [{}] for executor [{}]"
+                        + " since we are within the first {}s of sampling ingest load on this node",
+                    ingestionLoadForExecutor,
+                    executorName,
+                    initialIntervalToIgnoreQueueContribution.seconds()
+                );
+                ingestionLoadForExecutor = new ExecutorIngestionLoad(ingestionLoadForExecutor.averageWriteLoad, 0.0);
+            }
             ingestionLoadPerExecutor.put(executorName, ingestionLoadForExecutor);
             // Do not include ingestion load from write coordination executors if disabled. But they are still recorded
             // in the above ingestionLoadPerExecutor for metrics purpose.

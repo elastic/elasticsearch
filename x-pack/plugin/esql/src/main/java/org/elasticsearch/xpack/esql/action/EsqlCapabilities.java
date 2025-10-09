@@ -1135,6 +1135,7 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+        CLAMP_FUNCTIONS,
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.

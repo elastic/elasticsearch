@@ -215,7 +215,6 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
                 GoogleModelGardenProvider.META,
                 GoogleModelGardenProvider.MISTRAL,
                 GoogleModelGardenProvider.HUGGING_FACE,
-                GoogleModelGardenProvider.GOOGLE,
                 GoogleModelGardenProvider.AI21
             ),
             new RateLimitSettings(randomIntBetween(1, 1000))

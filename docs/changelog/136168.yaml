@@ -1,6 +1,0 @@
-pr: 136168
-summary: Opt-in closed/hidden segments in `/_cat/segments`
-area: CAT APIs
-type: enhancement
-issues:
- - 97023

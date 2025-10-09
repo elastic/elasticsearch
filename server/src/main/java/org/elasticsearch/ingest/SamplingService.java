@@ -771,7 +771,7 @@ public class SamplingService implements ClusterStateListener {
                 updateSamplingConfigurationTask.samplingConfiguration.condition()
 
             );
-            
+
             // Get sampling metadata
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);

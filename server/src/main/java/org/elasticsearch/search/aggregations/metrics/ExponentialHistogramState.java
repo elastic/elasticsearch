@@ -158,12 +158,13 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         // 3, 10, 20, 30, -2, 40, 50
         BucketIterator bucketIterator = buckets.iterator();
         if (bucketIterator.hasNext()) {
-            long lastIndex = bucketIterator.peekIndex();
-            out.writeZLong(lastIndex);
+            long index = bucketIterator.peekIndex();
+            out.writeZLong(index);
             out.writeVLong(bucketIterator.peekCount());
             bucketIterator.advance();
+            long lastIndex = index;
             while (bucketIterator.hasNext()) {
-                long index = bucketIterator.peekIndex();
+                index = bucketIterator.peekIndex();
                 long delta = index - lastIndex;
                 assert delta > 0;
                 if (delta > 1) {
@@ -260,12 +261,7 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         if (closed == false) {
             closed = true;
             circuitBreaker.addWithoutBreaking(-SHALLOW_SIZE);
-            if (mergedHistograms != null) {
-                Releasables.close(mergedHistograms);
-            }
-            if (deserializedHistogram != null) {
-                Releasables.close(deserializedHistogram);
-            }
+            Releasables.close(mergedHistograms, deserializedHistogram);
         }
     }
 

@@ -10,6 +10,8 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -68,11 +70,43 @@ restResources {
   }
 }
 
+<<<<<<< HEAD
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
+=======
+tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: 'annotations',              to: 'aws-sdk-2'
+  mapping from: 'apache-client',            to: 'aws-sdk-2'
+  mapping from: 'arns',                     to: 'aws-sdk-2'
+  mapping from: 'auth',                     to: 'aws-sdk-2'
+  mapping from: 'aws-core',                 to: 'aws-sdk-2'
+  mapping from: 'aws-query-protocol',       to: 'aws-sdk-2'
+  mapping from: 'aws-xml-protocol',         to: 'aws-sdk-2'
+  mapping from: 'checksums',                to: 'aws-sdk-2'
+  mapping from: 'checksums-spi',            to: 'aws-sdk-2'
+  mapping from: 'endpoints-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-auth',                to: 'aws-sdk-2'
+  mapping from: 'http-auth-aws',            to: 'aws-sdk-2'
+  mapping from: 'http-auth-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-client-spi',          to: 'aws-sdk-2'
+  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'json-utils',               to: 'aws-sdk-2'
+  mapping from: 'metrics-spi',              to: 'aws-sdk-2'
+  mapping from: 'profiles',                 to: 'aws-sdk-2'
+  mapping from: 'protocol-core',            to: 'aws-sdk-2'
+  mapping from: 'regions',                  to: 'aws-sdk-2'
+  mapping from: 'retries',                  to: 'aws-sdk-2'
+  mapping from: 'retries-spi',              to: 'aws-sdk-2'
+  mapping from: 's3',                       to: 'aws-sdk-2'
+  mapping from: 'sdk-core',                 to: 'aws-sdk-2'
+  mapping from: 'services',                 to: 'aws-sdk-2'
+  mapping from: 'sts',                      to: 'aws-sdk-2'
+  mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
+  mapping from: 'utils',                    to: 'aws-sdk-2'
+>>>>>>> f74406d4b1c9 (Fix dependency reporting (#136209))
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {

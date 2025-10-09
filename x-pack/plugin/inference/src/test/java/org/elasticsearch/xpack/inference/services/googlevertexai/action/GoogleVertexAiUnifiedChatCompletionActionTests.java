@@ -35,8 +35,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -79,115 +77,94 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
     // Successful case would typically be tested via end-to-end notebook tests in AppEx repo
 
     public void testExecute_ThrowsElasticsearchExceptionGoogleVertexAi() {
-        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.GOOGLE, null);
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.GOOGLE);
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledGoogleVertexAi() {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.GOOGLE, null);
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.GOOGLE);
     }
 
     public void testExecute_ThrowsExceptionGoogleVertexAi() {
-        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.GOOGLE, null);
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.GOOGLE);
     }
 
-    public void testExecute_ThrowsElasticsearchExceptionAnthropic() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.ANTHROPIC, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsElasticsearchExceptionAnthropic() {
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.ANTHROPIC);
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAnthropic() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            GoogleModelGardenProvider.ANTHROPIC,
-            new URI("http://localhost:9200")
-        );
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAnthropic() {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.ANTHROPIC);
     }
 
-    public void testExecute_ThrowsExceptionAnthropic() throws URISyntaxException {
-        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.ANTHROPIC, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsExceptionAnthropic() {
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.ANTHROPIC);
     }
 
-    public void testExecute_ThrowsElasticsearchExceptionMeta() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.META, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsElasticsearchExceptionMeta() {
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.META);
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMeta() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            GoogleModelGardenProvider.META,
-            new URI("http://localhost:9200")
-        );
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMeta() {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.META);
     }
 
-    public void testExecute_ThrowsExceptionMeta() throws URISyntaxException {
-        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.META, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsExceptionMeta() {
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.META);
     }
 
-    public void testExecute_ThrowsElasticsearchExceptionMistral() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.MISTRAL, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsElasticsearchExceptionMistral() {
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.MISTRAL);
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMistral() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            GoogleModelGardenProvider.MISTRAL,
-            new URI("http://localhost:9200")
-        );
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledMistral() {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.MISTRAL);
     }
 
-    public void testExecute_ThrowsExceptionMistral() throws URISyntaxException {
-        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.MISTRAL, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsExceptionMistral() {
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.MISTRAL);
     }
 
-    public void testExecute_ThrowsElasticsearchExceptionHuggingFace() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.HUGGING_FACE, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsElasticsearchExceptionHuggingFace() {
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.HUGGING_FACE);
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledHuggingFace() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            GoogleModelGardenProvider.HUGGING_FACE,
-            new URI("http://localhost:9200")
-        );
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledHuggingFace() {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.HUGGING_FACE);
     }
 
-    public void testExecute_ThrowsExceptionHuggingFace() throws URISyntaxException {
-        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.HUGGING_FACE, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsExceptionHuggingFace() {
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.HUGGING_FACE);
     }
 
-    public void testExecute_ThrowsElasticsearchExceptionAi21() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.AI21, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsElasticsearchExceptionAi21() {
+        testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider.AI21);
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAi21() throws URISyntaxException {
-        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(
-            GoogleModelGardenProvider.AI21,
-            new URI("http://localhost:9200")
-        );
+    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalledAi21() {
+        testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider.AI21);
     }
 
-    public void testExecute_ThrowsExceptionAi21() throws URISyntaxException {
-        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.AI21, new URI("http://localhost:9200"));
+    public void testExecute_ThrowsExceptionAi21() {
+        testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider.AI21);
     }
 
-    private void testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider provider, URI uri) {
+    private void testExecute_ThrowsIllegalArgumentException(GoogleModelGardenProvider provider) {
         testExecute_ThrowsException(
             provider,
-            uri,
             new IllegalArgumentException("failed"),
             "Failed to send Google Vertex AI chat completion request. Cause: failed"
         );
     }
 
-    private void testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider provider, URI uri) {
-        testExecute_ThrowsException(provider, uri, new ElasticsearchException("failed"), "failed");
+    private void testExecute_ThrowsElasticsearchException(GoogleModelGardenProvider provider) {
+        testExecute_ThrowsException(provider, new ElasticsearchException("failed"), "failed");
     }
 
-    private void testExecute_ThrowsException(
-        GoogleModelGardenProvider provider,
-        URI uri,
-        Exception exception,
-        String expectedExceptionMessage
-    ) {
+    private void testExecute_ThrowsException(GoogleModelGardenProvider provider, Exception exception, String expectedExceptionMessage) {
         var sender = mock(Sender.class);
         doThrow(exception).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, uri, provider.getChatCompletionResponseHandler());
+        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -196,7 +173,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is(expectedExceptionMessage));
     }
 
-    private void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider provider, URI uri) {
+    private void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled(GoogleModelGardenProvider provider) {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
@@ -205,7 +182,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(sender, provider, uri, provider.getChatCompletionResponseHandler());
+        var action = createAction(sender, provider, provider.getChatCompletionResponseHandler());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(createUnifiedChatInput(List.of("test query")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -214,7 +191,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("Failed to send Google Vertex AI chat completion request. Cause: failed"));
     }
 
-    private ExecutableAction createAction(Sender sender, GoogleModelGardenProvider provider, URI uri, ResponseHandler handler) {
+    private ExecutableAction createAction(Sender sender, GoogleModelGardenProvider provider, ResponseHandler handler) {
         var model = GoogleVertexAiChatCompletionModelTests.createCompletionModel(
             null,
             null,
@@ -223,7 +200,7 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             new RateLimitSettings(100),
             new ThinkingConfig(256),
             provider,
-            uri,
+            null,
             123
         );
 

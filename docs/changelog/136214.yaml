@@ -1,5 +1,5 @@
 pr: 136214
-summary: Using index settng providers for data stream setting validation
+summary: Using index setting providers for data stream setting validation
 area: Data streams
 type: bug
 issues:

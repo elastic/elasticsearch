@@ -19,7 +19,9 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 public final class FetchSourcePhase implements FetchSubPhase {
@@ -42,7 +44,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NEEDS_SOURCE;
+                return StoredFieldsSpec.withSourcePaths(new HashSet<>(Arrays.asList(sourceFilter.getIncludes())));
             }
 
             @Override

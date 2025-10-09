@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -25,10 +26,11 @@ public record StoredFieldsSpec(
     boolean requiresSource,
     boolean requiresMetadata,
     Set<String> requiredStoredFields,
-    IgnoredFieldsSpec ignoredFieldsSpec
+    IgnoredFieldsSpec ignoredFieldsSpec,
+    Set<String> sourcePaths
 ) {
     public StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
-        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredFieldsSpec.NONE);
+        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredFieldsSpec.NONE, null);
     }
 
     public boolean noRequirements() {
@@ -52,6 +54,18 @@ public record StoredFieldsSpec(
      */
     public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
+    public static StoredFieldsSpec withSourcePaths(Set<String> sourcePaths) {
+        return new StoredFieldsSpec(
+            true,
+            false,
+            Set.of(),
+            // TODO: pick format based on index version:
+            // The fields in source paths might also be in ignored source, so include this as well.
+            new IgnoredFieldsSpec(sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),
+            sourcePaths
+        );
+    }
+
     /**
      * Combine these stored field requirements with those from another StoredFieldsSpec
      */
@@ -70,11 +84,19 @@ public record StoredFieldsSpec(
             mergedFields = new HashSet<>(this.requiredStoredFields);
             mergedFields.addAll(other.requiredStoredFields);
         }
+        Set<String> mergedSourcePaths;
+        if (other.sourcePaths == null) {
+            mergedSourcePaths = this.sourcePaths;
+        } else {
+            mergedSourcePaths = new HashSet<>(this.sourcePaths);
+            mergedSourcePaths.addAll(other.sourcePaths);
+        }
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,
             this.requiresMetadata || other.requiresMetadata,
-            mergedFields,
-            ignoredFieldsSpec.merge(other.ignoredFieldsSpec)
+            mergedSourcePaths,
+            ignoredFieldsSpec.merge(other.ignoredFieldsSpec),
+            mergedSourcePaths
         );
     }
 

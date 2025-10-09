@@ -39,7 +39,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                     false,
                     false,
                     Set.of(),
-                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),
+                    null
                 )
             )
         );
@@ -50,7 +51,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                     false,
                     false,
                     Set.of(),
-                    new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+                    new IgnoredFieldsSpec(Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),
+                    null
                 )
             )
         );
@@ -61,7 +63,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                     true,
                     false,
                     Set.of(),
-                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+                    new IgnoredFieldsSpec(Set.of("foo"), IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),
+                    null
                 )
             )
         );
@@ -129,7 +132,8 @@ public class IgnoredSourceFieldLoaderTests extends ESTestCase {
                 false,
                 false,
                 Set.of(),
-                new IgnoredFieldsSpec(fieldsToLoad, IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+                new IgnoredFieldsSpec(fieldsToLoad, IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE),
+                null
             );
             assertTrue(IgnoredSourceFieldLoader.supports(spec));
             iw.addDocument(doc);

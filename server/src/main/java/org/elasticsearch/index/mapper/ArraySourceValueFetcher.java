@@ -76,7 +76,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        return StoredFieldsSpec.withSourcePaths(sourcePaths);
     }
 
     /**

@@ -18,8 +18,10 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -92,6 +94,6 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        return StoredFieldsSpec.withSourcePaths(new HashSet<>(Arrays.asList(nestedPathParts)));
     }
 }

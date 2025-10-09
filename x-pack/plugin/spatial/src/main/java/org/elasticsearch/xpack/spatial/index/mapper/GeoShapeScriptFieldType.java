@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<GeometryFieldScript.LeafFactory> implements GeoShapeQueryable {
@@ -160,7 +161,7 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NEEDS_SOURCE;
+                return StoredFieldsSpec.withSourcePaths(Set.of(name()));
             }
         };
     }

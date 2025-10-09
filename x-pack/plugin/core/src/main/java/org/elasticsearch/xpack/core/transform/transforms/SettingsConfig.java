@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -162,11 +161,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.alignCheckpoints = in.readOptionalInt();
         this.usePit = in.readOptionalInt();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            deduceMappings = in.readOptionalInt();
-        } else {
-            deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
-        }
+        deduceMappings = in.readOptionalInt();
         numFailureRetries = in.readOptionalInt();
         unattended = in.readOptionalInt();
     }
@@ -270,9 +265,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         out.writeOptionalInt(alignCheckpoints);
         out.writeOptionalInt(usePit);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalInt(deduceMappings);
-        }
+        out.writeOptionalInt(deduceMappings);
         out.writeOptionalInt(numFailureRetries);
         out.writeOptionalInt(unattended);
     }

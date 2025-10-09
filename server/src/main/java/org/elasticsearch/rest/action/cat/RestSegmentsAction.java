@@ -72,7 +72,7 @@ public class RestSegmentsAction extends AbstractCatAction {
             : IndicesOptions.strictExpandOpenAndForbidClosed();
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, defaultOptions);
 
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(indicesOptions);
+        clusterStateRequest.clear().nodes(true);
 
         final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
 

@@ -300,6 +300,8 @@ public final class RemoteClusterService extends RemoteClusterAware
         String linkedProjectAlias,
         boolean skipUnavailable
     ) {
+        assert crossProjectEnabled == false
+            : "Cannot configure setting [" + RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getKey() + "] in CPS environments.";
         final var remote = getConnectionsMapForProject(originProjectId).get(linkedProjectAlias);
         if (remote != null) {
             remote.setSkipUnavailable(skipUnavailable);

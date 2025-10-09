@@ -72,7 +72,7 @@
       "ccs_minimize_roundtrips": {
         "type": "boolean",
         "description": "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
-        "default": "true"
+        "default": true
       },
       "index": {
         "type": "list",
@@ -80,12 +80,14 @@
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "ignore_throttled": {
         "type": "boolean",
-        "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled",
-        "deprecated": true
+        "deprecated": true,
+        "default": false,
+        "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
       },
       "allow_no_indices": {
         "type": "boolean",

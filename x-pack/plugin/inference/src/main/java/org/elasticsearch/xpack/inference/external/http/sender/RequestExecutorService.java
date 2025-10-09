@@ -278,7 +278,7 @@ public class RequestExecutorService implements RequestExecutor {
 
                 if (isShutdown()) {
                     logger.debug("Shutdown requested while handling request tasks, cleaning up");
-                    rejectRequest(task);
+                    rejectNonRateLimitedRequest(task);
                     break;
                 }
 
@@ -387,28 +387,25 @@ public class RequestExecutorService implements RequestExecutor {
         requestQueue.drainTo(requests);
 
         for (var request : requests) {
-            rejectRequest(request);
+            rejectNonRateLimitedRequest(request);
         }
     }
 
-    private void rejectRequest(RejectableTask task) {
+    private void rejectNonRateLimitedRequest(RejectableTask task) {
+        var inferenceEntityId = task.getRequestManager().inferenceEntityId();
+
+        rejectRequest(
+            task,
+            format("Failed to send request for inference id [%s] has shutdown prior to executing request", inferenceEntityId),
+            format("Failed to notify request for inference id [%s] of rejection after executor service shutdown", inferenceEntityId)
+        );
+    }
+
+    private static void rejectRequest(RejectableTask task, String rejectionMessage, String rejectionFailedMessage) {
         try {
-            task.onRejection(
-                new EsRejectedExecutionException(
-                    format(
-                        "Failed to send request for inference id [%s] has shutdown prior to executing request",
-                        task.getRequestManager().inferenceEntityId()
-                    ),
-                    true
-                )
-            );
+            task.onRejection(new EsRejectedExecutionException(rejectionMessage, true));
         } catch (Exception e) {
-            logger.warn(
-                format(
-                    "Failed to notify request for inference id [%s] of rejection after executor service shutdown",
-                    task.getRequestManager().inferenceEntityId()
-                )
-            );
+            logger.warn(rejectionFailedMessage);
         }
     }
 
@@ -667,27 +664,18 @@ public class RequestExecutorService implements RequestExecutor {
 
         private void rejectTasks(List<RejectableTask> tasks) {
             for (var task : tasks) {
-                rejectTaskForShutdown(task);
-            }
-        }
+                var inferenceEntityId = task.getRequestManager().inferenceEntityId();
 
-        private void rejectTaskForShutdown(RejectableTask task) {
-            try {
-                task.onRejection(
-                    new EsRejectedExecutionException(
-                        format(
-                            "Failed to send request, request service [%s] for inference id [%s] has shutdown prior to executing request",
-                            id,
-                            task.getRequestManager().inferenceEntityId()
-                        ),
-                        true
-                    )
-                );
-            } catch (Exception e) {
-                logger.warn(
+                rejectRequest(
+                    task,
+                    format(
+                        "Failed to send request, request service [%s] for inference id [%s] has shutdown prior to executing request",
+                        id,
+                        inferenceEntityId
+                    ),
                     format(
                         "Failed to notify request for inference id [%s] of rejection after executor service grouping [%s] shutdown",
-                        task.getRequestManager().inferenceEntityId(),
+                        inferenceEntityId,
                         id
                     )
                 );

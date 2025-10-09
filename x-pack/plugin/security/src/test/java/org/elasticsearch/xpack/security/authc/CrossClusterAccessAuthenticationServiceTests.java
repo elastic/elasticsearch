@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 import org.junit.Before;
@@ -242,7 +243,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         when(signer.sign(anyString(), anyString())).thenReturn(new X509CertificateSignature(certs, "", mock(BytesReference.class)));
         crossClusterAccessHeaders.writeToContext(threadContext, signer);
 
-        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        var auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        doAnswer(invocationOnMock -> invocationOnMock.getArguments()[0]).when(auditableRequest).exceptionProcessingRequest(any(), any());
 
         var authContext = new Authenticator.Context(
             threadContext,
@@ -255,28 +257,20 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyService.ApiKeyCredentials.class)))
             .thenReturn(authContext);
 
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(i -> null).when(authenticationService).authenticate(any(Authenticator.Context.class), listenerCaptor.capture());
-
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         crossClusterAccessAuthenticationService.authenticate(action, request, future);
-
-        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().build(false);
-        listenerCaptor.getValue().onResponse(apiKeyAuthentication);
 
         final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
 
         assertThat(actual.getCause(), instanceOf(ElasticsearchSecurityException.class));
         assertThat(
-            actual.getCause().getMessage(),
+            actual.getMessage(),
             containsString(
                 (badCert
                     ? "Failed to verify cross cluster api key signature certificate from ["
                     : "Invalid cross cluster api key signature from [") + X509CertificateSignature.certificateToString(certs[0]) + "]"
             )
         );
-        verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testNoInteractionWithAuditableRequestOnInitialAuthenticationFailure() throws IOException {

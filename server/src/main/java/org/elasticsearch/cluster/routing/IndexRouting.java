@@ -153,12 +153,6 @@ public abstract class IndexRouting {
      */
     public void checkIndexSplitAllowed() {}
 
-    public abstract int rerouteIndexingRequestIfResharding(IndexRequest indexRequest);
-
-    public abstract int rerouteDeleteRequestIfResharding(String id, @Nullable String routing);
-
-    public abstract int rerouteUpdateRequestIfResharding(String id, @Nullable String routing);
-
     /**
      * If this index is in the process of resharding, and the shard to which this request is being routed,
      * is a target shard that is not yet in HANDOFF state, then route it to the source shard.
@@ -241,18 +235,6 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
-            String id = indexRequest.id();
-            String routing = indexRequest.routing();
-            if (id == null) {
-                throw new IllegalStateException("id is required and should have been set by process");
-            }
-            checkRoutingRequired(id, routing);
-            int shardId = shardId(id, routing);
-            return rerouteWritesIfResharding(shardId);
-        }
-
-        @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
@@ -260,21 +242,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int rerouteUpdateRequestIfResharding(String id, @Nullable String routing) {
-            checkRoutingRequired(id, routing);
-            int shardId = shardId(id, routing);
-            return rerouteWritesIfResharding(shardId);
-        }
-
-        @Override
         public int deleteShard(String id, @Nullable String routing) {
-            checkRoutingRequired(id, routing);
-            int shardId = shardId(id, routing);
-            return rerouteWritesIfResharding(shardId);
-        }
-
-        @Override
-        public int rerouteDeleteRequestIfResharding(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
             return rerouteWritesIfResharding(shardId);
@@ -403,20 +371,6 @@ public abstract class IndexRouting {
 
         protected abstract int hashSource(IndexRequest indexRequest);
 
-        // This is actually same as indexShard above minus the checkNoRouting check because routing
-        // can be added to the request during postProcess. But we probably need to think of ways to
-        // make this call cheaper.
-        @Override
-        public int rerouteIndexingRequestIfResharding(IndexRequest indexRequest) {
-            // assert Transports.assertNotTransportThread("parsing the _source can get slow");
-            // TODO: Is this always necessary ? This can be expensive. postProcess adds some additional metadata
-            // TODO: to the indexing request, can that be used to get the hash in a cheaper way ? Or maybe we
-            // TODO: can add the hash to the IndexRequest ?
-            hash = hashSource(indexRequest);
-            int shardId = hashToShardId(hash);
-            return rerouteWritesIfResharding(shardId);
-        }
-
         private static int defaultOnEmpty() {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
         }
@@ -431,19 +385,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int rerouteUpdateRequestIfResharding(String id, @Nullable String routing) {
-            throw new IllegalArgumentException(error("update"));
-        }
-
-        @Override
         public int deleteShard(String id, @Nullable String routing) {
-            checkNoRouting(routing);
-            int shardId = idToHash(id);
-            return rerouteWritesIfResharding(shardId);
-        }
-
-        @Override
-        public int rerouteDeleteRequestIfResharding(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
             return rerouteWritesIfResharding(shardId);

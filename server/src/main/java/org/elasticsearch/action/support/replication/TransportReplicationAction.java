@@ -16,13 +16,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -81,7 +77,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -89,8 +84,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -498,10 +491,6 @@ public abstract class TransportReplicationAction<
                 }
 
                 SplitShardCountSummary reshardSplitShardCountSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
-                assert reshardSplitShardCountSummary.isUnset()
-                    || reshardSplitShardCountSummary.equals(
-                        SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.getRequest().shardId().getId())
-                    );
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");
@@ -511,7 +500,31 @@ public abstract class TransportReplicationAction<
                     final ShardRouting primary = primaryShardReference.routingEntry();
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
-                    delegate(relocatingNode, primary.allocationId().getRelocationId(), onCompletionListener);
+                    String allocationID = primary.allocationId().getRelocationId();
+                    transportService.sendRequest(
+                        relocatingNode,
+                        transportPrimaryAction,
+                        new ConcreteShardRequest<>(primaryRequest.getRequest(), allocationID, primaryRequest.getPrimaryTerm()),
+                        transportOptions,
+                        new ActionListenerResponseHandler<>(
+                            onCompletionListener,
+                            TransportReplicationAction.this::newResponseInstance,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        ) {
+
+                            @Override
+                            public void handleResponse(Response response) {
+                                setPhase(replicationTask, "finished");
+                                super.handleResponse(response);
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                setPhase(replicationTask, "finished");
+                                super.handleException(exp);
+                            }
+                        }
+                    );
                 } else if (reshardSplitShardCountSummary.isUnset()
                     || reshardSplitShardCountSummary.equals(
                         SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.getRequest().shardId().getId())
@@ -541,7 +554,34 @@ public abstract class TransportReplicationAction<
                                 final ShardRouting target = targetShard.routingEntry();
                                 DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
                                 String allocationID = target.allocationId().getId();
-                                delegate(targetNode, allocationID, onCompletionListener);
+                                transportService.sendRequest(
+                                    targetNode,
+                                    transportPrimaryAction,
+                                    new ConcreteShardRequest<>(
+                                        primaryRequest.getRequest(),
+                                        allocationID,
+                                        indexMetadata.primaryTerm(targetShardId.id())
+                                    ),
+                                    transportOptions,
+                                    new ActionListenerResponseHandler<>(
+                                        onCompletionListener,
+                                        TransportReplicationAction.this::newResponseInstance,
+                                        TransportResponseHandler.TRANSPORT_WORKER
+                                    ) {
+
+                                        @Override
+                                        public void handleResponse(Response response) {
+                                            setPhase(replicationTask, "finished");
+                                            super.handleResponse(response);
+                                        }
+
+                                        @Override
+                                        public void handleException(TransportException exp) {
+                                            setPhase(replicationTask, "finished");
+                                            super.handleException(exp);
+                                        }
+                                    }
+                                );
                             }
                         } else {
                             Map<ShardId, Tuple<Response, Exception>> results = new ConcurrentHashMap<>(splitRequests.size());
@@ -584,7 +624,30 @@ public abstract class TransportReplicationAction<
                                     final ShardRouting target = targetShard.routingEntry();
                                     DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
                                     String allocationID = target.allocationId().getId();
-                                    delegate(targetNode, allocationID, listener);
+                                    transportService.sendRequest(
+                                        targetNode,
+                                        transportPrimaryAction,
+                                        new ConcreteShardRequest<>(splitRequest.getValue(), allocationID, primaryRequest.getPrimaryTerm()),
+                                        transportOptions,
+                                        new ActionListenerResponseHandler<>(
+                                            listener,
+                                            TransportReplicationAction.this::newResponseInstance,
+                                            TransportResponseHandler.TRANSPORT_WORKER
+                                        ) {
+
+                                            @Override
+                                            public void handleResponse(Response response) {
+                                                setPhase(replicationTask, "finished");
+                                                super.handleResponse(response);
+                                            }
+
+                                            @Override
+                                            public void handleException(TransportException exp) {
+                                                setPhase(replicationTask, "finished");
+                                                super.handleException(exp);
+                                            }
+                                        }
+                                    );
                                 }
                             }
                         }
@@ -595,33 +658,6 @@ public abstract class TransportReplicationAction<
                 Releasables.closeWhileHandlingException(primaryShardReference);
                 onFailure(e);
             }
-        }
-
-        private void delegate(DiscoveryNode targetNode, String allocationID, ActionListener<Response> listener) {
-            transportService.sendRequest(
-                targetNode,
-                transportPrimaryAction,
-                new ConcreteShardRequest<>(primaryRequest.getRequest(), allocationID, primaryRequest.getPrimaryTerm()),
-                transportOptions,
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    TransportReplicationAction.this::newResponseInstance,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                ) {
-
-                    @Override
-                    public void handleResponse(Response response) {
-                        setPhase(replicationTask, "finished");
-                        super.handleResponse(response);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        setPhase(replicationTask, "finished");
-                        super.handleException(exp);
-                    }
-                }
-            );
         }
 
         private void executePrimaryRequest(

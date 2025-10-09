@@ -75,12 +75,12 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ObjLongConsumer;
@@ -174,6 +174,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
+        // TODO Needed right now for not in primary mode on the target. Need to make sure we handle that with retries.
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
         final ShardId sourceShardId = request.shardId();
         final Index index = sourceShardId.getIndex();
 
@@ -249,7 +251,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }
         }
-        return new Tuple<>(new BulkShardResponse(originalRequest.shardId(), bulkItemResponses), null);
+        BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
+        bulkShardResponse.setShardInfo(responses.get(originalRequest.shardId()).v1().getShardInfo());
+        return new Tuple<>(bulkShardResponse, null);
     }
 
     @Override

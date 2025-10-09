@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -97,7 +98,7 @@ public enum GoogleModelGardenProvider {
 
     public ToXContentObject createRequestEntity(
         UnifiedChatInput unifiedChatInput,
-        String modelId,
+        @Nullable String modelId,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) {
         return entityCreator.create(unifiedChatInput, modelId, taskSettings);
@@ -172,7 +173,11 @@ public enum GoogleModelGardenProvider {
 
     @FunctionalInterface
     private interface RequestEntityCreator {
-        ToXContentObject create(UnifiedChatInput unifiedChatInput, String modelId, GoogleVertexAiChatCompletionTaskSettings taskSettings);
+        ToXContentObject create(
+            UnifiedChatInput unifiedChatInput,
+            @Nullable String modelId,
+            GoogleVertexAiChatCompletionTaskSettings taskSettings
+        );
     }
 
     public static GoogleModelGardenProvider fromString(String name) {

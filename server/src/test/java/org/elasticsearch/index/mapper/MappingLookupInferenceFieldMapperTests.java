@@ -145,7 +145,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         private static class TestInferenceFieldMapperFieldType extends MappedFieldType {
 
             TestInferenceFieldMapperFieldType(String name) {
-                super(name, false, false, false, Map.of());
+                super(name, IndexType.NONE, false, Map.of());
             }
 
             @Override

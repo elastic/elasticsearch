@@ -22,9 +22,7 @@ repositories {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation('com.nvidia.cuvs:cuvs-java:25.10.0') {
-    changing = true // Ensure that we get updates even when the version number doesn't change. We can remove this once things stabilize
-  }
+  implementation('com.nvidia.cuvs:cuvs-java:25.10.0-815d86dd')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   yamlRestTestImplementation(project(xpackModule('gpu')))

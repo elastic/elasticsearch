@@ -21,7 +21,6 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -312,8 +311,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext = res.v1();
         }
 
-        if (mappingLookup.inferenceFields().isEmpty() == false
-            && shouldExcludeInferenceFieldsFromSource(indexSettings, fetchSourceContext) == false) {
+        if (mappingLookup.inferenceFields().isEmpty() == false && shouldExcludeInferenceFieldsFromSource(fetchSourceContext) == false) {
             storedFieldSet.add(InferenceMetadataFieldsMapper.NAME);
         }
 
@@ -425,7 +423,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return fetchSourceContext != null ? fetchSourceContext.excludeVectors() : null;
     }
 
-    public static boolean shouldExcludeInferenceFieldsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
+    public static boolean shouldExcludeInferenceFieldsFromSource(FetchSourceContext fetchSourceContext) {
         if (fetchSourceContext != null) {
             if (fetchSourceContext.fetchSource() == false) {
                 // Source is disabled
@@ -447,11 +445,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        // We always default to excluding the inference metadata field. We only use the index setting when it is explicitly set.
-        Settings settings = indexSettings.getSettings();
-        return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(settings)
-            ? INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(settings)
-            : true;
+        // We always default to excluding the inference metadata field, unless the fetch source context says otherwise
+        return true;
     }
 
     private static Boolean shouldExcludeInferenceFieldsFromSourceExplicit(FetchSourceContext fetchSourceContext) {

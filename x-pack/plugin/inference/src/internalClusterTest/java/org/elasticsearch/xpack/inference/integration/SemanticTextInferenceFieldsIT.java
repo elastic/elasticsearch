@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -132,7 +131,7 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
 
         for (int i = 0; i < iterations; i++) {
             final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
-            final Settings indexSettings = generateRandomIndexSettings(indexVersion);
+            final Settings indexSettings = generateIndexSettings(indexVersion);
             XContentBuilder mappings = generateMapping(
                 Map.of(sparseEmbeddingField, sparseEmbeddingInferenceId, textEmbeddingField, textEmbeddingInferenceId)
             );
@@ -198,18 +197,13 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
         inferenceIds.put(inferenceId, taskType);
     }
 
-    private Settings generateRandomIndexSettings(IndexVersion indexVersion) {
+    private Settings generateIndexSettings(IndexVersion indexVersion) {
         int numDataNodes = internalCluster().numDataNodes();
-        Settings.Builder settings = Settings.builder()
+        return Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numDataNodes)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-
-        if (randomBoolean()) {
-            settings.put(INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), randomBoolean());
-        }
-
-        return settings.build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
     }
 
     private void indexDocuments(String field, int count) {
@@ -285,12 +279,6 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
             if (excludeInferenceFieldsExplicit != null) {
                 return excludeInferenceFieldsExplicit ? ExpectedSource.INFERENCE_FIELDS_EXCLUDED : ExpectedSource.INFERENCE_FIELDS_INCLUDED;
             }
-        }
-
-        if (INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(indexSettings)) {
-            return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings)
-                ? ExpectedSource.INFERENCE_FIELDS_EXCLUDED
-                : ExpectedSource.INFERENCE_FIELDS_INCLUDED;
         }
 
         return ExpectedSource.INFERENCE_FIELDS_EXCLUDED;

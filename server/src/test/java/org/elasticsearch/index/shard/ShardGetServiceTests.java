@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -31,7 +30,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -418,22 +416,9 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
     public void testShouldExcludeInferenceFieldsFromSource() {
         for (int i = 0; i < 100; i++) {
-            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario(IndexVersion.current());
+            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario();
             assertThat(
-                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.indexSettings, scenario.fetchSourceContext),
-                equalTo(scenario.shouldExcludeInferenceFields())
-            );
-        }
-
-        for (int i = 0; i < 200; i++) {
-            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-                random(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.current())
-            );
-            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario(indexVersion);
-            assertThat(
-                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.indexSettings, scenario.fetchSourceContext),
+                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.fetchSourceContext),
                 equalTo(scenario.shouldExcludeInferenceFields())
             );
         }
@@ -455,11 +440,9 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     }
 
     private static class ExcludeInferenceFieldsTestScenario {
-        private final IndexSettings indexSettings;
         private final FetchSourceContext fetchSourceContext;
 
-        private ExcludeInferenceFieldsTestScenario(IndexVersion indexVersion) {
-            this.indexSettings = generateRandomIndexSettings(indexVersion);
+        private ExcludeInferenceFieldsTestScenario() {
             this.fetchSourceContext = generateRandomFetchSourceContext();
         }
 
@@ -484,23 +467,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 }
             }
 
-            Settings settings = indexSettings.getSettings();
-            return IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(settings)
-                ? IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(settings)
-                : true;
-        }
-
-        private static IndexSettings generateRandomIndexSettings(IndexVersion indexVersion) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), randomBoolean());
-            }
-
-            return new IndexSettings(IndexMetadata.builder(randomIdentifier()).settings(settings).build(), settings.build());
+            return true;
         }
 
         private static FetchSourceContext generateRandomFetchSourceContext() {

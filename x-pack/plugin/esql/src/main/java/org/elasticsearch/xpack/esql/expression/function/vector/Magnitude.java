@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
@@ -134,7 +135,12 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
 
     @Override
     public PushableOptions pushableOptions() {
-        return PushableOptions.PREFERRED;
+        return field() instanceof FieldAttribute ? PushableOptions.PREFERRED : PushableOptions.NOT_SUPPORTED;
+    }
+
+    @Override
+    public String asScript() {
+        return "doc['" + ((FieldAttribute) field()).name() + "'].magnitude";
     }
 
     private record ScalarEvaluator(

@@ -11,6 +11,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.util.List;
 
 public class Hamming extends VectorSimilarityFunction {
 
@@ -89,5 +91,15 @@ public class Hamming extends VectorSimilarityFunction {
     @Override
     protected String scriptFunctionName() {
         return "hamming";
+    }
+
+    @Override
+    protected String queryVectorAsScript(Expression queryVector) {
+        // Need to convert to bytes so the appropriate method is called from script
+        @SuppressWarnings("unchecked")
+        List<Number> vector = (List<Number>) ((Literal) queryVector).value();
+        List<Integer> intList = vector.stream().map(Number::intValue).toList();
+
+        return intList.toString();
     }
 }

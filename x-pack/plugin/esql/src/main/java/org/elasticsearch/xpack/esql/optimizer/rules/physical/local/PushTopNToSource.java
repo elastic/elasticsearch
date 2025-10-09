@@ -220,7 +220,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             Alias expressionAlias = (Alias) pushableExpressions.get(resolvedAttribute.id());
 
                             // Create a script from the expression
-                            String scriptText = expressionAlias.child().asScript();
+                            String scriptText = "return " + expressionAlias.child().asScript();
                             Script script = new Script(scriptText);
 
                             // Create a script sort that computes the value

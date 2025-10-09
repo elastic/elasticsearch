@@ -89,15 +89,19 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         // Can only push if one of the arguments is a literal, and the other a field name
         return left().foldable() && left().dataType() != NULL && right() instanceof FieldAttribute
             || right().foldable() && right().dataType() != NULL && left() instanceof FieldAttribute
-            ? PushableOptions.PREFERRED
-            : PushableOptions.NOT_SUPPORTED;
+                ? PushableOptions.PREFERRED
+                : PushableOptions.NOT_SUPPORTED;
     }
 
     @Override
     public final String asScript() {
-        String queryVector = left().foldable() ? left().asScript() : right().asScript();
-        String fieldName = left().foldable() ? ((FieldAttribute) right()).name() : ((FieldAttribute) left()).name();
-        return "return doc['" + fieldName + "'].size() == 0 ? 0 : " + scriptFunctionName() + "(" + queryVector + ", '" + fieldName + "')";
+        String queryVector = left().foldable() ? queryVectorAsScript(left()) : queryVectorAsScript(right());
+        String fieldName = ((FieldAttribute) (left().foldable() ? right() : left())).name();
+        return "doc['" + fieldName + "'].size() == 0 ? 0 : " + scriptFunctionName() + "(" + queryVector + ", '" + fieldName + "')";
+    }
+
+    protected String queryVectorAsScript(Expression queryVector) {
+        return queryVector.asScript();
     }
 
     protected abstract String scriptFunctionName();

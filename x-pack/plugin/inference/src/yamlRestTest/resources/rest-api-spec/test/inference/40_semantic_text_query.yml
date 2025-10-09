@@ -781,7 +781,10 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
-"Query a field with an invalid inference ID":
+"Query a field with an invalid inference ID v2":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       indices.create:
         index: test-index-with-invalid-inference-id
@@ -803,7 +806,7 @@ setup:
               query: "inference test"
 
   - match: { error.type: "resource_not_found_exception" }
-  - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
+  - contains: { error.reason: "Inference endpoint [invalid-inference-id] not found" }
 
 ---
 "Query a field with a search inference ID that uses the wrong task type":
@@ -896,7 +899,10 @@ setup:
                                       compatible with the inference endpoint [dense-inference-id]?" }
 
 ---
-"Query a field with an invalid search inference ID":
+"Query a field with an invalid search inference ID v2":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       indices.put_mapping:
         index: test-dense-index
@@ -927,7 +933,7 @@ setup:
               query: "inference test"
 
   - match: { error.type: "resource_not_found_exception" }
-  - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }
+  - contains: { error.reason: "Inference endpoint [invalid-inference-id] not found" }
 
 ---
 "Query a field that uses the default ELSER 2 endpoint":

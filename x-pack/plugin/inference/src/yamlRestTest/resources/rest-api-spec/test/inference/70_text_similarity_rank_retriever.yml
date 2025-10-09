@@ -181,9 +181,9 @@ setup:
   - match: { hits.hits.0._id: "doc_1" }
 
 ---
-"Text similarity reranking fails if the inference ID does not exist":
+"Text similarity reranking fails if the inference ID does not exist v2":
   - do:
-      catch: /Inference endpoint not found/
+      catch: /Inference endpoint \[.*?\] not found/
       search:
         index: test-index
         body:
@@ -206,13 +206,13 @@ setup:
           size: 10
 
 ---
-"Text similarity reranking fails if the inference ID does not exist and result set is empty":
+"Text similarity reranking fails if the inference ID does not exist and result set is empty v2":
   - requires:
       cluster_features: "gte_v8.15.1"
       reason: bug fixed in 8.15.1
 
   - do:
-      catch: /Inference endpoint not found/
+      catch: /Inference endpoint \[.*?\] not found/
       search:
         index: test-index
         body:

@@ -407,6 +407,13 @@ tasks.named('yamlRestTest') {
   usesDefaultDistribution("Uses the inference API")
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("inference/40_semantic_text_query/Query a field with an invalid inference ID", "Error message changed")
+  task.skipTest("inference/40_semantic_text_query/Query a field with an invalid search inference ID", "Error message changed")
+  task.skipTest("inference/70_text_similarity_rank_retriever/Text similarity reranking fails if the inference ID does not exist", "Error message changed")
+  task.skipTest("inference/70_text_similarity_rank_retriever/Text similarity reranking fails if the inference ID does not exist and result set is empty", "Error message changed")
+})
+
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

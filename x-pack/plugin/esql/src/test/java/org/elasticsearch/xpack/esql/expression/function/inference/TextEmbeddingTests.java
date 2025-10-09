@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -28,11 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("text_embedding")
 public class TextEmbeddingTests extends AbstractFunctionTestCase {
-    @Before
-    public void checkCapability() {
-        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-    }
-
     public TextEmbeddingTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

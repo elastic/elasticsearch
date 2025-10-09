@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -149,7 +150,13 @@ public record PreconfiguredEndpointsModel(Map<String, PreconfiguredEndpoint> pre
     public UnparsedModel toUnparsedModel(String inferenceId) {
         PreconfiguredEndpoint endpoint = preconfiguredEndpoints.get(inferenceId);
         if (endpoint == null) {
-            throw new IllegalArgumentException("No EIS preconfigured endpoint found for inference ID: " + inferenceId);
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "No Elastic Inference Service preconfigured endpoint found for inference ID [%s]. "
+                        + "Either it does not exist, or you are not authorized to access it.",
+                    inferenceId
+                )
+            );
         }
 
         return endpoint.toUnparsedModel();

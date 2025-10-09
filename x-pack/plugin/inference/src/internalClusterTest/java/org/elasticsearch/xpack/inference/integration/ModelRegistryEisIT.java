@@ -7,18 +7,27 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceMinimalSettings;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class ModelRegistryEisIT extends ModelRegistryEisBaseIT {
+
+    @Before
+    public void setupTest() {
+        initializeModels();
+    }
 
     private static final String eisAuthorizedResponse = """
         {
@@ -51,8 +60,6 @@ public class ModelRegistryEisIT extends ModelRegistryEisBaseIT {
         """;
 
     public void testGetModelsByTaskType() {
-        initializeModels();
-
         {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(eisAuthorizedResponse));
             PlainActionFuture<List<UnparsedModel>> listener = new PlainActionFuture<>();
@@ -104,8 +111,6 @@ public class ModelRegistryEisIT extends ModelRegistryEisBaseIT {
     }
 
     public void testGetAllModels() {
-        initializeModels();
-
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(eisAuthorizedResponse));
         PlainActionFuture<List<UnparsedModel>> listener = new PlainActionFuture<>();
         modelRegistry.getAllModels(false, listener);
@@ -127,8 +132,6 @@ public class ModelRegistryEisIT extends ModelRegistryEisBaseIT {
     }
 
     public void testGetAllModelsNoEisResults() {
-        initializeModels();
-
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(eisUnauthorizedResponse));
         PlainActionFuture<List<UnparsedModel>> listener = new PlainActionFuture<>();
         modelRegistry.getAllModels(false, listener);
@@ -139,9 +142,23 @@ public class ModelRegistryEisIT extends ModelRegistryEisBaseIT {
         assertThat(results.stream().map(UnparsedModel::inferenceEntityId).sorted().toList(), containsInAnyOrder(expected));
     }
 
-    public void testGetAllModelsEisReturnsFailureStatusCode() {
-        initializeModels();
+    public void testGetModel_WhenNotAuthorizedForEis() {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(eisUnauthorizedResponse));
+        PlainActionFuture<UnparsedModel> listener = new PlainActionFuture<>();
+        modelRegistry.getModel(ElasticInferenceServiceMinimalSettings.DEFAULT_RERANK_ENDPOINT_ID_V1, listener);
 
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(exception.getMessage(), containsString("Unable to retrieve the preconfigured inference endpoint"));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "No Elastic Inference Service preconfigured endpoint found for inference ID [.rerank-v1-elastic]. "
+                    + "Either it does not exist, or you are not authorized to access it."
+            )
+        );
+    }
+
+    public void testGetAllModelsEisReturnsFailureStatusCode() {
         webServer.enqueue(new MockResponse().setResponseCode(500).setBody("{}"));
         PlainActionFuture<List<UnparsedModel>> listener = new PlainActionFuture<>();
         modelRegistry.getAllModels(false, listener);

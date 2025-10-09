@@ -47,7 +47,7 @@ public class BinaryDocValuesStringFieldScript extends StringFieldScript {
         try {
             if (hasValue) {
                 BytesRef bytesRef = binaryDocValues.binaryValue();
-                emit(bytesRef.utf8ToString());
+                emit(bytesRef);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);

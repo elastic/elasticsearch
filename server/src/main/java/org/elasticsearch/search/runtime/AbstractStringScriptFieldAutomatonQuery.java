@@ -12,6 +12,7 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
@@ -34,12 +35,11 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
 
     @Override
     protected TwoPhaseIterator createTwoPhaseIterator(StringFieldScript scriptContext, DocIdSetIterator approximation) {
-        BytesRefBuilder scratch = new BytesRefBuilder();
         return new TwoPhaseIterator(approximation) {
             @Override
             public boolean matches() {
                 scriptContext.runForDoc(approximation.docID());
-                return AbstractStringScriptFieldAutomatonQuery.this.matches(scriptContext.getValues(), scratch);
+                return AbstractStringScriptFieldAutomatonQuery.this.matchesRaw(scriptContext.getValuesRaw());
             }
 
             @Override
@@ -47,6 +47,15 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
                 return MATCH_COST;
             }
         };
+    }
+
+    protected final boolean matchesRaw(List<BytesRef> values) {
+        for (BytesRef value : values) {
+            if (automaton.run(value.bytes, 0, value.length)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected final boolean matches(List<String> values, BytesRefBuilder scratch) {

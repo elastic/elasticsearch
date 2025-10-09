@@ -639,10 +639,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         MinimalServiceSettings newModelSettings = MinimalServiceSettings.sparseEmbedding("new_service");
         givenModelSettings(DEFAULT_ELSER_2_INFERENCE_ID, newModelSettings);
-        merge(
-            mapperService,
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").endObject())
-        );
+        merge(mapperService, mapping(b -> b.startObject(fieldName).field("type", "semantic_text").endObject()));
 
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
         assertSemanticTextField(mapperService, fieldName, true, null, null);

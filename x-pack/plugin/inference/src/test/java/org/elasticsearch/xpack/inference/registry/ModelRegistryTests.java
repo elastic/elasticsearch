@@ -67,7 +67,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is("Inference endpoint not found [1]"));
+        assertThat(exception.getMessage(), containsString("Inference endpoint [1] not found"));
     }
 
     public void testGetModelWithSecrets() {

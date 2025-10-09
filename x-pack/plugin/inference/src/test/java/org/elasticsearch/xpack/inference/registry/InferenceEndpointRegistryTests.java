@@ -24,8 +24,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class InferenceEndpointRegistryTests extends ESSingleNodeTestCase {
@@ -48,7 +48,7 @@ public class InferenceEndpointRegistryTests extends ESSingleNodeTestCase {
     public void testGetThrowsResourceNotFoundWhenNoHitsReturned() {
         assertThat(
             getEndpointException("this is not found", ResourceNotFoundException.class).getMessage(),
-            is("Inference endpoint not found [this is not found]")
+            containsString("Inference endpoint [this is not found] not found ")
         );
     }
 

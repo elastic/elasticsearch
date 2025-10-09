@@ -79,7 +79,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
 
             if (Strings.isNullOrEmpty(baseUrl)) {
                 logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
-                listener.onFailure(new IllegalStateException("The Elastic Inference Service is not configured."));
+                listener.onFailure(new IllegalStateException("The Elastic Inference Service URL is not configured."));
                 return;
             }
 

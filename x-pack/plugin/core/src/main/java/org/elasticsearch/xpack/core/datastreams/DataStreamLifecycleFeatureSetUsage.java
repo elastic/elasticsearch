@@ -54,7 +54,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_9_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -121,7 +121,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                     RetentionStats.read(in),
                     in.readMap(GlobalRetentionStats::new)
                 );
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            } else {
                 var dataStreamsWithLifecyclesCount = in.readVLong();
                 var minDataRetention = in.readVLong();
                 var maxDataRetention = in.readVLong();
@@ -134,8 +134,6 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                     RetentionStats.NO_DATA,
                     Map.of()
                 );
-            } else {
-                return INITIAL;
             }
         }
 
@@ -147,7 +145,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 dataRetentionStats.writeTo(out);
                 effectiveRetentionStats.writeTo(out);
                 out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            } else {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeVLong(dataRetentionStats.minMillis() == null ? 0 : dataRetentionStats.minMillis());
                 out.writeVLong(dataRetentionStats.maxMillis() == null ? 0 : dataRetentionStats.maxMillis());

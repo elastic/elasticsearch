@@ -171,7 +171,6 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VE
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -3153,11 +3152,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            WORKFLOWS_RESTRICTION_VERSION,
-            TransportVersion.current()
-        );
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,

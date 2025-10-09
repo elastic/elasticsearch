@@ -17,7 +17,6 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-
 import io.netty.util.ResourceLeakDetector;
 
 import org.apache.logging.log4j.LogManager;

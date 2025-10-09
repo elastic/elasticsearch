@@ -34,7 +34,8 @@ public class VectorFixedBuilderTests extends ESTestCase {
                 || elementType == ElementType.NULL
                 || elementType == ElementType.DOC
                 || elementType == ElementType.BYTES_REF
-                || elementType == ElementType.AGGREGATE_METRIC_DOUBLE) {
+                || elementType == ElementType.AGGREGATE_METRIC_DOUBLE
+                || elementType == ElementType.DATE_RANGE) {
                 continue;
             }
             params.add(new Object[] { elementType });

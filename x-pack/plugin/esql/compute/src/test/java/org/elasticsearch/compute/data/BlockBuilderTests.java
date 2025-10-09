@@ -183,7 +183,7 @@ public class BlockBuilderTests extends ESTestCase {
                     RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
-                        if (built instanceof AggregateMetricDoubleArrayBlock == false) {
+                        if (built instanceof AggregateMetricDoubleArrayBlock == false && built instanceof DateRangeArrayBlock == false) {
                             assertThat(built.asVector().isConstant(), is(true));
                         }
                         assertThat(built, equalTo(random.block()));

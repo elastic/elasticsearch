@@ -382,6 +382,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
         });
     }
 
+    public void testIgnoreDynamicBeyondLimitObjectArrayField() {
+        indexIgnoreDynamicBeyond(2, orderedMap("a", orderedMap("b", 1, "c", List.of(2, 3, 4))), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), Matchers.contains(1L));
+            assertThat(fields.get("_ignored").getValues(), Matchers.contains("a.c"));
+        });
+    }
+
     public void testIgnoreDynamicBeyondLimitRuntimeFields() {
         indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"), fields -> {
             assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));

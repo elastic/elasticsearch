@@ -79,6 +79,11 @@ public class InferenceFunctionEvaluator {
             listener.onFailure(new IllegalArgumentException("Inference function must be foldable"));
             return;
         }
+        if (f.dataType() == DataType.NULL) {
+            // If the function's return type is NULL, we can directly return a NULL literal without executing anything.
+            listener.onResponse(Literal.of(f, null));
+            return;
+        }
 
         // Set up a DriverContext for executing the inference operator.
         // This follows the same pattern as EvaluatorMapper but in a simplified context

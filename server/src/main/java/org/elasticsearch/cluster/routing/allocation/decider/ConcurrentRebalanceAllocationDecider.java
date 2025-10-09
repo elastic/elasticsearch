@@ -48,10 +48,12 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     /**
      * Same as cluster_concurrent_rebalance, but applies separately to frozen tier shards
+     *
+     * Defaults to the same value as normal concurrent rebalance, if unspecified
      */
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING = Setting.intSetting(
         "cluster.routing.allocation.cluster_concurrent_frozen_rebalance",
-        2,
+        CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
         -1,
         Property.Dynamic,
         Property.NodeScope

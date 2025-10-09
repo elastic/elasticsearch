@@ -643,13 +643,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasTerms() || hasDocValues();
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
@@ -659,7 +659,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termsQuery(values, context);
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
@@ -676,7 +676,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             } else {
                 return SortedSetDocValuesField.newSlowRangeQuery(
@@ -700,7 +700,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else {
                 return StringScriptFieldFuzzyQuery.build(
@@ -723,7 +723,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else {
                 return new StringScriptFieldPrefixQuery(
@@ -739,7 +739,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termQueryCaseInsensitive(value, context);
             } else {
                 return new StringScriptFieldTermQuery(
@@ -755,7 +755,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
             Terms terms = null;
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 terms = MultiTerms.getTerms(reader, name());
             } else if (hasDocValues()) {
                 terms = SortedSetDocValuesTerms.getTerms(reader, name());
@@ -862,7 +862,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasNorms()) {
                 return BlockSourceReader.lookupFromNorms(name());
             }
-            if (hasDocValues() == false && (isIndexed() || isStored())) {
+            if (hasDocValues() == false && (indexType.hasTerms() || isStored())) {
                 // We only write the field names field if there aren't doc values or norms
                 return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             }
@@ -989,7 +989,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.wildcardQuery(value, method, caseInsensitive, true, context);
             } else {
                 if (getTextSearchInfo().searchAnalyzer() != null) {
@@ -1010,7 +1010,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.normalizedWildcardQuery(value, method, context);
             } else {
                 if (getTextSearchInfo().searchAnalyzer() != null) {
@@ -1038,7 +1038,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
             } else {
                 if (matchFlags != 0) {

@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
@@ -304,19 +305,24 @@ public class EsqlCCSUtils {
      * as well as initialize corresponding cluster state in execution info.
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
-    public static void initCrossClusterState(Set<String> resolvedIndices, EsqlExecutionInfo executionInfo, XPackLicenseState licenseState) {
+    public static void initCrossClusterState(
+        IndexResolution resolvedIndices,
+        EsqlExecutionInfo executionInfo,
+        XPackLicenseState licenseState
+    ) {
         executionInfo.clusterInfoInitializing(true);
         try {
-            resolvedIndices.stream()
-                .collect(
-                    groupingBy(RemoteClusterAware::parseClusterAlias, mapping(it -> RemoteClusterAware.splitIndexName(it)[1], joining(",")))
-                )
-                .forEach((clusterAlias, indexExpr) -> {
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
-                    });
+            Stream.concat(
+                resolvedIndices.failures().keySet().stream().map(remote -> Map.entry(remote, "")),
+                resolvedIndices.resolvedIndices()
+                    .stream()
+                    .map(index -> Map.entry(RemoteClusterAware.parseClusterAlias(index), RemoteClusterAware.splitIndexName(index)[1]))
+            ).collect(groupingBy(Map.Entry::getKey, mapping(Map.Entry::getValue, joining(",")))).forEach((clusterAlias, indexExpr) -> {
+                executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
                 });
+            });
         } finally {
             executionInfo.clusterInfoInitializing(false);
         }

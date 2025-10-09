@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -34,7 +31,6 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +38,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -704,7 +699,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     private void assertLicenseCheckPasses(Set<String> resolvedIndices, XPackLicenseStatus status, String... expectedRemotes) {
         var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(resolvedIndices, executionInfo, createLicenseState(status));
+        initCrossClusterState(createIndexResolution(resolvedIndices), executionInfo, createLicenseState(status));
         assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
     }
 
@@ -714,9 +709,17 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(resolvedIndices, new EsqlExecutionInfo(true), createLicenseState(licenseStatus))
+            () -> initCrossClusterState(
+                createIndexResolution(resolvedIndices),
+                new EsqlExecutionInfo(true),
+                createLicenseState(licenseStatus)
+            )
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    private static IndexResolution createIndexResolution(Set<String> resolvedIndices) {
+        return IndexResolution.valid(new EsIndex("", Map.of()), resolvedIndices, Map.of());
     }
 
     private XPackLicenseStatus activeLicenseStatus(License.OperationMode operationMode) {
@@ -725,38 +728,5 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     private XPackLicenseStatus inactiveLicenseStatus(License.OperationMode operationMode) {
         return new XPackLicenseStatus(operationMode, false, "License Expired 123");
-    }
-
-    static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
-        @Override
-        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
-            final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-            final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-
-            for (String expr : indexExpressions) {
-                assertFalse(Strings.isNullOrBlank(expr));
-                String[] split = expr.split(":", 2);
-                assertTrue("Bad index expression: " + expr, split.length < 3);
-                String clusterAlias;
-                String indexExpr;
-                if (split.length == 1) {
-                    clusterAlias = localKey;
-                    indexExpr = expr;
-                } else {
-                    clusterAlias = split[0];
-                    indexExpr = split[1];
-
-                }
-                OriginalIndices currIndices = originalIndicesMap.get(clusterAlias);
-                if (currIndices == null) {
-                    originalIndicesMap.put(clusterAlias, new OriginalIndices(new String[] { indexExpr }, indicesOptions));
-                } else {
-                    List<String> indicesList = Arrays.stream(currIndices.indices()).collect(Collectors.toList());
-                    indicesList.add(indexExpr);
-                    originalIndicesMap.put(clusterAlias, new OriginalIndices(indicesList.toArray(new String[0]), indicesOptions));
-                }
-            }
-            return originalIndicesMap;
-        }
     }
 }

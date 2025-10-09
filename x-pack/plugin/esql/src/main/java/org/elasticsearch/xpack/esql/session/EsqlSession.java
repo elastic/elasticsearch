@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -33,6 +34,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -80,12 +82,14 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -718,10 +722,26 @@ public class EsqlSession {
                 preAnalysis.indexMode() == IndexMode.TIME_SERIES,
                 preAnalysis.supportsAggregateMetricDouble(),
                 preAnalysis.supportsDenseVector(),
-                listener.delegateFailureAndWrap((l, indexResolution) -> {
-                    EsqlCCSUtils.initCrossClusterState(indexResolution.resolvedIndices(), executionInfo, verifier.licenseState());
+                ActionListener.wrap(indexResolution -> {
+
+                    // TODO this could be removed when allow_empty=true is properly handled
+                    if (Objects.equals(indexResolution, IndexResolution.notFound(preAnalysis.indexPattern().indexPattern()))
+                        && Arrays.stream(Strings.commaDelimitedListToStringArray(preAnalysis.indexPattern().indexPattern()))
+                            .map(RemoteClusterAware::parseClusterAlias)
+                            .allMatch(remote -> remote.contains("*"))) {
+                        indexResolution = IndexResolution.empty(preAnalysis.indexPattern().indexPattern());
+                    }
+
+                    EsqlCCSUtils.initCrossClusterState(indexResolution, executionInfo, verifier.licenseState());
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
-                    l.onResponse(result.withIndices(indexResolution));
+                    listener.onResponse(result.withIndices(indexResolution));
+                }, failure -> {
+                    if (failure instanceof NoSuchRemoteClusterException
+                        && EsqlLicenseChecker.isCcsAllowed(verifier.licenseState()) == false) {
+                        listener.onFailure(EsqlLicenseChecker.invalidLicenseForCcsException(verifier.licenseState()));
+                    } else {
+                        listener.onFailure(failure);
+                    }
                 })
             );
         } else {

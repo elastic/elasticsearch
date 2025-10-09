@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
@@ -220,6 +221,8 @@ class Elasticsearch {
         IfConfig.logIfNecessary();
 
         ensureInitialized(
+            // See https://github.com/elastic/elasticsearch/issues/136268
+            TermsEnum.class,
             // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure

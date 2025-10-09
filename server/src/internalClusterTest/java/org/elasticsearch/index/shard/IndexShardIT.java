@@ -320,8 +320,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
             NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
             assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
-                .threadPoolUsageStatsMap()
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE);
             assertNotNull(writeThreadPoolStats);
             assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));

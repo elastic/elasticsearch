@@ -16,6 +16,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -32,6 +33,8 @@ public interface FieldValues<T> {
      * @param consumer  called with each document value
      */
     void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<T> consumer);
+
+    String name();
 
     /**
      * Creates a {@link ValueFetcher} that fetches values from a {@link FieldValues} instance
@@ -72,7 +75,7 @@ public interface FieldValues<T> {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NEEDS_SOURCE;       // TODO can we get more information from the script
+                return StoredFieldsSpec.withSourcePaths(Set.of(fieldValues.name()));
             }
         };
     }
@@ -110,7 +113,7 @@ public interface FieldValues<T> {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NEEDS_SOURCE;   // TODO can we get more info from the script?
+                return StoredFieldsSpec.withSourcePaths(Set.of(fieldValues.name()));
             }
         };
     }

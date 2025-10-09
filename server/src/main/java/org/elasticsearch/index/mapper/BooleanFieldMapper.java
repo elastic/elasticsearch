@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
@@ -203,11 +204,22 @@ public class BooleanFieldMapper extends FieldMapper {
                 return null;
             }
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
-            return scriptFactory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer);
+            if (scriptFactory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Boolean> consumer) {
+                    scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer);
+                }
+
+                @Override
+                public String name() {
+                    return leafName();
+                }
+            };
         }
     }
 

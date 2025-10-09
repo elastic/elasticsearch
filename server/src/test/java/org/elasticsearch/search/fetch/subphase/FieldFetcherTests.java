@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -1587,7 +1588,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     public void testStoredFieldsSpec() throws IOException {
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
-        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
+        assertEquals(StoredFieldsSpec.withSourcePaths(Set.of("field")), fieldFetcher.storedFieldsSpec());
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

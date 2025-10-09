@@ -78,6 +78,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -864,7 +865,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
+                    return StoredFieldsSpec.withSourcePaths(Set.of("thefield"));
                 }
             }));
             fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
@@ -918,7 +919,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
+                    return StoredFieldsSpec.withSourcePaths(Set.of("thefield"));
                 }
             }));
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(

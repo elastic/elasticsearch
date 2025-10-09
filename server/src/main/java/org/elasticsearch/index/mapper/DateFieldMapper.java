@@ -79,6 +79,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -368,15 +369,22 @@ public final class DateFieldMapper extends FieldMapper {
                 return null;
             }
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
-            return factory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(
-                    leafName(),
-                    script.get().getParams(),
-                    lookup,
-                    buildFormatter(),
-                    OnScriptError.FAIL
-                ).newInstance(ctx).runForDoc(doc, consumer::accept);
+            if (factory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Long> consumer) {
+                    factory.newFactory(leafName(), script.get().getParams(), lookup, buildFormatter(), OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer::accept);
+                }
+
+                @Override
+                public String name() {
+                    return "";
+                }
+            };
         }
 
         @Override

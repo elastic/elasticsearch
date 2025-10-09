@@ -80,6 +80,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
@@ -725,9 +726,19 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
                 DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
-                return (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(fieldName, script.getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                return new FieldValues<>() {
+                    @Override
+                    public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> consumer) {
+                        scriptFactory.newFactory(fieldName, script.getParams(), lookup, OnScriptError.FAIL)
+                            .newInstance(ctx)
+                            .runForDoc(doc, consumer::accept);
+                    }
+
+                    @Override
+                    public String name() {
+                        return fieldName;
+                    }
+                };
             }
 
             @Override
@@ -1339,9 +1350,19 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
                 final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
-                return (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(fieldName, script.getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                return new FieldValues<>() {
+                    @Override
+                    public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> consumer) {
+                        scriptFactory.newFactory(fieldName, script.getParams(), lookup, OnScriptError.FAIL)
+                            .newInstance(ctx)
+                            .runForDoc(doc, consumer::accept);
+                    }
+
+                    @Override
+                    public String name() {
+                        return fieldName;
+                    }
+                };
             }
 
             @Override

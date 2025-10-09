@@ -85,16 +85,20 @@ public record StoredFieldsSpec(
             mergedFields.addAll(other.requiredStoredFields);
         }
         Set<String> mergedSourcePaths;
-        if (other.sourcePaths == null) {
-            mergedSourcePaths = this.sourcePaths;
-        } else {
+        if (this.sourcePaths != null && other.sourcePaths != null) {
             mergedSourcePaths = new HashSet<>(this.sourcePaths);
             mergedSourcePaths.addAll(other.sourcePaths);
+        } else if (this.sourcePaths != null) {
+            mergedSourcePaths = this.sourcePaths;
+        } else if (other.sourcePaths != null) {
+            mergedSourcePaths = other.sourcePaths;
+        } else {
+            mergedSourcePaths = null;
         }
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,
             this.requiresMetadata || other.requiresMetadata,
-            mergedSourcePaths,
+            mergedFields,
             ignoredFieldsSpec.merge(other.ignoredFieldsSpec),
             mergedSourcePaths
         );

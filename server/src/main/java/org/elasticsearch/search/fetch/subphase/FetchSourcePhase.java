@@ -44,7 +44,11 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.withSourcePaths(new HashSet<>(Arrays.asList(sourceFilter.getIncludes())));
+                if (sourceFilter != null) {
+                    return StoredFieldsSpec.withSourcePaths(new HashSet<>(Arrays.asList(sourceFilter.getIncludes())));
+                } else {
+                    return StoredFieldsSpec.NEEDS_SOURCE;
+                }
             }
 
             @Override

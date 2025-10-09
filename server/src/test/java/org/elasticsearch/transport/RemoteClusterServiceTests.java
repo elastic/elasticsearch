@@ -1787,6 +1787,36 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
+    public void testCorrectTransportProfileUsedWhenCPSEnabled() throws IOException {
+        final var versionInfo = VersionInformation.CURRENT;
+        final var transportVers = TransportVersion.current();
+        final var knownNodes = new CopyOnWriteArrayList<DiscoveryNode>();
+        final var linkedTransportServiceSettings = Settings.builder()
+            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+            .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+            .build();
+
+        try (var seedTransport = startTransport("seed_node", knownNodes, versionInfo, transportVers, linkedTransportServiceSettings)) {
+            knownNodes.add(seedTransport.getLocalNode());
+            final var settings = Settings.builder()
+                .putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString())
+                .put("serverless.cross_project.enabled", true)
+                .build();
+            try (var transportService = MockTransportService.createNewService(settings, versionInfo, transportVers, threadPool)) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                try (RemoteClusterService service = createRemoteClusterService(settings, transportService)) {
+                    initializeRemoteClusters(service);
+                    assertTrue(hasRegisteredClusters(service));
+                    assertConnectionHasProfile(
+                        service.getRemoteClusterConnection("cluster1"),
+                        RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+                    );
+                }
+            }
+        }
+    }
+
     private static void assertConnectionHasProfile(RemoteClusterConnection remoteClusterConnection, String expectedConnectionProfile) {
         assertThat(
             remoteClusterConnection.getConnectionManager().getConnectionProfile().getTransportProfile(),

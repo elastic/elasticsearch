@@ -570,12 +570,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/135032
-- class: org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplierTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/135977
-- class: org.elasticsearch.compute.data.BasicPageTests
-  method: testEqualityAndHashCode
-  issue: https://github.com/elastic/elasticsearch/issues/135990
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testAliasFields
   issue: https://github.com/elastic/elasticsearch/issues/135996
@@ -621,9 +615,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:semantic_text.Repeat}
   issue: https://github.com/elastic/elasticsearch/issues/136150
-- class: org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluatorTests
-  method: testFoldTextEmbeddingFunction
-  issue: https://github.com/elastic/elasticsearch/issues/136154
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136157
@@ -648,6 +639,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.SpaceNegative}
   issue: https://github.com/elastic/elasticsearch/issues/136249
+- class: org.elasticsearch.health.node.ShardsCapacityHealthIndicatorServiceStatelessTests
+  method: testIndicatorYieldsGreenInCaseThereIsRoom
+  issue: https://github.com/elastic/elasticsearch/issues/136303
 
 # Examples:
 #

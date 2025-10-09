@@ -21,53 +21,53 @@ import java.util.stream.Collectors;
 /**
  * Models the health api usage section in the XPack usage response. A sample response would look like this:
  * {
- * "enabled": true,
- * "available": true,
- * "invocations": {
- * "total": 22,
- * "verbose_true": 12,
- * "verbose_false": 10
- * },
- * "statuses": {
- * "green": 10,
- * "yellow": 4,
- * "red": 8,
- * "values": ["green", "yellow", "red"]
- * },
- * "indicators": {
- * "red" : {
- * "master_stability": 2,
- * "ilm":2,
- * "slm": 4,
- * "values": ["master_stability", "ilm", "slm"]
- * },
- * "yellow": {
- * "disk": 1,
- * "shards_availability": 1,
- * "master_stability": 2,
- * "values": ["disk", "shards_availability", "master_stability"]
+ *   "enabled": true,
+ *   "available": true,
+ *   "invocations": {
+ *     "total": 22,
+ *     "verbose_true": 12,
+ *     "verbose_false": 10
+ *   },
+ *   "statuses": {
+ *     "green": 10,
+ *     "yellow": 4,
+ *     "red": 8,
+ *     "values": ["green", "yellow", "red"]
+ *   },
+ *   "indicators": {
+ *     "red" : {
+ *       "master_stability": 2,
+ *       "ilm":2,
+ *       "slm": 4,
+ *       "values": ["master_stability", "ilm", "slm"]
+ *     },
+ *     "yellow": {
+ *       "disk": 1,
+ *       "shards_availability": 1,
+ *       "master_stability": 2,
+ *       "values": ["disk", "shards_availability", "master_stability"]
+ *     }
+ *   },
+ *   "diagnoses": {
+ *     "red": {
+ *       "elasticsearch:health:shards_availability:primary_unassigned": 1,
+ *       "elasticsearch:health:disk:add_disk_capacity_master_nodes": 3,
+ *       "values": [
+ *         "elasticsearch:health:shards_availability:primary_unassigned",
+ *         "elasticsearch:health:disk:add_disk_capacity_master_nodes"
+ *       ]
+ *     },
+ *     "yellow": {
+ *       "elasticsearch:health:disk:add_disk_capacity_data_nodes": 1,
+ *       "values": [""elasticsearch:health:disk:add_disk_capacity_data_nodes"]
+ *     }
+ *   }
  * }
- * },
- * "diagnoses": {
- * "red": {
- * "elasticsearch:health:shards_availability:primary_unassigned": 1,
- * "elasticsearch:health:disk:add_disk_capacity_master_nodes": 3,
- * "values": [
- * "elasticsearch:health:shards_availability:primary_unassigned",
- * "elasticsearch:health:disk:add_disk_capacity_master_nodes"
- * ]
- * },
- * "yellow": {
- * "elasticsearch:health:disk:add_disk_capacity_data_nodes": 1,
- * "values": [""elasticsearch:health:disk:add_disk_capacity_data_nodes"]
- * }
- * }
- * }
- * <p>
+ *
  * Note: If the minimum version of the cluster is not after 8.7.0 then the response will look like this:
  * {
- * "available": false,
- * "enabled": true
+ *   "available": false,
+ *   "enabled": true
  * }
  */
 public class HealthApiFeatureSetUsage extends XPackFeatureUsage {

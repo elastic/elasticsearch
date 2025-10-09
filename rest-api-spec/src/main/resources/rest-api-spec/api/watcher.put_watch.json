@@ -34,6 +34,7 @@
     "params": {
       "active": {
         "type": "boolean",
+        "default": true,
         "description": "Specify whether the watch is in/active by default"
       },
       "version": {

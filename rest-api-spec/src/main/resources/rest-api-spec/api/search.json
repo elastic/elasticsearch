@@ -45,12 +45,13 @@
       },
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
       "ccs_minimize_roundtrips": {
         "type": "boolean",
         "description": "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
-        "default": "true"
+        "default": true
       },
       "default_operator": {
         "type": "enum",
@@ -67,6 +68,7 @@
       },
       "explain": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether to return detailed information about score computation as part of a hit"
       },
       "stored_fields": {
@@ -79,6 +81,7 @@
       },
       "from": {
         "type": "number",
+        "default": 0,
         "description": "Starting offset (default: 0)"
       },
       "force_synthetic_source": {
@@ -89,14 +92,17 @@
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "ignore_throttled": {
         "type": "boolean",
+        "default": true,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
@@ -113,6 +119,7 @@
       },
       "lenient": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
       },
       "preference": {
@@ -141,6 +148,7 @@
       },
       "size": {
         "type": "number",
+        "default": 10,
         "description": "Number of hits to return (default: 10)"
       },
       "sort": {
@@ -149,6 +157,7 @@
       },
       "_source": {
         "type": "list",
+        "default": "true",
         "description": "True or false to return the _source field or not, or a list of fields to return"
       },
       "_source_excludes": {
@@ -161,6 +170,7 @@
       },
       "terminate_after": {
         "type": "number",
+        "default": 0,
         "description": "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
       },
       "stats": {
@@ -195,10 +205,12 @@
       },
       "track_scores": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to calculate and return scores even if they are not used for sorting"
       },
       "track_total_hits": {
         "type": "boolean|long",
+        "default": "10000",
         "description": "Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
       },
       "allow_partial_search_results": {
@@ -208,10 +220,12 @@
       },
       "typed_keys": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       },
       "version": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether to return document version as part of a hit"
       },
       "seq_no_primary_term": {

@@ -42,6 +42,7 @@
       },
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "Return all relevant default configurations for the data stream (default: false)"
       },
       "master_timeout": {

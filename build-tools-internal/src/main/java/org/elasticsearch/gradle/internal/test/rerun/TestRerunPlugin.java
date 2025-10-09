@@ -29,7 +29,12 @@ public class TestRerunPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getTasks().withType(Test.class).configureEach(task -> configureTestTask(task, objectFactory));
+        if (project.getProviders().systemProperty("tests.rerun.enabled").getOrElse("false").equals("true")) {
+            project.getTasks()
+                .withType(Test.class)
+                .configureEach(task -> configureTestTask(task, project.getLayout().getProjectDirectory(), objectFactory));
+        }
+
     }
 
 }

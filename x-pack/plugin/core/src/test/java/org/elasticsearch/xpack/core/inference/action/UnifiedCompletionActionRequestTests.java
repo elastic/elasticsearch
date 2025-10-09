@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -83,7 +82,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+            TransportVersion.minimumCompatible()
         );
         assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }

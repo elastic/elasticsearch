@@ -1,5 +1,8 @@
 ---
 "Test get missing model v2":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       catch: missing
       inference.get:

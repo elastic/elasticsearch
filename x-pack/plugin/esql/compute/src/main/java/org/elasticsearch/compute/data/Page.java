@@ -200,7 +200,7 @@ public final class Page implements Writeable, Releasable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Page page = (Page) o;
-        return positionCount == page.positionCount && Arrays.equals(blocks, 0, blocks.length, page.blocks, 0, page.blocks.length);
+        return positionCount == page.positionCount && Arrays.equals(blocks, page.blocks);
     }
 
     @Override

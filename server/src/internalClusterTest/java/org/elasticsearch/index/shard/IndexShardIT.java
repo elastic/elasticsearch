@@ -305,47 +305,28 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testNodeWriteLoadsArePresent() {
-        try {
-            // Disable write load decider to begin with
-            setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-            InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
-                .getNodeUsageStatsForThreadPools();
-            assertNotNull(nodeThreadPoolStats);
-            /** Not collecting stats yet because allocation write load stats collection is disabled by default.
-             *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
-            assertTrue(nodeThreadPoolStats.isEmpty());
+        // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
+            .getNodeUsageStatsForThreadPools();
+        assertNotNull(nodeThreadPoolStats);
 
-            // Enable collection for node write loads.
-            setWriteLoadDeciderEnablement(
-                randomBoolean()
-                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
-            );
-
-            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
-
-            /** Verify that each node has usage stats reported. */
-            ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
-            for (DiscoveryNode node : state.nodes()) {
-                assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
-                NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
-                assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
-                NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
-                    .threadPoolUsageStatsMap()
-                    .get(ThreadPool.Names.WRITE);
-                assertNotNull(writeThreadPoolStats);
-                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
-                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
-            }
-        } finally {
-            clearWriteLoadDeciderEnablementSetting();
+        /** Verify that each node has usage stats reported. */
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
+            assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
+                .threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE);
+            assertNotNull(writeThreadPoolStats);
+            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
         }
     }
 

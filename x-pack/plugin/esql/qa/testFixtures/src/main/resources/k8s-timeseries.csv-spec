@@ -547,3 +547,19 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | two
 1        | prod            | three
 ;
+
+tsCommandGroupingOnTextField
+required_capability: ts_command_v0
+TS k8s
+| STATS count = count_distinct(network.eth0.currently_connected_clients) BY event_log, bucket = bucket(@timestamp,1hour)
+| SORT count, event_log
+| LIMIT 5
+;
+
+count:long | event_log:keyword                                                                                                                                                                                                                    | bucket:datetime
+1          | Aenean himenaeos urna                                                                                                                                                                                                                | 2024-05-10T00:00:00.000Z
+1          | Cubilia lacinia luctus tincidunt convallis ridiculus habitant vel potenti, arcu pellentesque semper sociis ac felis. Vitae sagittis natoque mollis arcu diam lacus sociosqu, lacinia suspendisse quisque tristique cursus phasellus. | 2024-05-10T00:00:00.000Z
+1          | Lorem ipsum dolor sit amet consectetur adipiscing elit nulla ut in                                                                                                                                                                   | 2024-05-10T00:00:00.000Z
+1          | Lorem ipsum dolor sit amet consectetur adipiscing elit nulla ut in nullam tristique viverra penatibus ac integer                                                                                                                     | 2024-05-10T00:00:00.000Z
+1          | Nunc                                                                                                                                                                                                                                 | 2024-05-10T00:00:00.000Z
+;

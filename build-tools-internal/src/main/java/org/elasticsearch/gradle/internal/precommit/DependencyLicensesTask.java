@@ -121,8 +121,6 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
     private ProjectLayout projectLayout;
 
-
-
     @Inject
     public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout) {
         this.projectLayout = projectLayout;

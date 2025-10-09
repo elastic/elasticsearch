@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -320,8 +321,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 LONG,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -341,8 +341,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberType.DOUBLE,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,

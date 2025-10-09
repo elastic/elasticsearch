@@ -1,5 +1,5 @@
 pr: 136312
-summary: Fix inference fields handling on old indices
-area: Relevance
+summary: Fix _inference_fields handling on old indices
+area: Vector Search
 type: bug
-issues: []
+issues: [136130]

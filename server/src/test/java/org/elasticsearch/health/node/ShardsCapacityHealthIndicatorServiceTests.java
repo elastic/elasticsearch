@@ -458,68 +458,49 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 randomAlphaOfLength(5)
             );
         };
+        var randomYellowThreshold = randomIntBetween(2, Integer.MAX_VALUE);
+        var randomRedThreshold = randomIntBetween(1, randomYellowThreshold);
+        assertEquals(
+            RED,
+            calculateFrom(
+                randomMaxShardsPerNodeSetting,
+                mockedState.nodes(),
+                mockedState.metadata(),
+                checkerWrapper.apply(randomRedThreshold),
+                randomYellowThreshold,
+                randomRedThreshold
+            ).status()
+        );
+        assertEquals(
+            YELLOW,
+            calculateFrom(
+                randomMaxShardsPerNodeSetting,
+                mockedState.nodes(),
+                mockedState.metadata(),
+                checkerWrapper.apply(randomYellowThreshold),
+                randomYellowThreshold,
+                randomRedThreshold
+            ).status()
+        );
 
-        {
-            // RED if both thresholds are the same
-            var threshold = randomIntBetween(0, Integer.MAX_VALUE);
-            assertEquals(
-                RED,
-                calculateFrom(
+        Stream.of(
+            randomIntBetween(0, randomRedThreshold - 1),
+            randomIntBetween(randomRedThreshold + 1, randomYellowThreshold - 1),
+            randomIntBetween(randomYellowThreshold + 1, Integer.MAX_VALUE)
+        )
+            .map(checkerWrapper)
+            .map(
+                checker -> calculateFrom(
                     randomMaxShardsPerNodeSetting,
                     mockedState.nodes(),
                     mockedState.metadata(),
-                    checkerWrapper.apply(threshold),
-                    threshold,
-                    threshold
-                ).status()
-            );
-        }
-
-        {
-            var randomYellowThreshold = randomIntBetween(1, Integer.MAX_VALUE);
-            var randomRedThreshold = randomIntBetween(1, randomYellowThreshold);
-            assertEquals(
-                RED,
-                calculateFrom(
-                    randomMaxShardsPerNodeSetting,
-                    mockedState.nodes(),
-                    mockedState.metadata(),
-                    checkerWrapper.apply(randomRedThreshold),
+                    checker,
                     randomYellowThreshold,
                     randomRedThreshold
-                ).status()
-            );
-            assertEquals(
-                YELLOW,
-                calculateFrom(
-                    randomMaxShardsPerNodeSetting,
-                    mockedState.nodes(),
-                    mockedState.metadata(),
-                    checkerWrapper.apply(randomYellowThreshold),
-                    randomYellowThreshold,
-                    randomRedThreshold
-                ).status()
-            );
-
-            Stream.of(
-                randomIntBetween(0, randomRedThreshold - 1),
-                randomIntBetween(randomRedThreshold + 1, randomYellowThreshold - 1),
-                randomIntBetween(randomYellowThreshold + 1, Integer.MAX_VALUE)
-            )
-                .map(checkerWrapper)
-                .map(
-                    checker -> calculateFrom(
-                        randomMaxShardsPerNodeSetting,
-                        mockedState.nodes(),
-                        mockedState.metadata(),
-                        checker,
-                        randomYellowThreshold,
-                        randomRedThreshold
-                    )
                 )
-                .map(ShardsCapacityHealthIndicatorService.StatusResult::status)
-                .forEach(status -> assertEquals(GREEN, status));
-        }
+            )
+            .map(ShardsCapacityHealthIndicatorService.StatusResult::status)
+            .forEach(status -> assertEquals(GREEN, status));
     }
 
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index

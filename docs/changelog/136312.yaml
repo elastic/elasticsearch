@@ -2,4 +2,6 @@ pr: 136312
 summary: Fix _inference_fields handling on old indices
 area: Vector Search
 type: bug
-issues: []
+issues: [
+  136130
+]

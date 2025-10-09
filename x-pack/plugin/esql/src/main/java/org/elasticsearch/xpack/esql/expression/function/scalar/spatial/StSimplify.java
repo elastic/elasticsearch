@@ -11,16 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,10 +28,10 @@ import org.locationtech.jts.io.WKTWriter;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class StSimplify extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -101,18 +94,16 @@ public class StSimplify extends EsqlScalarFunction {
     }
 
     private static class GeoSimplifier {
-        static GeometryValidator validator = StandardValidator.instance(true);
         static WKTReader reader = new WKTReader();
         static WKTWriter writer = new WKTWriter();
 
         public static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
-            String wkt = WellKnownText.fromWKB(inputGeometry.bytes, inputGeometry.offset, inputGeometry.length);
+            String wkt = UNSPECIFIED.wkbToWkt(inputGeometry);
             try {
                 org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
                 org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
                 String simplifiedWkt = writer.write(simplifiedGeometry);
-                Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
-                return new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN));
+                return UNSPECIFIED.wktToWkb(simplifiedWkt);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -136,18 +127,12 @@ public class StSimplify extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "NonFoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef processNonFoldableGeoAndConstantTolerance(
-        BytesRef inputGeometry,
-        @Fixed double inputTolerance
-    ) {
+    static BytesRef processNonFoldableGeoAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
         return GeoSimplifier.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 
     @Evaluator(extraName = "FoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef processFoldableGeoAndConstantTolerance(
-        @Fixed BytesRef inputGeometry,
-        @Fixed double inputTolerance
-    ) {
+    static BytesRef processFoldableGeoAndConstantTolerance(@Fixed BytesRef inputGeometry, @Fixed double inputTolerance) {
         return GeoSimplifier.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 }

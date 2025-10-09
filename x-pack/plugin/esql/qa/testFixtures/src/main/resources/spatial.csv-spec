@@ -3025,6 +3025,10 @@ wkt:keyword                |pt:cartesian_point
 // end::to_cartesianpoint-str-parse-error-result[]
 ;
 
+###############################################
+# Tests for ST_SIMPLIFY
+###############################################
+
 stSimplifyMultiRow
 required_capability: st_simplify
 
@@ -3095,4 +3099,48 @@ ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
 
 result:geo_shape
 POLYGON EMPTY
+;
+
+stSimplifyNull
+required_capability: st_simplify
+
+ROW geo_shape = NULL
+| EVAL result = st_simplify(geo_shape, 2.0)
+| KEEP result
+;
+
+result:geo_shape
+NULL
+;
+
+stSimplifyCartesianPoint
+required_capability: st_simplify
+
+# TODO Why cannot we use a latitud outside of -90, 90 when there are tests
+# that use the TO_CARTESIANPOINT that are doing it already?
+ROW wkt = ["POINT(97.11 75.53)", "POINT(80.93 72.77)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| EVAL result = st_simplify(pt, 2.0)
+| KEEP result
+;
+
+result:geo_shape
+POINT (97.11 75.53)
+POINT (80.93 72.77)
+;
+
+stSimplifyCartesianShape
+required_capability: st_simplify
+
+ROW wkt = ["POINT(97.11 75.53)", "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))"]
+| MV_EXPAND wkt
+| EVAL geom = TO_CARTESIANSHAPE(wkt)
+| EVAL result = st_simplify(geom, 0.2)
+| KEEP result
+;
+
+result:geo_shape
+POINT (97.11 75.53)
+POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
 ;

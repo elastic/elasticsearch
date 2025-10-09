@@ -55,7 +55,7 @@ public class InferenceFunctionEvaluator {
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
     InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
-        this.foldContext = foldContext;
+        this.foldContext = new FoldContext(foldContext.initialAllowedBytes());
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -123,13 +123,16 @@ public class InferenceFunctionEvaluator {
                 // Execute the inference operation asynchronously and handle the result
                 // The operator will perform the actual inference call and return a page with the result
                 driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
-                    Page output = inferenceOperator.getOutput();
-
                     try {
+                        Page output = inferenceOperator.getOutput();
+
                         if (output == null) {
                             l.onFailure(new IllegalStateException("Expected output page from inference operator"));
                             return;
                         }
+
+                        output.allowPassingToDifferentDriver();
+                        l = ActionListener.releaseBefore(output, l);
 
                         if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
                             l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
@@ -138,11 +141,10 @@ public class InferenceFunctionEvaluator {
 
                         // Convert the operator result back to an ESQL expression (Literal)
                         l.onResponse(Literal.of(f, processValue(f.dataType(), BlockUtils.toJavaObject(output.getBlock(0), 0))));
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     } finally {
                         Releasables.close(inferenceOperator);
-                        if (output != null) {
-                            output.releaseBlocks();
-                        }
                     }
                 }));
             } catch (Exception e) {

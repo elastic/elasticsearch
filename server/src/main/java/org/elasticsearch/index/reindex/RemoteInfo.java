@@ -120,6 +120,7 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         out.writeVInt(port);
         out.writeBytesReference(query);
         out.writeOptionalString(username);
+        out.writeOptionalSecureString(password);
         out.writeVInt(headers.size());
         for (Map.Entry<String, String> header : headers.entrySet()) {
             out.writeString(header.getKey());

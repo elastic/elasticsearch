@@ -104,27 +104,6 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         }
     }
 
-    public void testSigtermIsRemoveInOlderVersions() throws IOException {
-        SingleNodeShutdownMetadata metadata = SingleNodeShutdownMetadata.builder()
-            .setNodeId("myid")
-            .setNodeEphemeralId("myid")
-            .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
-            .setReason("myReason")
-            .setStartedAtMillis(0L)
-            .setGracePeriod(new TimeValue(1_000))
-            .build();
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_7_1);
-        metadata.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
-        in.setTransportVersion(TransportVersions.V_8_7_1);
-        assertThat(new SingleNodeShutdownMetadata(in).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
-
-        out = new BytesStreamOutput();
-        metadata.writeTo(out);
-        assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.SIGTERM));
-    }
-
     public void testIsNodeMarkedForRemoval() {
         SingleNodeShutdownMetadata.Type type;
         SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()

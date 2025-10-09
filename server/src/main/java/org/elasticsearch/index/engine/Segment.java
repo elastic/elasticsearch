@@ -252,19 +252,7 @@ public class Segment implements Writeable {
                 o.writeGenericValue(field.getMissingValue());
                 o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
-            } else if (field.getType().equals(SortField.Type.STRING)) {
-                if (o.getTransportVersion().before(TransportVersions.V_8_5_0)) {
-                    // The closest supported version before 8.5.0 was SortedSet fields, so we mimic that
-                    o.writeByte(SORT_STRING_SET);
-                    o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
-                    o.writeBoolean(true);
-                    o.writeBoolean(field.getReverse());
-                } else {
-                    o.writeByte(SORT_STRING_SINGLE);
-                    o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
-                    o.writeBoolean(field.getReverse());
-                }
-            } else {
+            } else if (field.getType().equals(SortField.Type.STRING)) {} else {
                 throw new IOException("invalid index sort field:" + field);
             }
         }, sort.getSort());

@@ -942,32 +942,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
-    public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            Authentication.VERSION_REALM_DOMAINS,
-            // Don't include CURRENT, so we always have at least one newer version available below
-            TransportVersionUtils.getPreviousVersion()
-        );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
-            .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
-            .build();
-
-        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
-
-        assertThat(
-            actual.getAuthenticatingSubject().getRealm().getDomain(),
-            equalTo(authentication.getAuthenticatingSubject().getRealm().getDomain())
-        );
-        assertThat(
-            actual.getEffectiveSubject().getRealm().getDomain(),
-            equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
-        );
-    }
-
     public void testToCrossClusterAccess() {
         final User creator = randomUser();
         final String apiKeyId = randomAlphaOfLength(42);
@@ -989,31 +963,6 @@ public class AuthenticationTests extends ESTestCase {
                 AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
                 crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList()
             )
-        );
-    }
-
-    public void testMaybeRewriteRealmRef() {
-        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
-        assertThat(realmRefWithDomain.getDomain(), notNullValue());
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    null,
-                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-                ),
-                realmRefWithDomain
-            ).getDomain(),
-            nullValue()
-        );
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
-                realmRefWithDomain
-            ),
-            equalTo(realmRefWithDomain)
         );
     }
 

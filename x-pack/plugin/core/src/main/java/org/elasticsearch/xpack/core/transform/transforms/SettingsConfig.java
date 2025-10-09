@@ -167,16 +167,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         } else {
             deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            numFailureRetries = in.readOptionalInt();
-        } else {
-            numFailureRetries = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            unattended = in.readOptionalInt();
-        } else {
-            unattended = DEFAULT_UNATTENDED;
-        }
+        numFailureRetries = in.readOptionalInt();
+        unattended = in.readOptionalInt();
     }
 
     public Integer getMaxPageSearchSize() {
@@ -281,12 +273,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeOptionalInt(deduceMappings);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalInt(numFailureRetries);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeOptionalInt(unattended);
-        }
+        out.writeOptionalInt(numFailureRetries);
+        out.writeOptionalInt(unattended);
     }
 
     @Override

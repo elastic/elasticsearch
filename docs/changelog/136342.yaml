@@ -1,0 +1,5 @@
+pr: 136342
+summary: "Allocation: fix typo in balancing round interval setting"
+area: Allocation
+type: bug
+issues: []

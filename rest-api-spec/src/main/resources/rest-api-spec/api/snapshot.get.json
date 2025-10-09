@@ -39,18 +39,22 @@
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
       },
       "index_names": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to include the name of each index in the snapshot. Defaults to true."
       },
       "index_details": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to include details of each index in the snapshot, if those details are available. Defaults to false."
       },
       "include_repository": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to include the repository name in the snapshot info. Defaults to true."
       },
       "sort": {
@@ -69,6 +73,7 @@
       },
       "size": {
         "type": "integer",
+        "default": 0,
         "description": "Maximum number of snapshots to return. Defaults to 0 which means return all that match without limit."
       },
       "order": {
@@ -90,6 +95,7 @@
       },
       "offset": {
         "type": "integer",
+        "default": 0,
         "description": "Numeric offset to start pagination based on the snapshots matching the request. Defaults to 0"
       },
       "slm_policy_filter": {
@@ -98,6 +104,7 @@
       },
       "verbose": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to show verbose snapshot info or only show the basic info found in the repository index blob"
       },
       "state": {

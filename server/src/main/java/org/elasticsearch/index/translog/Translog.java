@@ -184,7 +184,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         this.bytesRecycler = config.getBytesRecycler();
-        this.headerRecycler = bytesRecycler.requestRecyclerForPageSize(2048);
+        this.headerRecycler = bytesRecycler.requestRecyclerForPageSize(512);
+//        this.headerRecycler = new SimplePool(config.getIndexSettings().getSettings());
         this.diskIoBufferPool = config.getDiskIoBufferPool();
         var rwl = new ReentrantReadWriteLock();
         this.readLock = rwl.readLock();
@@ -627,7 +628,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bytesRecycler)) {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(headerRecycler)) {
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
             Serialized serialized = Serialized.create(

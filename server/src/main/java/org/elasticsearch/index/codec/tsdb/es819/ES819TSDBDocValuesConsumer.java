@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb.es819;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -542,8 +541,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         CompressedBinaryBlockWriter() throws IOException {
             compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(3);
-            tempBinaryOffsets = EndiannessReverserUtil.createTempOutput(
-                state.directory,
+            tempBinaryOffsets = state.directory.createTempOutput(
                 state.segmentInfo.name,
                 "binary_pointers",
                 state.context
@@ -608,7 +606,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
                 ByteBuffer inputBuffer = ByteBuffer.wrap(block, 0, uncompressedBlockLength);
                 ByteBuffersDataInput input = new ByteBuffersDataInput(List.of(inputBuffer));
-                DataOutput output = EndiannessReverserUtil.wrapDataOutput(data);
+                DataOutput output = data;
                 compressor.compress(input, output);
 
                 numDocsInCurrentBlock = 0;
@@ -637,11 +635,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             IOUtils.close(tempBinaryOffsets);
             // write the compressed block offsets info to the meta file by reading from temp file
             try (
-                ChecksumIndexInput filePointersIn = EndiannessReverserUtil.openChecksumInput(
-                    state.directory,
-                    tempBinaryOffsets.getName(),
-                    IOContext.READONCE
-                )
+                ChecksumIndexInput filePointersIn = state.directory.openChecksumInput(tempBinaryOffsets.getName())
             ) {
                 CodecUtil.checkHeader(
                     filePointersIn,

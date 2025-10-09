@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb.es819;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
@@ -451,9 +450,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 assert uncompressedBlockLength <= uncompressedBlock.length;
 
-                DataInput input = EndiannessReverserUtil.wrapDataInput(compressedData);
                 BytesRef output = new BytesRef(uncompressedBlock, 0, uncompressedBlock.length);
-                decompressor.decompress(input, uncompressedBlockLength, 0, uncompressedBlockLength, output);
+                decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, output);
             }
 
             uncompressedBytesRef.offset = uncompressedDocStarts[docInBlockId];

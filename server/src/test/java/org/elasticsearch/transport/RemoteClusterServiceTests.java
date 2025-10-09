@@ -17,6 +17,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1625,9 +1626,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     {
                         final MockSecureSettings secureSettings = new MockSecureSettings();
                         secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
-                        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                        final PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus> listener = new PlainActionFuture<>();
                         final Settings settings = Settings.builder().put(clusterSettings).setSecureSettings(secureSettings).build();
-                        service.updateRemoteClusterCredentials(() -> settings, listener);
+                        final var result = service.getRemoteClusterCredentialsManager().updateClusterCredentials(settings);
+                        assertThat(result.addedClusterAliases(), equalTo(Set.of("cluster_1")));
+                        final var config = buildLinkedProjectConfig("cluster_1", Settings.EMPTY, settings);
+                        service.updateRemoteCluster(config, true, listener);
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1637,12 +1641,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     );
 
                     {
-                        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
-                        service.updateRemoteClusterCredentials(
-                            // Settings without credentials constitute credentials removal
-                            () -> clusterSettings,
-                            listener
-                        );
+                        final PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus> listener = new PlainActionFuture<>();
+                        // Settings without credentials constitute credentials removal
+                        final var result = service.getRemoteClusterCredentialsManager().updateClusterCredentials(clusterSettings);
+                        assertThat(result.addedClusterAliases().size(), equalTo(0));
+                        assertThat(result.removedClusterAliases(), equalTo(Set.of("cluster_1")));
+                        final var config = buildLinkedProjectConfig("cluster_1", Settings.EMPTY, clusterSettings);
+                        service.updateRemoteCluster(config, true, listener);
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1718,6 +1723,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertConnectionHasProfile(service.getRemoteClusterConnection(goodCluster), "default");
                     assertConnectionHasProfile(service.getRemoteClusterConnection(badCluster), "default");
                     expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
+                    final Set<String> aliases = Set.of(badCluster, goodCluster, missingCluster);
+                    final ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> noop = ActionListener.noop();
 
                     {
                         final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -1730,7 +1737,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             .put(cluster2Settings)
                             .setSecureSettings(secureSettings)
                             .build();
-                        service.updateRemoteClusterCredentials(() -> settings, listener);
+                        final var result = service.getRemoteClusterCredentialsManager().updateClusterCredentials(settings);
+                        assertThat(result.addedClusterAliases(), equalTo(aliases));
+                        try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
+                            for (String alias : aliases) {
+                                final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
+                                service.updateRemoteCluster(config, true, ActionListener.releaseAfter(noop, connectionRefs.acquire()));
+                            }
+                        }
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
@@ -1747,17 +1761,52 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     {
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
                         final Settings settings = Settings.builder().put(cluster1Settings).put(cluster2Settings).build();
-                        service.updateRemoteClusterCredentials(
-                            // Settings without credentials constitute credentials removal
-                            () -> settings,
-                            listener
-                        );
+                        // Settings without credentials constitute credentials removal
+                        final var result = service.getRemoteClusterCredentialsManager().updateClusterCredentials(settings);
+                        assertThat(result.addedClusterAliases().size(), equalTo(0));
+                        assertThat(result.removedClusterAliases(), equalTo(aliases));
+                        try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
+                            for (String alias : aliases) {
+                                final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
+                                service.updateRemoteCluster(config, true, ActionListener.releaseAfter(noop, connectionRefs.acquire()));
+                            }
+                        }
                         listener.actionGet(10, TimeUnit.SECONDS);
                     }
 
                     assertConnectionHasProfile(service.getRemoteClusterConnection(goodCluster), "default");
                     assertConnectionHasProfile(service.getRemoteClusterConnection(badCluster), "default");
                     expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
+                }
+            }
+        }
+    }
+
+    public void testCorrectTransportProfileUsedWhenCPSEnabled() throws IOException {
+        final var versionInfo = VersionInformation.CURRENT;
+        final var transportVers = TransportVersion.current();
+        final var knownNodes = new CopyOnWriteArrayList<DiscoveryNode>();
+        final var linkedTransportServiceSettings = Settings.builder()
+            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+            .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+            .build();
+
+        try (var seedTransport = startTransport("seed_node", knownNodes, versionInfo, transportVers, linkedTransportServiceSettings)) {
+            knownNodes.add(seedTransport.getLocalNode());
+            final var settings = Settings.builder()
+                .putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString())
+                .put("serverless.cross_project.enabled", true)
+                .build();
+            try (var transportService = MockTransportService.createNewService(settings, versionInfo, transportVers, threadPool)) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                try (RemoteClusterService service = createRemoteClusterService(settings, transportService)) {
+                    initializeRemoteClusters(service);
+                    assertTrue(hasRegisteredClusters(service));
+                    assertConnectionHasProfile(
+                        service.getRemoteClusterConnection("cluster1"),
+                        RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+                    );
                 }
             }
         }
@@ -1828,6 +1877,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+    private LinkedProjectConfig buildLinkedProjectConfig(String alias, Settings staticSettings, Settings newSettings) {
+        final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
+        return RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, mergedSettings);
+    }
+
     private void updateRemoteCluster(
         RemoteClusterService service,
         String alias,
@@ -1846,10 +1901,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         Settings newSettings,
         ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> listener
     ) {
-        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, mergedSettings);
-        service.updateRemoteCluster(config, false, listener);
+        service.updateRemoteCluster(buildLinkedProjectConfig(alias, settings, newSettings), false, listener);
     }
 
     private void initializeRemoteClusters(RemoteClusterService remoteClusterService) {

@@ -12,35 +12,49 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
+import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
+import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -227,7 +241,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     static class ExponentialHistogramFieldType extends MappedFieldType {
 
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
         }
 
         @Override
@@ -241,13 +255,75 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean isAggregatable() {
+        public boolean isSearchable() {
             return false;
         }
 
         @Override
+        public boolean isAggregatable() {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support this operation currently");
+            return (cache, breakerService) -> new IndexExponentialHistogramFieldData(name()) {
+                @Override
+                public LeafExponentialHistogramFieldData load(LeafReaderContext context) {
+                    return new LeafExponentialHistogramFieldData() {
+                        @Override
+                        public ExponentialHistogramValuesReader getHistogramValues() throws IOException {
+                            return new DocValuesReader(context.reader(), fieldName);
+                        }
+
+                        @Override
+                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                        }
+
+                        @Override
+                        public SortedBinaryDocValues getBytesValues() {
+                            throw new UnsupportedOperationException(
+                                "String representation of doc values " + "for [" + CONTENT_TYPE + "] fields is not supported"
+                            );
+                        }
+
+                        @Override
+                        public long ramBytesUsed() {
+                            return 0; // No dynamic allocations
+                        }
+                    };
+                }
+
+                @Override
+                public LeafExponentialHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
+                    return load(context);
+                }
+
+                @Override
+                public SortField sortField(
+                    Object missingValue,
+                    MultiValueMode sortMode,
+                    XFieldComparatorSource.Nested nested,
+                    boolean reverse
+                ) {
+                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                }
+
+                @Override
+                public BucketedSort newBucketedSort(
+                    BigArrays bigArrays,
+                    Object missingValue,
+                    MultiValueMode sortMode,
+                    XFieldComparatorSource.Nested nested,
+                    SortOrder sortOrder,
+                    DocValueFormat format,
+                    int bucketSize,
+                    BucketedSort.ExtraData extra
+                ) {
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
+                }
+
+            };
         }
 
         @Override
@@ -721,76 +797,102 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         );
     }
 
+    private static class DocValuesReader implements ExponentialHistogramValuesReader {
+
+        private final BinaryDocValues histoDocValues;
+        private final NumericDocValues zeroThresholds;
+        private final NumericDocValues valueCounts;
+        private final NumericDocValues valueSums;
+        private final NumericDocValues valueMinima;
+        private final NumericDocValues valueMaxima;
+
+        private int currentDocId = -1;
+        private final CompressedExponentialHistogram tempHistogram = new CompressedExponentialHistogram();
+
+        DocValuesReader(LeafReader leafReader, String fullPath) throws IOException {
+            histoDocValues = leafReader.getBinaryDocValues(fullPath);
+            zeroThresholds = leafReader.getNumericDocValues(zeroThresholdSubFieldName(fullPath));
+            valueCounts = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath));
+            valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath));
+            valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath));
+            valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath));
+        }
+
+        boolean hasAnyValues() {
+            return histoDocValues != null;
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            boolean isPresent = histoDocValues != null && histoDocValues.advanceExact(docId);
+            currentDocId = isPresent ? docId : -1;
+            return isPresent;
+        }
+
+        @Override
+        public ExponentialHistogram histogramValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
+            boolean valueCountsPresent = valueCounts.advanceExact(currentDocId);
+            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+            assert zeroThresholdPresent && valueCountsPresent && valueSumsPresent;
+
+            BytesRef encodedHistogram = histoDocValues.binaryValue();
+            double zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
+            long valueCount = valueCounts.longValue();
+            double valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            double valueMin;
+            if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {
+                valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
+            } else {
+                valueMin = Double.NaN;
+            }
+            double valueMax;
+            if (valueMaxima != null && valueMaxima.advanceExact(currentDocId)) {
+                valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
+            } else {
+                valueMax = Double.NaN;
+            }
+            tempHistogram.reset(zeroThreshold, valueCount, valueSum, valueMin, valueMax, encodedHistogram);
+            return tempHistogram;
+        }
+    }
+
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-        private final CompressedExponentialHistogram histogram = new CompressedExponentialHistogram();
-        private BytesRef binaryValue;
-        private double zeroThreshold;
-        private long valueCount;
-        private double valueSum;
-        private double valueMin;
-        private double valueMax;
+        @Nullable
+        private ExponentialHistogram currentHistogram;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
             throws IOException {
-            BinaryDocValues histoDocValues = leafReader.getBinaryDocValues(fieldType().name());
-            if (histoDocValues == null) {
-                // No values in this leaf
-                binaryValue = null;
+            DocValuesReader histogramReader = new DocValuesReader(leafReader, fullPath());
+            if (histogramReader.hasAnyValues() == false) {
                 return null;
             }
-            NumericDocValues zeroThresholds = leafReader.getNumericDocValues(zeroThresholdSubFieldName(fullPath()));
-            NumericDocValues valueCounts = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath()));
-            NumericDocValues valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
-            NumericDocValues valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
-            NumericDocValues valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
-            assert zeroThresholds != null;
-            assert valueCounts != null;
-            assert valueSums != null;
             return docId -> {
-                if (histoDocValues.advanceExact(docId)) {
-
-                    boolean zeroThresholdPresent = zeroThresholds.advanceExact(docId);
-                    boolean valueCountsPresent = valueCounts.advanceExact(docId);
-                    boolean valueSumsPresent = valueSums.advanceExact(docId);
-                    assert zeroThresholdPresent && valueCountsPresent && valueSumsPresent;
-
-                    binaryValue = histoDocValues.binaryValue();
-                    zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
-                    valueCount = valueCounts.longValue();
-                    valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
-
-                    if (valueMinima != null && valueMinima.advanceExact(docId)) {
-                        valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
-                    } else {
-                        valueMin = Double.NaN;
-                    }
-                    if (valueMaxima != null && valueMaxima.advanceExact(docId)) {
-                        valueMax = NumericUtils.sortableLongToDouble(valueMaxima.longValue());
-                    } else {
-                        valueMax = Double.NaN;
-                    }
+                if (histogramReader.advanceExact(docId)) {
+                    currentHistogram = histogramReader.histogramValue();
                     return true;
                 }
-                binaryValue = null;
+                currentHistogram = null;
                 return false;
             };
         }
 
         @Override
         public boolean hasValue() {
-            return binaryValue != null;
+            return currentHistogram != null;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (binaryValue == null) {
+            if (currentHistogram == null) {
                 return;
             }
-
-            histogram.reset(zeroThreshold, valueCount, valueSum, valueMin, valueMax, binaryValue);
-            ExponentialHistogramXContent.serialize(b, histogram);
+            ExponentialHistogramXContent.serialize(b, currentHistogram);
         }
 
         @Override
@@ -800,7 +902,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public long valueCount() {
-            return binaryValue != null ? 1 : 0;
+            return currentHistogram != null ? 1 : 0;
         }
     };
 

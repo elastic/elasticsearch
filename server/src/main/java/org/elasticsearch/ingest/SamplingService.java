@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -149,8 +150,12 @@ public class SamplingService implements ClusterStateListener {
         SampleStats stats = sampleInfo.stats;
         stats.potentialSamples.increment();
         try {
-            if (sampleInfo.hasCapacity() == false) {
+            if (sampleInfo.isFull) {
                 stats.samplesRejectedForMaxSamplesExceeded.increment();
+                return;
+            }
+            if (sampleInfo.getSizeInBytes() + indexRequest.source().length() > samplingConfig.maxSize().getBytes()) {
+                stats.samplesRejectedForSize.increment();
                 return;
             }
             if (Math.random() >= samplingConfig.rate()) {
@@ -369,6 +374,10 @@ public class SamplingService implements ClusterStateListener {
             XContentHelper.writeTo(out, contentType);
         }
 
+        public long getSizeInBytes() {
+            return indexName.length() + source.length;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -409,6 +418,7 @@ public class SamplingService implements ClusterStateListener {
         final LongAdder samplesRejectedForCondition = new LongAdder();
         final LongAdder samplesRejectedForRate = new LongAdder();
         final LongAdder samplesRejectedForException = new LongAdder();
+        final LongAdder samplesRejectedForSize = new LongAdder();
         final LongAdder timeSamplingInNanos = new LongAdder();
         final LongAdder timeEvaluatingConditionInNanos = new LongAdder();
         final LongAdder timeCompilingConditionInNanos = new LongAdder();
@@ -430,6 +440,7 @@ public class SamplingService implements ClusterStateListener {
             long samplesRejectedForCondition,
             long samplesRejectedForRate,
             long samplesRejectedForException,
+            long samplesRejectedForSize,
             TimeValue timeSampling,
             TimeValue timeEvaluatingCondition,
             TimeValue timeCompilingCondition,
@@ -441,6 +452,7 @@ public class SamplingService implements ClusterStateListener {
             this.samplesRejectedForCondition.add(samplesRejectedForCondition);
             this.samplesRejectedForRate.add(samplesRejectedForRate);
             this.samplesRejectedForException.add(samplesRejectedForException);
+            this.samplesRejectedForSize.add(samplesRejectedForSize);
             this.timeSamplingInNanos.add(timeSampling.nanos());
             this.timeEvaluatingConditionInNanos.add(timeEvaluatingCondition.nanos());
             this.timeCompilingConditionInNanos.add(timeCompilingCondition.nanos());
@@ -453,6 +465,7 @@ public class SamplingService implements ClusterStateListener {
             samplesRejectedForCondition.add(in.readLong());
             samplesRejectedForRate.add(in.readLong());
             samplesRejectedForException.add(in.readLong());
+            samplesRejectedForSize.add(in.readLong());
             samples.add(in.readLong());
             timeSamplingInNanos.add(in.readLong());
             timeEvaluatingConditionInNanos.add(in.readLong());
@@ -486,6 +499,10 @@ public class SamplingService implements ClusterStateListener {
 
         public long getSamplesRejectedForException() {
             return samplesRejectedForException.longValue();
+        }
+
+        public long getSamplesRejectedForSize() {
+            return samplesRejectedForSize.longValue();
         }
 
         public TimeValue getTimeSampling() {
@@ -538,6 +555,7 @@ public class SamplingService implements ClusterStateListener {
             dest.samplesRejectedForCondition.add(source.samplesRejectedForCondition.longValue());
             dest.samplesRejectedForRate.add(source.samplesRejectedForRate.longValue());
             dest.samplesRejectedForException.add(source.samplesRejectedForException.longValue());
+            dest.samplesRejectedForSize.add(source.samplesRejectedForSize.longValue());
             dest.samples.add(source.samples.longValue());
             dest.timeSamplingInNanos.add(source.timeSamplingInNanos.longValue());
             dest.timeEvaluatingConditionInNanos.add(source.timeEvaluatingConditionInNanos.longValue());
@@ -555,6 +573,7 @@ public class SamplingService implements ClusterStateListener {
             builder.field("samples_rejected_for_condition", samplesRejectedForCondition.longValue());
             builder.field("samples_rejected_for_rate", samplesRejectedForRate.longValue());
             builder.field("samples_rejected_for_exception", samplesRejectedForException.longValue());
+            builder.field("samples_rejected_for_size", samplesRejectedForSize.longValue());
             builder.field("samples_accepted", samples.longValue());
             builder.humanReadableField("time_sampling_millis", "time_sampling", TimeValue.timeValueNanos(timeSamplingInNanos.longValue()));
             builder.humanReadableField(
@@ -578,6 +597,7 @@ public class SamplingService implements ClusterStateListener {
             out.writeLong(samplesRejectedForCondition.longValue());
             out.writeLong(samplesRejectedForRate.longValue());
             out.writeLong(samplesRejectedForException.longValue());
+            out.writeLong(samplesRejectedForSize.longValue());
             out.writeLong(samples.longValue());
             out.writeLong(timeSamplingInNanos.longValue());
             out.writeLong(timeEvaluatingConditionInNanos.longValue());
@@ -621,6 +641,9 @@ public class SamplingService implements ClusterStateListener {
             if (samplesRejectedForException.longValue() != that.samplesRejectedForException.longValue()) {
                 return false;
             }
+            if (samplesRejectedForSize.longValue() != that.samplesRejectedForSize.longValue()) {
+                return false;
+            }
             if (timeSamplingInNanos.longValue() != that.timeSamplingInNanos.longValue()) {
                 return false;
             }
@@ -661,6 +684,7 @@ public class SamplingService implements ClusterStateListener {
                 samplesRejectedForCondition.longValue(),
                 samplesRejectedForRate.longValue(),
                 samplesRejectedForException.longValue(),
+                samplesRejectedForSize.longValue(),
                 timeSamplingInNanos.longValue(),
                 timeEvaluatingConditionInNanos.longValue(),
                 timeCompilingConditionInNanos.longValue()
@@ -700,6 +724,16 @@ public class SamplingService implements ClusterStateListener {
      */
     private static final class SampleInfo {
         private final RawDocument[] rawDocuments;
+        /*
+         * This stores the maximum index in rawDocuments that has data currently. This is incremented speculatively before writing data to
+         * the array, so it is possible that this index is rawDocuments.length or greater.
+         */
+        private final AtomicInteger rawDocumentsIndex = new AtomicInteger(-1);
+        /*
+         * This caches the size of all raw documents in the rawDocuments array up to and including the data at the index on the left side
+         * of the tuple. The size in bytes is the right side of the tuple.
+         */
+        private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
         private final SampleStats stats;
         private final long expiration;
         private final TimeValue timeToLive;
@@ -707,17 +741,12 @@ public class SamplingService implements ClusterStateListener {
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
-        private final AtomicInteger arrayIndex = new AtomicInteger(0);
 
         SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
             this.timeToLive = timeToLive;
             this.rawDocuments = new RawDocument[maxSamples];
             this.stats = new SampleStats();
             this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
-        }
-
-        public boolean hasCapacity() {
-            return isFull == false;
         }
 
         /*
@@ -729,10 +758,54 @@ public class SamplingService implements ClusterStateListener {
         }
 
         /*
+         * This gets an approximate size in bytes for this sample. It only takes the size of the raw documents into account, since that is
+         * the only part of the sample that is not a fixed size. This method favors speed over 100% correctness -- it is possible during
+         * heavy concurrent ingestion that it under-reports the current size.
+         */
+        public long getSizeInBytes() {
+            /*
+             * This method could get called very frequently during ingestion. Looping through every RawDocument every time would get
+             * expensive. Since the data in the rawDocuments array is immutable once it has been written, we store the index and value of
+             * the computed size if all raw documents up to that index are non-null (i.e. no documents were still in flight as we were
+             * counting). That way we don't have to re-compute the size for documents we've already looked at.
+             */
+            Tuple<Integer, Long> knownIndexAndSize = sizeInBytesAtIndex;
+            int knownSizeIndex = knownIndexAndSize.v1();
+            long knownSize = knownIndexAndSize.v2();
+            // It is possible that rawDocumentsIndex is beyond the end of rawDocuments
+            int currentRawDocumentsIndex = Math.min(rawDocumentsIndex.get(), rawDocuments.length - 1);
+            if (currentRawDocumentsIndex == knownSizeIndex) {
+                return knownSize;
+            }
+            long size = knownSize;
+            boolean anyNulls = false;
+            for (int i = knownSizeIndex + 1; i <= currentRawDocumentsIndex; i++) {
+                RawDocument rawDocument = rawDocuments[i];
+                if (rawDocument == null) {
+                    /*
+                     * Some documents were in flight and haven't been stored in the array yet, so we'll move past this. The size will be a
+                     * little low on this method call. So we're going to set this flag so that we don't store this value for future use.
+                     */
+                    anyNulls = true;
+                } else {
+                    size += rawDocuments[i].getSizeInBytes();
+                }
+            }
+            /*
+             * The most important thing is for this method to be fast. It is OK if we store the same value twice, or even if we store a
+             * slightly out-of-date copy, as long as we don't do any locking. The correct size will be calculated next time.
+             */
+            if (anyNulls == false) {
+                sizeInBytesAtIndex = Tuple.tuple(currentRawDocumentsIndex, size);
+            }
+            return size;
+        }
+
+        /*
          * Adds the rawDocument to the sample if there is capacity. Returns true if it adds it, or false if it does not.
          */
         public boolean offer(RawDocument rawDocument) {
-            int index = arrayIndex.getAndIncrement();
+            int index = rawDocumentsIndex.incrementAndGet();
             if (index < rawDocuments.length) {
                 rawDocuments[index] = rawDocument;
                 if (index == rawDocuments.length - 1) {

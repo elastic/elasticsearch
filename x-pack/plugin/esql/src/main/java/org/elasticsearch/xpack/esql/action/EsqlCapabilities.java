@@ -550,6 +550,11 @@ public class EsqlCapabilities {
         FIXED_PUSHDOWN_PAST_PROJECT,
 
         /**
+         * When resolving renames, consider all {@code Attribute}s in the plan, not just the {@code ReferenceAttribute}s.
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT_WITH_ATTRIBUTES_RESOLUTION,
+
+        /**
          * Adds the {@code MV_PSERIES_WEIGHTED_SUM} function for converting sorted lists of numbers into
          * a bounded score. This is a generalization of the
          * <a href="https://en.wikipedia.org/wiki/Riemann_zeta_function">riemann zeta function</a> but we
@@ -1135,6 +1140,7 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+        CLAMP_FUNCTIONS,
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
@@ -1243,7 +1249,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
          */
-        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+        TEXT_EMBEDDING_FUNCTION,
 
         /**
          * Support for the LIKE operator with a list of wildcards.

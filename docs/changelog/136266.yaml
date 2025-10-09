@@ -1,0 +1,5 @@
+pr: 136266
+summary: Fix Page.equals()
+area: ES|QL
+type: bug
+issues: []

@@ -183,7 +183,7 @@ public class TermVectorsService {
             return false;
         }
         // and must be indexed
-        if (fieldType.isIndexed() == false) {
+        if (fieldType.indexType().hasTerms() == false) {
             return false;
         }
         // and must not be the nested path field

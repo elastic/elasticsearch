@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -48,19 +48,17 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Holder<IndexMode> indexMode = new Holder<>();
-        Holder<IndexPattern> indexPattern = new Holder<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-        Set<IndexPattern> subqueryIndices = new HashSet<>();
+        LinkedHashSet<IndexPattern> mainAndSubqueryIndices = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
             } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
                 indexMode.set(p.indexMode());
-                indexPattern.setIfAbsent(p.indexPattern());
-                // the index pattern from main query is always the first to be seen
-                // collect subquery index patterns
-                if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-                    collectSubqueryIndexPattern(p, subqueryIndices, indexPattern.get());
+                if (mainAndSubqueryIndices.isEmpty()) { // the index pattern from main query is always the first to be seen
+                    mainAndSubqueryIndices.add(p.indexPattern());
+                } else if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) { // collect subquery index patterns
+                    collectSubqueryIndexPattern(p, mainAndSubqueryIndices);
                 }
             } else {
                 throw new IllegalStateException("index mode is already set");
@@ -102,20 +100,18 @@ public class PreAnalyzer {
 
         return new PreAnalysis(
             indexMode.get(),
-            indexPattern.get(),
+            // row command does not have an index pattern, mainAndSubqueryIndices could be empty in this case
+            mainAndSubqueryIndices.isEmpty() ? null : mainAndSubqueryIndices.removeFirst(),
             unresolvedEnriches,
             lookupIndices,
             indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
             supportsDenseVector.get(),
-            subqueryIndices
+            mainAndSubqueryIndices
         );
     }
 
-    private void collectSubqueryIndexPattern(
-        UnresolvedRelation relation,
-        Set<IndexPattern> subqueryIndices,
-        IndexPattern mainIndexPattern
-    ) {
+    private void collectSubqueryIndexPattern(UnresolvedRelation relation, LinkedHashSet<IndexPattern> mainAndSubqueryIndices) {
+        IndexPattern mainIndexPattern = mainAndSubqueryIndices.getFirst();
         IndexPattern pattern = relation.indexPattern();
         boolean isLookup = relation.indexMode() == IndexMode.LOOKUP;
         boolean isMainIndexPattern = pattern == mainIndexPattern;
@@ -126,6 +122,6 @@ public class PreAnalyzer {
         if (isLookup || isMainIndexPattern) {
             return;
         }
-        subqueryIndices.add(pattern);
+        mainAndSubqueryIndices.add(pattern);
     }
 }

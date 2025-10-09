@@ -472,9 +472,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<PreAnalysisResult>andThen(
-                (l, r) -> preAnalyzeSubqueryIndices(preAnalysis, preAnalysis.subqueryIndices().iterator(), r, executionInfo, l)
-            )
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeSubqueryIndices(preAnalysis, preAnalysis.subqueryIndices().iterator(), r, l))
             .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, executionInfo, description, requestFilter, preAnalysis, r, l))
             .addListener(logicalPlanListener);
     }
@@ -483,19 +481,12 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         Iterator<IndexPattern> subqueryIndices,
         PreAnalysisResult preAnalysisResult,
-        EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
         if (subqueryIndices.hasNext()) {
-            preAnalyzeSubqueryIndex(
-                preAnalysis,
-                subqueryIndices.next(),
-                preAnalysisResult,
-                executionInfo,
-                listener.delegateFailureAndWrap((l, r) -> {
-                    preAnalyzeSubqueryIndices(preAnalysis, subqueryIndices, r, executionInfo, l);
-                })
-            );
+            preAnalyzeSubqueryIndex(preAnalysis, subqueryIndices.next(), preAnalysisResult, listener.delegateFailureAndWrap((l, r) -> {
+                preAnalyzeSubqueryIndices(preAnalysis, subqueryIndices, r, l);
+            }));
         } else {
             listener.onResponse(preAnalysisResult);
         }
@@ -505,7 +496,6 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         IndexPattern subqueryIndexPattern,
         PreAnalysisResult result,
-        EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -523,44 +513,24 @@ public class EsqlSession {
              * EsqlExecutionInfo for this subquery, and reuse the existing API to build
              * the subqueryIndexExpression.
              */
-            EsqlExecutionInfo subqueryExecutionInfo = subqueryExecutionInfo(executionInfo, subqueryIndexPattern);
-            // the following are very similar to preAnalyzeMainIndices
-            if (subqueryExecutionInfo.clusterAliases().isEmpty()) {
-                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-                listener.onResponse(
-                    result.addSubqueryIndexResolution(
-                        subqueryIndexPattern.indexPattern(),
-                        IndexResolution.valid(new EsIndex(subqueryIndexPattern.indexPattern(), Map.of(), Map.of()))
-                    )
-                );
-            } else {
-                // time-series index is not supported in subqueries yet, the grammar does not allow it
-                indexResolver.resolveAsMergedMapping(
-                    subqueryIndexPattern.indexPattern(),
-                    result.fieldNames,
-                    null,
-                    false,
-                    false,
-                    preAnalysis.supportsDenseVector(),
-                    listener.delegateFailure((l, indexResolution) -> {
-                        l.onResponse(result.addSubqueryIndexResolution(subqueryIndexPattern.indexPattern(), indexResolution));
-                    })
-                );
-            }
+
+            // time-series index mode is not supported in subqueries yet, the grammar does not allow it
+            indexResolver.resolveAsMergedMapping(
+                subqueryIndexPattern.indexPattern(),
+                result.fieldNames,
+                null,
+                false,
+                false,
+                preAnalysis.supportsDenseVector(),
+                listener.delegateFailure((l, indexResolution) -> {
+                    l.onResponse(result.addSubqueryIndexResolution(subqueryIndexPattern.indexPattern(), indexResolution));
+                })
+            );
+
         } else {
             // occurs when dealing with local relations (row a = 1)
             listener.onResponse(result.addSubqueryIndexResolution("invalid subquery", IndexResolution.invalid("[none specified]")));
         }
-    }
-
-    private EsqlExecutionInfo subqueryExecutionInfo(EsqlExecutionInfo mainExecutionInfo, IndexPattern subqueryIndexPattern) {
-        // Clone mainInfo (assuming a copy constructor or similar method exists)
-        EsqlExecutionInfo subqueryExecutionInfo = new EsqlExecutionInfo(
-            mainExecutionInfo.skipOnFailurePredicate(),
-            mainExecutionInfo.includeCCSMetadata()
-        );
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), subqueryIndexPattern, subqueryExecutionInfo);
-        return subqueryExecutionInfo;
     }
 
     private void preAnalyzeLookupIndices(

@@ -9,77 +9,71 @@
 
 package org.elasticsearch.gradle.internal.test.rerun;
 
-import org.elasticsearch.gradle.internal.test.rerun.executer.RerunTestExecuter;
-import org.gradle.api.Action;
-import org.gradle.api.Task;
-import org.gradle.api.internal.tasks.testing.JvmTestExecutionSpec;
-import org.gradle.api.internal.tasks.testing.TestExecuter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.gradle.api.file.Directory;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.api.tasks.testing.TestDescriptor;
+import org.gradle.api.tasks.testing.TestListener;
+import org.gradle.api.tasks.testing.TestResult;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public final class TestTaskConfigurer {
 
     private TestTaskConfigurer() {}
 
-    public static void configureTestTask(Test test, ObjectFactory objectFactory) {
-        TestRerunTaskExtension extension = test.getExtensions()
-            .create(TestRerunTaskExtension.NAME, TestRerunTaskExtension.class, objectFactory);
-        test.doFirst(new InitTaskAction(extension));
+    public static void configureTestTask(Test test, Directory projectDirectory, ObjectFactory objectFactory) {
+        // 1. step. track failed tests
+        test.addTestListener(new TrackFailedTestListener(test.getName(), projectDirectory));
     }
 
-    private static RerunTestExecuter createRetryTestExecuter(Task task, TestRerunTaskExtension extension) {
-        TestExecuter<JvmTestExecutionSpec> delegate = getTestExecuter(task);
-        return new RerunTestExecuter(extension, delegate);
-    }
+    private static class TrackFailedTestListener implements TestListener {
 
-    private static TestExecuter<JvmTestExecutionSpec> getTestExecuter(Task task) {
-        return invoke(declaredMethod(Test.class, "createTestExecuter"), task);
-    }
+        private final Directory projectDirectory;
+        private final String taskName;
+        private final List<TestDescriptor> failedTests = new ArrayList<>();
 
-    private static void setTestExecuter(Task task, RerunTestExecuter rerunTestExecuter) {
-        invoke(declaredMethod(Test.class, "setTestExecuter", TestExecuter.class), task, rerunTestExecuter);
-    }
-
-    private static class InitTaskAction implements Action<Task> {
-
-        private final TestRerunTaskExtension extension;
-
-        InitTaskAction(TestRerunTaskExtension extension) {
-            this.extension = extension;
+        TrackFailedTestListener(String taskName, Directory projectDirectory) {
+            this.taskName = taskName;
+            this.projectDirectory = projectDirectory;
         }
 
         @Override
-        public void execute(Task task) {
-            RerunTestExecuter retryTestExecuter = createRetryTestExecuter(task, extension);
-            setTestExecuter(task, retryTestExecuter);
+        public void beforeSuite(TestDescriptor suite) {}
+
+        @Override
+        public void afterSuite(TestDescriptor suite, TestResult result) {
+            if (suite.getParent() == null && failedTests.isEmpty() == false) {
+                File failedTestsFile = new File(projectDirectory.getAsFile(), "build/test-rerun/" + taskName + "-failed-tests.yml");
+                failedTestsFile.getParentFile().mkdirs();
+                ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
+                try {
+                    objectMapper.writeValue(
+                        failedTestsFile,
+                        failedTests.stream()
+                            .map(testDescriptor -> testDescriptor.getClassName() + "." + testDescriptor.getName())
+                            .collect(Collectors.toList())
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        @Override
+        public void beforeTest(TestDescriptor testDescriptor) {}
+
+        @Override
+        public void afterTest(TestDescriptor testDescriptor, TestResult result) {
+            if (result.getResultType() == TestResult.ResultType.FAILURE) {
+                failedTests.add(testDescriptor);
+            }
         }
     }
-
-    private static Method declaredMethod(Class<?> type, String methodName, Class<?>... paramTypes) {
-        try {
-            return makeAccessible(type.getDeclaredMethod(methodName, paramTypes));
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Method makeAccessible(Method method) {
-        method.setAccessible(true);
-        return method;
-    }
-
-    private static <T> T invoke(Method method, Object instance, Object... args) {
-        try {
-            Object result = method.invoke(instance, args);
-            @SuppressWarnings("unchecked")
-            T cast = (T) result;
-            return cast;
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
 }

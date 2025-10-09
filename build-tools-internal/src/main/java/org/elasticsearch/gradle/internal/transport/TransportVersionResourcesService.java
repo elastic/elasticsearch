@@ -286,7 +286,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         }
         // default the branch name to look at to that which a PR in CI is targeting
         String branchName = System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH");
-        if (branchName == null) {
+        if (branchName == null || branchName.strip().isEmpty()) {
             branchName = "main";
         }
         List<String> remoteNames = List.of(remotesOutput.split("\n"));

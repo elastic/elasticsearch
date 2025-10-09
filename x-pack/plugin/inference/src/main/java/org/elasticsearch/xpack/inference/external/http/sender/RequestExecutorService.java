@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -168,8 +167,8 @@ public class RequestExecutorService implements RequestExecutor {
     public void shutdown() {
         if (shutdown.compareAndSet(false, true)) {
             if (requestQueueTask != null) {
-                boolean cancelled = FutureUtils.cancel(requestQueueTask);
-                logger.debug(() -> format("Request queue cancellation successful: %s", cancelled));
+                // Wakes up the queue in processRequestQueue
+                requestQueue.offer(NoopTask);
             }
 
             if (cancellableCleanupTask.get() != null) {
@@ -265,19 +264,30 @@ public class RequestExecutorService implements RequestExecutor {
     private void processRequestQueue() {
         try {
             while (isShutdown() == false) {
-                // Blocks the request queue thread until a new request comes in
-                var task = (RequestTask) requestQueue.take();
+                // Blocks the request queue thread until a new task comes in
+                var task = requestQueue.take();
+
+                if (task == NoopTask) {
+                    if (isShutdown()) {
+                        logger.debug("Shutdown requested, exiting request queue processing");
+                        break;
+                    } else {
+                        // Skip processing NoopTask
+                        continue;
+                    }
+                }
 
                 if (isShutdown()) {
                     logger.debug("Shutdown requested while handling request tasks, cleaning up");
                     rejectRequest(task);
                 } else {
-                    var requestManager = task.getRequestManager();
+                    RequestTask requestTask = (RequestTask) task;
+                    var requestManager = requestTask.getRequestManager();
 
                     if (rateLimitingEnabled(requestManager.rateLimitSettings())) {
-                        submitTaskToRateLimitedExecutionPath(task);
+                        submitTaskToRateLimitedExecutionPath(requestTask);
                     } else {
-                        executeTaskImmediately(task);
+                        executeTaskImmediately(requestTask);
                     }
                 }
             }
@@ -696,4 +706,37 @@ public class RequestExecutorService implements RequestExecutor {
             requestExecutorServiceSettings.deregisterQueueCapacityCallback(id);
         }
     }
+
+    private static final RejectableTask NoopTask = new RejectableTask() {
+        @Override
+        public void onRejection(Exception e) {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+
+        @Override
+        public RequestManager getRequestManager() {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+
+        @Override
+        public InferenceInputs getInferenceInputs() {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+
+        @Override
+        public ActionListener<InferenceServiceResults> getListener() {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+
+        @Override
+        public boolean hasCompleted() {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+
+        @Override
+        public Supplier<Boolean> getRequestCompletedFunction() {
+            throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
+        }
+    };
+
 }

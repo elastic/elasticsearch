@@ -172,7 +172,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is(
                 Strings.format(
-                    "Failed to enqueue request task for inference id [id] because the request executor service is shutdown",
+                    "Failed to enqueue request task for inference id [id] because the request executor service has been shutdown",
                     requestManager.rateLimitGrouping().hashCode()
                 )
             )

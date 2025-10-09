@@ -20,10 +20,17 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
+import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.tdigest.Centroid;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
@@ -115,6 +122,62 @@ public class ExponentialHistogramState implements Releasable, Accountable {
             }
         }
         mergedHistograms.add(histogram);
+    }
+
+    public long size() {
+        return histogram().valueCount();
+    }
+
+    public double cdf(double x) {
+        ExponentialHistogram histogram = histogram();
+        long numValuesLess = ExponentialHistogramQuantile.estimateRank(histogram, x, false);
+        long numValuesLessOrEqual = ExponentialHistogramQuantile.estimateRank(histogram, x, true);
+        long numValuesEqual = numValuesLessOrEqual - numValuesLess;
+        // Just like for t-digest, equal values get half credit
+        return (numValuesLess + numValuesEqual / 2.0) / histogram.valueCount();
+    }
+
+    public double quantile(double q) {
+        return ExponentialHistogramQuantile.getQuantile(histogram(), q);
+    }
+
+    public Collection<Centroid> centroids() {
+        List<Centroid> centroids = new ArrayList<>();
+        addBucketCentersAsCentroids(centroids, histogram().negativeBuckets().iterator(), -1);
+        // negative
+        Collections.reverse(centroids);
+        if (histogram().zeroBucket().count() > 0) {
+            centroids.add(new Centroid(0.0, histogram().zeroBucket().count()));
+        }
+        addBucketCentersAsCentroids(centroids, histogram().positiveBuckets().iterator(), 1);
+        return centroids;
+    }
+
+    private void addBucketCentersAsCentroids(List<Centroid> result, BucketIterator buckets, int sign) {
+        while (buckets.hasNext()) {
+            double center = sign * ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
+            long count = buckets.peekCount();
+            result.add(new Centroid(center, count));
+            buckets.advance();
+        }
+    }
+
+    public int centroidCount() {
+        ExponentialHistogram histo = histogram();
+        int count = histo.zeroBucket().count() > 0 ? 1 : 0;
+        count += histo.negativeBuckets().bucketCount();
+        count += histo.positiveBuckets().bucketCount();
+        return count;
+    }
+
+    public double getMin() {
+        double min = histogram().min();
+        return Double.isNaN(min) ? Double.POSITIVE_INFINITY : min;
+    }
+
+    public double getMax() {
+        double max = histogram().max();
+        return Double.isNaN(max) ? Double.NEGATIVE_INFINITY : max;
     }
 
     public void write(StreamOutput out) throws IOException {

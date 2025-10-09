@@ -64,6 +64,18 @@ public class BasicPageTests extends SerializationTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             in,
             page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock(),
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()
+            ),
+            Page::releaseBlocks
+        );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
             page -> new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock()),
             Page::releaseBlocks
         );

@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -24,9 +25,13 @@ import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,6 +41,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -411,6 +417,29 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testShouldExcludeInferenceFieldsFromSource() {
+        for (int i = 0; i < 100; i++) {
+            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario(IndexVersion.current());
+            assertThat(
+                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.indexSettings, scenario.fetchSourceContext),
+                equalTo(scenario.shouldExcludeInferenceFields())
+            );
+        }
+
+        for (int i = 0; i < 200; i++) {
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+            );
+            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario(indexVersion);
+            assertThat(
+                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.indexSettings, scenario.fetchSourceContext),
+                equalTo(scenario.shouldExcludeInferenceFields())
+            );
+        }
+    }
+
     Translog.Index toIndexOp(String source) throws IOException {
         XContentParser parser = createParser(XContentType.JSON.xContent(), source);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -424,5 +453,95 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             null,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
         );
+    }
+
+    private static class ExcludeInferenceFieldsTestScenario {
+        private final IndexSettings indexSettings;
+        private final FetchSourceContext fetchSourceContext;
+
+        private ExcludeInferenceFieldsTestScenario(IndexVersion indexVersion) {
+            this.indexSettings = generateRandomIndexSettings(indexVersion);
+            this.fetchSourceContext = generateRandomFetchSourceContext();
+        }
+
+        private boolean shouldExcludeInferenceFields() {
+            if (fetchSourceContext != null && fetchSourceContext.fetchSource() == false) {
+                return true;
+            }
+
+            Boolean filtered = null;
+            SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+            if (filter != null) {
+                if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
+                    filtered = true;
+                } else if (filter.getIncludes().length > 0) {
+                    filtered = Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME) == false;
+                }
+            }
+            if (filtered != null) {
+                return filtered;
+            }
+
+            Boolean excludeInferenceFieldsExplicit = fetchSourceContext != null ? fetchSourceContext.excludeInferenceFields() : null;
+            if (excludeInferenceFieldsExplicit != null) {
+                return excludeInferenceFieldsExplicit;
+            }
+
+            Settings settings = indexSettings.getSettings();
+            return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.exists(settings)
+                ? INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(settings)
+                : true;
+        }
+
+        private static IndexSettings generateRandomIndexSettings(IndexVersion indexVersion) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+            if (randomBoolean()) {
+                boolean excludeSourceVectors = randomBoolean();
+                settings.put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), excludeSourceVectors);
+            }
+
+            return new IndexSettings(IndexMetadata.builder(randomIdentifier()).settings(settings).build(), settings.build());
+        }
+
+        private static FetchSourceContext generateRandomFetchSourceContext() {
+            FetchSourceContext fetchSourceContext = switch (randomIntBetween(0, 4)) {
+                case 0 -> FetchSourceContext.FETCH_SOURCE;
+                case 1 -> FetchSourceContext.FETCH_ALL_SOURCE;
+                case 2 -> FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS;
+                case 3 -> FetchSourceContext.DO_NOT_FETCH_SOURCE;
+                case 4 -> null;
+                default -> throw new IllegalStateException("Unhandled randomized case");
+            };
+
+            if (fetchSourceContext != null && fetchSourceContext.fetchSource()) {
+                String[] includes = null;
+                String[] excludes = null;
+                if (randomBoolean()) {
+                    // Randomly include a non-existent field to test explicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    includes = new String[] { field };
+                }
+                if (randomBoolean()) {
+                    // Randomly exclude a non-existent field to test implicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    excludes = new String[] { field };
+                }
+
+                if (includes != null || excludes != null) {
+                    fetchSourceContext = FetchSourceContext.of(
+                        fetchSourceContext.fetchSource(),
+                        fetchSourceContext.excludeVectors(),
+                        fetchSourceContext.excludeInferenceFields(),
+                        includes,
+                        excludes
+                    );
+                }
+            }
+
+            return fetchSourceContext;
+        }
     }
 }

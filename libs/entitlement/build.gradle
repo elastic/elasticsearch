@@ -42,13 +42,9 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.register('dumpInstrumentedMethods', Test) {
+tasks.register('dumpInstrumentedMethods', JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
-  testClassesDirs = sourceSets.test.output.classesDirs
-  filter {
-    includeTestsMatching("org.elasticsearch.entitlement.initialization.DynamicInstrumentationTests.testToDumpInstrumentedMethods")
-  }
-  if (System.getProperty('es.entitlements.dump') == null) {
-    systemProperty 'es.entitlements.dump', project.getProjectDir().toPath().toAbsolutePath().resolve("build/entitlement-methods.dump").toString()
-  }
+  mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
+  systemProperty 'es.entitlements.dump',
+    System.getProperty('es.entitlements.dump', project.getProjectDir().toPath().toAbsolutePath().resolve("build/entitlement-methods.dump").toString())
 }

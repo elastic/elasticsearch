@@ -162,16 +162,16 @@ public class ExponentialHistogramState implements Releasable, Accountable {
             out.writeZLong(index);
             out.writeVLong(bucketIterator.peekCount());
             bucketIterator.advance();
-            long lastIndex = index;
+            long previousIndex = index;
             while (bucketIterator.hasNext()) {
                 index = bucketIterator.peekIndex();
-                long delta = index - lastIndex;
+                long delta = index - previousIndex;
                 assert delta > 0;
                 if (delta > 1) {
                     out.writeZLong(-delta);
                 }
                 out.writeZLong(bucketIterator.peekCount());
-                lastIndex = index;
+                previousIndex = index;
                 bucketIterator.advance();
             }
         }

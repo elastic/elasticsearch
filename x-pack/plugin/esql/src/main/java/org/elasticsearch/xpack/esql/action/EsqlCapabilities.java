@@ -1600,6 +1600,12 @@ public class EsqlCapabilities {
         METADATA_TSID_FIELD,
 
         /**
+         * Permit the data type of a field changing from TEXT to KEYWORD
+         * when being grouped on in aggregations on the TS command.
+         */
+        TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
+
+        /**
          * Pack dimension values in TS command
          */
         PACK_DIMENSIONS_IN_TS

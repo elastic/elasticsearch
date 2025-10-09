@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class AllocationBalancingRoundMetrics {
 
     public static final String NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME = "es.allocator.balancing_round.balancing_rounds";
+
     public static final String NUMBER_OF_SHARD_MOVES_METRIC_NAME = "es.allocator.balancing_round.shard_moves";
 
     public static final String NUMBER_OF_SHARDS_METRIC_NAME = "es.allocator.balancing_round.shard_count";
@@ -45,11 +46,17 @@ public class AllocationBalancingRoundMetrics {
      */
     private final AtomicReference<BalancingRoundSummary.CombinedBalancingRoundSummary> combinedSummariesRef = new AtomicReference<>();
 
+    /**
+     * Whether metrics sending is enabled
+     */
+    private volatile boolean enableSending = false;
+
     public static final AllocationBalancingRoundMetrics NOOP = new AllocationBalancingRoundMetrics(MeterRegistry.NOOP);
 
     private final MeterRegistry meterRegistry;
 
     public AllocationBalancingRoundMetrics(MeterRegistry meterRegistry) {
+        this.combinedSummariesRef.set(BalancingRoundSummary.CombinedBalancingRoundSummary.EMPTY_RESULTS);
         this.meterRegistry = meterRegistry;
 
         meterRegistry.registerLongsGauge(
@@ -69,7 +76,7 @@ public class AllocationBalancingRoundMetrics {
         meterRegistry.registerLongsGauge(NUMBER_OF_SHARDS_METRIC_NAME, "Current number of shards", "unit", this::getShardCount);
         meterRegistry.registerLongsGauge(
             NUMBER_OF_SHARDS_DELTA_METRIC_NAME,
-            "Current number of shard moves",
+            "Current number of shards delta",
             "{shard}",
             this::getShardCountDelta
         );
@@ -83,18 +90,23 @@ public class AllocationBalancingRoundMetrics {
         );
 
         meterRegistry.registerDoublesGauge(WRITE_LOAD_METRIC_NAME, "Write load", "1.0", this::getWriteLoad);
-        meterRegistry.registerDoublesGauge(WRITE_LOAD_DELTA_METRIC_NAME, "Write load", "1.0", this::getWriteLoadDelta);
+        meterRegistry.registerDoublesGauge(WRITE_LOAD_DELTA_METRIC_NAME, "Write load delta", "1.0", this::getWriteLoadDelta);
 
         meterRegistry.registerDoublesGauge(TOTAL_WEIGHT_METRIC_NAME, "Total weight", "1.0", this::getTotalWeight);
         meterRegistry.registerDoublesGauge(TOTAL_WEIGHT_DELTA_METRIC_NAME, "Total weight delta", "1.0", this::getTotalWeightDelta);
     }
 
-    public void updateRoundMetrics(BalancingRoundSummary.CombinedBalancingRoundSummary summary) {
+    public void setEnableSending(boolean enableSending) {
+        this.enableSending = enableSending;
+    }
+
+    public void updateBalancingRoundMetrics(BalancingRoundSummary.CombinedBalancingRoundSummary summary) {
+        assert summary != null : "balancing round metrics cannot be null";
         combinedSummariesRef.set(summary);
     }
 
-    public void clearRoundMetrics() {
-        combinedSummariesRef.set(null);
+    public void clearBalancingRoundMetrics() {
+        combinedSummariesRef.set(BalancingRoundSummary.CombinedBalancingRoundSummary.EMPTY_RESULTS);
     }
 
     private Map<String, Object> getNodeAttributes(String nodeId) {
@@ -102,29 +114,31 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<LongWithAttributes> getBalancingRounds() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
+
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         LongWithAttributes result = new LongWithAttributes(combinedSummary.numberOfShardMoves());
         return List.of(result);
     }
 
     private List<LongWithAttributes> getShardMoves() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
+
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         LongWithAttributes result = new LongWithAttributes(combinedSummary.numberOfShardMoves());
         return List.of(result);
     }
 
     private List<LongWithAttributes> getShardCount() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<LongWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -134,11 +148,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<LongWithAttributes> getShardCountDelta() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<LongWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -150,11 +164,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<DoubleWithAttributes> getDiskUsage() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -166,11 +180,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<DoubleWithAttributes> getDiskUsageDelta() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -185,11 +199,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<DoubleWithAttributes> getWriteLoad() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -201,11 +215,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<DoubleWithAttributes> getWriteLoadDelta() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -217,11 +231,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<DoubleWithAttributes> getTotalWeight() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {
@@ -233,11 +247,11 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private List<DoubleWithAttributes> getTotalWeightDelta() {
-        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
-        if (combinedSummary == null) {
+        if (enableSending == false) {
             return Collections.emptyList();
         }
 
+        final BalancingRoundSummary.CombinedBalancingRoundSummary combinedSummary = combinedSummariesRef.get();
         Map<String, NodesWeightsChanges> nodeNameToWeightChanges = combinedSummary.nodeNameToWeightChanges();
         List<DoubleWithAttributes> metrics = new ArrayList<>(nodeNameToWeightChanges.size());
         for (var nodeWeights : nodeNameToWeightChanges.entrySet()) {

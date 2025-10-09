@@ -250,6 +250,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             // Only update on change, to minimise volatile writes
             if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
                 desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
+                balancingRoundMetrics.setEnableSending(event.localNodeMaster());
             }
         });
     }

@@ -196,7 +196,7 @@ public class AllocationBalancingRoundSummaryService {
 
         logger.info("Balancing round summaries: " + combinedSummaries);
 
-        balancingRoundMetrics.updateRoundMetrics(combinedSummaries);
+        balancingRoundMetrics.updateBalancingRoundMetrics(combinedSummaries);
     }
 
     /**
@@ -225,7 +225,7 @@ public class AllocationBalancingRoundSummaryService {
             cancelReporting();
             // Clear the data structure so that we don't retain unnecessary memory.
             drainSummaries();
-            balancingRoundMetrics.clearRoundMetrics();
+            balancingRoundMetrics.clearBalancingRoundMetrics();
         }
     }
 

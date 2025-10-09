@@ -420,7 +420,7 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+        return alignsWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
     }
 
     /**
@@ -429,7 +429,7 @@ public class ValuesSourceConfig {
      * is searchable and there aren't missing values or a script to confuse
      * the ordering.
      */
-    public boolean alignesWithSearchIndex() {
+     public boolean alignsWithSearchIndex() {
         boolean hasDocValuesSkipper = fieldType() instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
         return script() == null
             && missing() == null

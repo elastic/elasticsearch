@@ -523,6 +523,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
 
         void clearSlotAndMaybeStartPending(int slot) {
+            assert prefetchThreads.get(slot) != null && prefetchThreads.get(slot).isDone();
             prefetchThreads.set(slot, null);
             posToSlot.remove(prefetchPos[slot]);
             if (pendingPrefetches.isEmpty()) {
@@ -531,7 +532,20 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             }
             final long req = pendingPrefetches.removeFirst();
             posToSlot.put(req, slot);
+            prefetchPos[slot] = req;
             startPrefetch(req, slot);
+        }
+
+        private boolean assertSlotsConsistent() {
+            posToSlot.forEach((k, v) -> {
+                if (prefetchThreads.get(v) == null) {
+                    throw new AssertionError("posToSlot inconsistent: slot " + v + " for pos " + k + " has no prefetch thread");
+                }
+                if (prefetchPos[v] != k) {
+                    throw new AssertionError("posToSlot inconsistent: slot " + v + " for pos " + k + " has prefetchPos " + prefetchPos[v]);
+                }
+            });
+            return true;
         }
 
         void startPrefetch(long pos, int slot) {
@@ -550,6 +564,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                 return prefetchBuffer;
             });
             prefetchThreads.set(slot, future);
+            assert assertSlotsConsistent();
         }
 
         @Override

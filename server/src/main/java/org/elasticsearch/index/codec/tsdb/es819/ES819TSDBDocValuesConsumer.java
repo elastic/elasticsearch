@@ -541,11 +541,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         CompressedBinaryBlockWriter() throws IOException {
             compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(3);
-            tempBinaryOffsets = state.directory.createTempOutput(
-                state.segmentInfo.name,
-                "binary_pointers",
-                state.context
-            );
+            tempBinaryOffsets = state.directory.createTempOutput(state.segmentInfo.name, "binary_pointers", state.context);
             boolean success = false;
             try {
                 CodecUtil.writeHeader(
@@ -634,9 +630,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             CodecUtil.writeFooter(tempBinaryOffsets);
             IOUtils.close(tempBinaryOffsets);
             // write the compressed block offsets info to the meta file by reading from temp file
-            try (
-                ChecksumIndexInput filePointersIn = state.directory.openChecksumInput(tempBinaryOffsets.getName())
-            ) {
+            try (ChecksumIndexInput filePointersIn = state.directory.openChecksumInput(tempBinaryOffsets.getName())) {
                 CodecUtil.checkHeader(
                     filePointersIn,
                     ES819TSDBDocValuesFormat.META_CODEC + "FilePointers",

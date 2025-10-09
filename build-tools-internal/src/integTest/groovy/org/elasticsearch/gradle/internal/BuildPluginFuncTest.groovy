@@ -153,7 +153,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named('thirdPartyAudit').configure { enabled = false }
             """
         when:
-        def result = gradleRunner("check").build()
+        def result = gradleRunner("check", '--no-configuration-cache').build()
         then:
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS

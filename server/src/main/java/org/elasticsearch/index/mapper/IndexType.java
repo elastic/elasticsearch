@@ -169,14 +169,20 @@ public final class IndexType {
 
     @Override
     public String toString() {
-        return "IndexType{" +
-            "hasTerms=" + hasTerms +
-            ", hasPoints=" + hasPoints +
-            ", hasPointsMetadata=" + hasPointsMetadata +
-            ", hasVectors=" + hasVectors +
-            ", hasDocValues=" + hasDocValues +
-            ", hasDocValuesSkipper=" + hasDocValuesSkipper +
-            '}';
+        return "IndexType{"
+            + "hasTerms="
+            + hasTerms
+            + ", hasPoints="
+            + hasPoints
+            + ", hasPointsMetadata="
+            + hasPointsMetadata
+            + ", hasVectors="
+            + hasVectors
+            + ", hasDocValues="
+            + hasDocValues
+            + ", hasDocValuesSkipper="
+            + hasDocValuesSkipper
+            + '}';
     }
 
     @Override

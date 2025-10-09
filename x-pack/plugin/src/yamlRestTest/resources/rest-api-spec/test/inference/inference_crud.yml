@@ -1,11 +1,11 @@
 ---
-"Test get missing model":
+"Test get missing model v2":
   - do:
       catch: missing
       inference.get:
         inference_id: inference_to_get
   - match: { error.type: "resource_not_found_exception" }
-  - match: { error.reason: "Inference endpoint [inference_to_get] not found or you are not authorized to access it" }
+  - contains: { error.reason: "Inference endpoint [inference_to_get] not found" }
 
 ---
 "Test put inference with bad task type":

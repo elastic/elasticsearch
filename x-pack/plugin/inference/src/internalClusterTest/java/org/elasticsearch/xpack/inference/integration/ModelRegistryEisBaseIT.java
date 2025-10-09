@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.ModelRegistryIT.createModel;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 
-public class ModelRegistryEisBaseIT extends ESSingleNodeTestCase {
+public abstract class ModelRegistryEisBaseIT extends ESSingleNodeTestCase {
     protected static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     protected static final MockWebServer webServer = new MockWebServer();
 

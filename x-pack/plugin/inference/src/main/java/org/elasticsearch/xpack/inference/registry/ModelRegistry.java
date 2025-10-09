@@ -314,7 +314,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         var failureListener = listener.delegateResponse((delegate, e) -> {
             // If the inference endpoint does not exist, we've already created a well-defined exception, so just return it
-            if (e instanceof ElasticsearchException) {
+            if (e instanceof ResourceNotFoundException) {
                 delegate.onFailure(e);
                 return;
             }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
@@ -62,15 +61,13 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
     public void testWithInferenceNotConfigured() {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
-        var inferenceId = "test-semantic3";
-
-        String query = Strings.format("""
-            from %s
+        String query = """
+            from test-semantic3
             | where match(semantic_text_field, "something")
-            """, inferenceId);
+            """;
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(query));
 
-        assertThat(re.getMessage(), containsString(Strings.format("Inference endpoint [%s] not found", inferenceId)));
+        assertThat(re.getMessage(), containsString("Inference endpoint [inexistent] not found"));
         assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
     }
 

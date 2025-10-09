@@ -155,6 +155,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/46_downsample/Query stats on downsampled index", "Extra function required to enable the field type")
   task.skipTest("esql/46_downsample/Render stats from downsampled index", "Extra function required to enable the field type")
   task.skipTest("esql/46_downsample/Sort from multiple indices one with aggregate metric double", "Extra function required to enable the field type")
+  task.skipTest("inference/inference_crud/Test get missing model", "Error message changed")
 })
 
 tasks.named('yamlRestCompatTest').configure {

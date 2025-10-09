@@ -161,7 +161,7 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.withSourcePaths(Set.of(name()));
+                return StoredFieldsSpec.withSourcePaths(context.isSourceSynthetic(), Set.of(name()));
             }
         };
     }

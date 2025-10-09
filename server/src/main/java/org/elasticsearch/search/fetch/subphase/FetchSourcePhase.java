@@ -45,7 +45,8 @@ public final class FetchSourcePhase implements FetchSubPhase {
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
                 if (sourceFilter != null) {
-                    return StoredFieldsSpec.withSourcePaths(new HashSet<>(Arrays.asList(sourceFilter.getIncludes())));
+                    boolean sourceSynthetic = fetchContext.getSearchExecutionContext().isSourceSynthetic();
+                    return StoredFieldsSpec.withSourcePaths(sourceSynthetic, new HashSet<>(Arrays.asList(sourceFilter.getIncludes())));
                 } else {
                     return StoredFieldsSpec.NEEDS_SOURCE;
                 }

@@ -297,7 +297,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {

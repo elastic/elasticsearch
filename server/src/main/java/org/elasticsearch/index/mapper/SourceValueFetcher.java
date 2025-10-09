@@ -31,6 +31,7 @@ import java.util.Set;
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final boolean isSyntheticSource;
 
     public SourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -41,16 +42,18 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param nullValue An optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue);
+        this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue, context.isSourceSynthetic());
     }
 
     /**
-     * @param sourcePaths   The paths to pull source values from
-     * @param nullValue     An optional substitute value if the _source value is `null`
+     * @param sourcePaths       The paths to pull source values from
+     * @param nullValue         An optional substitute value if the _source value is `null`
+     * @param isSourceSynthetic
      */
-    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue, boolean isSourceSynthetic) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.isSyntheticSource = isSourceSynthetic;
     }
 
     @Override
@@ -98,7 +101,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.withSourcePaths(sourcePaths);
+        return StoredFieldsSpec.withSourcePaths(isSyntheticSource, sourcePaths);
     }
 
     /**
@@ -140,10 +143,12 @@ public abstract class SourceValueFetcher implements ValueFetcher {
 
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to Strings
-     * @param sourcePaths   the paths to fetch values from in the source
+     *
+     * @param sourcePaths            the paths to fetch values from in the source
+     * @param syntheticSourceEnabled
      */
-    public static SourceValueFetcher toString(Set<String> sourcePaths) {
-        return new SourceValueFetcher(sourcePaths, null) {
+    public static SourceValueFetcher toString(Set<String> sourcePaths, boolean syntheticSourceEnabled) {
+        return new SourceValueFetcher(sourcePaths, null, syntheticSourceEnabled) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

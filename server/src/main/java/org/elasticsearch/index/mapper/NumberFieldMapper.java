@@ -2124,7 +2124,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

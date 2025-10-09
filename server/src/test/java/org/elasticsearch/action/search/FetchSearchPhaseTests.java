@@ -865,7 +865,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.withSourcePaths(Set.of("thefield"));
+                    boolean sourceSynthetic = searchContext.getSearchExecutionContext().isSourceSynthetic();
+                    return StoredFieldsSpec.withSourcePaths(sourceSynthetic, Set.of("thefield"));
                 }
             }));
             fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
@@ -919,7 +920,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.withSourcePaths(Set.of("thefield"));
+                    boolean sourceSynthetic = fetchContext.getSearchExecutionContext().isSourceSynthetic();
+                    return StoredFieldsSpec.withSourcePaths(sourceSynthetic, Set.of("thefield"));
                 }
             }));
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(

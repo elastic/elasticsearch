@@ -671,7 +671,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         // returns a Long to support source fallback which emulates numeric doc values for dates
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
                 @Override
                 public Long parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();

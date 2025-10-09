@@ -1587,8 +1587,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testStoredFieldsSpec() throws IOException {
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
-        assertEquals(StoredFieldsSpec.withSourcePaths(Set.of("field")), fieldFetcher.storedFieldsSpec());
+        SearchExecutionContext context = newSearchExecutionContext(createMapperService());
+        FieldFetcher fieldFetcher = FieldFetcher.create(context, fields);
+        assertEquals(StoredFieldsSpec.withSourcePaths(context.isSourceSynthetic(), Set.of("field")), fieldFetcher.storedFieldsSpec());
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

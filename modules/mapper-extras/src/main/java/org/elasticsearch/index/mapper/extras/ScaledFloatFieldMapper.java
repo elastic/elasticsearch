@@ -508,7 +508,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

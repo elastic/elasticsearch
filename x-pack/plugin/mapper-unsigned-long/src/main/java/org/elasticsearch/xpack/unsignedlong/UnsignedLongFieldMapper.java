@@ -398,7 +398,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 };
             }
 
-            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted, isSyntheticSource) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -529,7 +529,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValueFormatted) {
+            return new SourceValueFetcher(sourcePaths, nullValueFormatted, isSyntheticSource) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

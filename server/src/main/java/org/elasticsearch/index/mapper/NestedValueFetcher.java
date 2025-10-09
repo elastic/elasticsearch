@@ -33,13 +33,15 @@ public class NestedValueFetcher implements ValueFetcher {
     // the name of the nested field without the full path, i.e. in foo.bar.baz it would be baz
     private final String nestedFieldName;
     private final String[] nestedPathParts;
+    private final boolean sourceSynthetic;
 
-    public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher) {
+    public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher, boolean sourceSynthetic) {
         assert nestedField != null && nestedField.isEmpty() == false;
         this.nestedFieldPath = nestedField;
         this.nestedFieldFetcher = nestedFieldFetcher;
         this.nestedPathParts = nestedFieldPath.split("\\.");
         this.nestedFieldName = nestedPathParts[nestedPathParts.length - 1];
+        this.sourceSynthetic = sourceSynthetic;
     }
 
     @Override
@@ -94,6 +96,6 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.withSourcePaths(new HashSet<>(Arrays.asList(nestedPathParts)));
+        return StoredFieldsSpec.withSourcePaths(sourceSynthetic, new HashSet<>(Arrays.asList(nestedPathParts)));
     }
 }

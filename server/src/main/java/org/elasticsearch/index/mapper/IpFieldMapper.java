@@ -516,7 +516,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
                 @Override
                 public InetAddress parseSourceValue(Object value) {
                     return parse(value);

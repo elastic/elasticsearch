@@ -147,7 +147,11 @@ public class FieldFetcher {
                         scope,
                         unmappedFetchPatterns
                     );
-                    NestedValueFetcher nvf = new NestedValueFetcher(scope, new FieldFetcher(scopedFields, unmappedFieldFetcher));
+                    NestedValueFetcher nvf = new NestedValueFetcher(
+                        scope,
+                        new FieldFetcher(scopedFields, unmappedFieldFetcher),
+                        context.isSourceSynthetic()
+                    );
                     output.put(scope, new FieldContext(scope, nvf));
                 }
             }

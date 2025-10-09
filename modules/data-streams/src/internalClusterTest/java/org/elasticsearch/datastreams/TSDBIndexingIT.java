@@ -325,19 +325,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
               }
             }""";
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put("index.mode", "time_series")
+            .put("index.dimensions_tsid_strategy_enabled", randomDouble() < 0.8);
+        if (randomBoolean()) {
+            settingsBuilder.put("index.routing_path", "metricset");
+        }
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
-                .template(
-                    new Template(
-                        Settings.builder()
-                            .put("index.mode", "time_series")
-                            .put("index.routing_path", randomBoolean() ? null : "metricset")
-                            .build(),
-                        new CompressedXContent(mappingTemplate),
-                        null
-                    )
-                )
+                .template(new Template(settingsBuilder.build(), new CompressedXContent(mappingTemplate), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
@@ -640,12 +637,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
     public void testAddDimensionToMapping() throws Exception {
         String dataStreamName = "my-ds";
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        boolean indexDimensionsTsidStrategyEnabled = randomBoolean();
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
                 .template(
                     new Template(
-                        Settings.builder().put("index.mode", "time_series").build(),
+                        Settings.builder()
+                            .put("index.mode", "time_series")
+                            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
+                            .build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null
                     )
@@ -662,8 +663,13 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             "my-ds"
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDsRequest));
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        if (indexDimensionsTsidStrategyEnabled) {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), equalTo(List.of("metricset")));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
 
         // put mapping with k8s.pod.uid as another time series dimension
         var putMappingRequest = new PutMappingRequest(dataStreamName).source("""
@@ -677,8 +683,13 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }
             """, XContentType.JSON);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        if (indexDimensionsTsidStrategyEnabled) {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
 
         // put dynamic template defining time series dimensions
         // we don't support index.dimensions in that case
@@ -698,13 +709,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }
             """, XContentType.JSON);
         ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
-        assertThat(
-            exception.getMessage(),
-            containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
-        );
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
-        assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        if (indexDimensionsTsidStrategyEnabled) {
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
+            assertThat(
+                exception.getMessage(),
+                containsString("Cannot add dynamic templates that define dimension fields on an existing index with index.dimensions")
+            );
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), empty());
+        } else {
+            assertAcked(putMappingFuture.actionGet());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), empty());
+            assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_ROUTING_PATH), equalTo(List.of("metricset")));
+        }
         indexWithPodNames(dataStreamName, Instant.now(), Map.of(), "dog", "cat");
     }
 

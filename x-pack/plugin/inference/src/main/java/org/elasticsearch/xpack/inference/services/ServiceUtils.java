@@ -1079,11 +1079,27 @@ public final class ServiceUtils {
         E apply(String name) throws IllegalArgumentException;
     }
 
-    public static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName) {
+    /**
+     * Create an exception for when the task type is not valid for the service.
+     */
+    public static ElasticsearchStatusException createInvalidTaskTypeException(
+        String inferenceEntityId,
+        String serviceName,
+        TaskType taskType,
+        ConfigurationParseContext parseContext
+    ) {
+        var message = parseContext == ConfigurationParseContext.PERSISTENT
+            ? parsePersistedConfigErrorMsg(inferenceEntityId, serviceName, taskType)
+            : TaskType.unsupportedTaskTypeErrorMsg(taskType, serviceName);
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private static String parsePersistedConfigErrorMsg(String inferenceEntityId, String serviceName, TaskType taskType) {
         return format(
-            "Failed to parse stored model [%s] for [%s] service, please delete and add the service again",
+            "Failed to parse stored model [%s] for [%s] service, error: [%s]. Please delete and add the service again",
             inferenceEntityId,
-            serviceName
+            serviceName,
+            TaskType.unsupportedTaskTypeErrorMsg(taskType, serviceName)
         );
     }
 

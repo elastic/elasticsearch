@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -25,7 +24,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
@@ -50,6 +48,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings.URL;
 
@@ -87,7 +86,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                 input.secretSettings(),
                 input.context()
             );
-            default -> throw new ElasticsearchStatusException(input.failureMessage(), RestStatus.BAD_REQUEST);
+            default -> throw createInvalidTaskTypeException(input.inferenceEntityId(), NAME, input.taskType(), input.context());
         };
     }
 

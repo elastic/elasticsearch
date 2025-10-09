@@ -69,10 +69,12 @@
       },
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
@@ -89,11 +91,13 @@
       },
       "flat_settings": {
         "type": "boolean",
+        "default": false,
         "description": "Return settings in flat format (default: false)"
       },
       "local": {
         "deprecated": true,
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "include_defaults": {

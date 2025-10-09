@@ -49,7 +49,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(30); // default
 
     DataStreamIndexSettingsProvider provider;
-    private boolean indexDimensionsTsidOptimizationEnabled;
+    private boolean indexDimensionsTsidStrategyEnabledSetting;
+    private boolean expectedIndexDimensionsTsidOptimizationEnabled;
     private IndexVersion indexVersion;
 
     @Before
@@ -60,7 +61,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         indexVersion = randomBoolean()
             ? IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.TSID_CREATED_DURING_ROUTING)
             : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
-        indexDimensionsTsidOptimizationEnabled = indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
+        indexDimensionsTsidStrategyEnabledSetting = usually();
+        expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
+            && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
@@ -68,7 +71,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder()
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .build();
         String mapping = """
             {
                 "_doc": {
@@ -119,7 +124,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        if (indexDimensionsTsidOptimizationEnabled) {
+        if (expectedIndexDimensionsTsidOptimizationEnabled) {
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
         } else {
@@ -181,7 +186,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder()
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .build();
         String mapping1 = """
             {
                 "_doc": {
@@ -248,7 +255,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        if (indexDimensionsTsidOptimizationEnabled) {
+        if (expectedIndexDimensionsTsidOptimizationEnabled) {
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field3"));
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
         } else {
@@ -719,7 +726,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        if (indexDimensionsTsidOptimizationEnabled) {
+        if (expectedIndexDimensionsTsidOptimizationEnabled) {
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id"));
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
         } else {
@@ -807,7 +814,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        if (indexDimensionsTsidOptimizationEnabled) {
+        if (expectedIndexDimensionsTsidOptimizationEnabled) {
             assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("labels.*"));
             assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
         } else {
@@ -971,7 +978,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {
         ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder()
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .build();
 
         Settings.Builder additionalSettings = builder();
         provider.provideAdditionalSettings(

@@ -51,7 +51,7 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
      */
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING = Setting.intSetting(
         "cluster.routing.allocation.cluster_concurrent_frozen_rebalance",
-        10,
+        2,
         -1,
         Property.Dynamic,
         Property.NodeScope

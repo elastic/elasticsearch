@@ -33,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
@@ -352,7 +353,6 @@ class IndicesAndAliasesResolver {
                     throw new UnsupportedSelectorException(originalIndexExpression);
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    // TODO implement CPS index rewriting for all-indices requests
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
@@ -372,11 +372,20 @@ class IndicesAndAliasesResolver {
                 }
 
                 var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
+                Set<String> remoteIndices = Collections.emptySet();
+                if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
+                    remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                        "*",
+                        authorizedProjects.originProjectAlias(),
+                        authorizedProjects.allProjectAliases()
+                    ).remoteExpressions();
+                }
+
                 resolvedExpressionsBuilder.addExpressions(
-                    Metadata.ALL,
+                    indicesRequest.indices().length > 0 ? indicesRequest.indices()[0] : Metadata.ALL,
                     localExpressions,
                     ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                    Collections.emptySet()
+                    remoteIndices
                 );
                 var resolved = resolvedExpressionsBuilder.build();
 

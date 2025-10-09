@@ -877,7 +877,7 @@ required_capability: subquery_in_from_command
 FROM sample_data, (FROM k8s metadata _index) metadata _index
 | WHERE @timestamp < "2024-05-10T00:01:00.000Z"
 | KEEP _index, @timestamp, client.ip, event_duration, cluster, network.total_bytes_in, network.eth0.tx
-| SORT _index, @timestamp
+| SORT _index, @timestamp, client.ip, cluster
 ;
 
 _index:keyword | @timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:integer
@@ -901,19 +901,19 @@ required_capability: subquery_in_from_command
 FROM k8s-downsampled, (FROM sample_data metadata _index) metadata _index
 | WHERE @timestamp <= "2024-05-09T23:30:00.000Z"
 | KEEP _index, @timestamp, client.ip, event_duration, cluster, network.total_bytes_in, network.eth0.tx
-| SORT _index, @timestamp
+| SORT _index, @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
 _index:keyword  | @timestamp:datetime      | client.ip:ip | event_duration:long | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | qa              | 1143                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 363                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | null                | prod            | 210                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | prod            | 285                         | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | qa              | 1143                        | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | staging         | 930                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | prod            | 1038                        | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 363                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | null                | qa              | 1032                        | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | null                | prod            | 210                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 821                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | null                | staging         | 838                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | null                | staging         | 930                         | null
 sample_data     | 2023-10-23T12:15:03.360Z | null         | 3450233             | null            | null                        | null
 sample_data     | 2023-10-23T12:27:28.948Z | null         | 2764889             | null            | null                        | null
 sample_data     | 2023-10-23T13:33:34.937Z | null         | 1232382             | null            | null                        | null
@@ -930,7 +930,7 @@ required_capability: subquery_in_from_command
 FROM k8s, (FROM k8s-downsampled metadata _index | WHERE @timestamp <= "2024-05-09T23:30:00.000Z") metadata _index
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"
 | KEEP _index, @timestamp, client.ip, cluster, network.total_bytes_in, network.eth0.tx
-| SORT _index, @timestamp
+| SORT _index, @timestamp, client.ip, cluster,  network.total_bytes_in
 ;
 
 _index:keyword  | @timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:keyword
@@ -938,13 +938,13 @@ k8s             | 2024-05-10T00:00:29.000Z | 10.10.20.34  | staging         | 95
 k8s             | 2024-05-10T00:00:33.000Z | 10.10.20.34  | staging         | 1111                        | null
 k8s             | 2024-05-10T00:00:51.000Z | 10.10.20.30  | prod            | 278                         | null
 k8s             | 2024-05-10T00:00:57.000Z | 10.10.20.30  | prod            | 955                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | prod            | 1038                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
-k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 1032                        | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | prod            | 1038                        | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 363                         | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 1032                        | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | prod            | 210                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 821                         | null
+k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
 ;

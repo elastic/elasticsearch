@@ -1,0 +1,5 @@
+pr: 136309
+summary: Adds ST_SIMPLIFY spatial funcion
+area: ES|QL
+type: enhancement
+issues: []

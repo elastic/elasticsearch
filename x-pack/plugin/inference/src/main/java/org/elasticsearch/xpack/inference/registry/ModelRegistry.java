@@ -189,14 +189,6 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     /**
-     * Adds the default configuration information if it does not already exist internally.
-     * @param defaultConfigId the default endpoint information
-     */
-    public synchronized void putDefaultIdIfAbsent(InferenceService.DefaultConfigId defaultConfigId) {
-        defaultConfigIds.putIfAbsent(defaultConfigId.inferenceId(), defaultConfigId);
-    }
-
-    /**
      * Set the default inference ids provided by the services
      * @param defaultConfigId The default endpoint information
      * @throws IllegalStateException if the {@link InferenceService.DefaultConfigId#inferenceId()} already exists internally
@@ -244,6 +236,8 @@ public class ModelRegistry implements ClusterStateListener {
             }
         }
 
+        // this is a temporary solution until the model registry handles polling the EIS authorization endpoint
+        // to retrieve the preconfigured inference endpoints
         var eisConfig = ElasticInferenceServiceMinimalSettings.getWithInferenceId(inferenceEntityId);
         if (eisConfig != null) {
             return eisConfig.minimalSettings();

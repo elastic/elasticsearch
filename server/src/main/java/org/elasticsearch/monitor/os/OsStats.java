@@ -12,7 +12,6 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -120,7 +119,9 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Cpu implements Writeable, ToXContentFragment {
 
-        private static final String AVAILABLE_PROCESSORS_TRANSPORT_VERSION = "available_processors_in_os_stats";
+        private static final TransportVersion AVAILABLE_PROCESSORS_TRANSPORT_VERSION = TransportVersion.fromName(
+            "available_processors_in_os_stats"
+        );
 
         private final short percent;
         private final double[] loadAverage;
@@ -139,9 +140,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             } else {
                 this.loadAverage = null;
             }
-            this.availableProcessors = in.getTransportVersion().supports(TransportVersion.fromName(AVAILABLE_PROCESSORS_TRANSPORT_VERSION))
-                ? in.readInt()
-                : 0;
+            this.availableProcessors = in.getTransportVersion().supports(AVAILABLE_PROCESSORS_TRANSPORT_VERSION) ? in.readInt() : 0;
         }
 
         @Override
@@ -153,7 +152,7 @@ public class OsStats implements Writeable, ToXContentFragment {
                 out.writeBoolean(true);
                 out.writeDoubleArray(loadAverage);
             }
-            if (out.getTransportVersion().supports(TransportVersion.fromName(AVAILABLE_PROCESSORS_TRANSPORT_VERSION))) {
+            if (out.getTransportVersion().supports(AVAILABLE_PROCESSORS_TRANSPORT_VERSION)) {
                 out.writeInt(availableProcessors);
             }
         }

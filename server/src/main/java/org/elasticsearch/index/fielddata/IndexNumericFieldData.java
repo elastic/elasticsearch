@@ -148,7 +148,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         SortField sortField = sortField(missingValue, sortMode, nested, reverse);
         if (getNumericType() == NumericType.DATE_NANOSECONDS
             && indexCreatedVersion.before(IndexVersions.V_7_14_0)
-            && missingValue == null
+            && missingValue.equals("_last")
             && Long.valueOf(0L).equals(sortField.getMissingValue())) {
             // 7.14 changed the default missing value of sort on date_nanos, from Long.MIN_VALUE
             // to 0L - for compatibility we require to a missing value of MIN_VALUE to allow to

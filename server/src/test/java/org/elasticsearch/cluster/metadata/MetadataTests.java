@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -102,6 +101,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetadataTests extends ESTestCase {
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     public void testUnknownFieldClusterMetadata() throws IOException {
         BytesReference metadata = BytesReference.bytes(
@@ -620,7 +621,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId)).build();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT));
+            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(MULTI_PROJECT));
             var e = assertThrows(UnsupportedOperationException.class, () -> metadata.writeTo(output));
             assertEquals("There is 1 project, but it has id [" + projectId + "] rather than default", e.getMessage());
         }

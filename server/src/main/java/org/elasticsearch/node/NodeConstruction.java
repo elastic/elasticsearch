@@ -1007,9 +1007,9 @@ class NodeConstruction {
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
-            LinkedProjectConfigService.class,
-            () -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver)
-        );
+            LinkedProjectConfigService.Provider.class,
+            () -> Optional::empty
+        ).create().orElse(new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,

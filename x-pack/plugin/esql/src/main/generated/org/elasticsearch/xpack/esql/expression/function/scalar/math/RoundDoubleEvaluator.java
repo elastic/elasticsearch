@@ -73,27 +73,27 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock, LongBlock decimalsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (decimalsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (decimalsBlock.getValueCount(p) != 1) {
-          if (decimalsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (decimalsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         long decimals = decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p));

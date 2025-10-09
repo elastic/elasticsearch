@@ -56,7 +56,9 @@ public class Reliable extends EsqlScalarFunction {
     private final Expression bucketCount;
 
     @FunctionInfo(returnType = { "boolean", }, description = "...")
-    public Reliable(Source source, @Param(name = "estimates", type = { "double", "int", "long" }) Expression estimates,
+    public Reliable(
+        Source source,
+        @Param(name = "estimates", type = { "double", "int", "long" }) Expression estimates,
         @Param(name = "trialCount", type = { "int" }) Expression trialCount,
         @Param(name = "bucketCount", type = { "int" }) Expression bucketCount
     ) {
@@ -67,7 +69,12 @@ public class Reliable extends EsqlScalarFunction {
     }
 
     private Reliable(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
     }
 
     @Override
@@ -86,9 +93,8 @@ public class Reliable extends EsqlScalarFunction {
     @Override
     protected TypeResolution resolveType() {
         return isType(estimates, t -> t.isNumeric() && isRepresentable(t), sourceText(), SECOND, "numeric").and(
-            isType(trialCount, t -> t == DataType.INTEGER, sourceText(), THIRD, "integer")).and(
-            isType(bucketCount, t -> t== DataType.INTEGER, sourceText(), FOURTH, "integer")
-        );
+            isType(trialCount, t -> t == DataType.INTEGER, sourceText(), THIRD, "integer")
+        ).and(isType(bucketCount, t -> t == DataType.INTEGER, sourceText(), FOURTH, "integer"));
     }
 
     @Override
@@ -99,9 +105,24 @@ public class Reliable extends EsqlScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(estimates.dataType())) {
-            case DOUBLE -> new ReliableDoubleEvaluator.Factory(source(), toEvaluator.apply(estimates), toEvaluator.apply(trialCount), toEvaluator.apply(bucketCount));
-            case INT -> new ReliableIntEvaluator.Factory(source(), toEvaluator.apply(estimates), toEvaluator.apply(trialCount), toEvaluator.apply(bucketCount));
-            case LONG -> new ReliableLongEvaluator.Factory(source(), toEvaluator.apply(estimates), toEvaluator.apply(trialCount), toEvaluator.apply(bucketCount));
+            case DOUBLE -> new ReliableDoubleEvaluator.Factory(
+                source(),
+                toEvaluator.apply(estimates),
+                toEvaluator.apply(trialCount),
+                toEvaluator.apply(bucketCount)
+            );
+            case INT -> new ReliableIntEvaluator.Factory(
+                source(),
+                toEvaluator.apply(estimates),
+                toEvaluator.apply(trialCount),
+                toEvaluator.apply(bucketCount)
+            );
+            case LONG -> new ReliableLongEvaluator.Factory(
+                source(),
+                toEvaluator.apply(estimates),
+                toEvaluator.apply(trialCount),
+                toEvaluator.apply(bucketCount)
+            );
             default -> throw EsqlIllegalArgumentException.illegalDataType(estimates.dataType());
         };
     }
@@ -132,12 +153,19 @@ public class Reliable extends EsqlScalarFunction {
             return false;
         }
         Reliable other = (Reliable) obj;
-        return Objects.equals(other.estimates, estimates) && Objects.equals(other.trialCount, trialCount)
+        return Objects.equals(other.estimates, estimates)
+            && Objects.equals(other.trialCount, trialCount)
             && Objects.equals(other.bucketCount, bucketCount);
     }
 
     @Evaluator(extraName = "Double")
-    static void process(BooleanBlock.Builder builder, @Position int position, DoubleBlock estimatesBlock, IntBlock trialCountBlock, IntBlock bucketCountBlock) {
+    static void process(
+        BooleanBlock.Builder builder,
+        @Position int position,
+        DoubleBlock estimatesBlock,
+        IntBlock trialCountBlock,
+        IntBlock bucketCountBlock
+    ) {
         if (trialCountBlock.getValueCount(position) != 1 || bucketCountBlock.getValueCount(position) != 1) {
             builder.appendNull();
             return;
@@ -152,7 +180,13 @@ public class Reliable extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Int")
-    static void process(BooleanBlock.Builder builder, @Position int position, IntBlock estimatesBlock, IntBlock trialCountBlock, IntBlock bucketCountBlock) {
+    static void process(
+        BooleanBlock.Builder builder,
+        @Position int position,
+        IntBlock estimatesBlock,
+        IntBlock trialCountBlock,
+        IntBlock bucketCountBlock
+    ) {
         if (trialCountBlock.getValueCount(position) != 1 || bucketCountBlock.getValueCount(position) != 1) {
             builder.appendNull();
             return;
@@ -167,7 +201,13 @@ public class Reliable extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Long")
-    static void process(BooleanBlock.Builder builder, @Position int position, LongBlock estimatesBlock, IntBlock trialCountBlock, IntBlock bucketCountBlock) {
+    static void process(
+        BooleanBlock.Builder builder,
+        @Position int position,
+        LongBlock estimatesBlock,
+        IntBlock trialCountBlock,
+        IntBlock bucketCountBlock
+    ) {
         if (trialCountBlock.getValueCount(position) != 1 || bucketCountBlock.getValueCount(position) != 1) {
             builder.appendNull();
             return;

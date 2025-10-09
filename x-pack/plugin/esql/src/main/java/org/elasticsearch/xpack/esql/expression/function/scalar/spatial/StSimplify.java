@@ -11,12 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefVectorBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -38,7 +39,6 @@ import java.nio.ByteOrder;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 public class StSimplify extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -70,11 +70,7 @@ public class StSimplify extends EsqlScalarFunction {
     }
 
     private StSimplify(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -104,83 +100,54 @@ public class StSimplify extends EsqlScalarFunction {
         out.writeNamedWriteable(tolerance);
     }
 
+    private static class GeoSimplifier {
+        static GeometryValidator validator = StandardValidator.instance(true);
+        static WKTReader reader = new WKTReader();
+        static WKTWriter writer = new WKTWriter();
+
+        public static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
+            String wkt = WellKnownText.fromWKB(inputGeometry.bytes, inputGeometry.offset, inputGeometry.length);
+            try {
+                org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
+                org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
+                String simplifiedWkt = writer.write(simplifiedGeometry);
+                Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
+                return new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return dvrCtx -> {
-            EvalOperator.ExpressionEvaluator geometryEvaluator = toEvaluator.apply(geometry).get(dvrCtx);
-            EvalOperator.ExpressionEvaluator toleranceEvaluator = toEvaluator.apply(tolerance).get(dvrCtx);
+        EvalOperator.ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);
 
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public void close() {
+        if (tolerance.foldable() == false) {
+            throw new IllegalArgumentException("tolerance must be foldable");
+        }
+        double inputTolerance = (double) tolerance.fold(toEvaluator.foldCtx());
 
-                }
+        if (geometry.foldable()) {
+            BytesRef inputGeometry = (BytesRef) geometry.fold(toEvaluator.foldCtx());
+            return new StSimplifyFoldableGeoAndConstantToleranceEvaluator.Factory(source(), inputGeometry, inputTolerance);
+        }
+        return new StSimplifyNonFoldableGeoAndConstantToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+    }
 
-                @Override
-                public Block eval(Page page) {
-                    var isGeometryFoldable = geometry.foldable();
-                    var positionCount = page.getPositionCount();
-                    var validator = StandardValidator.instance(true);
-                    WKTReader reader = new WKTReader();
-                    WKTWriter writer = new WKTWriter();
-                    DoubleVector tolerances = (DoubleVector) toleranceEvaluator.eval(page).asVector();
+    @Evaluator(extraName = "NonFoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef processNonFoldableGeoAndConstantTolerance(
+        BytesRef inputGeometry,
+        @Fixed double inputTolerance
+    ) {
+        return GeoSimplifier.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+    }
 
-                    // TODO We are not extracting non foldable geometries
-                    // TODO We are not using the tolerance
-                    try (var result = dvrCtx.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-                        if (isGeometryFoldable) {
-                            var esGeometry = makeGeometryFromLiteral(toEvaluator.foldCtx(), geometry);
-                            String wkt = WellKnownText.toWKT(esGeometry);
-
-                            try {
-                                org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
-
-                                for (int p = 0; p < positionCount; p++) {
-                                    double distanceTolerance = tolerances.getDouble(p);
-                                    org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, distanceTolerance);
-                                    String simplifiedWkt = writer.write(simplifiedGeometry);
-                                    Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
-
-                                    result.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN)));
-                                }
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        } else {
-                            // Geometry is non foldable
-                            BytesRefVectorBlock block = (BytesRefVectorBlock) geometryEvaluator.eval(page);
-                            var bytesRefVector = block.asVector();
-
-                            try {
-                                for (int p = 0; p < positionCount; p++) {
-                                    double distanceTolerance = tolerances.getDouble(p);
-                                    var destRef = bytesRefVector.getBytesRef(p, new BytesRef());
-                                    var wkt = WellKnownText.fromWKB(destRef.bytes, destRef.offset, destRef.length);
-                                    org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
-                                    org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(
-                                        jtsGeometry,
-                                        distanceTolerance
-                                    );
-                                    String simplifiedWkt = writer.write(simplifiedGeometry);
-                                    Geometry esGeometryResult = WellKnownText.fromWKT(validator, false, simplifiedWkt);
-                                    result.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(esGeometryResult, ByteOrder.LITTLE_ENDIAN)));
-                                }
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                            block.close();
-                        }
-                        tolerances.close();
-
-                        return result.build().asBlock();
-                    }
-                }
-
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
-            };
-        };
+    @Evaluator(extraName = "FoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef processFoldableGeoAndConstantTolerance(
+        @Fixed BytesRef inputGeometry,
+        @Fixed double inputTolerance
+    ) {
+        return GeoSimplifier.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 }

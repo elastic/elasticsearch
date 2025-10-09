@@ -163,7 +163,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         var request = new EsqlQueryRequest();
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
-        EsqlSession.PlanRunner runPhase = (p, r) -> fail("this shouldn't happen");
+        EsqlSession.PlanRunner runPhase = (p, configuration, r) -> fail("this shouldn't happen");
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
             "",
             new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)

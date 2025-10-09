@@ -16,7 +16,6 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndexExpression;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -3728,8 +3727,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(
             expressions.get(1).localExpressions().exception().getMessage(),
             equalTo(
-                "action [indices:data/read/search] is unauthorized for user [user] with effective roles [partial-access-role], " +
-                    "this action is granted by the index privileges [read,all]"
+                "action [indices:data/read/search] is unauthorized for user [user] with effective roles [partial-access-role], "
+                    + "this action is granted by the index privileges [read,all]"
             )
         );
     }

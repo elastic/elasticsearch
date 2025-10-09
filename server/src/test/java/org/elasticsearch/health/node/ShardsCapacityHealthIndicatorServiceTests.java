@@ -371,16 +371,13 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testUnhealthyThresholdSettings() {
         {
-            Integer threshold = 0;
-            Settings settings = Settings.builder()
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), threshold)
-                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), threshold)
-                .build();
-            assertEquals(threshold, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings));
-            assertEquals(threshold, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings));
+            // default values
+            Settings settings = Settings.builder().build();
+            assertEquals(10, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings).intValue());
+            assertEquals(5, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings).intValue());
         }
         {
-            Integer randomYellowThreshold = randomIntBetween(1, Integer.MAX_VALUE);
+            Integer randomYellowThreshold = randomIntBetween(2, Integer.MAX_VALUE);
             Integer randomRedThreshold = randomYellowThreshold - 1;
             Settings settings = Settings.builder()
                 .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
@@ -390,9 +387,42 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             assertEquals(randomRedThreshold, SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings));
         }
         {
-            // invalid values
-            int randomYellowThreshold = randomIntBetween(0, Integer.MAX_VALUE - 1);
+            // invalid - same values
+            int threshold = randomIntBetween(1, Integer.MAX_VALUE);
+            Settings settings = Settings.builder()
+                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), threshold)
+                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), threshold)
+                .build();
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+            );
+        }
+        {
+            // invalid - yellow threshold is lower than red threshold
+            int randomYellowThreshold = randomIntBetween(1, Integer.MAX_VALUE - 1);
             int randomRedThreshold = randomYellowThreshold + 1;
+            Settings settings = Settings.builder()
+                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
+                .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)
+                .build();
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardsCapacityHealthIndicatorService.SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
+            );
+        }
+        {
+            // invalid - non-positive values
+            int randomYellowThreshold = randomIntBetween(Integer.MIN_VALUE + 1, 0);
+            int randomRedThreshold = randomYellowThreshold - 1;
             Settings settings = Settings.builder()
                 .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), randomRedThreshold)
                 .put(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), randomYellowThreshold)

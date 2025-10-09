@@ -104,7 +104,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     public static final Setting<Integer> SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW = Setting.intSetting(
         "health.shard_capacity.unhealthy_threshold.yellow",
         10,
-        0,
+        1,
         new Setting.Validator<>() {
             @Override
             public void validate(Integer value) {}
@@ -112,11 +112,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             @Override
             public void validate(Integer value, Map<Setting<?>, Object> settings) {
                 Integer redThreshold = (Integer) settings.get(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
-                if (value < redThreshold) {
+                if (value <= redThreshold) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "Setting [%s] (%d) must be greater than or equal to [%s] (%d)",
+                            "Setting [%s] (%d) must be greater than [%s] (%d)",
                             SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
                             value,
                             SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
@@ -139,7 +139,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     public static final Setting<Integer> SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED = Setting.intSetting(
         "health.shard_capacity.unhealthy_threshold.red",
         5,
-        0,
+        1,
         new Setting.Validator<>() {
             @Override
             public void validate(Integer value) {}
@@ -147,11 +147,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             @Override
             public void validate(Integer value, Map<Setting<?>, Object> settings) {
                 Integer yellowThreshold = (Integer) settings.get(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
-                if (value > yellowThreshold) {
+                if (value >= yellowThreshold) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "Setting [%s] (%d) must be less than or equal to [%s] (%d)",
+                            "Setting [%s] (%d) must be less than [%s] (%d)",
                             SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
                             value,
                             SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),

@@ -40,10 +40,10 @@ import java.util.stream.Stream;
  * The indicator will report:
  * <ul>
  * <li> {@code RED} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.red} (default 5) shards
- * (either data or frozen nodes)
+ * (either data or frozen nodes)</li>
  * <li> {@code YELLOW} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.yellow} (default 10)
- * shards (either data or frozen nodes)
- * <li> {@code GREEN} otherwise
+ * shards (either data or frozen nodes)</li>
+ * <li> {@code GREEN} otherwise</li>
  * </ul>
  *
  *  Although the `max_shard_per_node(.frozen)?` information is scoped by Node, we use the information from master because there is where

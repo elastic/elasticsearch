@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -28,21 +29,32 @@ public final class ReliableLongEvaluator implements EvalOperator.ExpressionEvalu
 
   private final EvalOperator.ExpressionEvaluator estimatesBlock;
 
+  private final EvalOperator.ExpressionEvaluator trialCountBlock;
+
+  private final EvalOperator.ExpressionEvaluator bucketCountBlock;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public ReliableLongEvaluator(Source source, EvalOperator.ExpressionEvaluator estimatesBlock,
-      DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator trialCountBlock,
+      EvalOperator.ExpressionEvaluator bucketCountBlock, DriverContext driverContext) {
     this.source = source;
     this.estimatesBlock = estimatesBlock;
+    this.trialCountBlock = trialCountBlock;
+    this.bucketCountBlock = bucketCountBlock;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (LongBlock estimatesBlockBlock = (LongBlock) estimatesBlock.eval(page)) {
-      return eval(page.getPositionCount(), estimatesBlockBlock);
+      try (IntBlock trialCountBlockBlock = (IntBlock) trialCountBlock.eval(page)) {
+        try (IntBlock bucketCountBlockBlock = (IntBlock) bucketCountBlock.eval(page)) {
+          return eval(page.getPositionCount(), estimatesBlockBlock, trialCountBlockBlock, bucketCountBlockBlock);
+        }
+      }
     }
   }
 
@@ -50,21 +62,30 @@ public final class ReliableLongEvaluator implements EvalOperator.ExpressionEvalu
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += estimatesBlock.baseRamBytesUsed();
+    baseRamBytesUsed += trialCountBlock.baseRamBytesUsed();
+    baseRamBytesUsed += bucketCountBlock.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, LongBlock estimatesBlockBlock) {
+  public BooleanBlock eval(int positionCount, LongBlock estimatesBlockBlock,
+      IntBlock trialCountBlockBlock, IntBlock bucketCountBlockBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!estimatesBlockBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (!trialCountBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (!bucketCountBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        Reliable.process(result, p, estimatesBlockBlock);
+        Reliable.process(result, p, estimatesBlockBlock, trialCountBlockBlock, bucketCountBlockBlock);
       }
       return result.build();
     }
@@ -72,12 +93,12 @@ public final class ReliableLongEvaluator implements EvalOperator.ExpressionEvalu
 
   @Override
   public String toString() {
-    return "ReliableLongEvaluator[" + "estimatesBlock=" + estimatesBlock + "]";
+    return "ReliableLongEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(estimatesBlock);
+    Releasables.closeExpectNoException(estimatesBlock, trialCountBlock, bucketCountBlock);
   }
 
   private Warnings warnings() {
@@ -97,19 +118,27 @@ public final class ReliableLongEvaluator implements EvalOperator.ExpressionEvalu
 
     private final EvalOperator.ExpressionEvaluator.Factory estimatesBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory estimatesBlock) {
+    private final EvalOperator.ExpressionEvaluator.Factory trialCountBlock;
+
+    private final EvalOperator.ExpressionEvaluator.Factory bucketCountBlock;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory estimatesBlock,
+        EvalOperator.ExpressionEvaluator.Factory trialCountBlock,
+        EvalOperator.ExpressionEvaluator.Factory bucketCountBlock) {
       this.source = source;
       this.estimatesBlock = estimatesBlock;
+      this.trialCountBlock = trialCountBlock;
+      this.bucketCountBlock = bucketCountBlock;
     }
 
     @Override
     public ReliableLongEvaluator get(DriverContext context) {
-      return new ReliableLongEvaluator(source, estimatesBlock.get(context), context);
+      return new ReliableLongEvaluator(source, estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ReliableLongEvaluator[" + "estimatesBlock=" + estimatesBlock + "]";
+      return "ReliableLongEvaluator[" + "estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + "]";
     }
   }
 }

@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -29,16 +30,28 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
 
   private final EvalOperator.ExpressionEvaluator estimatesBlock;
 
+  private final EvalOperator.ExpressionEvaluator trialCountBlock;
+
+  private final EvalOperator.ExpressionEvaluator bucketCountBlock;
+
+  private final EvalOperator.ExpressionEvaluator confidenceLevelBlock;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public ConfidenceIntervalDoubleEvaluator(Source source,
       EvalOperator.ExpressionEvaluator bestEstimateBlock,
-      EvalOperator.ExpressionEvaluator estimatesBlock, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator estimatesBlock,
+      EvalOperator.ExpressionEvaluator trialCountBlock,
+      EvalOperator.ExpressionEvaluator bucketCountBlock,
+      EvalOperator.ExpressionEvaluator confidenceLevelBlock, DriverContext driverContext) {
     this.source = source;
     this.bestEstimateBlock = bestEstimateBlock;
     this.estimatesBlock = estimatesBlock;
+    this.trialCountBlock = trialCountBlock;
+    this.bucketCountBlock = bucketCountBlock;
+    this.confidenceLevelBlock = confidenceLevelBlock;
     this.driverContext = driverContext;
   }
 
@@ -46,7 +59,13 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
   public Block eval(Page page) {
     try (DoubleBlock bestEstimateBlockBlock = (DoubleBlock) bestEstimateBlock.eval(page)) {
       try (DoubleBlock estimatesBlockBlock = (DoubleBlock) estimatesBlock.eval(page)) {
-        return eval(page.getPositionCount(), bestEstimateBlockBlock, estimatesBlockBlock);
+        try (IntBlock trialCountBlockBlock = (IntBlock) trialCountBlock.eval(page)) {
+          try (IntBlock bucketCountBlockBlock = (IntBlock) bucketCountBlock.eval(page)) {
+            try (DoubleBlock confidenceLevelBlockBlock = (DoubleBlock) confidenceLevelBlock.eval(page)) {
+              return eval(page.getPositionCount(), bestEstimateBlockBlock, estimatesBlockBlock, trialCountBlockBlock, bucketCountBlockBlock, confidenceLevelBlockBlock);
+            }
+          }
+        }
       }
     }
   }
@@ -56,11 +75,15 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += bestEstimateBlock.baseRamBytesUsed();
     baseRamBytesUsed += estimatesBlock.baseRamBytesUsed();
+    baseRamBytesUsed += trialCountBlock.baseRamBytesUsed();
+    baseRamBytesUsed += bucketCountBlock.baseRamBytesUsed();
+    baseRamBytesUsed += confidenceLevelBlock.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock bestEstimateBlockBlock,
-      DoubleBlock estimatesBlockBlock) {
+      DoubleBlock estimatesBlockBlock, IntBlock trialCountBlockBlock,
+      IntBlock bucketCountBlockBlock, DoubleBlock confidenceLevelBlockBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
@@ -70,11 +93,20 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
         if (!estimatesBlockBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
+        if (!trialCountBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (!bucketCountBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
+        if (!confidenceLevelBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
+        }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        ConfidenceInterval.process(result, p, bestEstimateBlockBlock, estimatesBlockBlock);
+        ConfidenceInterval.process(result, p, bestEstimateBlockBlock, estimatesBlockBlock, trialCountBlockBlock, bucketCountBlockBlock, confidenceLevelBlockBlock);
       }
       return result.build();
     }
@@ -82,12 +114,12 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
 
   @Override
   public String toString() {
-    return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
+    return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + ", confidenceLevelBlock=" + confidenceLevelBlock + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(bestEstimateBlock, estimatesBlock);
+    Releasables.closeExpectNoException(bestEstimateBlock, estimatesBlock, trialCountBlock, bucketCountBlock, confidenceLevelBlock);
   }
 
   private Warnings warnings() {
@@ -109,21 +141,33 @@ public final class ConfidenceIntervalDoubleEvaluator implements EvalOperator.Exp
 
     private final EvalOperator.ExpressionEvaluator.Factory estimatesBlock;
 
+    private final EvalOperator.ExpressionEvaluator.Factory trialCountBlock;
+
+    private final EvalOperator.ExpressionEvaluator.Factory bucketCountBlock;
+
+    private final EvalOperator.ExpressionEvaluator.Factory confidenceLevelBlock;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory bestEstimateBlock,
-        EvalOperator.ExpressionEvaluator.Factory estimatesBlock) {
+        EvalOperator.ExpressionEvaluator.Factory estimatesBlock,
+        EvalOperator.ExpressionEvaluator.Factory trialCountBlock,
+        EvalOperator.ExpressionEvaluator.Factory bucketCountBlock,
+        EvalOperator.ExpressionEvaluator.Factory confidenceLevelBlock) {
       this.source = source;
       this.bestEstimateBlock = bestEstimateBlock;
       this.estimatesBlock = estimatesBlock;
+      this.trialCountBlock = trialCountBlock;
+      this.bucketCountBlock = bucketCountBlock;
+      this.confidenceLevelBlock = confidenceLevelBlock;
     }
 
     @Override
     public ConfidenceIntervalDoubleEvaluator get(DriverContext context) {
-      return new ConfidenceIntervalDoubleEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), context);
+      return new ConfidenceIntervalDoubleEvaluator(source, bestEstimateBlock.get(context), estimatesBlock.get(context), trialCountBlock.get(context), bucketCountBlock.get(context), confidenceLevelBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + "]";
+      return "ConfidenceIntervalDoubleEvaluator[" + "bestEstimateBlock=" + bestEstimateBlock + ", estimatesBlock=" + estimatesBlock + ", trialCountBlock=" + trialCountBlock + ", bucketCountBlock=" + bucketCountBlock + ", confidenceLevelBlock=" + confidenceLevelBlock + "]";
     }
   }
 }

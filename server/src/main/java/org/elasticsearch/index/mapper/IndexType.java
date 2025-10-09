@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Objects;
+
 /**
  * What type of index structure is available for this field
  */
-public class IndexType {
+public final class IndexType {
 
     /**
      * An IndexType with no index structures or doc values
@@ -163,5 +165,35 @@ public class IndexType {
      */
     public static IndexType vectors() {
         return new IndexType(false, false, false, true, false, false);
+    }
+
+    @Override
+    public String toString() {
+        return "IndexType{" +
+            "hasTerms=" + hasTerms +
+            ", hasPoints=" + hasPoints +
+            ", hasPointsMetadata=" + hasPointsMetadata +
+            ", hasVectors=" + hasVectors +
+            ", hasDocValues=" + hasDocValues +
+            ", hasDocValuesSkipper=" + hasDocValuesSkipper +
+            '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof IndexType indexType) {
+            return hasTerms == indexType.hasTerms
+                && hasPoints == indexType.hasPoints
+                && hasPointsMetadata == indexType.hasPointsMetadata
+                && hasVectors == indexType.hasVectors
+                && hasDocValues == indexType.hasDocValues
+                && hasDocValuesSkipper == indexType.hasDocValuesSkipper;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(hasTerms, hasPoints, hasPointsMetadata, hasVectors, hasDocValues, hasDocValuesSkipper);
     }
 }

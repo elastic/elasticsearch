@@ -46,6 +46,7 @@ To see how you can set up an index for the `terms_set` query, try the following 
       }
     }
     ```
+    %  TESTSETUP
 
 2. Index a document with an ID of `1` and the following values:
 

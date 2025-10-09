@@ -562,34 +562,22 @@ public class TokenService {
             } else if (versionGetForRefresh && refreshSource != null && refreshSource.containsKey("token") == false) {
                 onFailure.accept(new IllegalStateException("token document is missing the refresh_token.token field"));
             } else if (storedAccessToken != null && storedAccessToken.equals(accessSource.get("token")) == false) {
-                logger.error(
-                    "The stored access token [{}] for token doc id [{}] could not be verified",
-                    storedAccessToken,
-                    tokenId
-                );
+                logger.error("The stored access token [{}] for token doc id [{}] could not be verified", storedAccessToken, tokenId);
                 listener.onResponse(null);
             } else if (storedRefreshToken != null
                 && (refreshSource == null || storedRefreshToken.equals(refreshSource.get("token")) == false)) {
-                logger.error(
-                    "The stored refresh token [{}] for token doc id [{}] could not be verified",
-                    storedRefreshToken,
-                    tokenId
-                );
-                listener.onResponse(null);
-            } else {
-                listener.onResponse(new Doc(response));
-            }
+                    logger.error("The stored refresh token [{}] for token doc id [{}] could not be verified", storedRefreshToken, tokenId);
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(new Doc(response));
+                }
         };
 
         Consumer<Exception> exceptionConsumer = e -> {
             // if the index or the shard is not there / available we assume that
             // the token is not valid
             if (isShardNotAvailableException(e)) {
-                logger.warn(
-                    "failed to get token doc [{}] because index [{}] is not available",
-                    tokenId,
-                    securityTokensIndex.aliasName()
-                );
+                logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, securityTokensIndex.aliasName());
             } else {
                 logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
             }
@@ -926,16 +914,12 @@ public class TokenService {
                             retryTokenDocIds.add(failedTokenDocId);
                         } else {
                             traceLog("invalidate access token", failedTokenDocId, cause);
-                            failedRequestResponses.add(
-                                new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause)
-                            );
+                            failedRequestResponses.add(new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause));
                         }
                     } else {
                         UpdateResponse updateResponse = bulkItemResponse.getResponse();
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                            logger.debug(
-                                () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
-                            );
+                            logger.debug(() -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId()));
                             invalidated.add(updateResponse.getGetResult().getId());
                         } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
                             previouslyInvalidated.add(updateResponse.getGetResult().getId());
@@ -1025,15 +1009,16 @@ public class TokenService {
             // client::bulk within NodeClient, you'll spot the execution happening on a transport thread.
             // The wrapper below handles this situation by introducing a second fork to make sure post-processing of the BulkResponse
             // returns us to the generic thread pool.
-            CheckedConsumer<BulkResponse, Exception> wrappedCheckedConsumer = bulkItemResponses ->
-                client.threadPool().generic().execute(() -> {
-                try {
-                    checkedConsumer.accept(bulkItemResponses);
-                } catch (Exception e) {
-                    // re-use the exception consumer
-                    exceptionConsumer.accept(e);
-                }
-            });
+            CheckedConsumer<BulkResponse, Exception> wrappedCheckedConsumer = bulkItemResponses -> client.threadPool()
+                .generic()
+                .execute(() -> {
+                    try {
+                        checkedConsumer.accept(bulkItemResponses);
+                    } catch (Exception e) {
+                        // re-use the exception consumer
+                        exceptionConsumer.accept(e);
+                    }
+                });
             bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
             tokensIndexManager.forCurrentProject()
                 .prepareIndexIfNeededThenExecute(

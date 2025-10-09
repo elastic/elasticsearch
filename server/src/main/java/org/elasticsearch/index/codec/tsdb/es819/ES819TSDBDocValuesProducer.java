@@ -348,7 +348,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt
                 ) throws IOException {
-                    return null;
+                    int count = docs.count() - offset;
+                    try (var builder = factory.bytesRefs(count)) {
+                        for (int i = offset; i < docs.count(); i++) {
+                            doc = docs.get(i);
+                            builder.appendBytesRef(decoder.decode(doc));
+                        }
+                        return builder.build();
+                    }
                 }
             };
         } else {

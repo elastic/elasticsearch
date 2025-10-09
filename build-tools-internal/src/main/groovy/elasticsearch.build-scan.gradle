@@ -104,7 +104,7 @@ develocity {
           value 'Git Commit ID', esCommit
           tag "pr/${esPr}"
           tag 'pull-request'
-          link 'Source', "https://github.com/jfreden/elasticsearch/tree/${esCommit}"
+          link 'Source', "https://github.com/elastic/elasticsearch/pull/${esPr}/commits/${esCommit}"
           link 'Pull Request', "https://github.com/elastic/elasticsearch/pull/${esPr}"
         } else {
           value 'Git Commit ID', gitRevision.get()

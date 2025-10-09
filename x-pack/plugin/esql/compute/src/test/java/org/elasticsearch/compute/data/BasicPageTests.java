@@ -151,7 +151,7 @@ public class BasicPageTests extends SerializationTestCase {
                     .copyFrom(block, 0, page.getPositionCount() - 1)
                     .build();
             }
-            return new Page(blocks);
+            return new Page(positions, blocks);
         };
 
         int positions = randomIntBetween(0, 512);

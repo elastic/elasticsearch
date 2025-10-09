@@ -1731,16 +1731,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
-        if (input.getTransportVersion().before(TransportVersions.V_8_8_0)) {
-            for (int i = 0; i < numOps; i++) {
-                operations.add(readOperation(checksumStreamInput));
-            }
-        } else {
-            for (int i = 0; i < numOps; i++) {
-                checksumStreamInput.resetDigest();
-                operations.add(Translog.Operation.readOperation(checksumStreamInput));
-                verifyChecksum(checksumStreamInput);
-            }
+        for (int i = 0; i < numOps; i++) {
+            checksumStreamInput.resetDigest();
+            operations.add(Operation.readOperation(checksumStreamInput));
+            verifyChecksum(checksumStreamInput);
         }
         return operations;
     }
@@ -1781,13 +1775,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (size == 0) {
             return;
         }
-        if (outStream.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
-            for (Operation op : toWrite) {
-                writeOperationNoSize(checksumStreamOutput, op);
-            }
-        } else {
-            writeOperationsToStreamLegacyFormat(outStream, toWrite);
+        final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
+        for (Operation op : toWrite) {
+            writeOperationNoSize(checksumStreamOutput, op);
         }
     }
 

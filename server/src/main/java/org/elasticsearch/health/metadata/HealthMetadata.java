@@ -10,7 +10,6 @@
 package org.elasticsearch.health.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -52,9 +51,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
-        this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
-            ? in.readOptionalWriteable(ShardLimits::readFrom)
-            : null;
+        this.shardLimitsMetadata = in.readOptionalWriteable(ShardLimits::readFrom);
     }
 
     @Override
@@ -70,9 +67,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
-            out.writeOptionalWriteable(shardLimitsMetadata);
-        }
+        out.writeOptionalWriteable(shardLimitsMetadata);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -161,7 +156,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
-        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersions.V_8_8_0;
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return new ShardLimits(in.readInt(), in.readInt());

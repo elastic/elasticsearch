@@ -22,7 +22,6 @@ import java.util.Objects;
 
 public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
 
-    static final TransportVersion BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION = TransportVersions.V_8_8_1;
     static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     public static final String SEARCH_APPLICATIONS = "search_applications";
@@ -61,9 +60,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
         if (in.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
             analyticsCollectionsUsage = in.readGenericMap();
             queryRulesUsage = in.readGenericMap();
-        } else if (in.getTransportVersion().onOrAfter(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
-            analyticsCollectionsUsage = in.readGenericMap();
-        }
+        } else analyticsCollectionsUsage = in.readGenericMap();
         this.analyticsCollectionsUsage = analyticsCollectionsUsage;
         this.queryRulesUsage = queryRulesUsage;
     }
@@ -72,9 +69,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericMap(searchApplicationsUsage);
-        if (out.getTransportVersion().onOrAfter(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
-            out.writeGenericMap(analyticsCollectionsUsage);
-        }
+        out.writeGenericMap(analyticsCollectionsUsage);
         if (out.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
             out.writeGenericMap(queryRulesUsage);
         }
@@ -82,7 +77,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

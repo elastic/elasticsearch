@@ -116,7 +116,6 @@ public final class Authentication implements ToXContentObject {
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
-    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
 
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
         "security_cloud_api_key_realm_and_type"
@@ -832,18 +831,14 @@ public final class Authentication implements ToXContentObject {
     );
 
     private static Map<String, Object> readMetadata(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
-            final int size = in.readVInt();
-            final Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                final String key = in.readString();
-                final Object value = METADATA_VALUE_READER.getOrDefault(key, StreamInput::readGenericValue).apply(in);
-                metadata.put(key, value);
-            }
-            return metadata;
-        } else {
-            return in.readGenericMap();
+        final int size = in.readVInt();
+        final Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            final String key = in.readString();
+            final Object value = METADATA_VALUE_READER.getOrDefault(key, StreamInput::readGenericValue).apply(in);
+            metadata.put(key, value);
         }
+        return metadata;
     }
 
     private static final Map<String, Writeable.Writer<?>> METADATA_VALUE_WRITER = Map.of(
@@ -858,19 +853,15 @@ public final class Authentication implements ToXContentObject {
     );
 
     private static void writeMetadata(StreamOutput out, Map<String, Object> metadata) throws IOException {
-        if (out.getTransportVersion().onOrAfter(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
-            out.writeVInt(metadata.size());
-            for (Map.Entry<String, Object> entry : metadata.entrySet()) {
-                out.writeString(entry.getKey());
-                @SuppressWarnings("unchecked")
-                final var valueWriter = (Writeable.Writer<Object>) METADATA_VALUE_WRITER.getOrDefault(
-                    entry.getKey(),
-                    StreamOutput::writeGenericValue
-                );
-                valueWriter.write(out, entry.getValue());
-            }
-        } else {
-            out.writeGenericMap(metadata);
+        out.writeVInt(metadata.size());
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            out.writeString(entry.getKey());
+            @SuppressWarnings("unchecked")
+            final var valueWriter = (Writeable.Writer<Object>) METADATA_VALUE_WRITER.getOrDefault(
+                entry.getKey(),
+                StreamOutput::writeGenericValue
+            );
+            valueWriter.write(out, entry.getValue());
         }
     }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -68,10 +67,9 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
         final boolean canIncludeRemoteCluster = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
 
-        final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices, canIncludeRemoteCluster);
+        final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteCluster);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(version);
@@ -171,10 +169,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     }
 
     private GetUserPrivilegesResponse randomResponse() {
-        return randomResponse(true, true);
+        return randomResponse(true);
     }
 
-    private GetUserPrivilegesResponse randomResponse(boolean allowRemoteIndices, boolean allowRemoteClusters) {
+    private GetUserPrivilegesResponse randomResponse(boolean allowRemoteClusters) {
         final Set<String> cluster = randomStringSet(5);
         final Set<ConfigurableClusterPrivilege> conditionalCluster = Sets.newHashSet(
             randomArray(3, ConfigurableClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3)))
@@ -194,15 +192,13 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             )
         );
         final Set<String> runAs = randomStringSet(3);
-        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = allowRemoteIndices
-            ? Sets.newHashSet(
-                randomArray(
-                    5,
-                    GetUserPrivilegesResponse.RemoteIndices[]::new,
-                    () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(false), randomStringSet(6))
-                )
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = Sets.newHashSet(
+            randomArray(
+                5,
+                GetUserPrivilegesResponse.RemoteIndices[]::new,
+                () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(false), randomStringSet(6))
             )
-            : Set.of();
+        );
 
         RemoteClusterPermissions remoteCluster = allowRemoteClusters ? new RemoteClusterPermissions() : RemoteClusterPermissions.NONE;
         if (allowRemoteClusters) {

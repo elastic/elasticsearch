@@ -78,9 +78,7 @@ public class BroadcastUnpromotableRequest extends LegacyActionRequest implements
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeWriteable(shardId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeBoolean(failShardOnError);
-        }
+        out.writeBoolean(failShardOnError);
     }
 
     @Override

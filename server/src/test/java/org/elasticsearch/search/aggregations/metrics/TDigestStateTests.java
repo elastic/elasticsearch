@@ -211,11 +211,7 @@ public class TDigestStateTests extends ESTestCase {
         TDigestState serialized = writeToAndReadFrom(state, TransportVersions.V_8_9_X);
         assertEquals(serialized, state);
 
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersions.V_8_8_1);
-        assertNotEquals(serializedBackwardsCompatible, state);
-        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
-
-        Releasables.close(state, backwardsCompatible, serialized, serializedBackwardsCompatible);
+        Releasables.close(state, backwardsCompatible, serialized);
     }
 
     private CircuitBreaker breaker() {

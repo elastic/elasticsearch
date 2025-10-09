@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -620,7 +619,6 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
         final boolean canIncludeRemoteClusters = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
         final boolean canIncludeDescription = version.onOrAfter(SECURITY_ROLE_DESCRIPTION);
@@ -630,7 +628,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
         final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
             .allowReservedMetadata(true)
-            .allowRemoteIndices(canIncludeRemoteIndices)
+            .allowRemoteIndices(true)
             .allowRestriction(canIncludeWorkflows)
             .allowDescription(canIncludeDescription)
             .allowRemoteClusters(canIncludeRemoteClusters)

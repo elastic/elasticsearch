@@ -91,10 +91,8 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.multimodalDistribution = in.readOptionalBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.byFieldFirstOccurrence = in.readOptionalBoolean();
-            this.byFieldRelativeRarity = in.readOptionalDouble();
-        }
+        this.byFieldFirstOccurrence = in.readOptionalBoolean();
+        this.byFieldRelativeRarity = in.readOptionalDouble();
     }
 
     @Override
@@ -112,10 +110,8 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalBoolean(multimodalDistribution);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalBoolean(byFieldFirstOccurrence);
-            out.writeOptionalDouble(byFieldRelativeRarity);
-        }
+        out.writeOptionalBoolean(byFieldFirstOccurrence);
+        out.writeOptionalDouble(byFieldRelativeRarity);
     }
 
     @Override

@@ -679,13 +679,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         if (e instanceof FailedToCommitClusterStateException) {
                             // The commit failed (i.e. master is failing over) but this does not imply that the join has actually failed:
                             // the next master may have already accepted the state that we just published and will therefore include the
-                            // joining node in its future states too. Thus we need to wait for the next committed state before we know the
+                            // joining node in its future states too. Thus, we need to wait for the next committed state before we know the
                             // eventual outcome, and we need to wait for that before we can release (our ref to) the connection and complete
                             // the listener.
 
                             // NB we are on the master update thread here at the end of processing the failed cluster state update, so this
                             // all happens before any cluster state update that re-elects a master
-                            // assert ThreadPool.assertCurrentThreadPool(MasterService.MASTER_UPDATE_THREAD_NAME);
+                            assert ThreadPool.assertCurrentThreadPool(MasterService.MASTER_UPDATE_THREAD_NAME);
 
                             final ClusterStateListener clusterStateListener = new ClusterStateListener() {
                                 @Override

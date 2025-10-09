@@ -1374,9 +1374,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        boolean qualifiersDefined = attrList.stream().anyMatch(a -> a.qualifier() != null);
-        if (qualifiersDefined && ua.qualifier() == null) {
-            checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList)); // static 调用即可
+        // If the reference is unqualified, check for ambiguity regardless of whether qualifiers exist.
+        // Ambiguity = more than one candidate with the same name in scope.
+        if (ua.qualifier() == null) {
+            checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList));
         }
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));

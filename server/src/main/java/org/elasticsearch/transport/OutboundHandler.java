@@ -297,6 +297,7 @@ public final class OutboundHandler {
         byteStreamOutput.skip(TcpHeader.HEADER_SIZE);
         threadContext.writeTo(byteStreamOutput);
         if (messageDirection == MessageDirection.REQUEST) {
+            // although we won't write a v8 handshake in production, tests for reading v8 handshakes need this condition for writing
             if (version.equals(TransportHandshaker.V8_HANDSHAKE_VERSION)) {
                 // empty features array
                 byteStreamOutput.writeStringArray(Strings.EMPTY_ARRAY);

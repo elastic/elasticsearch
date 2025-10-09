@@ -37,6 +37,7 @@
     "params": {
       "reassign": {
         "type": "boolean",
+        "default": false,
         "description": "If the model_alias already exists and points to a separate model_id, this parameter must be true. Defaults to false."
       }
     }

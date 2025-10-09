@@ -20,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,11 +27,9 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,7 +44,6 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCloudApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
-import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -834,34 +830,6 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testBwcWithStoredAuthenticationHeaders() throws IOException {
-        // Version 6.6.1
-        final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";
-        final Authentication authenticationV6 = AuthenticationContextSerializer.decode(headerV6);
-        assertThat(authenticationV6.getEffectiveSubject().getTransportVersion(), equalTo(TransportVersion.fromId(6_06_01_99)));
-        assertThat(authenticationV6.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "superuser")));
-        assertThat(authenticationV6.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
-        assertThat(authenticationV6.isRunAs(), is(false));
-        assertThat(authenticationV6.encode(), equalTo(headerV6));
-
-        // Rewrite for a different version
-        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion(random());
-        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(newVersion);
-        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(newVersion));
-        assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
-        assertThat(rewrittenAuthentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
-        assertThat(rewrittenAuthentication.isRunAs(), is(false));
-
-        // Version 7.2.1
-        final String headerV7 = "p72sAwANZWxhc3RpYy1hZG1pbgENX2VzX3Rlc3Rfcm9vdAoAAAABAARub2RlBWZpbGUxBGZpbGUAAAoA";
-        final Authentication authenticationV7 = AuthenticationContextSerializer.decode(headerV7);
-        assertThat(authenticationV7.getEffectiveSubject().getTransportVersion(), equalTo(TransportVersion.fromId(7_02_01_99)));
-        assertThat(authenticationV7.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "_es_test_root")));
-        assertThat(authenticationV7.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
-        assertThat(authenticationV7.isRunAs(), is(false));
-        assertThat(authenticationV7.encode(), equalTo(headerV7));
-    }
-
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
         final TransportVersion crossClusterAccessRealmVersion =
             RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -942,32 +910,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
-    public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            Authentication.VERSION_REALM_DOMAINS,
-            // Don't include CURRENT, so we always have at least one newer version available below
-            TransportVersionUtils.getPreviousVersion()
-        );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
-            .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
-            .build();
-
-        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
-
-        assertThat(
-            actual.getAuthenticatingSubject().getRealm().getDomain(),
-            equalTo(authentication.getAuthenticatingSubject().getRealm().getDomain())
-        );
-        assertThat(
-            actual.getEffectiveSubject().getRealm().getDomain(),
-            equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
-        );
-    }
-
     public void testToCrossClusterAccess() {
         final User creator = randomUser();
         final String apiKeyId = randomAlphaOfLength(42);
@@ -989,31 +931,6 @@ public class AuthenticationTests extends ESTestCase {
                 AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
                 crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList()
             )
-        );
-    }
-
-    public void testMaybeRewriteRealmRef() {
-        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
-        assertThat(realmRefWithDomain.getDomain(), notNullValue());
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    null,
-                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-                ),
-                realmRefWithDomain
-            ).getDomain(),
-            nullValue()
-        );
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
-                realmRefWithDomain
-            ),
-            equalTo(realmRefWithDomain)
         );
     }
 
@@ -1105,84 +1022,6 @@ public class AuthenticationTests extends ESTestCase {
             equalTo(new BytesArray("""
                 {"limited_by_role":{"cluster":["*"]}}""").toBytesRef())
         );
-    }
-
-    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteClusterRemovePrivs() throws IOException {
-        final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
-        final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
-        Map<String, Object> metadata = Map.ofEntries(
-            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
-            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
-            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
-                {"base_role":{"cluster":["all"],
-                 "remote_cluster":[{"privileges":["monitor_enrich", "monitor_stats"],"clusters":["*"]}]
-                }}""")),
-            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
-                {"limited_by_role":{"cluster":["*"],
-                 "remote_cluster":[{"privileges":["monitor_enrich", "monitor_stats"],"clusters":["*"]}]
-                }}"""))
-        );
-
-        final Authentication with2privs = AuthenticationTestHelper.builder()
-            .apiKey()
-            .metadata(metadata)
-            .transportVersion(TransportVersion.current())
-            .build();
-
-        // pick a version that will only remove one of the two privileges
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            ROLE_REMOTE_CLUSTER_PRIVS,
-            TransportVersionUtils.getPreviousVersion(ROLE_MONITOR_STATS)
-        );
-
-        Map<String, Object> rewrittenMetadata = with2privs.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
-        assertThat(rewrittenMetadata.keySet(), equalTo(with2privs.getAuthenticatingSubject().getMetadata().keySet()));
-
-        // only one of the two privileges are left after the rewrite
-        BytesReference baseRoleBytes = (BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
-        Map<String, Object> baseRoleAsMap = XContentHelper.convertToMap(baseRoleBytes, false, XContentType.JSON).v2();
-        assertThat(ObjectPath.eval("base_role.remote_cluster.0.privileges", baseRoleAsMap), Matchers.contains("monitor_enrich"));
-        assertThat(ObjectPath.eval("base_role.remote_cluster.0.clusters", baseRoleAsMap), notNullValue());
-        BytesReference limitedByRoleBytes = (BytesReference) rewrittenMetadata.get(
-            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
-        );
-        Map<String, Object> limitedByRoleAsMap = XContentHelper.convertToMap(limitedByRoleBytes, false, XContentType.JSON).v2();
-        assertThat(ObjectPath.eval("limited_by_role.remote_cluster.0.privileges", limitedByRoleAsMap), Matchers.contains("monitor_enrich"));
-        assertThat(ObjectPath.eval("limited_by_role.remote_cluster.0.clusters", limitedByRoleAsMap), notNullValue());
-
-        // same version, but it removes the only defined privilege
-        metadata = Map.ofEntries(
-            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
-            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
-            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
-                {"base_role":{"cluster":["all"],
-                 "remote_cluster":[{"privileges":["monitor_stats"],"clusters":["*"]}]
-                }}""")),
-            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
-                {"limited_by_role":{"cluster":["*"],
-                 "remote_cluster":[{"privileges":["monitor_stats"],"clusters":["*"]}]
-                }}"""))
-        );
-
-        final Authentication with1priv = AuthenticationTestHelper.builder()
-            .apiKey()
-            .metadata(metadata)
-            .transportVersion(TransportVersion.current())
-            .build();
-
-        rewrittenMetadata = with1priv.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
-        assertThat(rewrittenMetadata.keySet(), equalTo(with1priv.getAuthenticatingSubject().getMetadata().keySet()));
-
-        // the one privileges is removed after the rewrite, which removes the full "remote_cluster" object
-        baseRoleBytes = (BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
-        baseRoleAsMap = XContentHelper.convertToMap(baseRoleBytes, false, XContentType.JSON).v2();
-        assertThat(ObjectPath.eval("base_role.remote_cluster", baseRoleAsMap), nullValue());
-        assertThat(ObjectPath.eval("base_role.cluster", baseRoleAsMap), notNullValue());
-        limitedByRoleBytes = (BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
-        limitedByRoleAsMap = XContentHelper.convertToMap(limitedByRoleBytes, false, XContentType.JSON).v2();
-        assertThat(ObjectPath.eval("limited_by_role.remote_cluster", limitedByRoleAsMap), nullValue());
-        assertThat(ObjectPath.eval("limited_by_role.cluster", limitedByRoleAsMap), notNullValue());
     }
 
     public void testMaybeRemoveRemoteIndicesFromRoleDescriptors() {

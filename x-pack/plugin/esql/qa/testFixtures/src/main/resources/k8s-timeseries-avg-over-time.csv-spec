@@ -19,7 +19,6 @@ cost:double       | time_bucket:datetime
 
 avg_over_time_of_integer
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS clients = avg(avg_over_time(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
 
 clients:double     | time_bucket:datetime

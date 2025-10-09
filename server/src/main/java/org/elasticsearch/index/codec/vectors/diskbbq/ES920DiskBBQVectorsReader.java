@@ -393,13 +393,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
 
-        MemorySegmentPostingsVisitor(
-            float[] target,
-            IndexInput indexInput,
-            FieldEntry entry,
-            FieldInfo fieldInfo,
-            Bits acceptDocs
-        ) throws IOException {
+        MemorySegmentPostingsVisitor(float[] target, IndexInput indexInput, FieldEntry entry, FieldInfo fieldInfo, Bits acceptDocs)
+            throws IOException {
             this.target = target;
             this.indexInput = indexInput;
             this.entry = entry;

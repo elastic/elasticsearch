@@ -150,10 +150,14 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named('checkstyleMain').configure { enabled = false }
             tasks.named('loggerUsageCheck').configure { enabled = false }
             // tested elsewhere
-            tasks.named('thirdPartyAudit').configure { enabled = false }
+            tasks.named('thirdPartyAudit').configure {
+                getRuntimeJavaVersion().set(JavaVersion.VERSION_21)
+                getTargetCompatibility().set(JavaVersion.VERSION_21)
+                enabled = false
+            }
             """
         when:
-        def result = gradleRunner("check", '--no-configuration-cache').build()
+        def result = gradleRunner("check").build()
         then:
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -24,8 +25,6 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationSe
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
@@ -37,16 +36,16 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessServerTransportFilter.class);
 
     // pkg-private for testing
-    static final Set<String> ALLOWED_TRANSPORT_HEADERS = Stream.concat(
-        Stream.of(
+    static final Set<String> ALLOWED_TRANSPORT_HEADERS = Sets.union(
+        Set.of(
             CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
             CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
             CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY,
             AuditUtil.AUDIT_REQUEST_ID,
             Task.TRACE_STATE
         ),
-        Task.HEADERS_TO_COPY.stream()
-    ).collect(Collectors.toUnmodifiableSet());
+        Task.HEADERS_TO_COPY
+    );
 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final XPackLicenseState licenseState;

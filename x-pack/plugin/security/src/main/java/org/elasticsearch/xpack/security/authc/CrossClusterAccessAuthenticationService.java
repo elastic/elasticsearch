@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -75,6 +76,14 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
             return;
         }
+
+        // TODO ALWAYS check if used api key has a certificate identity and do this verification conditionally based on that
+        var signature = crossClusterAccessHeaders.signature();
+        // Always validate a signature if provided
+        if (signature != null && verifySignature(authcContext, signature, crossClusterAccessHeaders, listener) == false) {
+            return;
+        }
+
         try {
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
@@ -113,13 +122,6 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
                     assert authentication.isApiKey() : "initial authentication for cross cluster access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for cross cluster access cannot be run-as";
 
-                    // TODO ALWAYS check if used api key has a certificate identity and do this verification conditionally based on that
-                    var signature = crossClusterAccessHeaders.signature();
-                    // Always validate a signature if provided
-                    if (signature != null) {
-                        verifySignature(signature, crossClusterAccessHeaders);
-                    }
-
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
@@ -133,23 +135,35 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
         }
     }
 
-    private void verifySignature(X509CertificateSignature signature, CrossClusterAccessHeaders crossClusterAccessHeaders) {
+    private boolean verifySignature(
+        Authenticator.Context context,
+        X509CertificateSignature signature,
+        CrossClusterAccessHeaders crossClusterAccessHeaders,
+        ActionListener<Authentication> listener
+    ) {
         assert signature.certificates().length > 0 : "Signatures without certificates should not be considered for verification";
+        ElasticsearchSecurityException authException = null;
         try {
             if (crossClusterApiKeySignatureVerifier.verify(signature, crossClusterAccessHeaders.signablePayload()) == false) {
                 logger.debug(Strings.format("Invalid cross cluster api key signature received [%s]", signature));
-                throw Exceptions.authenticationError(
+                authException = Exceptions.authenticationError(
                     "Invalid cross cluster api key signature from [{}]",
                     X509CertificateSignature.certificateToString(signature.certificates()[0])
                 );
             }
         } catch (GeneralSecurityException securityException) {
             logger.debug(Strings.format("Failed to verify cross cluster api key signature certificate [%s]", signature), securityException);
-            throw Exceptions.authenticationError(
+            authException = Exceptions.authenticationError(
                 "Failed to verify cross cluster api key signature certificate from [{}]",
                 X509CertificateSignature.certificateToString(signature.certificates()[0])
             );
         }
+        if (authException != null) {
+            // TODO Verify this covers all audit logging scenarios
+            listener.onFailure(context.getRequest().exceptionProcessingRequest(authException, context.getMostRecentAuthenticationToken()));
+            return false;
+        }
+        return true;
     }
 
     @Override

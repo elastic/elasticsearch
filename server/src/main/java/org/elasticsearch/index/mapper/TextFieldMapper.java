@@ -1030,12 +1030,12 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         * Returns true if the delegate sub-field can be used for querying only (ie. isSearchable must be true)
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate.isPresent()
                 && syntheticSourceDelegate.get().ignoreAbove().isSet() == false
-                && syntheticSourceDelegate.get().isIndexed();
+                && syntheticSourceDelegate.get().isSearchable();
         }
 
         /**
@@ -1050,12 +1050,12 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         * Returns true if the delegate sub-field can be used for querying only (ie. isSearchable must be true)
          */
         public boolean canUseSyntheticSourceDelegateForQueryingEquality(String str) {
             if (syntheticSourceDelegate.isEmpty()
                 // Can't push equality to an index if there isn't an index
-                || syntheticSourceDelegate.get().isIndexed() == false
+                || syntheticSourceDelegate.get().isSearchable() == false
                 // ESQL needs docs values to push equality
                 || syntheticSourceDelegate.get().hasDocValues() == false) {
                 return false;
@@ -1174,10 +1174,8 @@ public final class TextFieldMapper extends FieldMapper {
                 return BlockSourceReader.lookupMatchingAll();
             }
 
-            if (isIndexed()) {
-                if (getTextSearchInfo().hasNorms()) {
-                    return BlockSourceReader.lookupFromNorms(name());
-                }
+            if (indexType.hasTerms() && getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
             } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }

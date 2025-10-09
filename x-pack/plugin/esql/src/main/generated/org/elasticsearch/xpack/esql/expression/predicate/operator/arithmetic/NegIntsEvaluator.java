@@ -62,16 +62,16 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public IntBlock eval(int positionCount, IntBlock vBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (vBlock.getValueCount(p) != 1) {
-          if (vBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (vBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
         try {

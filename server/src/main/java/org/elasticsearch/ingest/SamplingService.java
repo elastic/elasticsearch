@@ -771,13 +771,7 @@ public class SamplingService implements ClusterStateListener {
                 updateSamplingConfigurationTask.samplingConfiguration.condition()
 
             );
-
-            logger.debug(
-                "Configuration details: maxSize [{}], timeToLive [{}]",
-                updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
-                updateSamplingConfigurationTask.samplingConfiguration.timeToLive()
-            );
-
+            
             // Get sampling metadata
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);

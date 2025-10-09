@@ -28,22 +28,22 @@ public final class VectorWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
         entries.add(Knn.ENTRY);
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             entries.add(CosineSimilarity.ENTRY);
         }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             entries.add(DotProduct.ENTRY);
         }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             entries.add(L1Norm.ENTRY);
         }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             entries.add(L2Norm.ENTRY);
         }
-        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION_PUSHABLE.isEnabled()) {
             entries.add(Magnitude.ENTRY);
         }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             entries.add(Hamming.ENTRY);
         }
 

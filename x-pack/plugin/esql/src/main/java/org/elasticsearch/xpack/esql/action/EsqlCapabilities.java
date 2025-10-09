@@ -1305,7 +1305,7 @@ public class EsqlCapabilities {
         /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE(Build.current().isSnapshot()),
 
         /**
          * Fixed some profile serialization issues
@@ -1319,17 +1319,17 @@ public class EsqlCapabilities {
         /**
          * Dot product vector similarity function
          */
-        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE(Build.current().isSnapshot()),
 
         /**
          * l1 norm vector similarity function
          */
-        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE(Build.current().isSnapshot()),
 
         /**
          * l2 norm vector similarity function
          */
-        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE(Build.current().isSnapshot()),
 
         /**
          * Support for the options field of CATEGORIZE.
@@ -1355,7 +1355,7 @@ public class EsqlCapabilities {
         /*
          * Support for calculating the scalar vector magnitude.
          */
-        MAGNITUDE_SCALAR_VECTOR_FUNCTION(Build.current().isSnapshot()),
+        MAGNITUDE_SCALAR_VECTOR_FUNCTION_PUSHABLE(Build.current().isSnapshot()),
 
         /**
          * Byte elements dense vector field type support.
@@ -1375,7 +1375,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE(Build.current().isSnapshot()),
 
         /**
          * Support for tbucket function

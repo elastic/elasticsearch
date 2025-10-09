@@ -37,7 +37,7 @@ public class HammingSimilarityTests extends AbstractVectorSimilarityFunctionTest
     }
 
     protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION;
+        return EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE;
     }
 
     @Override

@@ -1,7 +1,7 @@
  # Tests for v_magnitude scalar function
  
  magnitudeWithVectorField
- required_capability: magnitude_scalar_vector_function
+ required_capability: magnitude_scalar_vector_function_pushable
  required_capability: dense_vector_field_type_released
  
 // tag::vector-magnitude[]
@@ -29,7 +29,7 @@ linen      | 415.93267822265625
 ;
 
  magnitudeAsPartOfExpression
- required_capability: magnitude_scalar_vector_function
+ required_capability: magnitude_scalar_vector_function_pushable
  required_capability: dense_vector_field_type_released
  
  from colors
@@ -53,7 +53,7 @@ linen      | 208.966
 ;
 
 magnitudeWithLiteralVectors
-required_capability: magnitude_scalar_vector_function
+required_capability: magnitude_scalar_vector_function_pushable
 required_capability: dense_vector_field_type_released
  
 row a = 1
@@ -66,7 +66,7 @@ magnitude:double
 ;
 
  magnitudeWithStats
- required_capability: magnitude_scalar_vector_function
+ required_capability: magnitude_scalar_vector_function_pushable
  required_capability: dense_vector_field_type_released
  
  from colors
@@ -79,7 +79,7 @@ avg:double | min:double | max:double
 ;
 
 magnitudeWithNull
-required_capability: magnitude_scalar_vector_function
+required_capability: magnitude_scalar_vector_function_pushable
 required_capability: dense_vector_field_type_released
  
 row a = 1
@@ -92,7 +92,7 @@ null
 ;
 
 magnitudeWithRow
-required_capability: magnitude_scalar_vector_function
+required_capability: magnitude_scalar_vector_function_pushable
 required_capability: to_dense_vector_function
 required_capability: dense_vector_field_type_released
  

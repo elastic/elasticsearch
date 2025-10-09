@@ -37,7 +37,7 @@ public class DotProductSimilarityTests extends AbstractVectorSimilarityFunctionT
     }
 
     protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION;
+        return EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE;
     }
 
     @Override

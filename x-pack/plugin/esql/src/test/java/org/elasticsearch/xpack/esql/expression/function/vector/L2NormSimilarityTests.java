@@ -37,7 +37,7 @@ public class L2NormSimilarityTests extends AbstractVectorSimilarityFunctionTestC
     }
 
     protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION;
+        return EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE;
     }
 
     @Override

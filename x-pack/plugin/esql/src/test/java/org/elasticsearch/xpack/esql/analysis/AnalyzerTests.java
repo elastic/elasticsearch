@@ -2418,28 +2418,28 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_cosine(float_vector, [0.342, 0.164, 0.234])",
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_l1_norm(float_vector, [0.342, 0.164, 0.234])",
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_l2_norm(float_vector, [0.342, 0.164, 0.234])",
                 List.of(0.342, 0.164, 0.234)
@@ -2450,7 +2450,7 @@ public class AnalyzerTests extends ESTestCase {
                 checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
             }
         }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
                 List.of(0.342, 0.164, 0.234)
@@ -2480,23 +2480,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorEvalCastingSimilarityFunctions() {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
         }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
         }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
         }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
         }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
         }
@@ -2521,16 +2521,16 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testVectorFunctionHexImplicitCastingError() {
         checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
         }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("eval s = v_l1_norm(\"notcorrect\", 0.342)");
         }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("eval s = v_l2_norm(\"notcorrect\", 0.342)");
         }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionHexImplicitCastingError("eval s = v_hamming(\"notcorrect\", 0.342)");
         }
     }
@@ -2548,7 +2548,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
-        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION_PUSHABLE.isEnabled());
 
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval scalar = v_magnitude([1, 2, 3])

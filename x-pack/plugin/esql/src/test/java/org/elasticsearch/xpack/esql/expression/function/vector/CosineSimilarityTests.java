@@ -37,7 +37,7 @@ public class CosineSimilarityTests extends AbstractVectorSimilarityFunctionTestC
     }
 
     protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION;
+        return EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE;
     }
 
     @Override

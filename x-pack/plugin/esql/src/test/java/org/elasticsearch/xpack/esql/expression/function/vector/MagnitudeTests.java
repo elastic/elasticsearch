@@ -38,7 +38,7 @@ public class MagnitudeTests extends AbstractVectorTestCase {
     }
 
     protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION;
+        return EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION_PUSHABLE;
     }
 
     @Override

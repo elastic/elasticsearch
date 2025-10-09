@@ -2471,26 +2471,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionsNullArgs("v_cosine(null, vector)");
             checkVectorFunctionsNullArgs("v_cosine(vector, null)");
         }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
             checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
         }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
             checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
         }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
             checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
         }
-        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionsNullArgs("v_magnitude(null)");
         }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION_PUSHABLE.isEnabled()) {
             checkVectorFunctionsNullArgs("v_hamming(null, vector)");
             checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         }

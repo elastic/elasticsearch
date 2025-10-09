@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.CustomActionAuthorizationStep;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -151,6 +152,10 @@ public interface SecurityExtension {
     }
 
     default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
+        return null;
+    }
+
+    default CustomActionAuthorizationStep getCustomActionAuthorizationStep(SecurityComponents components) {
         return null;
     }
 }

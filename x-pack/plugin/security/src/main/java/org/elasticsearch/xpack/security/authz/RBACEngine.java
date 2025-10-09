@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.CustomActionAuthorizationStep;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -153,17 +154,20 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final CustomActionAuthorizationStep customAuthorizationStep;
 
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
         FieldPermissionsCache fieldPermissionsCache,
-        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory,
+        CustomActionAuthorizationStep customAuthorizationStep
     ) {
         this.settings = settings;
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        this.customAuthorizationStep = customAuthorizationStep;
     }
 
     @Override
@@ -333,6 +337,9 @@ public class RBACEngine implements AuthorizationEngine {
             role = ensureRBAC(authorizationInfo).getRole();
         } catch (Exception e) {
             return SubscribableListener.newFailed(e);
+        }
+        if (customAuthorizationStep.authorize(requestInfo)) {
+            return SubscribableListener.newSucceeded(IndexAuthorizationResult.EMPTY);
         }
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still

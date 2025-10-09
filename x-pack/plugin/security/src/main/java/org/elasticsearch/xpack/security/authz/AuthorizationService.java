@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.CustomActionAuthorizationStep;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -172,7 +173,8 @@ public class AuthorizationService {
         AuthorizationDenialMessages authorizationDenialMessages,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
-        AuthorizedProjectsResolver authorizedProjectsResolver
+        AuthorizedProjectsResolver authorizedProjectsResolver,
+        CustomActionAuthorizationStep esqlAuthorizationStep
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -193,7 +195,8 @@ public class AuthorizationService {
             settings,
             rolesStore,
             fieldPermissionsCache,
-            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings()),
+            esqlAuthorizationStep
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;

@@ -211,6 +211,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.CustomActionAuthorizationStep;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1162,7 +1163,8 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents)
+            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents),
+            getCustomActionAuthorizationStepOrDefault(extensionComponents)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1368,6 +1370,24 @@ public class Security extends Plugin
             }
         );
         return customAuthorizedProjectsResolver == null ? new AuthorizedProjectsResolver.Default() : customAuthorizedProjectsResolver;
+    }
+
+    private CustomActionAuthorizationStep getCustomActionAuthorizationStepOrDefault(
+        SecurityExtension.SecurityComponents extensionComponents
+    ) {
+        var customActionAuthorizationStep = findValueFromExtensions("action authorization step", extension -> {
+            var actionAuthorizationStep = extension.getCustomActionAuthorizationStep(extensionComponents);
+            if (actionAuthorizationStep != null && isInternalExtension(extension) == false) {
+                throw new IllegalStateException(
+                    "The ["
+                        + extension.getClass().getName()
+                        + "] extension tried to install a CustomActionAuthorizationStep. This functionality is not available to "
+                        + "external extensions."
+                );
+            }
+            return actionAuthorizationStep;
+        });
+        return customActionAuthorizationStep == null ? new CustomActionAuthorizationStep.Default() : customActionAuthorizationStep;
     }
 
     private ServiceAccountService createServiceAccountService(

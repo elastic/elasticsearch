@@ -158,6 +158,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.CustomActionAuthorizationStep;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -343,7 +344,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
     }
 
@@ -1778,7 +1780,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1830,7 +1833,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3370,7 +3374,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3528,7 +3533,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationDenialMessages.Default(),
             linkedProjectConfigService,
             projectResolver,
-            new AuthorizedProjectsResolver.Default()
+            new AuthorizedProjectsResolver.Default(),
+            new CustomActionAuthorizationStep.Default()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

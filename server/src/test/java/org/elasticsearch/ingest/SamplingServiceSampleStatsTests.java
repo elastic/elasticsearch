@@ -36,6 +36,7 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
         stats.samplesRejectedForCondition.add(randomReasonableLong());
         stats.samplesRejectedForRate.add(randomReasonableLong());
         stats.samplesRejectedForException.add(randomReasonableLong());
+        stats.samplesRejectedForSize.add(randomReasonableLong());
         stats.timeSamplingInNanos.add(randomReasonableLong());
         stats.timeEvaluatingConditionInNanos.add(randomReasonableLong());
         stats.timeCompilingConditionInNanos.add(randomReasonableLong());
@@ -58,17 +59,18 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
     @Override
     protected SampleStats mutateInstance(SampleStats instance) throws IOException {
         SampleStats mutated = instance.combine(new SampleStats());
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
             case 0 -> mutated.samples.add(1);
             case 1 -> mutated.potentialSamples.add(1);
             case 2 -> mutated.samplesRejectedForMaxSamplesExceeded.add(1);
             case 3 -> mutated.samplesRejectedForCondition.add(1);
             case 4 -> mutated.samplesRejectedForRate.add(1);
             case 5 -> mutated.samplesRejectedForException.add(1);
-            case 6 -> mutated.timeSamplingInNanos.add(1);
-            case 7 -> mutated.timeEvaluatingConditionInNanos.add(1);
-            case 8 -> mutated.timeCompilingConditionInNanos.add(1);
-            case 9 -> mutated.lastException = mutated.lastException == null
+            case 6 -> mutated.samplesRejectedForSize.add(1);
+            case 7 -> mutated.timeSamplingInNanos.add(1);
+            case 8 -> mutated.timeEvaluatingConditionInNanos.add(1);
+            case 9 -> mutated.timeCompilingConditionInNanos.add(1);
+            case 10 -> mutated.lastException = mutated.lastException == null
                 ? new ElasticsearchException(randomAlphanumericOfLength(10))
                 : null;
             default -> throw new IllegalArgumentException("Should never get here");
@@ -103,6 +105,10 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
         assertThat(
             stats1CombineStats2.getSamplesRejectedForException(),
             equalTo(stats1.getSamplesRejectedForException() + stats2.getSamplesRejectedForException())
+        );
+        assertThat(
+            stats1CombineStats2.getSamplesRejectedForSize(),
+            equalTo(stats1.getSamplesRejectedForSize() + stats2.getSamplesRejectedForSize())
         );
         assertThat(
             stats1CombineStats2.getTimeSampling(),

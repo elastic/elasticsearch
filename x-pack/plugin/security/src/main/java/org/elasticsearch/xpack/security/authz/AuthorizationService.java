@@ -527,6 +527,7 @@ public class AuthorizationService {
                         .addListener(
                             ActionListener.wrap(
                                 authorizedIndicesAndProjects -> resolvedIndicesListener.onResponse(
+                                    // `CONCRETE_INDEX_NOT_VISIBLE` will be set on the request after this (if appropriate)
                                     indicesAndAliasesResolver.resolve(
                                         action,
                                         request,
@@ -549,6 +550,7 @@ public class AuthorizationService {
                     return resolvedIndicesListener;
                 }
             });
+            // TODO something something once index expressions are resolved, check for any CONCRETE_INDEX_NOT_VISIBLE and set actionDenied exception
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
                 .addListener(
                     wrapPreservingContext(
@@ -691,6 +693,17 @@ public class AuthorizationService {
                 )
             );
         } else {
+            if (request instanceof IndicesRequest.Replaceable replaceable) {
+                var indexExpressions = replaceable.getResolvedIndexExpressions();
+                if (indexExpressions != null) {
+                    indexExpressions.expressions().forEach(resolved -> {
+                        if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                            resolved.localExpressions().setException(actionDenied(authentication, authzInfo, action, request));
+                        }
+                    });
+                }
+            }
+
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
         }
     }
@@ -1024,19 +1037,6 @@ public class AuthorizationService {
         );
     }
 
-    private void setResolvedIndexException(TransportRequest request, ElasticsearchSecurityException exception) {
-        if (request instanceof IndicesRequest.Replaceable replaceable) {
-            var indexExpressions = replaceable.getResolvedIndexExpressions();
-            if (indexExpressions != null) {
-                indexExpressions.expressions().forEach(resolved -> {
-                    if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                        resolved.localExpressions().setException(exception);
-                    }
-                });
-            }
-        }
-    }
-
     ElasticsearchSecurityException actionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
@@ -1142,10 +1142,8 @@ public class AuthorizationService {
             Authentication authentication = requestInfo.getAuthentication();
             String action = requestInfo.getAction();
             TransportRequest request = requestInfo.getRequest();
-            final var denial = actionDenied(authentication, authzInfo, action, request, context, e);
-            setResolvedIndexException(request, denial);
             auditTrailService.get().accessDenied(requestId, authentication, action, request, authzInfo);
-            failureConsumer.accept(denial);
+            failureConsumer.accept(actionDenied(authentication, authzInfo, action, request, context, e));
         }
     }
 

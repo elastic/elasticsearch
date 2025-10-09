@@ -220,11 +220,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     ) throws IOException {
                         int count = docs.count() - offset;
                         try (var builder = factory.bytesRefs(count)) {
+                            int docId = -1;
                             for (int i = offset; i < docs.count(); i++) {
-                                doc = docs.get(i);
-                                bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
+                                docId = docs.get(i);
+                                bytesSlice.readBytes((long) docId * length, bytes.bytes, 0, length);
                                 builder.appendBytesRef(bytes);
                             }
+                            this.doc = docId;
                             return builder.build();
                         }
                     }
@@ -254,15 +256,39 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean toInt
                     ) throws IOException {
                         int count = docs.count() - offset;
-                        try (var builder = factory.bytesRefs(count)) {
-                            for (int i = offset; i < docs.count(); i++) {
-                                doc = docs.get(i);
-                                long startOffset = addresses.get(doc);
-                                bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
-                                bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
-                                builder.appendBytesRef(bytes);
+                        int firstDocId = docs.get(offset);
+                        doc = docs.get(count - 1);
+
+                        if (isDense(firstDocId, doc, count)) {
+                            try (var builder = factory.singletonBytesRefs(count)) {
+                                long[] offsets = new long[count];
+
+                                int j = 0;
+                                long startOffset = addresses.get(firstDocId);
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    long translatedOffset = addresses.get(docId) - startOffset;
+                                    offsets[j++] = translatedOffset;
+                                }
+
+                                int lastDocId = docs.get(docs.count() - 1);
+                                int length = Math.toIntExact(addresses.get(lastDocId + 1L) - startOffset);
+                                byte[] bytes = new byte[length];
+                                bytesSlice.readBytes(startOffset, bytes, 0, length);
+                                builder.appendBytesRefs(bytes, offsets);
+                                return builder.build();
                             }
-                            return builder.build();
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    long startOffset = addresses.get(docId);
+                                    bytes.length = (int) (addresses.get(docId + 1L) - startOffset);
+                                    bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
+                                    builder.appendBytesRef(bytes);
+                                }
+                                return builder.build();
+                            }
                         }
                     }
                 };
@@ -1523,13 +1549,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return lookaheadBlock[valueIndex];
                 }
 
-                static boolean isDense(int firstDocId, int lastDocId, int length) {
-                    // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
-                    // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
-                    // This codec is only used in the context of logsdb and tsdb, so this is fine here.
-                    return lastDocId - firstDocId == length - 1;
-                }
-
             };
         } else {
             final IndexedDISI disi = new IndexedDISI(
@@ -1642,6 +1661,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
             };
         }
+    }
+
+    static boolean isDense(int firstDocId, int lastDocId, int length) {
+        // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
+        // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
+        // This codec is only used in the context of logsdb and tsdb, so this is fine here.
+        return lastDocId - firstDocId == length - 1;
     }
 
     private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {

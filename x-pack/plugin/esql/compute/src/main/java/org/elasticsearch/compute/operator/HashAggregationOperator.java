@@ -355,14 +355,8 @@ public class HashAggregationOperator implements Operator {
             hashNanos = in.readVLong();
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
             if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
                 emitNanos = in.readVLong();
             } else {
@@ -375,11 +369,8 @@ public class HashAggregationOperator implements Operator {
             out.writeVLong(hashNanos);
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
             if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
                 out.writeVLong(emitNanos);
             }

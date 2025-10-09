@@ -32,7 +32,7 @@
       "delimiter": {
         "type": "string",
         "description": "The character to use between values within a CSV row. Only valid for the csv format.",
-        "default": false
+        "default": ","
       },
       "drop_null_columns": {
         "type": "boolean",

@@ -109,7 +109,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         @Override
         public String[] indices() {
-            return index == null ? null : new String[]{index};
+            return index == null ? null : new String[] { index };
         }
 
         /**

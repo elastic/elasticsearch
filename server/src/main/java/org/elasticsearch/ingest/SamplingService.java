@@ -298,10 +298,10 @@ public class SamplingService implements ClusterStateListener {
             listener.onFailure(
                 new IllegalStateException(
                     "Cannot add sampling configuration for index ["
-                    + index
-                    + "]. Maximum number of sampling configurations ("
-                    + maxConfigurations
-                    + ") already reached."
+                        + index
+                        + "]. Maximum number of sampling configurations ("
+                        + maxConfigurations
+                        + ") already reached."
                 )
             );
             return;
@@ -812,7 +812,8 @@ public class SamplingService implements ClusterStateListener {
             );
 
             // Get sampling metadata
-            ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSamplingConfigurationTask.projectId);;
+            ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSamplingConfigurationTask.projectId);
+            ;
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
 
             boolean isNewConfiguration = samplingMetadata == null; // for logging
@@ -832,9 +833,10 @@ public class SamplingService implements ClusterStateListener {
 
             Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
             // check if adding a new configuration would exceed the limit
-            boolean maxConfigLimitBreached =
-                samplingService.checkMaxConfigLimitBreached(
-                    updateSamplingConfigurationTask.projectId, updateSamplingConfigurationTask.indexName);
+            boolean maxConfigLimitBreached = samplingService.checkMaxConfigLimitBreached(
+                updateSamplingConfigurationTask.projectId,
+                updateSamplingConfigurationTask.indexName
+            );
             if (maxConfigLimitBreached) {
                 throw new IllegalStateException(
                     "Cannot add sampling configuration for index ["
@@ -843,7 +845,8 @@ public class SamplingService implements ClusterStateListener {
                         + maxConfigurations
                         + ") already reached."
                 );
-            }            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
+            }
+            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
 
             logger.trace(
                 "{} sampling configuration for index [{}], total configurations after update: {}",
@@ -864,7 +867,8 @@ public class SamplingService implements ClusterStateListener {
             logger.debug(
                 "Successfully {} sampling configuration for index [{}]",
                 isUpdate ? "updated" : "created",
-                updateSamplingConfigurationTask.indexName);
+                updateSamplingConfigurationTask.indexName
+            );
             return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
         }
     }

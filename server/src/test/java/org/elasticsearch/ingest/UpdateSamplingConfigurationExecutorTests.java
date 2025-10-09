@@ -34,7 +34,8 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     @Mock
     private ProjectResolver projectResolver;
 
-    @Mock SamplingService samplingService;
+    @Mock
+    SamplingService samplingService;
 
     @Mock
     private ClusterState clusterState;

@@ -189,7 +189,7 @@ public class TransportPutSampleConfigurationActionTests extends ESTestCase {
         assertThat(resultSamplingMetadata.getIndexToSamplingConfigMap(), hasKey(indexName));
         assertThat(resultSamplingMetadata.getIndexToSamplingConfigMap().get(indexName), equalTo(config));
     }
-    
+
     /**
      * Tests action name and configuration.
      */

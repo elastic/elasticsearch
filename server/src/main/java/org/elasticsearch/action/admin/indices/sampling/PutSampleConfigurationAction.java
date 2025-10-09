@@ -14,18 +14,12 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -68,7 +62,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
      */
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
         private final SamplingConfiguration samplingConfiguration;
-        private String[] indices = Strings.EMPTY_ARRAY;
+        private String index;
 
         /**
          * Constructs a new request with the specified sampling configuration parameters.
@@ -91,7 +85,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readStringArray();
+            this.index = in.readString();
             this.samplingConfiguration = new SamplingConfiguration(in);
         }
 
@@ -104,7 +98,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(indices);
+            out.writeString(index);
             samplingConfiguration.writeTo(out);
         }
 
@@ -115,7 +109,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         @Override
         public String[] indices() {
-            return indices;
+            return index == null ? null : new String[]{index};
         }
 
         /**
@@ -126,7 +120,10 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         @Override
         public Request indices(String... indices) {
-            this.indices = indices;
+            if (indices == null || indices.length != 1) {
+                throw new IllegalArgumentException("[indices] must contain only one index");
+            }
+            this.index = indices[0];
             return this;
         }
 
@@ -148,21 +145,6 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
         @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
-        }
-
-        /**
-         * Creates a cancellable task for tracking the execution of this request.
-         *
-         * @param id the unique task identifier
-         * @param type the task type
-         * @param action the action name
-         * @param parentTaskId the parent task identifier, or null if this is a root task
-         * @param headers the request headers
-         * @return a new cancellable task instance
-         */
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "Updates Sampling Configuration.", parentTaskId, headers);
         }
 
         /**
@@ -189,7 +171,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Arrays.equals(indices, that.indices)
+            return Objects.equals(index, that.index)
                 && Objects.equals(samplingConfiguration, that.samplingConfiguration)
                 && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
                 && Objects.equals(ackTimeout(), that.ackTimeout());
@@ -206,7 +188,7 @@ public class PutSampleConfigurationAction extends ActionType<AcknowledgedRespons
          */
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(indices), samplingConfiguration, masterNodeTimeout(), ackTimeout());
+            return Objects.hash(index, samplingConfiguration, masterNodeTimeout(), ackTimeout());
         }
     }
 }

@@ -189,23 +189,7 @@ public class TransportPutSampleConfigurationActionTests extends ESTestCase {
         assertThat(resultSamplingMetadata.getIndexToSamplingConfigMap(), hasKey(indexName));
         assertThat(resultSamplingMetadata.getIndexToSamplingConfigMap().get(indexName), equalTo(config));
     }
-
-    /**
-     * Tests checkBlock method (should return null for no blocks).
-     */
-    public void testCheckBlock() {
-        PutSampleConfigurationAction.Request request = new PutSampleConfigurationAction.Request(
-            createRandomSamplingConfiguration(),
-            randomTimeValue(100, 200),
-            randomTimeValue(100, 200)
-        );
-        request.indices(new String[] { randomIdentifier() });
-        ClusterState clusterState = ClusterState.EMPTY_STATE;
-
-        // checkBlock should return null (no blocks)
-        assertThat(action.checkBlock(request, clusterState), nullValue());
-    }
-
+    
     /**
      * Tests action name and configuration.
      */

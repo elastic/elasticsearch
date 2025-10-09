@@ -99,7 +99,7 @@ public class SamplingService implements ClusterStateListener {
         this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-sampling-configuration",
             Priority.NORMAL,
-            new UpdateSamplingConfigurationExecutor(projectResolver)
+            new UpdateSamplingConfigurationExecutor(projectResolver, this)
         );
     }
 
@@ -291,6 +291,22 @@ public class SamplingService implements ClusterStateListener {
         TimeValue ackTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // Early validation: check if adding a new configuration would exceed the limit
+        boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(projectId, index);
+        if (maxConfigLimitBreached) {
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterService.state().getMetadata().settings());
+            listener.onFailure(
+                new IllegalStateException(
+                    "Cannot add sampling configuration for index ["
+                    + index
+                    + "]. Maximum number of sampling configurations ("
+                    + maxConfigurations
+                    + ") already reached."
+                )
+            );
+            return;
+        }
+
         updateSamplingConfigurationTaskQueue.submitTask(
             "Updating Sampling Configuration",
             new UpdateSamplingConfigurationTask(projectId, index, samplingConfiguration, ackTimeout, listener),
@@ -328,6 +344,29 @@ public class SamplingService implements ClusterStateListener {
         ) {
             return Script.parse(parser);
         }
+    }
+
+    // Checks whether the maximum number of sampling configurations has been reached for the given project.
+    // If the limit is breached, it notifies the listener with an IllegalStateException and returns true.
+    private boolean checkMaxConfigLimitBreached(ProjectId projectId, String index) {
+        ClusterState currentState = clusterService.state();
+        ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+
+        if (projectMetadata != null) {
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            Map<String, SamplingConfiguration> existingConfigs = samplingMetadata != null
+                ? samplingMetadata.getIndexToSamplingConfigMap()
+                : Map.of();
+
+            boolean isUpdate = existingConfigs.containsKey(index);
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(currentState.getMetadata().settings());
+
+            // Only check limit for new configurations, not updates
+            if (isUpdate == false && existingConfigs.size() >= maxConfigurations) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /*
@@ -728,7 +767,7 @@ public class SamplingService implements ClusterStateListener {
     }
 
     static class UpdateSamplingConfigurationTask extends AckedBatchedClusterStateUpdateTask {
-        final ProjectId projectId;
+        private final ProjectId projectId;
         private final String indexName;
         private final SamplingConfiguration samplingConfiguration;
 
@@ -749,9 +788,11 @@ public class SamplingService implements ClusterStateListener {
     static class UpdateSamplingConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateSamplingConfigurationTask> {
         private static final Logger logger = LogManager.getLogger(UpdateSamplingConfigurationExecutor.class);
         private final ProjectResolver projectResolver;
+        private final SamplingService samplingService;
 
-        UpdateSamplingConfigurationExecutor(ProjectResolver projectResolver) {
+        UpdateSamplingConfigurationExecutor(ProjectResolver projectResolver, SamplingService samplingService) {
             this.projectResolver = projectResolver;
+            this.samplingService = samplingService;
         }
 
         @Override
@@ -760,28 +801,24 @@ public class SamplingService implements ClusterStateListener {
             ClusterState clusterState
         ) {
             logger.debug(
-                "Updating sampling configuration for index [{}] in project [{}] with rate [{}],"
+                "Updating sampling configuration for index [{}] with rate [{}],"
                     + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
                 updateSamplingConfigurationTask.indexName,
-                updateSamplingConfigurationTask.projectId,
                 updateSamplingConfigurationTask.samplingConfiguration.rate(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
                 updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
                 updateSamplingConfigurationTask.samplingConfiguration.condition()
-
             );
 
             // Get sampling metadata
-            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
+            ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSamplingConfigurationTask.projectId);;
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
 
             boolean isNewConfiguration = samplingMetadata == null; // for logging
             int existingConfigCount = isNewConfiguration ? 0 : samplingMetadata.getIndexToSamplingConfigMap().size();
-
             logger.trace(
-                "Current sampling metadata state for project [{}]: {} (existing configurations: {})",
-                updateSamplingConfigurationTask.projectId,
+                "Current sampling metadata state: {} (number of existing configurations: {})",
                 isNewConfiguration ? "null" : "exists",
                 existingConfigCount
             );
@@ -791,13 +828,14 @@ public class SamplingService implements ClusterStateListener {
             if (samplingMetadata != null) {
                 updatedConfigMap.putAll(samplingMetadata.getIndexToSamplingConfigMap());
             }
-
             boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
 
             Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
-
-            // Check if adding a new configuration would exceed the maximum allowed
-            if (isUpdate == false && updatedConfigMap.size() >= maxConfigurations) {
+            // check if adding a new configuration would exceed the limit
+            boolean maxConfigLimitBreached =
+                samplingService.checkMaxConfigLimitBreached(
+                    updateSamplingConfigurationTask.projectId, updateSamplingConfigurationTask.indexName);
+            if (maxConfigLimitBreached) {
                 throw new IllegalStateException(
                     "Cannot add sampling configuration for index ["
                         + updateSamplingConfigurationTask.indexName
@@ -805,9 +843,7 @@ public class SamplingService implements ClusterStateListener {
                         + maxConfigurations
                         + ") already reached."
                 );
-            }
-
-            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
+            }            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
 
             logger.trace(
                 "{} sampling configuration for index [{}], total configurations after update: {}",
@@ -826,12 +862,9 @@ public class SamplingService implements ClusterStateListener {
             ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
 
             logger.debug(
-                "Successfully {} sampling configuration for index [{}] in project [{}]",
+                "Successfully {} sampling configuration for index [{}]",
                 isUpdate ? "updated" : "created",
-                updateSamplingConfigurationTask.indexName,
-                updateSamplingConfigurationTask.projectId
-            );
-
+                updateSamplingConfigurationTask.indexName);
             return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
         }
     }

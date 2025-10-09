@@ -15,11 +15,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -74,7 +76,12 @@ public class TransportPutSampleConfigurationAction extends AcknowledgedTransport
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         // throws IndexNotFoundException if any index does not exist or more than one index is resolved
-        indexNameExpressionResolver.concreteIndexNames(state, request);
+        try {
+            indexNameExpressionResolver.concreteIndexNames(state, request);
+        } catch (IndexNotFoundException e) {
+            listener.onFailure(e);
+            return;
+        }
 
         ProjectId projectId = projectResolver.getProjectId();
         samplingService.updateSampleConfiguration(
@@ -89,7 +96,7 @@ public class TransportPutSampleConfigurationAction extends AcknowledgedTransport
 
     @Override
     protected ClusterBlockException checkBlock(PutSampleConfigurationAction.Request request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
 }

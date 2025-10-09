@@ -34,6 +34,8 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     @Mock
     private ProjectResolver projectResolver;
 
+    @Mock SamplingService samplingService;
+
     @Mock
     private ClusterState clusterState;
 
@@ -46,7 +48,7 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        executor = new SamplingService.UpdateSamplingConfigurationExecutor(projectResolver);
+        executor = new SamplingService.UpdateSamplingConfigurationExecutor(projectResolver, samplingService);
 
         // Mock the cluster state metadata chain
         when(clusterState.getMetadata()).thenReturn(metadata);

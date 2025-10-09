@@ -1544,7 +1544,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        SearchRequest request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
+        TransportRequest request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -3256,7 +3256,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestAuthenticationDenied() {
-        final SearchRequest proxiedRequest = new SearchRequest();
+        final TransportRequest proxiedRequest = new SearchRequest();
         final DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, proxiedRequest);
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.QUERY_ACTION_NAME);

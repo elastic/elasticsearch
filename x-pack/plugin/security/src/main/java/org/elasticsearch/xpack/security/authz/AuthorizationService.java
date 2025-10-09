@@ -527,7 +527,6 @@ public class AuthorizationService {
                         .addListener(
                             ActionListener.wrap(
                                 authorizedIndicesAndProjects -> resolvedIndicesListener.onResponse(
-                                    // `CONCRETE_INDEX_NOT_VISIBLE` will be set on the request after this (if appropriate)
                                     indicesAndAliasesResolver.resolve(
                                         action,
                                         request,
@@ -550,7 +549,6 @@ public class AuthorizationService {
                     return resolvedIndicesListener;
                 }
             });
-            // TODO something something once index expressions are resolved, check for any CONCRETE_INDEX_NOT_VISIBLE and set actionDenied exception
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
                 .addListener(
                     wrapPreservingContext(

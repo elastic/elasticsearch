@@ -88,6 +88,7 @@
       },
       "realtime": {
         "type": "boolean",
+        "default": true,
         "description": "Specifies if request is real-time as opposed to near-real-time (default: true)."
       },
       "version": {

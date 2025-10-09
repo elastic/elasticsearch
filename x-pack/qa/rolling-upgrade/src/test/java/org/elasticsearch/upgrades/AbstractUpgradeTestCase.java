@@ -199,7 +199,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, RestClient> getRestClientById() throws IOException {
+    protected Map<String, String> getRestEndpointByIdNodeId() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -207,19 +207,21 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return nodesAsMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
             Map<String, Object> nodeDetails = (Map<String, Object>) e.getValue();
             Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            try {
-                return buildClient(restClientSettings(), new HttpHost[] { HttpHost.create((String) httpInfo.get("publish_address")) });
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
+            return (String) httpInfo.get("publish_address");
         }));
     }
 
     protected void createClientsByCapability(Predicate<TestNodeInfo> capabilityChecker) throws IOException {
         var testNodesByCapability = collectNodeInfos(adminClient()).stream().collect(Collectors.partitioningBy(capabilityChecker));
         if (testNodesByCapability.size() == 2) {
-            oldVersionClient = testNodesByCapability.get(false).getFirst().restClient();
-            newVersionClient = testNodesByCapability.get(true).getFirst().restClient();
+            oldVersionClient = buildClient(
+                restClientSettings(),
+                new HttpHost[] { HttpHost.create(testNodesByCapability.get(false).getFirst().restEndpoint) }
+            );
+            newVersionClient = buildClient(
+                restClientSettings(),
+                new HttpHost[] { HttpHost.create(testNodesByCapability.get(true).getFirst().restEndpoint) }
+            );
             assertThat(oldVersionClient, notNullValue());
             assertThat(newVersionClient, notNullValue());
         } else {
@@ -246,7 +248,8 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         } else {
             nodeFeatures = Map.of();
         }
-        var restClientById = getRestClientById();
+        var restEndpointByNodeId = getRestEndpointByIdNodeId();
+
         return nodeInfoById().entrySet().stream().map(entry -> {
             var version = (String) extractValue((Map<?, ?>) entry.getValue(), "version");
             assertNotNull(version);
@@ -257,7 +260,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
                 version,
                 TransportVersion.fromId(transportVersion),
                 nodeFeatures.getOrDefault(entry.getKey(), Set.of()),
-                restClientById.get(entry.getKey())
+                restEndpointByNodeId.get(entry.getKey())
             );
         }).collect(Collectors.toSet());
     }
@@ -276,7 +279,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         String version,
         TransportVersion transportVersion,
         Set<String> features,
-        RestClient restClient
+        String restEndpoint
     ) {
         public boolean isOriginalVersionCluster() {
             return AbstractUpgradeTestCase.isOriginalCluster(this.version());

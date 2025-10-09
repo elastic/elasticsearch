@@ -62,7 +62,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3, maxNumDataNodes = 5)
-public class SemanticTextEmbeddingsIT extends ESIntegTestCase {
+public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
     private final String indexName = randomIdentifier();
     private final Map<String, TaskType> inferenceIds = new HashMap<>();
 

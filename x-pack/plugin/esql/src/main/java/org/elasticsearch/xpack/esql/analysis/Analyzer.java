@@ -1345,44 +1345,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
         Predicate<Attribute> matcher = a -> up.match(a.name());
+
+        // unified early ambiguity check
+        checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList));
+
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        // If the reference is unqualified, check for ambiguity regardless of whether qualifiers exist.
-        // Ambiguity = more than one candidate with the same name in scope.
-        if (ua.qualifier() == null) {
-            checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList));
-        }
+        /// unified early ambiguity check
+        checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList));
+
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
     }
 
-
-    /**
-     * Checks whether an unqualified attribute name (e.g. "field") is ambiguous
-     * when multiple qualified versions exist (e.g. [a].[field], [b].[field]).
-     * Throws a VerificationException if more than one match is found.
-     */
     private static void checkAmbiguousUnqualifiedName(UnresolvedAttribute ua, List<Attribute> available) {
-        if (ua.qualifier() != null) return; // Skip check if already qualified.
-        final String name = ua.name();
+        if (ua.qualifier() != null) return; // qualified => not ambiguous here
 
-        // Find all attributes that share the same name but may have different qualifiers.
+        final String name = ua.name();
         List<Attribute> matches = available.stream()
             .filter(a -> name.equals(a.name()))
-            .toList();
+            .collect(java.util.stream.Collectors.toList());
 
-        // If there are multiple possible matches, raise an error to prevent ambiguity.
         if (matches.size() > 1) {
-            String candidates = matches.stream()
-                .map(a -> "[" + String.valueOf(a.qualifier()) + "].[" + a.name() + "]")
-                .collect(Collectors.joining(", "));
-            throw new VerificationException(
-                "Ambiguous unqualified name [" + name + "], could refer to " + candidates +
-                    ". Please qualify it explicitly."
-            );
+            List<String> names = matches.stream()
+                .map(Attribute::name)
+                .collect(java.util.stream.Collectors.toList());
+
+            throw new VerificationException(UnresolvedAttribute.errorMessage(name, names));
         }
     }
 

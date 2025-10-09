@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -502,14 +501,15 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             assert projectMetadata != null;
-            final var targetProjectListener = new SubscribableListener<TargetProjects>();
+            final SubscribableListener<TargetProjects> targetProjectListener;
             if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
+                targetProjectListener = new SubscribableListener<>();
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
             } else {
-                targetProjectListener.onResponse(TargetProjects.NOT_CROSS_PROJECT);
+                targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.NOT_CROSS_PROJECT);
             }
 
-            targetProjectListener.addListener(actionListenerWithErrorHandling(targetProjects -> {
+            targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
                     targetProjects,
                     requestInfo,
@@ -522,29 +522,36 @@ public class AuthorizationService {
                     auditTrail,
                     listener
                 );
-                authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
-                    .addListener(
-                        wrapPreservingContext(
-                            new AuthorizationResultListener<>(
-                                result -> handleIndexActionAuthorizationResult(
-                                    result,
+
+                // Wrapping here in order to have exceptions thrown from the {@code authorizeIndexAction} method
+                // get handled directly by the listener and not go through {@code onAuthorizedResourceLoadFailure}
+                // which wraps them in security exception. This is in order to maintain the same behavior as before.
+                ActionListener.run(
+                    listener,
+                    l -> authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
+                        .addListener(
+                            wrapPreservingContext(
+                                new AuthorizationResultListener<>(
+                                    result -> handleIndexActionAuthorizationResult(
+                                        result,
+                                        requestInfo,
+                                        requestId,
+                                        authzInfo,
+                                        authzEngine,
+                                        resolvedIndicesAsyncSupplier,
+                                        projectMetadata,
+                                        l
+                                    ),
+                                    l::onFailure,
                                     requestInfo,
                                     requestId,
-                                    authzInfo,
-                                    authzEngine,
-                                    resolvedIndicesAsyncSupplier,
-                                    projectMetadata,
-                                    listener
+                                    authzInfo
                                 ),
-                                listener::onFailure,
-                                requestInfo,
-                                requestId,
-                                authzInfo
-                            ),
-                            threadContext
+                                threadContext
+                            )
                         )
-                    );
-            }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e), listener::onFailure));
+                );
+            }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)));
         } else {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
@@ -1170,59 +1177,6 @@ public class AuthorizationService {
                 }
             }
             return valueFuture;
-        }
-    }
-
-    /**
-     * Creates a listener that executes the appropriate consumer when the response (or failure) is received.
-     * Any exceptions thrown from the {@code onResponse} consumer is passed into the {@code errorHandler} consumer.
-     * This is the main difference from {@link ActionListener#wrap(CheckedConsumer, Consumer)}.
-     *
-     * @param onResponse the checked consumer of the response, executed when the listener is completed successfully. If it throws an
-     *                   exception, the exception is passed to the {@code errorHandler} consumer.
-     * @param onFailure the consumer of the failure, executed when the listener is completed with a failure
-     * @param errorHandler the consumer of exceptions thrown by the {@code onResponse} consumer
-     * @param <Response> the type of the response
-     * @return a listener that executes the appropriate consumer when the response (or failure) is received.
-     */
-    private static <Response> ActionListener<Response> actionListenerWithErrorHandling(
-        CheckedConsumer<Response, ? extends Exception> onResponse,
-        Consumer<Exception> onFailure,
-        Consumer<Exception> errorHandler
-    ) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    onResponse.accept(response);
-                } catch (Exception e) {
-                    safeAcceptException(errorHandler, e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                safeAcceptException(onFailure, e);
-            }
-
-            @Override
-            public String toString() {
-                return "ActionListenerWithErrorHandler{" + onResponse + "}{" + onFailure + "}{" + errorHandler + "}";
-            }
-        };
-    }
-
-    private static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
-        assert e != null;
-        try {
-            consumer.accept(e);
-        } catch (RuntimeException ex) {
-            // noinspection ConstantConditions
-            if (e != null && ex != e) {
-                ex.addSuppressed(e);
-            }
-            assert false : ex;
-            throw ex;
         }
     }
 

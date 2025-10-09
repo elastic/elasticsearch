@@ -36,126 +36,143 @@ import java.util.Locale;
  * Enum representing the supported model garden providers.
  */
 public enum GoogleModelGardenProvider {
-    GOOGLE,
-    ANTHROPIC,
-    META,
-    HUGGING_FACE,
-    MISTRAL,
-    AI21;
-
-    private static final ResponseHandler GOOGLE_VERTEX_AI_COMPLETION_HANDLER = new GoogleVertexAiResponseHandler(
-        "Google Vertex AI completion",
-        GoogleVertexAiCompletionResponseEntity::fromResponse,
-        GoogleVertexAiUnifiedChatCompletionResponseHandler.GoogleVertexAiErrorResponse::fromResponse,
-        true
+    GOOGLE(
+        CompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
+        ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
+        (unifiedChatInput, modelId, taskSettings) -> new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            taskSettings.thinkingConfig()
+        )
+    ),
+    ANTHROPIC(
+        CompletionResponseHandlerHolder.ANTHROPIC_COMPLETION_HANDLER,
+        ChatCompletionResponseHandlerHolder.ANTHROPIC_CHAT_COMPLETION_HANDLER,
+        (unifiedChatInput, modelId, taskSettings) -> new GoogleModelGardenAnthropicChatCompletionRequestEntity(
+            unifiedChatInput,
+            taskSettings
+        )
+    ),
+    META(
+        CompletionResponseHandlerHolder.META_COMPLETION_HANDLER,
+        ChatCompletionResponseHandlerHolder.META_CHAT_COMPLETION_HANDLER,
+        (unifiedChatInput, modelId, taskSettings) -> new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId)
+    ),
+    HUGGING_FACE(
+        CompletionResponseHandlerHolder.HUGGING_FACE_COMPLETION_HANDLER,
+        ChatCompletionResponseHandlerHolder.HUGGING_FACE_CHAT_COMPLETION_HANDLER,
+        (unifiedChatInput, modelId, taskSettings) -> new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, modelId)
+    ),
+    MISTRAL(
+        CompletionResponseHandlerHolder.MISTRAL_COMPLETION_HANDLER,
+        ChatCompletionResponseHandlerHolder.MISTRAL_CHAT_COMPLETION_HANDLER,
+        (unifiedChatInput, modelId, taskSettings) -> new MistralChatCompletionRequestEntity(unifiedChatInput, modelId)
+    ),
+    AI21(
+        CompletionResponseHandlerHolder.AI21_COMPLETION_HANDLER,
+        ChatCompletionResponseHandlerHolder.AI21_CHAT_COMPLETION_HANDLER,
+        (unifiedChatInput, modelId, taskSettings) -> new Ai21ChatCompletionRequestEntity(unifiedChatInput, modelId)
     );
 
-    private static final ResponseHandler GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER = new AnthropicResponseHandler(
-        "Google Model Garden Anthropic completion",
-        AnthropicChatCompletionResponseEntity::fromResponse,
-        true
-    );
+    private final ResponseHandler completionResponseHandler;
+    private final ResponseHandler chatCompletionResponseHandler;
+    private final RequestEntityCreator entityCreator;
 
-    private static final ResponseHandler GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
-        "Google Model Garden Meta completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
+    GoogleModelGardenProvider(
+        ResponseHandler completionResponseHandler,
+        ResponseHandler chatCompletionResponseHandler,
+        RequestEntityCreator entityCreator
+    ) {
+        this.completionResponseHandler = completionResponseHandler;
+        this.chatCompletionResponseHandler = chatCompletionResponseHandler;
+        this.entityCreator = entityCreator;
+    }
 
-    private static final ResponseHandler GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
-        "Google Model Garden Hugging Face completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
-        "Google Model Garden Mistral completion",
-        OpenAiChatCompletionResponseEntity::fromResponse,
-        ErrorResponse::fromResponse
-    );
-
-    private static final ResponseHandler GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
-        "Google Model Garden AI21 completion",
-        OpenAiChatCompletionResponseEntity::fromResponse,
-        ErrorResponse::fromResponse
-    );
-
-    private static final ResponseHandler GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
-        "Google Vertex AI chat completion"
-    );
-
-    private static final ResponseHandler ANTHROPIC_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-        "Google Model Garden Anthropic chat completion"
-    );
-
-    private static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
-        "Google Model Garden Meta chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler HUGGING_FACE_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
-        "Google Model Garden Hugging Face chat completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler MISTRAL_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
-        "Google Model Garden Mistral chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    private static final ResponseHandler AI21_CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
-        "Google Model Garden AI21 chat completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
-    );
-
-    /**
-     * Gets the completion response handler for the model garden provider.
-     * @return the ResponseHandler associated with the provider
-     */
     public ResponseHandler getCompletionResponseHandler() {
-        return switch (this) {
-            case GOOGLE -> GOOGLE_VERTEX_AI_COMPLETION_HANDLER;
-            case ANTHROPIC -> GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER;
-            case META -> GOOGLE_MODEL_GARDEN_META_COMPLETION_HANDLER;
-            case HUGGING_FACE -> GOOGLE_MODEL_GARDEN_HUGGING_FACE_COMPLETION_HANDLER;
-            case MISTRAL -> GOOGLE_MODEL_GARDEN_MISTRAL_COMPLETION_HANDLER;
-            case AI21 -> GOOGLE_MODEL_GARDEN_AI21_COMPLETION_HANDLER;
-        };
+        return completionResponseHandler;
     }
 
-    /**
-     * Gets the chat completion response handler for the model garden provider.
-     * @return the ResponseHandler associated with the provider
-     */
     public ResponseHandler getChatCompletionResponseHandler() {
-        return switch (this) {
-            case GOOGLE -> GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER;
-            case ANTHROPIC -> ANTHROPIC_CHAT_COMPLETION_HANDLER;
-            case META -> META_CHAT_COMPLETION_HANDLER;
-            case HUGGING_FACE -> HUGGING_FACE_CHAT_COMPLETION_HANDLER;
-            case MISTRAL -> MISTRAL_CHAT_COMPLETION_HANDLER;
-            case AI21 -> AI21_CHAT_COMPLETION_HANDLER;
-        };
+        return chatCompletionResponseHandler;
     }
 
-    /**
-     * Creates the request entity for the model garden provider based on the unified chat input and model ID.
-     * @param unifiedChatInput the unified chat input containing messages and parameters for the chat completion request
-     * @param modelId the model ID to be used for the request
-     * @param taskSettings the task settings specific to Google Vertex AI chat completion
-     * @return a ToXContentObject representing the request entity for the provider
-     */
     public ToXContentObject createRequestEntity(
         UnifiedChatInput unifiedChatInput,
         String modelId,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) {
-        return switch (this) {
-            case GOOGLE -> new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, taskSettings.thinkingConfig());
-            case ANTHROPIC -> new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput, taskSettings);
-            case META -> new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId);
-            case HUGGING_FACE -> new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, modelId);
-            case MISTRAL -> new MistralChatCompletionRequestEntity(unifiedChatInput, modelId);
-            case AI21 -> new Ai21ChatCompletionRequestEntity(unifiedChatInput, modelId);
-        };
+        return entityCreator.create(unifiedChatInput, modelId, taskSettings);
+    }
+
+    private static class CompletionResponseHandlerHolder {
+        static final ResponseHandler GOOGLE_VERTEX_AI_COMPLETION_HANDLER = new GoogleVertexAiResponseHandler(
+            "Google Vertex AI completion",
+            GoogleVertexAiCompletionResponseEntity::fromResponse,
+            GoogleVertexAiUnifiedChatCompletionResponseHandler.GoogleVertexAiErrorResponse::fromResponse,
+            true
+        );
+
+        static final ResponseHandler ANTHROPIC_COMPLETION_HANDLER = new AnthropicResponseHandler(
+            "Google Model Garden Anthropic completion",
+            AnthropicChatCompletionResponseEntity::fromResponse,
+            true
+        );
+
+        static final ResponseHandler META_COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
+            "Google Model Garden Meta completion",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
+
+        static final ResponseHandler HUGGING_FACE_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+            "Google Model Garden Hugging Face completion",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
+
+        static final ResponseHandler MISTRAL_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+            "Google Model Garden Mistral completion",
+            OpenAiChatCompletionResponseEntity::fromResponse,
+            ErrorResponse::fromResponse
+        );
+
+        static final ResponseHandler AI21_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+            "Google Model Garden AI21 completion",
+            OpenAiChatCompletionResponseEntity::fromResponse,
+            ErrorResponse::fromResponse
+        );
+    }
+
+    private static class ChatCompletionResponseHandlerHolder {
+        static final ResponseHandler GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
+            "Google Vertex AI chat completion"
+        );
+
+        static final ResponseHandler ANTHROPIC_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
+            "Google Model Garden Anthropic chat completion"
+        );
+
+        static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
+            "Google Model Garden Meta chat completion",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
+
+        static final ResponseHandler HUGGING_FACE_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
+            "Google Model Garden Hugging Face chat completion",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
+
+        static final ResponseHandler MISTRAL_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
+            "Google Model Garden Mistral chat completions",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
+
+        static final ResponseHandler AI21_CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
+            "Google Model Garden AI21 chat completions",
+            OpenAiChatCompletionResponseEntity::fromResponse
+        );
+    }
+
+    @FunctionalInterface
+    private interface RequestEntityCreator {
+        ToXContentObject create(UnifiedChatInput unifiedChatInput, String modelId, GoogleVertexAiChatCompletionTaskSettings taskSettings);
     }
 
     public static GoogleModelGardenProvider fromString(String name) {

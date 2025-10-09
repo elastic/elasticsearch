@@ -36,6 +36,7 @@
     "params": {
       "flat_settings": {
         "type": "boolean",
+        "default": false,
         "description": "Return settings in flat format (default: false)"
       },
       "master_timeout": {
@@ -45,10 +46,12 @@
       },
       "local": {
         "type": "boolean",
+        "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "Return all relevant default configurations for the index template (default: false)"
       }
     }

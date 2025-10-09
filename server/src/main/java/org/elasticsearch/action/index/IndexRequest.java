@@ -227,9 +227,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            includeSourceOnError = in.readBoolean();
-        } // else default value is true
+        includeSourceOnError = in.readBoolean();
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
@@ -817,9 +815,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            out.writeBoolean(includeSourceOnError);
-        }
+        out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }

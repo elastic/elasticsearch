@@ -24,10 +24,13 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+
+import java.util.List;
 
 /**
  * Evaluator for inference functions that performs constant folding by executing inference operations
@@ -74,6 +77,11 @@ public class InferenceFunctionEvaluator {
     public void fold(InferenceFunction<?> f, ActionListener<Expression> listener) {
         if (f.foldable() == false) {
             listener.onFailure(new IllegalArgumentException("Inference function must be foldable"));
+            return;
+        }
+        if (f.dataType() == DataType.NULL) {
+            // If the function's return type is NULL, we can directly return a NULL literal without executing anything.
+            listener.onResponse(Literal.of(f, null));
             return;
         }
 
@@ -129,7 +137,7 @@ public class InferenceFunctionEvaluator {
                         }
 
                         // Convert the operator result back to an ESQL expression (Literal)
-                        l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
+                        l.onResponse(Literal.of(f, processValue(f.dataType(), BlockUtils.toJavaObject(output.getBlock(0), 0))));
                     } finally {
                         Releasables.close(inferenceOperator);
                         if (output != null) {
@@ -146,6 +154,14 @@ public class InferenceFunctionEvaluator {
         } finally {
             driverContext.finish();
         }
+    }
+
+    private Object processValue(DataType dataType, Object value) {
+        if (dataType == DataType.DENSE_VECTOR && value instanceof List == false) {
+            value = List.of(value);
+        }
+
+        return value;
     }
 
     /**

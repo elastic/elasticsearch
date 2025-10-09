@@ -38,6 +38,7 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "master_timeout": {
@@ -47,6 +48,7 @@
       },
       "wait_for_active_shards": {
         "type": "string",
+        "default": "1",
         "description": "Set the number of active shards to wait for on the cloned index before the operation returns."
       }
     },

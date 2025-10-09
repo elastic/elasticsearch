@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -46,7 +45,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -74,9 +72,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -175,56 +170,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
         // TODO Needed right now for not in primary mode on the target. Need to make sure we handle that with retries.
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
-        final ShardId sourceShardId = request.shardId();
-        final Index index = sourceShardId.getIndex();
-
+//        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
         ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
 
-        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-        Map<ShardId, BulkShardRequest> bulkRequestsPerShard = new HashMap<>();
-
-        // Iterate through the items in the input request and split them based on the
-        // current resharding-split state.
-        BulkItemRequest[] items = request.items();
-        if (items.length == 0) {  // Nothing to split
-            return Map.of(sourceShardId, request);
-        }
-
-        for (int i = 0; i < items.length; i++) {
-            BulkItemRequest bulkItemRequest = items[i];
-            DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
-            int newShardId = docWriteRequest.rerouteAtSourceDuringResharding(indexRouting);
-            List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                new ShardId(index, newShardId),
-                shardNum -> new ArrayList<>()
-            );
-            shardRequests.add(new BulkItemRequest(bulkItemRequest.id(), bulkItemRequest.request()));
-        }
-
-        // All items belong to either the source shard or target shard.
-        if (requestsByShard.size() == 1) {
-            Map.Entry<ShardId, List<BulkItemRequest>> entry = requestsByShard.entrySet().iterator().next();
-            // Return the original request if no items were split to target.
-            if (entry.getKey().equals(sourceShardId)) {
-                return Map.of(sourceShardId, request);
-            }
-        }
-
-        for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-            final ShardId shardId = entry.getKey();
-            final List<BulkItemRequest> requests = entry.getValue();
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                shardId,
-                request.getRefreshPolicy(),
-                requests.toArray(new BulkItemRequest[0]),
-                request.isSimulated()
-            );
-            bulkRequestsPerShard.put(shardId, bulkShardRequest);
-        }
-        return bulkRequestsPerShard;
+        return ShardBulkSplitHelper.splitRequests(request, project);
     }
 
     @Override
@@ -233,27 +183,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Map<ShardId, BulkShardRequest> splitRequests,
         Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
     ) {
-        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalRequest.items().length];
-        for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
-            ShardId shardId = entry.getKey();
-            Tuple<BulkShardResponse, Exception> value = entry.getValue();
-            Exception exception = value.v2();
-            if (exception != null) {
-                BulkShardRequest bulkShardRequest = splitRequests.get(shardId);
-                for (BulkItemRequest item : bulkShardRequest.items()) {
-                    DocWriteRequest<?> request = item.request();
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), request.id(), exception);
-                    bulkItemResponses[item.id()] = BulkItemResponse.failure(item.id(), request.opType(), failure);
-                }
-            } else {
-                for (BulkItemResponse bulkItemResponse : value.v1().getResponses()) {
-                    bulkItemResponses[bulkItemResponse.getItemId()] = bulkItemResponse;
-                }
-            }
-        }
-        BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
-        bulkShardResponse.setShardInfo(responses.get(originalRequest.shardId()).v1().getShardInfo());
-        return new Tuple<>(bulkShardResponse, null);
+        return ShardBulkSplitHelper.combineResponses(originalRequest, splitRequests, responses);
     }
 
     @Override

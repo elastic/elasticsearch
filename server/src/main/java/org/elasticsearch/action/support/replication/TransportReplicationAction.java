@@ -19,6 +19,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -84,6 +85,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -540,116 +542,36 @@ public abstract class TransportReplicationAction<
                         assert numSplitRequests <= 2 : "number of split requests too many";
 
                         if (numSplitRequests == 1) {
-                            // If the request is for source, same behaviour as before
+                            // If the request is for source, same behavior as before
                             if (splitRequests.containsKey(primaryRequest.getRequest().shardId())) {
                                 executePrimaryRequest(primaryShardReference, "primary", onCompletionListener);
                             } else {
                                 // If the request is for target, forward request to target.
                                 // TODO: Note that the request still contains the original shardId. We need to test if this will be a
                                 // problem.
+                                primaryShardReference.close(); // release shard operation lock as soon as possible
                                 setPhase(replicationTask, "primary_reshard_target_delegation");
-                                // If the request is for target, send request to target node
-                                ShardId targetShardId = splitRequests.entrySet().iterator().next().getKey();
-                                final IndexShard targetShard = getIndexShard(targetShardId);
-                                final ShardRouting target = targetShard.routingEntry();
-                                DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
-                                String allocationID = target.allocationId().getId();
-                                transportService.sendRequest(
-                                    targetNode,
-                                    transportPrimaryAction,
-                                    new ConcreteShardRequest<>(
-                                        primaryRequest.getRequest(),
-                                        allocationID,
-                                        indexMetadata.primaryTerm(targetShardId.id())
-                                    ),
-                                    transportOptions,
-                                    new ActionListenerResponseHandler<>(
-                                        onCompletionListener,
-                                        TransportReplicationAction.this::newResponseInstance,
-                                        TransportResponseHandler.TRANSPORT_WORKER
-                                    ) {
 
-                                        @Override
-                                        public void handleResponse(Response response) {
-                                            setPhase(replicationTask, "finished");
-                                            super.handleResponse(response);
-                                        }
+                                Map.Entry<ShardId, Request> next = splitRequests.entrySet().iterator().next();
+                                Request request = next.getValue();
+                                ShardId targetShardId = next.getKey();
+                                delegateToTarget(targetShardId, request, clusterService::state, project, new ActionListener<>() {
 
-                                        @Override
-                                        public void handleException(TransportException exp) {
-                                            setPhase(replicationTask, "finished");
-                                            super.handleException(exp);
-                                        }
-                                    }
-                                );
-                            }
-                        } else {
-                            Map<ShardId, Tuple<Response, Exception>> results = new ConcurrentHashMap<>(splitRequests.size());
-                            CountDown countDown = new CountDown(splitRequests.size());
-                            for (Map.Entry<ShardId, Request> splitRequest : splitRequests.entrySet()) {
-                                ActionListener<Response> listener = new ActionListener<>() {
                                     @Override
                                     public void onResponse(Response response) {
-                                        results.put(splitRequest.getKey(), new Tuple<>(response, null));
-                                        if (countDown.countDown()) {
-                                            finish();
-                                        }
+                                        setPhase(replicationTask, "finished");
+                                        onCompletionListener.onResponse(response);
                                     }
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        results.put(splitRequest.getKey(), new Tuple<>(null, e));
-                                        if (countDown.countDown()) {
-                                            finish();
-                                        }
+                                        setPhase(replicationTask, "finished");
+                                        onCompletionListener.onFailure(e);
                                     }
-
-                                    private void finish() {
-                                        Tuple<Response, Exception> finalResponse = combineSplitResponses(
-                                            primaryRequest.getRequest(),
-                                            splitRequests,
-                                            results
-                                        );
-                                        if (finalResponse.v1() != null) {
-                                            onCompletionListener.onResponse(finalResponse.v1());
-                                        } else {
-                                            onCompletionListener.onFailure(finalResponse.v2());
-                                        }
-                                    }
-                                };
-                                if (splitRequest.getKey().equals(primaryRequest.getRequest().shardId())) {
-                                    executePrimaryRequest(primaryShardReference, "primary", listener);
-                                } else {
-                                    final IndexShard targetShard = getIndexShard(splitRequest.getKey());
-                                    final ShardRouting target = targetShard.routingEntry();
-                                    DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
-                                    String allocationID = target.allocationId().getId();
-                                    transportService.sendRequest(
-                                        targetNode,
-                                        transportPrimaryAction,
-                                        new ConcreteShardRequest<>(splitRequest.getValue(), allocationID, primaryRequest.getPrimaryTerm()),
-                                        transportOptions,
-                                        new ActionListenerResponseHandler<>(
-                                            listener,
-                                            TransportReplicationAction.this::newResponseInstance,
-                                            TransportResponseHandler.TRANSPORT_WORKER
-                                        ) {
-
-                                            @Override
-                                            public void handleResponse(Response response) {
-                                                setPhase(replicationTask, "finished");
-                                                super.handleResponse(response);
-                                            }
-
-                                            @Override
-                                            public void handleException(TransportException exp) {
-                                                setPhase(replicationTask, "finished");
-                                                super.handleException(exp);
-                                            }
-                                        }
-                                    );
-                                }
+                                });
                             }
+                        } else {
+                            coordinateMultipleRequests(primaryShardReference, splitRequests, project);
                         }
                     } else {
                         executePrimaryRequest(primaryShardReference, "primary", onCompletionListener);
@@ -658,6 +580,100 @@ public abstract class TransportReplicationAction<
                 Releasables.closeWhileHandlingException(primaryShardReference);
                 onFailure(e);
             }
+        }
+
+        private void coordinateMultipleRequests(
+            PrimaryShardReference primaryShardReference,
+            Map<ShardId, Request> splitRequests,
+            ProjectMetadata project
+        ) throws Exception {
+            setPhase(replicationTask, "primary_with_reshard_target_delegation");
+            Map<ShardId, Tuple<Response, Exception>> results = new ConcurrentHashMap<>(splitRequests.size());
+            CountDown countDown = new CountDown(splitRequests.size());
+            for (Map.Entry<ShardId, Request> splitRequest : splitRequests.entrySet()) {
+                ActionListener<Response> listener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(Response response) {
+                        results.put(splitRequest.getKey(), new Tuple<>(response, null));
+                        if (countDown.countDown()) {
+                            finish();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        results.put(splitRequest.getKey(), new Tuple<>(null, e));
+                        if (countDown.countDown()) {
+                            finish();
+                        }
+                    }
+
+                    private void finish() {
+                        Tuple<Response, Exception> finalResponse = combineSplitResponses(
+                            primaryRequest.getRequest(),
+                            splitRequests,
+                            results
+                        );
+                        setPhase(replicationTask, "finished");
+                        if (finalResponse.v1() != null) {
+                            onCompletionListener.onResponse(finalResponse.v1());
+                        } else {
+                            onCompletionListener.onFailure(finalResponse.v2());
+                        }
+                    }
+                };
+                if (splitRequest.getKey().equals(primaryRequest.getRequest().shardId())) {
+                    executePrimaryRequest(primaryShardReference, "primary", listener);
+                } else {
+                    delegateToTarget(splitRequest.getKey(), splitRequest.getValue(), clusterService::state, project, listener);
+                }
+            }
+        }
+
+        private void delegateToTarget(
+            ShardId targetShardId,
+            Request splitRequest,
+            Supplier<ClusterState> clusterStateSupplier,
+            final ProjectMetadata project,
+            ActionListener<Response> finalLister
+        ) {
+            new RetryableAction<>(
+                logger,
+                threadPool,
+                retryTimeout,
+                initialRetryBackoffBound,
+                finalLister,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
+
+                @Override
+                public void tryAction(ActionListener<Response> listener) {
+                    final ClusterState clusterState = clusterStateSupplier.get();
+                    final ProjectId projectId = project.id();
+                    final ShardRouting target = clusterState.routingTable(projectId).shardRoutingTable(targetShardId).primaryShard();
+                    final IndexMetadata indexMetadata = project.index(targetShardId.getIndex());
+                    final DiscoveryNode targetNode = clusterState.nodes().get(target.currentNodeId());
+                    final String allocationID = target.allocationId().getId();
+                    final long expectedPrimaryTerm = indexMetadata.primaryTerm(targetShardId.id());
+
+                    transportService.sendRequest(
+                        targetNode,
+                        transportPrimaryAction,
+                        new ConcreteShardRequest<>(splitRequest, allocationID, expectedPrimaryTerm),
+                        transportOptions,
+                        new ActionListenerResponseHandler<>(
+                            listener,
+                            TransportReplicationAction.this::newResponseInstance,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
+                }
+
+                @Override
+                public boolean shouldRetry(Exception e) {
+                    return retryPrimaryException(ExceptionsHelper.unwrapCause(e));
+                }
+            }.run();
         }
 
         private void executePrimaryRequest(

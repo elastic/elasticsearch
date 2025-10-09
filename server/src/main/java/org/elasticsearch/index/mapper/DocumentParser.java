@@ -695,7 +695,8 @@ public final class DocumentParser {
                         throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
                     }
                 }
-                context.addIgnoredField(currentFieldName);
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
+                return;
             }
 
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);

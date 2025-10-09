@@ -550,6 +550,7 @@ cnt:long | cluster:keyword | pod:keyword
 
 tsCommandGroupingOnTextField
 required_capability: ts_command_v0
+required_capability: ts_permit_text_becoming_keyword_when_grouped_on
 TS k8s
 | STATS count = count_distinct(network.eth0.currently_connected_clients) BY event_log, bucket = bucket(@timestamp,1hour)
 | SORT count, event_log

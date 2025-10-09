@@ -29,6 +29,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -65,7 +66,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
 class KnnIndexer {
-    private static final double WRITER_BUFFER_MB = 128;
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
 
@@ -78,6 +78,8 @@ class KnnIndexer {
     private final int numDocs;
     private final int numIndexThreads;
     private final MergePolicy mergePolicy;
+    private final double writerBufferSizeInMb;
+    private final int writerMaxBufferedDocs;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -88,7 +90,9 @@ class KnnIndexer {
         int dim,
         VectorSimilarityFunction similarityFunction,
         int numDocs,
-        MergePolicy mergePolicy
+        MergePolicy mergePolicy,
+        double writerBufferSizeInMb,
+        int writerMaxBufferedDocs
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -99,12 +103,15 @@ class KnnIndexer {
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
+        this.writerBufferSizeInMb = writerBufferSizeInMb;
+        this.writerMaxBufferedDocs = writerMaxBufferedDocs;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
-        iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
+        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
         iwc.setUseCompoundFile(false);
         if (mergePolicy != null) {
             iwc.setMergePolicy(mergePolicy);
@@ -183,15 +190,20 @@ class KnnIndexer {
 
                     VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
                     try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                        List<Future<?>> threads = new ArrayList<>();
+                        List<Future<?>> futures = new ArrayList<>();
+                        List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            threads.add(t);
                             t.setDaemon(true);
-                            threads.add(exec.submit(t));
+                            futures.add(exec.submit(t));
                         }
-                        for (Future<?> t : threads) {
-                            t.get();
+                        for (Future<?> future : futures) {
+                            future.get();
                         }
+                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
+                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
+                        );
                     }
                 }
             }
@@ -248,6 +260,9 @@ class KnnIndexer {
         private final float[] floatVectorBuffer;
         private final VectorReader in;
 
+        long readTime;
+        long docAddTime;
+
         private IndexerThread(
             IndexWriter iw,
             VectorReader in,
@@ -294,23 +309,32 @@ class KnnIndexer {
                     continue;
                 }
 
-                Document doc = new Document();
+                var startRead = System.nanoTime();
+                final IndexableField field;
                 switch (vectorEncoding) {
                     case BYTE -> {
                         in.next(byteVectorBuffer);
-                        doc.add(new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType));
+                        field = new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType);
                     }
                     case FLOAT32 -> {
                         in.next(floatVectorBuffer);
-                        doc.add(new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType));
+                        field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
                     }
+                    default -> throw new UnsupportedOperationException();
                 }
+                long endRead = System.nanoTime();
+                readTime += (endRead - startRead);
+
+                Document doc = new Document();
+                doc.add(field);
 
                 if ((id + 1) % 25000 == 0) {
                     logger.debug("Done indexing " + (id + 1) + " documents.");
                 }
                 doc.add(new StoredField(ID_FIELD, id));
                 iw.addDocument(doc);
+
+                docAddTime += (System.nanoTime() - endRead);
             }
         }
     }

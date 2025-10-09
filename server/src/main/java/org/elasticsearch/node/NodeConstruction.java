@@ -1011,7 +1011,9 @@ class NodeConstruction {
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
             LinkedProjectConfigService.Provider.class,
             () -> Optional::empty
-        ).create().orElse(new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
+        )
+            .create()
+            .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,

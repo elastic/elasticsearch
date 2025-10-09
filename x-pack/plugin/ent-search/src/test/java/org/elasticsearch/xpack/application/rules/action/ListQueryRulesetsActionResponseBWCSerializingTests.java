@@ -59,22 +59,6 @@ public class ListQueryRulesetsActionResponseBWCSerializingTests extends Abstract
         ListQueryRulesetsAction.Response instance,
         TransportVersion version
     ) {
-        if (version.onOrAfter(TransportVersions.V_8_16_1)) {
-            return instance;
-        } else if (version.onOrAfter(QueryRulesetListItem.EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
-            List<QueryRulesetListItem> updatedResults = new ArrayList<>();
-            for (QueryRulesetListItem listItem : instance.queryPage.results()) {
-                updatedResults.add(
-                    new QueryRulesetListItem(listItem.rulesetId(), listItem.ruleTotalCount(), listItem.criteriaTypeToCountMap(), Map.of())
-                );
-            }
-            return new ListQueryRulesetsAction.Response(updatedResults, instance.queryPage.count());
-        } else {
-            List<QueryRulesetListItem> updatedResults = new ArrayList<>();
-            for (QueryRulesetListItem listItem : instance.queryPage.results()) {
-                updatedResults.add(new QueryRulesetListItem(listItem.rulesetId(), listItem.ruleTotalCount(), Map.of(), Map.of()));
-            }
-            return new ListQueryRulesetsAction.Response(updatedResults, instance.queryPage.count());
-        }
+        return instance;
     }
 }

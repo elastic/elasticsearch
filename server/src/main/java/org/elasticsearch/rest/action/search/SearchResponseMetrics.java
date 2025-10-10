@@ -73,6 +73,12 @@ public class SearchResponseMetrics {
                 "The search phase dfs duration in milliseconds at the coordinator, expressed as a histogram",
                 "millis"
             ),
+            "dfs_query",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "dfs_query"),
+                "The search phase dfs_query duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            ),
             "open_pit",
             meterRegistry.registerLongHistogram(
                 String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "open_pit"),

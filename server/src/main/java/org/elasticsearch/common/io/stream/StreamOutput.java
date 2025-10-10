@@ -613,11 +613,7 @@ public abstract class StreamOutput extends OutputStream {
         Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                this.writeGenericValue(next.getKey());
-            } else {
-                this.writeString(next.getKey());
-            }
+            this.writeGenericValue(next.getKey());
             this.writeGenericValue(next.getValue());
         }
     }
@@ -751,14 +747,8 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                final Map<?, ?> map = (Map<?, ?>) v;
-                o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
-            } else {
-                @SuppressWarnings("unchecked")
-                final Map<String, ?> map = (Map<String, ?>) v;
-                o.writeMap(map, StreamOutput::writeGenericValue);
-            }
+            final Map<?, ?> map = (Map<?, ?>) v;
+            o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
         }),
         entry(Byte.class, (o, v) -> {
             o.writeByte((byte) 11);

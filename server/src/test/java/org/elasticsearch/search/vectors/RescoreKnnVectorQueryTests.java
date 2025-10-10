@@ -320,7 +320,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
          *
          * @param in      the DirectoryReader to filter
          */
-        public SingleVectorQueryIndexReader(DirectoryReader in) throws IOException {
+        SingleVectorQueryIndexReader(DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {

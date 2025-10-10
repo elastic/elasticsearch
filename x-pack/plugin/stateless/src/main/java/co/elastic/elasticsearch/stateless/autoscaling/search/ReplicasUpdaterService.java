@@ -25,7 +25,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -40,6 +43,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -174,6 +178,21 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     );
 
     /**
+     * This setting can be used to work around the lack of replicas for load balancing.
+     * You can either get 1 or 2 replica shards based on SPmin, but there are situations where high throughput is a requirement,
+     * which requires additional replicas. This setting allows us to configure via override a set of indices that needs to have
+     * as many replicas as the number of search nodes available. Note that there is no validation of the disk size occupied by
+     * such indices, which is why this setting should be used carefully, as a short term mitigation.
+     * This setting is to be considered temporary, and will be removed once replicas for load balancing is implemented, which will
+     * increase and decrease number of replicas for indices based on measured search load per index.
+     */
+    public static final Setting<List<String>> AUTO_EXPAND_REPLICA_INDICES = Setting.stringListSetting(
+        "serverless.autoscaling.auto_expand_replica_indices",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Search power setting below which there should be only 1 replica for all interactive indices
      */
     public static final int SEARCH_POWER_MIN_NO_REPLICATION = 100;
@@ -201,6 +220,9 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private volatile Cancellable job;
     private volatile TimeValue updateInterval;
     private volatile Integer scaledownRepetitionSetting;
+    private volatile Set<String> autoExpandReplicaIndices;
+    private volatile int searchPowerMinSetting;
+    private volatile int numSearchNodes;
 
     @SuppressWarnings("this-escape")
     public ReplicasUpdaterService(
@@ -218,6 +240,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_INTERVAL, this::setInterval);
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_SCALEDOWN_REPETITIONS, this::setScaledownRepetitionSetting);
         clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, this::updateSearchPowerMin);
+        clusterSettings.initializeAndWatch(AUTO_EXPAND_REPLICA_INDICES, this::updateAutoExpandReplicaIndices);
     }
 
     void setScaledownRepetitionSetting(Integer scaledownRepetitionSetting) {
@@ -254,7 +277,10 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     }
 
     void updateSearchPowerMin(Integer spMin) {
+        this.searchPowerMinSetting = spMin;
         if (enableReplicasForInstantFailover && job != null) {
+            // Note: this won't do anything if the job is already running.
+            // The outcome may or may not take into account the updated SPmin.
             performReplicaUpdates(true);
         }
     }
@@ -271,20 +297,32 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      * For SP >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} all interactive indices get two replicas.
      * For settings between those values, we rank indices and give part of them two replicas.
      */
-    Map<Integer, Set<String>> getRecommendedReplicaChanges(ReplicaRankingContext rankingContext) {
+    static Map<Integer, Set<String>> getRecommendedReplicaChanges(
+        ReplicaRankingContext rankingContext,
+        Set<String> autoExpandReplicaIndices,
+        int numSearchNodes
+    ) {
         assert rankingContext.getSearchPowerMin() > 100 : "we should not have to call this method for SP <= 100";
-        Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(2);
+        Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(3, 1);
         LOGGER.debug("Calculating index replica recommendations for " + rankingContext.indices());
         if (rankingContext.getSearchPowerMin() >= SEARCH_POWER_MIN_FULL_REPLICATION) {
             for (IndexRankingProperties properties : rankingContext.properties()) {
+                String indexName = properties.indexProperties().name();
                 int replicas = properties.indexProperties().replicas();
                 if (properties.isInteractive()) {
-                    if (replicas != 2) {
-                        setNumReplicasForIndex(properties.indexProperties().name(), 2, numReplicaChanges);
+                    // special handling for auto expand replica indices
+                    if (numSearchNodes > 2 && autoExpandReplicaIndices.contains(indexName)) {
+                        if (replicas != numSearchNodes) {
+                            setNumReplicasForIndex(indexName, numSearchNodes, numReplicaChanges);
+                        }
+                    } else {
+                        if (replicas != 2) {
+                            setNumReplicasForIndex(indexName, 2, numReplicaChanges);
+                        }
                     }
                 } else {
                     if (replicas != 1) {
-                        setNumReplicasForIndex(properties.indexProperties().name(), 1, numReplicaChanges);
+                        setNumReplicasForIndex(indexName, 1, numReplicaChanges);
                     }
                 }
             }
@@ -394,7 +432,12 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     publishUpdateReplicaSetting(1, indicesToScaleDown);
                     indicesScaledDown = indicesToScaleDown.size();
                 } else {
-                    Map<Integer, Set<String>> numberOfReplicaChanges = getRecommendedReplicaChanges(rankingContext);
+                    int numSearchNodes = this.numSearchNodes;
+                    Map<Integer, Set<String>> numberOfReplicaChanges = getRecommendedReplicaChanges(
+                        rankingContext,
+                        autoExpandReplicaIndices,
+                        numSearchNodes
+                    );
                     // apply scaling up to two replica suggestions immediately
                     Set<String> indicesToScaleUp = numberOfReplicaChanges.remove(2);
                     if (indicesToScaleUp != null) {
@@ -402,7 +445,23 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                         indicesScaledUp = indicesToScaleUp.size();
                     }
 
-                    // Scale down decisions requires a certain number of repetitions to be considered stable.
+                    Set<String> autoExpandIndices = numberOfReplicaChanges.remove(numSearchNodes);
+                    if (autoExpandIndices != null) {
+                        /*
+                         * We enter this block only when all the following conditions are met:
+                         * 1) some indices are configured via override to have their replicas auto-expanded
+                         * 2) SPmin >= 250
+                         * 3) there's more than 2 search nodes available
+                         *
+                         * These events may be scale up or down, depending on how the number of search nodes has changed.
+                         * Either way, these changes can and should be applied straight-away
+                         */
+                        publishUpdateReplicaSetting(numSearchNodes, autoExpandIndices);
+                        // Note that what we call scale up above when setting replicas to 2 may be scale down too for auto expand indices.
+                        // That's not an issue.
+                    }
+
+                    // Scale down decisions require a certain number of repetitions to be considered stable.
                     // We want to avoid flapping up/down scaling decisions because if we scale up again soon
                     // the performance cost of this outweighs the cost of keeping two replicas around longer.
                     // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
@@ -551,4 +610,38 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         unschedule(true);
     }
 
+    void updateAutoExpandReplicaIndices(List<String> autoExpandReplicaIndices) {
+        this.autoExpandReplicaIndices = new HashSet<>(autoExpandReplicaIndices);
+        if (enableReplicasForInstantFailover && job != null) {
+            if (autoExpandReplicaIndices.isEmpty() == false) {
+                if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
+                    // Note: this won't do anything if the job is already running.
+                    // The outcome may or may not take into account the updated setting.
+                    performReplicaUpdates(false);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        LocalNodeMasterListener.super.clusterChanged(event);
+        if (event.nodesChanged()) {
+            DiscoveryNodes nodes = event.state().getNodes();
+            int numSearchNodes = (int) nodes.stream().filter(node -> node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName())).count();
+            boolean numSearchNodesChanged = this.numSearchNodes != numSearchNodes;
+            this.numSearchNodes = numSearchNodes;
+            if (enableReplicasForInstantFailover && job != null) {
+                if (autoExpandReplicaIndices.isEmpty() == false) {
+                    if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
+                        if (numSearchNodesChanged) {
+                            // Note: this won't do anything if the job is already running.
+                            // The outcome may or may not take into account the updated number of search nodes.
+                            performReplicaUpdates(false);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

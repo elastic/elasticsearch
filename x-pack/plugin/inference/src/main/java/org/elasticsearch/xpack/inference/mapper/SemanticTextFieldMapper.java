@@ -56,7 +56,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -1054,10 +1053,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             String name = useLegacyFormat ? name().concat(".text") : name();
-            boolean syntheticSourceEnabled = blContext.indexSettings().getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC;
             SourceValueFetcher fetcher = SourceValueFetcher.toString(
                 blContext.sourcePaths(name),
-                syntheticSourceEnabled,
                 blContext.ignoredSourceFormat()
             );
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());

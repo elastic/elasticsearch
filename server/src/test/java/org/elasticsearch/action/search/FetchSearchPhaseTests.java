@@ -866,10 +866,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    boolean sourceSynthetic = searchContext.getSearchExecutionContext().isSourceSynthetic();
                     return StoredFieldsSpec.withSourcePaths(
                         searchContext.getSearchExecutionContext().ignoredSourceFormat(),
-                        sourceSynthetic,
                         Set.of("thefield")
                     );
                 }
@@ -928,7 +926,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     boolean sourceSynthetic = fetchContext.getSearchExecutionContext().isSourceSynthetic();
                     return StoredFieldsSpec.withSourcePaths(
                         IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                        sourceSynthetic,
                         Set.of("thefield")
                     );
                 }

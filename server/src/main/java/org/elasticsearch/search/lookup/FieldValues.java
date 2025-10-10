@@ -75,11 +75,7 @@ public interface FieldValues<T> {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.withSourcePaths(
-                    context.ignoredSourceFormat(),
-                    context.isSourceSynthetic(),
-                    Set.of(fieldValues.name())
-                );
+                return StoredFieldsSpec.withSourcePaths(context.ignoredSourceFormat(), Set.of(fieldValues.name()));
             }
         };
     }
@@ -117,11 +113,7 @@ public interface FieldValues<T> {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.withSourcePaths(
-                    context.ignoredSourceFormat(),
-                    context.isSourceSynthetic(),
-                    Set.of(fieldValues.name())
-                );
+                return StoredFieldsSpec.withSourcePaths(context.ignoredSourceFormat(), Set.of(fieldValues.name()));
             }
         };
     }

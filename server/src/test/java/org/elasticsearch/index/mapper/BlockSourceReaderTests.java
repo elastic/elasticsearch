@@ -53,15 +53,12 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         IgnoredSourceFieldMapper.IgnoredSourceFormat format = syntheticSourceEnabled
             ? IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE
             : IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
-        ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"), syntheticSourceEnabled, format);
+        ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"), format);
         BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromNorms("field");
         BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
         BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
-        assertThat(
-            loader.rowStrideStoredFieldSpec(),
-            equalTo(StoredFieldsSpec.withSourcePaths(format, syntheticSourceEnabled, Set.of("field")))
-        );
+        assertThat(loader.rowStrideStoredFieldSpec(), equalTo(StoredFieldsSpec.withSourcePaths(format, Set.of("field"))));
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
             loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null

@@ -1118,11 +1118,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
 
             // otherwise, load values from _source (synthetic or not)
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(
-                blContext.sourcePaths(name()),
-                isSyntheticSourceEnabled(),
-                blContext.ignoredSourceFormat()
-            );
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.ignoredSourceFormat());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
@@ -1253,7 +1249,6 @@ public final class TextFieldMapper extends FieldMapper {
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(
                     fieldDataContext.sourcePathsLookup().apply(name()),
-                    isSyntheticSourceEnabled(),
                     IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE
                 ),
                 fieldDataContext.lookupSupplier().get(),

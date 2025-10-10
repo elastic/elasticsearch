@@ -285,7 +285,6 @@ public class TermVectorsService {
                 if (values.containsKey(field) == false) {
                     SourceValueFetcher valueFetcher = SourceValueFetcher.toString(
                         mappingLookup.sourcePaths(field),
-                        mappingLookup.isSourceSynthetic(),
                         mappingLookup.ignoredSourceFormat()
                     );
                     List<Object> ignoredValues = new ArrayList<>();

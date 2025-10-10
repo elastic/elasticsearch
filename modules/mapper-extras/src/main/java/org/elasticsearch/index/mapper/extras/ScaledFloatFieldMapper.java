@@ -522,7 +522,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             Set<String> sourcePaths,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource, ignoredSourceFormat) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

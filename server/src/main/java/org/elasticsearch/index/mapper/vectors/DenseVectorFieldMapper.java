@@ -2705,7 +2705,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Set<String> sourcePaths,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
-            return new SourceValueFetcher(sourcePaths, null, isSyntheticSource, ignoredSourceFormat) {
+            return new SourceValueFetcher(sourcePaths, null, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

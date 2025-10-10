@@ -2143,7 +2143,7 @@ public class NumberFieldMapper extends FieldMapper {
             Set<String> sourcePaths,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource, ignoredSourceFormat) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

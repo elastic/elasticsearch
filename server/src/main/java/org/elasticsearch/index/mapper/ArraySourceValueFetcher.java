@@ -82,7 +82,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, isSyntheticSource, sourcePaths);
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**

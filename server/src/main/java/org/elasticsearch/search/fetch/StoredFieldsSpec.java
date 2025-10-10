@@ -10,7 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -54,13 +54,9 @@ public record StoredFieldsSpec(
      */
     public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
-    public static StoredFieldsSpec withSourcePaths(
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
-        boolean isSyntheticSource,
-        Set<String> sourcePaths
-    ) {
-        // The fields in source paths might also be in ignored source, so include this as well.
-        IgnoredFieldsSpec ignoredFieldsSpec = isSyntheticSource
+    public static StoredFieldsSpec withSourcePaths(IgnoredSourceFormat ignoredSourceFormat, Set<String> sourcePaths) {
+        // The fields in source paths might also be in ignored source, so include source paths there as well.
+        IgnoredFieldsSpec ignoredFieldsSpec = ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE
             ? new IgnoredFieldsSpec(sourcePaths, ignoredSourceFormat)
             : IgnoredFieldsSpec.NONE;
         return new StoredFieldsSpec(true, false, Set.of(), ignoredFieldsSpec, sourcePaths);

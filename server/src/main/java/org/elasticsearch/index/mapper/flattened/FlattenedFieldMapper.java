@@ -762,7 +762,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private SourceValueFetcher sourceValueFetcher(SearchExecutionContext context) {
             Set<String> sourcePaths = context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet();
-            return new SourceValueFetcher(sourcePaths, null, context.isSourceSynthetic(), context.ignoredSourceFormat()) {
+            return new SourceValueFetcher(sourcePaths, null, context.ignoredSourceFormat()) {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {

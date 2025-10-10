@@ -951,7 +951,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             Set<String> sourcePaths,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSourceEnabled(), ignoredSourceFormat) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

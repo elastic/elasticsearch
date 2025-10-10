@@ -606,11 +606,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
 
             // fallback to _source (synthetic or not)
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(
-                blContext.sourcePaths(name()),
-                isSyntheticSourceEnabled(),
-                blContext.ignoredSourceFormat()
-            );
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.ignoredSourceFormat());
             // MatchOnlyText never has norms, so we have to use the field names field
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
@@ -643,7 +639,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(
                     fieldDataContext.sourcePathsLookup().apply(name()),
-                    isSyntheticSourceEnabled(),
                     IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE
                 ),
                 fieldDataContext.lookupSupplier().get(),

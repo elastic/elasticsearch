@@ -31,7 +31,6 @@ import java.util.Set;
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
-    private final boolean isSyntheticSource;
     private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
     public SourceValueFetcher(String fieldName, SearchExecutionContext context) {
@@ -43,28 +42,16 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param nullValue An optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this(
-            context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(),
-            nullValue,
-            context.isSourceSynthetic(),
-            context.ignoredSourceFormat()
-        );
+        this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue, context.ignoredSourceFormat());
     }
 
     /**
-     * @param sourcePaths       The paths to pull source values from
-     * @param nullValue         An optional substitute value if the _source value is `null`
-     * @param isSourceSynthetic
+     * @param sourcePaths The paths to pull source values from
+     * @param nullValue   An optional substitute value if the _source value is `null`
      */
-    public SourceValueFetcher(
-        Set<String> sourcePaths,
-        Object nullValue,
-        boolean isSourceSynthetic,
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
-    ) {
+    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
-        this.isSyntheticSource = isSourceSynthetic;
         this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
@@ -113,7 +100,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, isSyntheticSource, sourcePaths);
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**
@@ -156,16 +143,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to Strings
      *
-     * @param sourcePaths            the paths to fetch values from in the source
-     * @param syntheticSourceEnabled
+     * @param sourcePaths         the paths to fetch values from in the source
      * @param ignoredSourceFormat
      */
-    public static SourceValueFetcher toString(
-        Set<String> sourcePaths,
-        boolean syntheticSourceEnabled,
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
-    ) {
-        return new SourceValueFetcher(sourcePaths, null, syntheticSourceEnabled, ignoredSourceFormat) {
+    public static SourceValueFetcher toString(Set<String> sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
+        return new SourceValueFetcher(sourcePaths, null, ignoredSourceFormat) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

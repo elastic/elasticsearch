@@ -401,7 +401,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             ValueFetcher valueFetcher = new SourceValueFetcher(
                 blContext.sourcePaths(name()),
                 nullValueFormatted,
-                isSyntheticSource,
                 blContext.ignoredSourceFormat()
             ) {
                 @Override
@@ -547,7 +546,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             Set<String> sourcePaths,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
-            return new SourceValueFetcher(sourcePaths, nullValueFormatted, isSyntheticSource, ignoredSourceFormat) {
+            return new SourceValueFetcher(sourcePaths, nullValueFormatted, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

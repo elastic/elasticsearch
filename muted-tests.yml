@@ -654,6 +654,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testApiKeySuperuser {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136394
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSecurityNativeRealm {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136395
 
 # Examples:
 #

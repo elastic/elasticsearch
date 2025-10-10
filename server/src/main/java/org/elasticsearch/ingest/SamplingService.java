@@ -298,8 +298,8 @@ public class SamplingService implements ClusterStateListener {
                         .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
                         .map(SamplingMetadata::getIndexToSamplingConfigMap)
                         .orElse(Map.of());
-                    Set<String> removedIndexNames = new HashSet<>(oldSampleConfigsMap.keySet());
-                    removedIndexNames.removeAll(newSampleConfigsMap.keySet());
+                    Set<String> indicesWithRemovedConfigs = new HashSet<>(oldSampleConfigsMap.keySet());
+                    indicesWithRemovedConfigs.removeAll(newSampleConfigsMap.keySet());
                     /*
                      * These index names no longer have sampling configurations associated with them. So we remove their samples. We are OK
                      * with the fact that we have a race condition here -- it is possible that in maybeSample() the configuration still
@@ -307,7 +307,7 @@ public class SamplingService implements ClusterStateListener {
                      * we'll have a small amount of memory being used until the sampling configuration is recreated or the TTL checker
                      * reclaims it. The advantage is that we can avoid locking here, which could slow down ingestion.
                      */
-                    for (String indexName : removedIndexNames) {
+                    for (String indexName : indicesWithRemovedConfigs) {
                         logger.debug("Removing sample info for {} because its configuration has been removed", indexName);
                         samples.remove(new ProjectIndex(projectId, indexName));
                     }

@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
@@ -45,7 +46,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // detect leader failover quickly
             .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(LeaderChecker.LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LeaderChecker.LEADER_CHECK_INTERVAL_SETTING.getKey(), "1ms")
             .build();
     }
 
@@ -133,6 +134,10 @@ public class NodeJoiningIT extends ESIntegTestCase {
         Node N should join the cluster, but it should not be disconnected (#ES-11449)
      */
     @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.cluster.coordination:INFO")
+    @TestIssueLogging(
+        value = "org.elasticsearch.cluster.coordination.NodeJoiningIT:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/136332"
+    )
     public void testNodeTriesToJoinClusterAndThenSameMasterIsElected() {
         internalCluster().startNodes(3);
         ensureStableCluster(3);

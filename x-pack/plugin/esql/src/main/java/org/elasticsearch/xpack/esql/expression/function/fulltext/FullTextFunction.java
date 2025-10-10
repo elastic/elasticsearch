@@ -188,11 +188,11 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkFullTextQueryFunctionForCondition(plan, failures, condition);
+            checkFullTextQueryFunctionForCondition(plan, failures, condition, false);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else if (plan instanceof LookupJoin lookupJoin) {
-            checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions());
+            checkFullTextQueryFunctionForCondition(plan, failures, lookupJoin.config().joinOnConditions(), true);
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
@@ -215,14 +215,19 @@ public abstract class FullTextFunction extends Function
         }
     }
 
-    private static void checkFullTextQueryFunctionForCondition(LogicalPlan plan, Failures failures, Expression condition) {
+    private static void checkFullTextQueryFunctionForCondition(
+        LogicalPlan plan,
+        Failures failures,
+        Expression condition,
+        boolean isLookupJoinOnCondition
+    ) {
         if (condition == null) {
             return;
         }
         if (condition instanceof Score) {
             failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
         }
-        if (plan instanceof LookupJoin == false) {
+        if (isLookupJoinOnCondition == false) {
             List.of(QueryString.class, Kql.class).forEach(functionClass -> {
                 // Check for limitations of QSTR and KQL function.
                 checkCommandsBeforeExpression(
@@ -366,11 +371,19 @@ public abstract class FullTextFunction extends Function
                 }
             });
         } else {
+            // Only run the check if the current node is in the tree of the full-text function
+            if (isInTree(plan, function) == false) {
+                return;
+            }
+
+            // Full Text Functions are allowed in LOOKUP JOIN ON conditions
+            if (isInLookupJoinOnCondition(plan, function)) {
+                return;
+            }
+
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
-                if (p instanceof EsRelation esRelation
-                    && esRelation.indexMode() != IndexMode.STANDARD
-                    && esRelation.indexMode() != IndexMode.LOOKUP) {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
                     // Check if this EsRelation supplies the field
                     if (esRelation.outputSet().contains(fieldAttribute)) {
                         failures.add(
@@ -447,4 +460,47 @@ public abstract class FullTextFunction extends Function
     public void postOptimizationVerification(Failures failures) {
         resolveTypeQuery(query(), sourceText(), forPostOptimizationValidation(query(), failures));
     }
+
+    /**
+     * Check if the current node is in the tree of the full-text function
+     */
+    private static boolean isInTree(LogicalPlan plan, FullTextFunction function) {
+        return plan.forEachDownMayReturnEarly((p, found) -> {
+            p.forEachExpression(FullTextFunction.class, ftf -> {
+                if (ftf == function) {
+                    found.set(true);
+                }
+            });
+        });
+    }
+
+    /**
+     * Check if the full-text function is within a LOOKUP JOIN ON condition
+     */
+    private static boolean isInLookupJoinOnCondition(LogicalPlan plan, FullTextFunction function) {
+        return plan.forEachDownMayReturnEarly((p, found) -> {
+            if (p instanceof LookupJoin lookupJoin) {
+                Expression joinOnConditions = lookupJoin.config().joinOnConditions();
+                if (joinOnConditions != null && containsFullTextFunction(joinOnConditions, function)) {
+                    found.set(true);
+                }
+            }
+        });
+    }
+
+    /**
+     * Check if an expression contains the given full-text function
+     */
+    private static boolean containsFullTextFunction(Expression expression, FullTextFunction targetFunction) {
+        if (expression == targetFunction) {
+            return true;
+        }
+        for (Expression child : expression.children()) {
+            if (containsFullTextFunction(child, targetFunction)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

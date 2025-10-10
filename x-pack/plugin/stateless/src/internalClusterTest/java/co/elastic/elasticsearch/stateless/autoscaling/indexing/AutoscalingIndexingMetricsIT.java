@@ -239,9 +239,16 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(metricsAfter.toString(), metricsAfter.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
             assertThat(metricsAfter.toString(), metricsAfter.get(0).load(), greaterThan((double) executorThreads));
         });
-        // Update the setting to check that the queue contribution is ignored
+        // Update the setting to check that the queue contribution is ignored. Any of the following two settings can cause this.
         updateClusterSettings(
-            Settings.builder().put(IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey(), TimeValue.ONE_HOUR)
+            Settings.builder()
+                .put(
+                    randomFrom(
+                        IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(),
+                        IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.getKey()
+                    ),
+                    TimeValue.ONE_HOUR
+                )
         );
         assertBusy(() -> {
             var metricsAfter = getNodesIngestLoad();

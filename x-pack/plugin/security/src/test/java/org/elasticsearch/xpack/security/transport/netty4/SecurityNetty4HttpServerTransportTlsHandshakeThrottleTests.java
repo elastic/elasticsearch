@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.logging.LogManager;
@@ -88,7 +87,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends AbstractHttpServerTransportTestCase {
+public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends ESTestCase {
 
     /**
      * Represents a handshake that has passed the throttle and is in progress on the server side. It is blocked by this test fixture until

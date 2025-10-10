@@ -131,6 +131,94 @@ PUT bbq_flat-index
 }
 ```
 
+### `bbq_disk` [bbq-disk]
+
+```{applies_to}
+stack: ga 9.2
+```
+
+When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm for efficient [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. DiskBBQ is an alternative to HNSW that stores most of the vector data on disk rather than in memory. It reduces memory usage and works well with large datasets or in low-memory environments.
+
+Instead of keeping the entire index in memory, DiskBBQ groups similar vectors into clusters on disk and searches only within the most relevant clusters. During a query, it identifies which clusters are closest to the query vector and compares only the vectors within those clusters. This approach reduces memory requirements while maintaining strong search relevance and speed.
+
+DiskBBQ typically achieves up to 95% recall. For use cases that require higher recall (99%+), consider using [bbq_hnsw](#bbq-hnsw) instead.
+
+The following example creates an index with a `dense_vector` field configured to use the `bbq_disk` algorithm.
+
+```console
+PUT bbq_disk-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "similarity": "l2_norm",
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk"
+        }
+      }
+    }
+  }
+}
+```
+
+To change an existing index to use `bbq_disk`, update the field mapping:
+
+```console
+PUT bbq_disk-index/_mapping
+{
+  "properties": {
+    "my_vector": {
+      "type": "dense_vector",
+      "dims": 64,
+      "index": true,
+      "index_options": {
+        "type": "bbq_disk"
+      }
+    }
+  }
+}
+```
+
+To apply `bbq_disk` to all vectors at once, reindex them into a new index where the `index_options` parameter's `type` is set to `bbq_disk`:
+
+:::::{stepper}
+::::{step} Create a destination index
+```console
+PUT my-index-bbq
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 64,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk"
+        }
+      }
+    }
+  }
+}
+```
+::::
+
+::::{step} Reindex the data
+```console
+POST _reindex
+{
+  "source": { "index": "my-index" }, <1>
+  "dest":   { "index": "my-index-bbq" }
+}
+```
+1. The existing index to be reindexed into the newly created index with the `bbq_disk` algorithm.
+::::
+
+:::::
+
+
 ## Oversampling [bbq-oversampling]
 
 Oversampling is a technique used with BBQ searches to reduce the accuracy loss from compression. Compression lowers the memory footprint by over 95% and improves query latency, at the cost of decreased result accuracy. This decrease can be mitigated by oversampling during query time and reranking the top results using the full vector. 

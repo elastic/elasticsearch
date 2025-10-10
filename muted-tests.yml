@@ -663,6 +663,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/220_dense_vector_node_index_stats/index node stats non-quantized}
   issue: https://github.com/elastic/elasticsearch/issues/136403
+- class: org.elasticsearch.TransportVersionTests
+  method: testVersionComparison
+  issue: https://github.com/elastic/elasticsearch/issues/136410
 
 # Examples:
 #

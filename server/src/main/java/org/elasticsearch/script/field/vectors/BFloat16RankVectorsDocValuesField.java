@@ -138,7 +138,9 @@ public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField
             if (hasNext() == false) {
                 throw new IllegalArgumentException("No more elements in the iterator");
             }
-            BFloat16.bFloat16ToFloat(vectorValues, buffer);
+            for (int i = 0; i < buffer.length; i++) {
+                buffer[i] = BFloat16.bFloat16ToFloat(vectorValues.get());
+            }
             idx++;
             return buffer;
         }

@@ -69,7 +69,9 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2447,7 +2449,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-            case FLOAT -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
+            case FLOAT, BFLOAT16 -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
             case BIT -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
         };
     }
@@ -2896,14 +2898,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn="
+        String expectedString = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES818BinaryQuantizedVectorsFormat("
-            + "name=ES818BinaryQuantizedVectorsFormat, "
-            + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+            + ", flatVectorFormat=ES93BinaryQuantizedVectorsFormat("
+            + "name=ES93BinaryQuantizedVectorsFormat, "
+            + "writeFlatVectorFormat=Lucene99FlatVectorsFormat";
+        assertThat(knnVectorsFormat, hasToString(startsWith(expectedString)));
     }
 
     public void testKnnBBQIVFVectorsFormat() throws IOException {
@@ -3042,7 +3044,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             Object value = switch (elementType) {
                 case BYTE, BIT:
                     yield randomList(dims, dims, ESTestCase::randomByte);
-                case FLOAT:
+                case FLOAT, BFLOAT16:
                     yield randomList(dims, dims, ESTestCase::randomFloat);
             };
             return new SyntheticSourceExample(value, value, this::mapping);

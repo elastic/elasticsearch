@@ -97,7 +97,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             return switch (model.apiServiceSettings().elementType()) {
                 case BIT -> TextEmbeddingBinary.PARSER.apply(p, null);
                 case BYTE -> TextEmbeddingBytes.PARSER.apply(p, null);
-                case FLOAT -> TextEmbeddingFloat.PARSER.apply(p, null);
+                case FLOAT, BFLOAT16 -> TextEmbeddingFloat.PARSER.apply(p, null);
             };
         }
     }

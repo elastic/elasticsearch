@@ -64,6 +64,7 @@
       },
       "h": {
         "type": "list",
+        "default": "ip,hp,rp,r,m,n,cpu,l",
         "description": "Comma-separated list of column names to display"
       },
       "help": {

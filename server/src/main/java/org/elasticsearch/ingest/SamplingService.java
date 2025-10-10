@@ -9,20 +9,31 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -42,9 +53,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
@@ -59,6 +74,16 @@ public class SamplingService implements ClusterStateListener {
     private final ProjectResolver projectResolver;
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
+    private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
+
+    private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
+        "sampling.max_configurations",
+        100,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -76,6 +101,11 @@ public class SamplingService implements ClusterStateListener {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.relativeMillisTimeSupplier = relativeMillisTimeSupplier;
+        this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
+            "update-sampling-configuration",
+            Priority.NORMAL,
+            new UpdateSamplingConfigurationExecutor()
+        );
     }
 
     /**
@@ -262,9 +292,98 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    public void updateSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        SamplingConfiguration samplingConfiguration,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // Early validation: check if adding a new configuration would exceed the limit
+        ClusterState clusterState = clusterService.state();
+        boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(projectId, index, clusterState);
+        if (maxConfigLimitBreached) {
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
+            listener.onFailure(
+                new IllegalStateException(
+                    "Cannot add sampling configuration for index ["
+                        + index
+                        + "]. Maximum number of sampling configurations ("
+                        + maxConfigurations
+                        + ") already reached."
+                )
+            );
+            return;
+        }
+
+        updateSamplingConfigurationTaskQueue.submitTask(
+            "Updating Sampling Configuration",
+            new UpdateSamplingConfigurationTask(projectId, index, samplingConfiguration, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // TODO: React to sampling config changes
+        if (RANDOM_SAMPLING_FEATURE_FLAG == false) {
+            return;
+        }
+        if (samples.isEmpty()) {
+            return;
+        }
+        // We want to remove any samples if their sampling configuration has been deleted or modified.
+        if (event.metadataChanged()) {
+            /*
+             * First, we collect the union of all project ids in the current state and the previous one. We include the project ids from the
+             * previous state in case an entire project has been deleted -- in that case we would want to delete all of its samples.
+             */
+            Set<ProjectId> allProjectIds = Sets.union(
+                event.state().metadata().projects().keySet(),
+                event.previousState().metadata().projects().keySet()
+            );
+            for (ProjectId projectId : allProjectIds) {
+                if (event.customMetadataChanged(projectId, SamplingMetadata.TYPE)) {
+                    Map<String, SamplingConfiguration> oldSampleConfigsMap = Optional.ofNullable(
+                        event.previousState().metadata().projects().get(projectId)
+                    )
+                        .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
+                        .map(SamplingMetadata::getIndexToSamplingConfigMap)
+                        .orElse(Map.of());
+                    Map<String, SamplingConfiguration> newSampleConfigsMap = Optional.ofNullable(
+                        event.state().metadata().projects().get(projectId)
+                    )
+                        .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
+                        .map(SamplingMetadata::getIndexToSamplingConfigMap)
+                        .orElse(Map.of());
+                    Set<String> indicesWithRemovedConfigs = new HashSet<>(oldSampleConfigsMap.keySet());
+                    indicesWithRemovedConfigs.removeAll(newSampleConfigsMap.keySet());
+                    /*
+                     * These index names no longer have sampling configurations associated with them. So we remove their samples. We are OK
+                     * with the fact that we have a race condition here -- it is possible that in maybeSample() the configuration still
+                     * exists but before the sample is read from samples it is deleted by this method and gets recreated. In the worst case
+                     * we'll have a small amount of memory being used until the sampling configuration is recreated or the TTL checker
+                     * reclaims it. The advantage is that we can avoid locking here, which could slow down ingestion.
+                     */
+                    for (String indexName : indicesWithRemovedConfigs) {
+                        logger.debug("Removing sample info for {} because its configuration has been removed", indexName);
+                        samples.remove(new ProjectIndex(projectId, indexName));
+                    }
+                    /*
+                     * Now we check if any of the sampling configurations have changed. If they have, we remove the existing sample. Same as
+                     * above, we have a race condition here that we can live with.
+                     */
+                    for (Map.Entry<String, SamplingConfiguration> entry : newSampleConfigsMap.entrySet()) {
+                        String indexName = entry.getKey();
+                        if (entry.getValue().equals(oldSampleConfigsMap.get(indexName)) == false) {
+                            logger.debug("Removing sample info for {} because its configuration has changed", indexName);
+                            samples.remove(new ProjectIndex(projectId, indexName));
+                        }
+                    }
+                }
+            }
+            // TODO: If an index has been deleted, we want to remove its sampling configuration
+        }
     }
 
     private boolean evaluateCondition(
@@ -292,6 +411,29 @@ public class SamplingService implements ClusterStateListener {
         ) {
             return Script.parse(parser);
         }
+    }
+
+    // Checks whether the maximum number of sampling configurations has been reached for the given project.
+    // If the limit is breached, it notifies the listener with an IllegalStateException and returns true.
+    private static boolean checkMaxConfigLimitBreached(ProjectId projectId, String index, ClusterState currentState) {
+        Metadata currentMetadata = currentState.metadata();
+        ProjectMetadata projectMetadata = currentMetadata.getProject(projectId);
+
+        if (projectMetadata != null) {
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            Map<String, SamplingConfiguration> existingConfigs = samplingMetadata != null
+                ? samplingMetadata.getIndexToSamplingConfigMap()
+                : Map.of();
+
+            boolean isUpdate = existingConfigs.containsKey(index);
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(currentMetadata.settings());
+
+            // Only check limit for new configurations, not updates
+            if (isUpdate == false && existingConfigs.size() >= maxConfigurations) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /*
@@ -756,6 +898,110 @@ public class SamplingService implements ClusterStateListener {
         void setScript(Script script, IngestConditionalScript.Factory factory) {
             this.script = script;
             this.factory = factory;
+        }
+    }
+
+    static class UpdateSamplingConfigurationTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String indexName;
+        private final SamplingConfiguration samplingConfiguration;
+
+        UpdateSamplingConfigurationTask(
+            ProjectId projectId,
+            String indexName,
+            SamplingConfiguration samplingConfiguration,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+            this.samplingConfiguration = samplingConfiguration;
+        }
+    }
+
+    static class UpdateSamplingConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateSamplingConfigurationTask> {
+        private static final Logger logger = LogManager.getLogger(UpdateSamplingConfigurationExecutor.class);
+
+        UpdateSamplingConfigurationExecutor() {}
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+            UpdateSamplingConfigurationTask updateSamplingConfigurationTask,
+            ClusterState clusterState
+        ) {
+            logger.debug(
+                "Updating sampling configuration for index [{}] with rate [{}],"
+                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
+                updateSamplingConfigurationTask.indexName,
+                updateSamplingConfigurationTask.samplingConfiguration.rate(),
+                updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
+                updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
+                updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
+                updateSamplingConfigurationTask.samplingConfiguration.condition()
+            );
+
+            // Get sampling metadata
+            Metadata metadata = clusterState.getMetadata();
+            ProjectMetadata projectMetadata = metadata.getProject(updateSamplingConfigurationTask.projectId);
+            ;
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+
+            boolean isNewConfiguration = samplingMetadata == null; // for logging
+            int existingConfigCount = isNewConfiguration ? 0 : samplingMetadata.getIndexToSamplingConfigMap().size();
+            logger.trace(
+                "Current sampling metadata state: {} (number of existing configurations: {})",
+                isNewConfiguration ? "null" : "exists",
+                existingConfigCount
+            );
+
+            // Update with new sampling configuration if it exists or create new sampling metadata with the configuration
+            Map<String, SamplingConfiguration> updatedConfigMap = new HashMap<>();
+            if (samplingMetadata != null) {
+                updatedConfigMap.putAll(samplingMetadata.getIndexToSamplingConfigMap());
+            }
+            boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
+
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(metadata.settings());
+            // check if adding a new configuration would exceed the limit
+            boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(
+                updateSamplingConfigurationTask.projectId,
+                updateSamplingConfigurationTask.indexName,
+                clusterState
+            );
+            if (maxConfigLimitBreached) {
+                throw new IllegalStateException(
+                    "Cannot add sampling configuration for index ["
+                        + updateSamplingConfigurationTask.indexName
+                        + "]. Maximum number of sampling configurations ("
+                        + maxConfigurations
+                        + ") already reached."
+                );
+            }
+            updatedConfigMap.put(updateSamplingConfigurationTask.indexName, updateSamplingConfigurationTask.samplingConfiguration);
+
+            logger.trace(
+                "{} sampling configuration for index [{}], total configurations after update: {}",
+                isUpdate ? "Updated" : "Added",
+                updateSamplingConfigurationTask.indexName,
+                updatedConfigMap.size()
+            );
+
+            SamplingMetadata newSamplingMetadata = new SamplingMetadata(updatedConfigMap);
+
+            // Update cluster state
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+
+            // Return tuple with updated cluster state and the original listener
+            ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+            logger.debug(
+                "Successfully {} sampling configuration for index [{}]",
+                isUpdate ? "updated" : "created",
+                updateSamplingConfigurationTask.indexName
+            );
+            return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
         }
     }
 

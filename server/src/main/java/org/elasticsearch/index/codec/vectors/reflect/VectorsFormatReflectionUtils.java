@@ -42,21 +42,13 @@ public class VectorsFormatReflectionUtils {
                 "org.apache.lucene.internal.vectorization.Lucene99MemorySegmentFloatVectorScorerSupplier"
             );
             lookup = MethodHandles.privateLookupIn(FLOAT_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
-            FLOAT_VECTORS_HANDLE = lookup.findVarHandle(
-                FLOAT_SCORING_SUPPLIER_CLASS,
-                "values",
-                FloatVectorValues.class
-            );
+            FLOAT_VECTORS_HANDLE = lookup.findVarHandle(FLOAT_SCORING_SUPPLIER_CLASS, "values", FloatVectorValues.class);
 
             BYTE_SCORING_SUPPLIER_CLASS = Class.forName(
                 "org.apache.lucene.internal.vectorization.Lucene99MemorySegmentByteVectorScorerSupplier"
             );
             lookup = MethodHandles.privateLookupIn(BYTE_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
-            BYTE_VECTORS_HANDLE = lookup.findVarHandle(
-                BYTE_SCORING_SUPPLIER_CLASS,
-                "values",
-                KnnVectorValues.class
-            );
+            BYTE_VECTORS_HANDLE = lookup.findVarHandle(BYTE_SCORING_SUPPLIER_CLASS, "values", KnnVectorValues.class);
 
         } catch (IllegalAccessException e) {
             throw new AssertionError("should not happen, check opens", e);

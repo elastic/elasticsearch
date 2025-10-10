@@ -475,8 +475,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void mergeByteVectorField(FieldInfo fieldInfo, MergeState mergeState, RandomVectorScorerSupplier randomScorerSupplier,
-                                      int numVectors) throws IOException, InterruptedException {
+    private void mergeByteVectorField(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        RandomVectorScorerSupplier randomScorerSupplier,
+        int numVectors
+    ) throws IOException, InterruptedException {
         var vectorValues = VectorsFormatReflectionUtils.getByteScoringSupplierVectorOrNull(randomScorerSupplier);
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
@@ -488,14 +492,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 int rowStride = fieldInfo.getVectorDimension() + 4;
                 try (
                     var dataset = DatasetUtils.getInstance()
-                        .fromInput(
-                            memorySegmentAccessInput,
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            rowStride,
-                            -1,
-                            dataType
-                        );
+                        .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), rowStride, -1, dataType);
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
                         cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
@@ -505,9 +502,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             } else {
                 logger.debug(
-                    () -> "Cannot mmap merged raw vectors temporary file. IndexInput type ["
-                        + input.getClass().getSimpleName()
-                        + "]"
+                    () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
                 );
 
                 try (
@@ -568,8 +563,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void mergeFloatVectorField(FieldInfo fieldInfo, MergeState mergeState, RandomVectorScorerSupplier randomScorerSupplier,
-                                       final int numVectors) throws IOException, InterruptedException {
+    private void mergeFloatVectorField(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        RandomVectorScorerSupplier randomScorerSupplier,
+        final int numVectors
+    ) throws IOException, InterruptedException {
         var vectorValues = VectorsFormatReflectionUtils.getFloatScoringSupplierVectorOrNull(randomScorerSupplier);
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
@@ -588,9 +587,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             } else {
                 logger.debug(
-                    () -> "Cannot mmap merged raw vectors temporary file. IndexInput type ["
-                        + input.getClass().getSimpleName()
-                        + "]"
+                    () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
                 );
 
                 try (
@@ -633,12 +630,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 )
             ) {
                 // Read vector-by-vector
-                var builder = CuVSMatrix.deviceBuilder(
-                    resourcesHolder.resources(),
-                    numVectors,
-                    fieldInfo.getVectorDimension(),
-                    dataType
-                );
+                var builder = CuVSMatrix.deviceBuilder(resourcesHolder.resources(), numVectors, fieldInfo.getVectorDimension(), dataType);
 
                 final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
                 for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {

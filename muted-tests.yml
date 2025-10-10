@@ -660,6 +660,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSlmPolicyAndStats {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136399
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query in a bool clause - missing num_candidates}
+  issue: https://github.com/elastic/elasticsearch/issues/136402
 
 # Examples:
 #

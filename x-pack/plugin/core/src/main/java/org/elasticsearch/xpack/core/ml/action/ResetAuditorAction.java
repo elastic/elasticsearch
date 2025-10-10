@@ -35,8 +35,9 @@ public class ResetAuditorAction extends ActionType<TrainedModelCacheInfoAction.R
 
         public static Request RESET_AUDITOR_REQUEST = new Request();
 
-        private Request() {}
-
+        private Request() {
+            super(new String[] { "ml:true" }); // Only ml nodes. See DiscoveryNodes::resolveNodes
+        }
     }
 
     public static class NodeRequest extends AbstractTransportRequest {

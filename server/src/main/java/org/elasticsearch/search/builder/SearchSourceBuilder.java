@@ -277,12 +277,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-            KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
-            knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
-        } else {
-            knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
-        }
+        knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
@@ -347,20 +342,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-            if (knnSearch.size() > 1) {
-                throw new IllegalArgumentException(
-                    "Versions before ["
-                        + TransportVersions.V_8_7_0.toReleaseVersion()
-                        + "] don't support multiple [knn] search clauses and search was sent to ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                );
-            }
-            out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
-        } else {
-            out.writeCollection(knnSearch);
-        }
+        out.writeCollection(knnSearch);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {

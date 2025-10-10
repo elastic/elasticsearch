@@ -46,6 +46,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -53,7 +54,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -280,15 +283,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         numberOfShards = in.readVInt();
         scroll = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
-                );
-            }
-        }
         aliasFilter = AliasFilter.readFrom(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
@@ -323,10 +317,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
         out.writeOptionalTimeValue(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
         if (asKey == false) {

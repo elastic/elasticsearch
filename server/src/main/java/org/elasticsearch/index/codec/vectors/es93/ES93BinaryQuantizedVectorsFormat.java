@@ -25,6 +25,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
@@ -85,7 +86,7 @@ import java.io.IOException;
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsFormat {
+public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat {
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
@@ -93,12 +94,15 @@ public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsForm
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    private final ES93GenericFlatVectorsFormat rawFormat;
+
     public ES93BinaryQuantizedVectorsFormat() {
         this(false, false);
     }
 
     public ES93BinaryQuantizedVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
-        super(NAME, useBFloat16, useDirectIO);
+        super(NAME);
+        rawFormat = new ES93GenericFlatVectorsFormat(useBFloat16, useDirectIO);
     }
 
     @Override
@@ -108,11 +112,16 @@ public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsForm
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsWriter(scorer, super.fieldsWriter(state), state);
+        return new ES818BinaryQuantizedVectorsWriter(scorer, rawFormat.fieldsWriter(state), state);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsReader(state, super.fieldsReader(state), scorer);
+        return new ES818BinaryQuantizedVectorsReader(state, rawFormat.fieldsReader(state), scorer);
+    }
+
+    @Override
+    public String toString() {
+        return getName() + "(name=" + getName() + ", rawVectorFormat=" + rawFormat + ", scorer=" + scorer + ")";
     }
 }

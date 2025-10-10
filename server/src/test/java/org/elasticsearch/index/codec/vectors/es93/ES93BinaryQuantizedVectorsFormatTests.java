@@ -62,12 +62,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
-import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -196,11 +193,12 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
             }
         };
         String expectedPattern = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
-            + " writeFlatVectorFormat=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat,"
-            + " flatVectorScorer=%s())";
-        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), either(startsWith(defaultScorer)).or(startsWith(memSegScorer)));
+            + " rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+            + " format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())),"
+            + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))";
+        var defaultScorer = expectedPattern.replaceAll("\\{}", "DefaultFlatVectorScorer");
+        var memSegScorer = expectedPattern.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+        assertThat(customCodec.knnVectorsFormat().toString(), oneOf(defaultScorer, memSegScorer));
     }
 
     @Override

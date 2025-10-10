@@ -9,7 +9,9 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,35 +36,50 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
+    private static final ParseField RESOLVED_FIELD = new ParseField("resolved");
+
+    private static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
 
     private final String[] indices;
+    private final ResolvedIndexExpressions resolved;
     private final Map<String, Map<String, FieldCapabilities>> fields;
     private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
     public FieldCapabilitiesResponse(
         String[] indices,
+        ResolvedIndexExpressions resolved,
         Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesFailure> failures
     ) {
-        this(indices, fields, Collections.emptyList(), failures);
+        this(indices, resolved, fields, Collections.emptyList(), failures);
     }
 
     public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> fields) {
-        this(indices, fields, Collections.emptyList(), Collections.emptyList());
+        this(indices, null, fields, Collections.emptyList(), Collections.emptyList());
     }
 
     public FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
+        this(indexResponses, null, failures);
+    }
+
+    public FieldCapabilitiesResponse(
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        ResolvedIndexExpressions resolved,
+        List<FieldCapabilitiesFailure> failures
+    ) {
+        this(Strings.EMPTY_ARRAY, resolved, Collections.emptyMap(), indexResponses, failures);
     }
 
     private FieldCapabilitiesResponse(
         String[] indices,
+        ResolvedIndexExpressions resolved,
         Map<String, Map<String, FieldCapabilities>> fields,
         List<FieldCapabilitiesIndexResponse> indexResponses,
         List<FieldCapabilitiesFailure> failures
     ) {
         this.fields = Objects.requireNonNull(fields);
+        this.resolved = resolved;
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
         this.failures = failures;
@@ -70,6 +87,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         this.indices = in.readStringArray();
+        if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            this.resolved = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+        } else {
+            this.resolved = null;
+        }
         this.fields = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
@@ -115,6 +137,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         return indexResponses;
     }
 
+    public ResolvedIndexExpressions getResolved() {
+        return resolved;
+    }
+
     /**
      *
      * Get the field capabilities per type for the provided {@code field}.
@@ -141,6 +167,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
+        if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            out.writeOptionalWriteable(resolved);
+        }
         out.writeMap(fields, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeCollection(failures);
@@ -182,6 +211,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
         return Arrays.equals(indices, that.indices)
+            && Objects.equals(resolved, that.resolved)
             && Objects.equals(fields, that.fields)
             && Objects.equals(indexResponses, that.indexResponses)
             && Objects.equals(failures, that.failures);
@@ -189,7 +219,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(fields, indexResponses, failures);
+        int result = Objects.hash(resolved, fields, indexResponses, failures);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

@@ -52,7 +52,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             var indexMode = randomFrom(IndexMode.values());
             responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
-        randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
+        randomResponse = new FieldCapabilitiesResponse(responses, null, Collections.emptyList());
         return randomResponse;
     }
 
@@ -87,7 +87,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 );
             }
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
+        return new FieldCapabilitiesResponse(null, null, mutatedResponses, Collections.emptyList());
     }
 
     public void testFailureSerialization() throws IOException {
@@ -143,7 +143,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 failures.get(failures.size() - 1).addIndex(index);
             }
         }
-        return new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
+        return new FieldCapabilitiesResponse(indices, null, Collections.emptyMap(), failures);
     }
 
     private static FieldCapabilitiesResponse randomCCSResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
@@ -153,7 +153,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             String index = "index_" + i;
             failures.add(new FieldCapabilitiesFailure(new String[] { index }, ElasticsearchExceptionTests.randomExceptions().v2()));
         }
-        return new FieldCapabilitiesResponse(indexResponses, failures);
+        return new FieldCapabilitiesResponse(indexResponses, null, failures);
     }
 
     public void testSerializeCCSResponseBetweenNewClusters() throws Exception {

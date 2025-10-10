@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
@@ -265,5 +267,31 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
                 assertThat(response.get().keySet(), not(hasItems("@timestamp", "field1", "field2")));
             }
         }
+    }
+
+    public void testResolvedTo() {
+        String localIndex = "index-local";
+        String remoteIndex = "index-remote";
+        String remoteClusterAlias = "remote_cluster";
+        populateIndices(localIndex, remoteIndex, remoteClusterAlias, false);
+        remoteIndex = String.join(":", remoteClusterAlias, remoteIndex);
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(localIndex, remoteIndex)
+            .setFields("*")
+            .setIncludeResolvedTo(true)
+            .get();
+
+        assertThat(response.getIndices(), arrayContainingInAnyOrder(localIndex, remoteIndex));
+
+        ResolvedIndexExpressions resolved = response.getResolved();
+        assertThat(resolved, notNullValue());
+        assertThat(resolved.expressions(), hasSize(2));
+
+        List<String> localIndicesList = resolved.getLocalIndicesList();
+        assertThat(localIndicesList, hasSize(1));
+        assertThat(localIndicesList, containsInAnyOrder(localIndex));
+
+        List<String> remoteIndicesList = resolved.getRemoteIndicesList();
+        assertThat(remoteIndicesList, hasSize(1));
+        assertThat(remoteIndicesList, containsInAnyOrder(remoteIndex));
     }
 }

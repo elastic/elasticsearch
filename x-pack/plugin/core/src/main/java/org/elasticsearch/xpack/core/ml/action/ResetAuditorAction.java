@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class ResetAuditorAction extends ActionType<TrainedModelCacheInfoAction.Response> {
+public class ResetAuditorAction extends ActionType<ResetAuditorAction.Response> {
 
     public static final ResetAuditorAction INSTANCE = new ResetAuditorAction();
     public static final String NAME = "cluster:internal/xpack/ml/auditor/reset";

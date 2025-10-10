@@ -11,7 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -27,8 +30,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
@@ -38,7 +43,13 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     underlying aggregate.
  * </p>
  */
-public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
+public class InlineStats extends UnaryPlan
+    implements
+        NamedWriteable,
+        SurrogateLogicalPlan,
+        TelemetryAware,
+        SortAgnostic,
+        PostAnalysisPlanVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -151,5 +162,23 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
 
         InlineStats other = (InlineStats) obj;
         return Objects.equals(aggregate, other.aggregate);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (p, failures) -> {
+            // Don't allow inline stats to be used with the TS command
+            if (p instanceof EsRelation esRelation) {
+                if (esRelation.indexMode() == IndexMode.TIME_SERIES) {
+                    failures.add(
+                        fail(
+                            esRelation,
+                            "inline stats [{}] is not allowed with TS command, please use the FROM command instead",
+                            this.sourceText()
+                        )
+                    );
+                }
+            }
+        };
     }
 }

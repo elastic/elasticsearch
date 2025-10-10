@@ -651,6 +651,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testTransformLegacyTemplateCleanup {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136393
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testApiKeySuperuser {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136394
 
 # Examples:
 #

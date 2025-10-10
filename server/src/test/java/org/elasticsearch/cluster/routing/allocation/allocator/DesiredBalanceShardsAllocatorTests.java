@@ -362,9 +362,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testIndexCreationInterruptsLongDesiredBalanceComputation() throws Exception {
         var discoveryNode = newNode("node-0");
-        var discoveryNode2 = newNode("node-1");
         var initialState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()).add(discoveryNode2))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
             .build();
         final var ignoredIndexName = "index-ignored";
 
@@ -389,49 +388,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             public void allocate(RoutingAllocation allocation) {
                 // simulate long computation
                 time.addAndGet(1_000);
-
-                var dataNodesIt = allocation.nodes().getDataNodes().values().iterator();
-                assertTrue(dataNodesIt.hasNext());
-                var dataNodeId1 = dataNodesIt.next().getId();
-                assertTrue(dataNodesIt.hasNext());
-                var dataNodeId2 = dataNodesIt.next().getId();
-
-//                while (allocation.routingNodes().unassigned().size() > 0) {
-                    var unassignedPrimaries = allocation.routingNodes().unassigned().getNumPrimaries();
-
-                    var unassignedIterator = allocation.routingNodes().unassigned().iterator();
-                    while (unassignedIterator.hasNext()) {
-                        var shardRouting = unassignedIterator.next();
-                        if (shardRouting.primary()) {
-                            logger.info("~~~ assigning primary: " + shardRouting.shardId());
-                            unassignedIterator.initialize(dataNodeId1, null, 0L, allocation.changes());
-                        }
-                    }
-
-                    // All the primaries are allocated by now. If primaries were just allocated, can't assign replicas yet, have to ignore them.
-                    unassignedIterator = allocation.routingNodes().unassigned().iterator();
-                    while (unassignedIterator.hasNext()) {
-                        logger.info("~~~ unassigned: " + unassignedIterator.next().shardId());
-                    }
-                    unassignedIterator = allocation.routingNodes().unassigned().iterator();
-                    while (unassignedIterator.hasNext()) {
-                        var shardRouting = unassignedIterator.next();
-                        assertFalse(shardRouting.primary());
-                        if (unassignedPrimaries == 0) {
-                            logger.info("~~~ assigning replica: " + shardRouting.shardId());
-                            unassignedIterator.initialize(dataNodeId2, null, 0L, allocation.changes());
-                        } else {
-                            logger.info("~~~ ignoring replica: " + shardRouting.shardId());
-                            allocation.routingNodes().unassigned().ignoreShard(shardRouting, null, allocation.changes());
-                        }
-                    }
-
-                    logger.info("~~~ unassigned count: " + allocation.routingNodes().unassigned().size());
-
-//                    if (allocation.routingNodes().unassigned().size() == 0) {
-//                        break;
-//                    }
-//                }
+                var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
                 allocation.routingNodes().setBalanceWeightStatsPerNode(Map.of());
             }
 
@@ -487,7 +449,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                var indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 5, 1)).build();
+                var indexMetadata = createIndex(indexName);
                 var newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
                     .routingTable(
@@ -515,10 +477,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             // computation takes longer than 2s.
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(0L));
             MockLog.assertThatLogger(() -> {
-                clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-1"));
-                safeAwait(rerouteFinished);
-                assertThat(clusterService.state().getRoutingTable().index("index-1").primaryShardsUnassigned(), equalTo(0));
-            },
+                    clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-1"));
+                    safeAwait(rerouteFinished);
+                    assertThat(clusterService.state().getRoutingTable().index("index-1").primaryShardsUnassigned(), equalTo(0));
+                },
                 DesiredBalanceComputer.class,
                 new MockLog.SeenEventExpectation(
                     "Should log interrupted computation",
@@ -531,10 +493,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(2L));
             // The computation should not get interrupted when the newly created index shard stays unassigned.
             MockLog.assertThatLogger(() -> {
-                clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask(ignoredIndexName));
-                safeAwait(rerouteFinished);
-                assertThat(clusterService.state().getRoutingTable().index(ignoredIndexName).primaryShardsUnassigned(), equalTo(5));
-            },
+                    clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask(ignoredIndexName));
+                    safeAwait(rerouteFinished);
+                    assertThat(clusterService.state().getRoutingTable().index(ignoredIndexName).primaryShardsUnassigned(), equalTo(1));
+                },
                 DesiredBalanceComputer.class,
                 new MockLog.UnseenEventExpectation(
                     "Should log interrupted computation",
@@ -1133,6 +1095,105 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         } finally {
             clusterService.close();
             terminate(threadPool);
+        }
+    }
+
+    public void testEarlyPublishDesiredBalanceForNewShardAllocation() {
+        var discoveryNode0 = newNode("node-0");
+        var discoveryNode1 = newNode("node-1");
+        var discoveryNode2 = newNode("node-2");
+        var discoveryNode3 = newNode("node-3");
+        var initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(discoveryNode0).localNodeId(discoveryNode0.getId()).masterNodeId(discoveryNode0.getId()))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode1))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode2))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode3))
+            .build();
+        final var ignoredIndexName = "index-ignored";
+
+        var threadPool = new TestThreadPool(getTestName());
+        var time = new AtomicLong(threadPool.relativeTimeInMillis());
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        var allocationServiceRef = new SetOnce<AllocationService>();
+        var reconcileAction = new DesiredBalanceReconcilerAction() {
+            @Override
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+            }
+        };
+
+        var gatewayAllocator = createGatewayAllocator((shardRouting, allocation, unassignedAllocationHandler) -> {
+            if (shardRouting.getIndexName().equals(ignoredIndexName)) {
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+            }
+        });
+        final var balancedShardsAllocator = new BalancedShardsAllocator();
+
+        // Make sure the computation takes at least a few iterations, where each iteration takes 1s (see {@code #shardsAllocator.allocate}).
+        // By setting the following setting we ensure the desired balance computation will be interrupted early to not delay assigning
+        // newly created primary shards. This ensures that we hit a desired balance computation (3s) which is longer than the configured
+        // setting below.
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2s").build()
+        );
+        final int minIterations = between(3, 10);
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            balancedShardsAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), balancedShardsAllocator, TEST_ONLY_EXPLAINER) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
+                }
+
+                @Override
+                boolean hasEnoughIterations(int currentIteration) {
+                    return currentIteration >= minIterations;
+                }
+            },
+            reconcileAction,
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP
+        );
+        var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
+        allocationServiceRef.set(allocationService);
+
+        var rerouteFinished = new CyclicBarrier(2);
+        // A mock cluster state update task for creating an index
+        class CreateIndexTask extends ClusterStateUpdateTask {
+            private final String indexName;
+
+            private CreateIndexTask(String indexName) {
+                this.indexName = indexName;
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                var indexMetadata = createIndex(indexName);
+                var newState = ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
+                    .routingTable(
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, currentState.routingTable())
+                            .addAsNew(indexMetadata)
+                    )
+                    .build();
+                return allocationService.reroute(
+                    newState,
+                    "test",
+                    ActionTestUtils.assertNoFailureListener(response -> safeAwait(rerouteFinished))
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
         }
     }
 

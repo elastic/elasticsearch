@@ -1240,7 +1240,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
 
                         final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
-                        shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
+                        shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());        ///////// add shard to node already has copy.
                         shardAssignmentChanged = true;
                         minNode.addShard(index, shard);
                         if (shard.primary() == false) {
@@ -1298,7 +1298,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Make a decision for allocating an unassigned shard. This method returns a two values in a tuple: the
+         * Make a decision for allocating an unassigned shard. This method returns two values in a tuple: the
          * first value is the {@link Decision} taken to allocate the unassigned shard, the second value is the
          * {@link ModelNode} representing the node that the shard should be assigned to. If the decision returned
          * is of type {@link Type#NO}, then the assigned node will be null.
@@ -1328,8 +1328,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
             for (ModelNode node : nodes.values()) {
                 if (node.containsShard(index, shard) && explain == false) {
-                    // decision is NO without needing to check anything further, so short circuit
-                    continue;
+                    // The node already has copy of this shard, so the decision is NO without needing to check anything further.
+                    continue; /////// this failed somehow, we didn't get here, and instead chose a node to assign that already had a copy...
                 }
 
                 // weight of this index currently on the node
@@ -1339,6 +1339,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     continue;
                 }
 
+                ////// shouldn't this return NO because the throttling decider is in play?? Why didn't it?
                 Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
                 if (explain) {
                     nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));

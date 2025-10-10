@@ -342,6 +342,19 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 break;
             }
         }
+        waitAfterDesiredBalanceUpdate();
+    }
+
+    public DesiredBalance getCurrentDesiredBalance() {
+        return currentDesiredBalanceRef.get();
+    }
+
+    private volatile boolean waitAfterDesiredBalanceUpdate = false;
+    public void setWaitAfterDesiredBalanceUpdate(boolean wait) {
+        waitAfterDesiredBalanceUpdate = wait;
+    }
+    private void waitAfterDesiredBalanceUpdate() {
+        while (waitAfterDesiredBalanceUpdate) {}
     }
 
     /**

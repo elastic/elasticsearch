@@ -7,23 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Function;
 
 public class QuerySettings {
@@ -55,7 +47,7 @@ public class QuerySettings {
             try {
                 return ZoneId.of(timeZone);
             } catch (Exception exc) {
-                throw new QlIllegalArgumentException("Invalid time zone [" + timeZone + "]");
+                throw new IllegalArgumentException("Invalid time zone [" + timeZone + "]");
             }
         },
         (_rcs) -> ZoneOffset.UTC
@@ -82,49 +74,6 @@ public class QuerySettings {
             if (found == false) {
                 throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
             }
-        }
-    }
-
-    public static QuerySettingsMap toMap(EsqlStatement statement) {
-        var settings = new HashMap<String, Expression>();
-        for (QuerySetting setting : statement.settings()) {
-            settings.put(setting.name(), setting.value());
-        }
-        return new QuerySettingsMap(settings);
-    }
-
-    public static class QuerySettingsMap implements Writeable {
-        private static final TransportVersion ESQL_CONFIGURATION_QUERY_SETTINGS = TransportVersion.fromName(
-            "esql_configuration_query_settings"
-        );
-
-        private final Map<String, Expression> settings;
-
-        public QuerySettingsMap(Map<String, Expression> settings) {
-            this.settings = settings;
-        }
-
-        public QuerySettingsMap(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(ESQL_CONFIGURATION_QUERY_SETTINGS)) {
-                this.settings = in.readMap(StreamInput::readString, r -> r.readNamedWriteable(Expression.class));
-            } else {
-                this.settings = Map.of();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(ESQL_CONFIGURATION_QUERY_SETTINGS)) {
-                out.writeMap(settings, StreamOutput::writeString, StreamOutput::writeNamedWriteable);
-            }
-        }
-
-        public <T> T get(QuerySettingDef<T> def, RemoteClusterService clusterService) {
-            Expression value = settings.get(def.name());
-            if (value == null) {
-                return def.defaultValueSupplier.apply(clusterService);
-            }
-            return def.get(value, clusterService);
         }
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingsMap;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -48,7 +47,6 @@ public class Configuration implements Writeable {
     private final ZoneId zoneId;
 
     private final QueryPragmas pragmas;
-    private final QuerySettingsMap settings;
 
     private final int resultTruncationMaxSizeRegular;
     private final int resultTruncationDefaultSizeRegular;
@@ -71,7 +69,6 @@ public class Configuration implements Writeable {
         String username,
         String clusterName,
         QueryPragmas pragmas,
-        QuerySettingsMap settings,
         int resultTruncationMaxSizeRegular,
         int resultTruncationDefaultSizeRegular,
         String query,
@@ -88,7 +85,6 @@ public class Configuration implements Writeable {
         this.clusterName = clusterName;
         this.locale = locale;
         this.pragmas = pragmas;
-        this.settings = settings;
         this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
         this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
         this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
@@ -126,7 +122,6 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
-        this.settings = new QuerySettingsMap(in);
     }
 
     @Override
@@ -152,7 +147,6 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
-        settings.writeTo(out);
     }
 
     public ZoneId zoneId() {
@@ -233,7 +227,6 @@ public class Configuration implements Writeable {
             username,
             clusterName,
             pragmas,
-            settings,
             resultTruncationMaxSizeRegular,
             resultTruncationDefaultSizeRegular,
             query,

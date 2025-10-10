@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.ZoneId;
@@ -97,7 +96,6 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             username,
             clusterName,
             pragmas,
-            new QuerySettings.QuerySettingsMap(Map.of()),
             resultTruncationMaxSize,
             resultTruncationDefaultSize,
             query,

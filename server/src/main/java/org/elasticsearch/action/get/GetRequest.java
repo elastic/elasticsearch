@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -67,9 +65,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public GetRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readString();
-        }
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -86,9 +81,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

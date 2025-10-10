@@ -33,7 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Writes a dense embedding result in the follow json format
@@ -63,16 +62,6 @@ public record DenseEmbeddingFloatResults(List<Embedding> embeddings)
 
     public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(DenseEmbeddingFloatResults.Embedding::new));
-    }
-
-    @SuppressWarnings("deprecation")
-    DenseEmbeddingFloatResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
-        this(
-            legacyTextEmbeddingResults.embeddings()
-                .stream()
-                .map(embedding -> new Embedding(embedding.values()))
-                .collect(Collectors.toList())
-        );
     }
 
     public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {

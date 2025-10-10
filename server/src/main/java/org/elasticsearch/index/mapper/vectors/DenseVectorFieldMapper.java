@@ -2166,8 +2166,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                onDiskRescore,
-                false
+                onDiskRescore
             );
         }
 

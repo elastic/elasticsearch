@@ -21,7 +21,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
-import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorEncoding;
@@ -36,7 +35,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 
-abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements HasIndexSlice {
+abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
 
     protected final int dimension;
     protected final int size;
@@ -62,7 +61,7 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements 
         this.byteSize = byteSize;
         this.similarityFunction = similarityFunction;
         this.flatVectorsScorer = flatVectorsScorer;
-        bfloatBytes = new byte[dimension * 2];
+        bfloatBytes = new byte[dimension * BFloat16.BYTES];
         value = new float[dimension];
     }
 
@@ -74,11 +73,6 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements 
     @Override
     public int size() {
         return size;
-    }
-
-    @Override
-    public IndexInput getSlice() {
-        return slice;
     }
 
     @Override

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
@@ -34,28 +35,38 @@ public abstract class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFo
         VERSION_CURRENT
     );
 
-    public ES93GenericFlatVectorsFormat(String name) {
+    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+
+    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+        float32VectorFormat.getName(),
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
+    );
+
+    private final DirectIOCapableFlatVectorsFormat writeFormat;
+    private final boolean useDirectIO;
+
+    public ES93GenericFlatVectorsFormat(String name, boolean useBFloat16, boolean useDirectIO) {
         super(name);
+        writeFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
+        this.useDirectIO = useDirectIO;
     }
-
-    protected abstract DirectIOCapableFlatVectorsFormat writeFlatVectorsFormat();
-
-    protected abstract boolean useDirectIOReads();
-
-    protected abstract Map<String, DirectIOCapableFlatVectorsFormat> supportedReadFlatVectorsFormats();
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        var flatFormat = writeFlatVectorsFormat();
-        boolean directIO = useDirectIOReads();
-        return new ES93GenericFlatVectorsWriter(META, flatFormat.getName(), directIO, state, flatFormat.fieldsWriter(state));
+        return new ES93GenericFlatVectorsWriter(META, writeFormat.getName(), useDirectIO, state, writeFormat.fieldsWriter(state));
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        var readFormats = supportedReadFlatVectorsFormats();
         return new ES93GenericFlatVectorsReader(META, state, (f, dio) -> {
-            var format = readFormats.get(f);
+            var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio);
         });
@@ -63,13 +74,6 @@ public abstract class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFo
 
     @Override
     public String toString() {
-        return getName()
-            + "(name="
-            + getName()
-            + ", writeFlatVectorFormat="
-            + writeFlatVectorsFormat()
-            + ", readFlatVectorsFormats="
-            + supportedReadFlatVectorsFormats().values()
-            + ")";
+        return getName() + "(name=" + getName() + ", writeFlatVectorFormat=" + writeFormat + ")";
     }
 }

@@ -53,7 +53,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
      */
     public ES93HnswBinaryQuantizedVectorsFormat(int maxConn, int beamWidth, boolean useDirectIO, boolean useBFloat16) {
         super(NAME, maxConn, beamWidth);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useDirectIO, useBFloat16);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useBFloat16, useDirectIO);
     }
 
     /**
@@ -76,7 +76,7 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useDirectIO, useBFloat16);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useBFloat16, useDirectIO);
     }
 
     @Override

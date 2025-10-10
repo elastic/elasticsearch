@@ -456,7 +456,7 @@ GET remote-cluster:logs-*-*::failures/_search
 GET *::data,*::failures,-logs-rdbms-*::failures/_stats
 GET <logs-{now/d}>::failures/_search
 ```
-
+% TEST[skip:backport]
 
 ## Parameters [api-conventions-parameters]
 

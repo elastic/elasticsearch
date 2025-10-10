@@ -119,6 +119,7 @@ POST child_example/_search?size=0
   }
 }
 ```
+% TEST[continued]
 
 1. The `type` points to type / mapping with the name `answer`.
 

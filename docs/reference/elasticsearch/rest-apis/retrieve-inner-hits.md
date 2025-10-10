@@ -175,8 +175,8 @@ An example of a response snippet that could be generated from the above search r
   }
 }
 ```
-%  TESTRESPONSE[s/"_source": \.\.\.,/"_source": $body.hits.hits.0._source,/]
-%  TESTRESPONSE[s/\.\.\./"took": $body.took, "timed_out": false, "_shards": $body._shards/]
+%  TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
+%  TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 1. The name used in the inner hit definition in the search request. A custom key can be used via the `name` option.
 
@@ -238,6 +238,59 @@ POST test/_search
 }
 ```
 
+<!--
+```console-result
+{
+  ...,
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1.0444684,
+    "hits": [
+      {
+        "_index": "test",
+        "_id": "1",
+        "_score": 1.0444684,
+        "_source": ...,
+        "inner_hits": {
+          "comments": { <1>
+            "hits": {
+              "total" : {
+                "value": 1,
+                "relation": "eq"
+              },
+              "max_score": 1.0444684,
+              "hits": [
+                {
+                  "_index": "test",
+                  "_id": "1",
+                  "_nested": {
+                    "field": "comments",
+                    "offset": 1
+                  },
+                  "_score": 1.0444684,
+                  "fields": {
+                    "comments.text.keyword": [
+                      "words words words"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+% TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
+
+-->
 
 ## Hierarchical levels of nested object fields and inner hits. [hierarchical-nested-inner-hits]
 
@@ -348,6 +401,8 @@ Which would look like:
   }
 }
 ```
+% TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 This indirect referencing is only supported for nested inner hits.
 

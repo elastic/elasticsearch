@@ -145,8 +145,9 @@ GET /exams/_search
   }
 }
 ```
+% TEST[setup:exams]
 
 1. Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `0`.
-% TEST[setup:exams]
+
 
 

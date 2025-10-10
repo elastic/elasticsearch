@@ -60,6 +60,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ### Using a custom endpoint
 

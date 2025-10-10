@@ -88,10 +88,10 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
 
     public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(vectorPerCluster, centroidsPerParentCluster, false);
+        this(vectorPerCluster, centroidsPerParentCluster, false, false);
     }
 
-    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useDirectIO) {
+    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useDirectIO, boolean useBFloat16) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -116,7 +116,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.useDirectIO = useDirectIO;
-        this.rawVectorFormat = float32VectorFormat;
+        this.rawVectorFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */

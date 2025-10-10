@@ -46,7 +46,7 @@ public class NodeJoiningIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // detect leader failover quickly
             .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(LeaderChecker.LEADER_CHECK_INTERVAL_SETTING.getKey(), "1ms")
+            .put(LeaderChecker.LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .build();
     }
 

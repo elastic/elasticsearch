@@ -14,13 +14,11 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.elasticsearch.gradle.internal.test.rerun.model.TestCase;
 import org.elasticsearch.gradle.internal.test.rerun.model.WorkUnit;
-import org.gradle.api.Action;
 import org.gradle.api.file.Directory;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.testing.TestDescriptor;
-import org.gradle.api.tasks.testing.TestFilter;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestResult;
 
@@ -66,9 +64,11 @@ public final class TestTaskConfigurer {
                             includes.add(testClassCase.getName() + "." + method);
 
                             if (paramString != null) {
-                                // Because of randomized runner quirks, we need skip the test method by itself whenever we want to skip a test
+                                // Because of randomized runner quirks, we need skip the test method by itself whenever we want to skip a
+                                // test
                                 // that has parameters
-                                // This is because the runner has *two* separate checks that can cause the test to end up getting executed, so
+                                // This is because the runner has *two* separate checks that can cause the test to end up getting executed,
+                                // so
                                 // we need filters that cover both checks
                                 includes.add(testClassCase.getName() + "." + methodWithoutParams);
                             } else {
@@ -76,7 +76,7 @@ public final class TestTaskConfigurer {
                                 includes.add(testClassCase.getName() + "." + method + " *");
                             }
                         }
-                        for (String include :includes) {
+                        for (String include : includes) {
                             testFilter.includeTestsMatching(include);
                         }
                     }

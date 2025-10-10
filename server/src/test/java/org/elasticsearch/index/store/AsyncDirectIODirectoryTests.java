@@ -44,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.apache.lucene.store.FSDirectory.open;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
@@ -74,7 +75,7 @@ public class AsyncDirectIODirectoryTests extends BaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path path) throws IOException {
-        return new FsDirectoryFactory.AlwaysDirectIODirectory(open(path), 8192, 8192, 32);
+        return new FsDirectoryFactory.AlwaysDirectIODirectory(open(path), 8192, 8192, randomIntBetween(0, 32));
     }
 
     public void testIndexWriteRead() throws IOException {

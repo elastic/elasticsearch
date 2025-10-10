@@ -41,6 +41,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         RandomSamplerAggregationBuilder.NAME,
         RandomSamplerAggregationBuilder::new
     );
+
     static {
         PARSER.declareInt(RandomSamplerAggregationBuilder::setSeed, SEED);
         PARSER.declareInt(RandomSamplerAggregationBuilder::setShardSeed, SHARD_SEED);
@@ -176,7 +177,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_2_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
@@ -41,6 +42,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
@@ -65,14 +67,20 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
         this.meterRegistry = meterRegistry;
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T> Setting<T> getRegisteredInstance(ClusterSettings clusterSettings, Setting<?> setting) {
+        // wtf Netty4Plugin ends up loaded twice in different classloaders, so we have to look up the setting instances by name
+        return (Setting<T>) Objects.requireNonNull(clusterSettings.get(setting.getKey()));
+    }
+
     @Override
     protected void doStart() {
-        clusterSettings.initializeAndWatch(
-            Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT,
+        clusterSettings.<Integer>initializeAndWatch(
+            getRegisteredInstance(clusterSettings, Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT),
             maxConcurrentTlsHandshakes -> this.maxConcurrentTlsHandshakes = maxConcurrentTlsHandshakes
         );
-        clusterSettings.initializeAndWatch(
-            Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED,
+        clusterSettings.<Integer>initializeAndWatch(
+            getRegisteredInstance(clusterSettings, Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED),
             maxDelayedTlsHandshakes -> this.maxDelayedTlsHandshakes = maxDelayedTlsHandshakes
         );
 

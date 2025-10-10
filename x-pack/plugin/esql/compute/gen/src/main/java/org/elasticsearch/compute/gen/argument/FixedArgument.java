@@ -84,7 +84,7 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
         // nothing to do
     }
 
@@ -105,6 +105,11 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
 
     @Override
     public void read(MethodSpec.Builder builder, boolean blockStyle) {
+        // nothing to do
+    }
+
+    @Override
+    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
         // nothing to do
     }
 

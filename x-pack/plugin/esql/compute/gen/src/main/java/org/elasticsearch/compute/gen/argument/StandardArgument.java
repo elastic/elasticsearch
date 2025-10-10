@@ -80,9 +80,19 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
         builder.addStatement("$T $LVector = $LBlock.asVector()", vectorType(type), name, name);
-        builder.beginControlFlow("if ($LVector == null)", name).addStatement(invokeBlockEval).endControlFlow();
+        builder.beginControlFlow("if ($LVector == null)", name);
+
+        if (invokeBlockEval.length == 1) {
+            builder.addStatement(invokeBlockEval[0]);
+            builder.endControlFlow();
+        } else {
+            for (String statement : invokeBlockEval) {
+                builder.addStatement(statement);
+            }
+            builder.endControlFlow();
+        }
     }
 
     @Override
@@ -122,6 +132,15 @@ public record StandardArgument(TypeName type, String name) implements Argument {
         }
 
         builder.addStatement("$T $L = $L.$L($L)", type, name, paramName(blockStyle), getMethod(type), params);
+    }
+
+    @Override
+    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
+        String params = firstParam;
+        if (type.equals(BYTES_REF)) {
+            params += ", " + name + "Scratch";
+        }
+        builder.addStatement("$T $L = $L.$L($L)", type, valueName(), accessor, getMethod(type), params);
     }
 
     @Override

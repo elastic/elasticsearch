@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -36,7 +35,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_TASK_NAME;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,7 +93,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
                     lastCheckpoint = 2;
                 }
-                verifyContinuousTransformHandlesData(lastCheckpoint);                
+                verifyContinuousTransformHandlesData(lastCheckpoint);
             }
             case UPGRADED -> {
                 client().performRequest(waitForYellow);

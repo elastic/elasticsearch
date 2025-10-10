@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -46,7 +45,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Function that takes two multivalued expressions and checks if values of one expression are all present(equals) in the other.
+ * Function that takes two multivalued expressions and checks if values of one expression(subset) are
+ * all present(equals) in the other (superset). Duplicates are ignored in the sense that for each
+ * duplicate in the subset, we will search/match against the first/any value in the superset.
  * <p>
  * Given Set A = {"a","b","c"} and Set B = {"b","c"}, the relationship between first (row) and second (column) arguments is:
  * <ul>
@@ -211,99 +212,90 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     @Evaluator(extraName = "Int", allNullsIsNull = false)
-    static boolean process(@Position int position, IntBlock field1, IntBlock field2) {
-        return containsAll(field1, field2, position, IntBlock::getInt);
-    }
-
-    @Evaluator(extraName = "Boolean", allNullsIsNull = false)
-    static boolean process(@Position int position, BooleanBlock field1, BooleanBlock field2) {
-        return containsAll(field1, field2, position, BooleanBlock::getBoolean);
-    }
-
-    @Evaluator(extraName = "Long", allNullsIsNull = false)
-    static boolean process(@Position int position, LongBlock field1, LongBlock field2) {
-        return containsAll(field1, field2, position, LongBlock::getLong);
-    }
-
-    @Evaluator(extraName = "Double", allNullsIsNull = false)
-    static boolean process(@Position int position, DoubleBlock field1, DoubleBlock field2) {
-        return containsAll(field1, field2, position, DoubleBlock::getDouble);
-    }
-
-    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
-    static boolean process(@Position int position, BytesRefBlock field1, BytesRefBlock field2) {
-        return containsAll(field1, field2, position, (block, index) -> {
-            var ref = new BytesRef();
-            // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
-            ref = block.getBytesRef(index, ref);
-            // pass empty ref as null
-            if (ref.length == 0) {
-                return null;
-            }
-            return ref;
-        });
-    }
-
-    /**
-     * A block is considered a subset if the superset contains values that test equal for all the values in the subset, independent of
-     * order. Duplicates are ignored in the sense that for each duplicate in the subset, we will search/match against the first/any value
-     * in the superset.
-     *
-     * @param superset block to check against
-     * @param subset   block containing values that should be present in the other block.
-     * @return {@code true} if the given blocks are a superset and subset to each other, {@code false} if not.
-     */
-    static <BlockType extends Block, Type> boolean containsAll(
-        BlockType superset,
-        BlockType subset,
-        final int position,
-        ValueExtractor<BlockType, Type> valueExtractor
-    ) {
-        if (superset == subset) {
-            return true;
-        }
-        if (subset.areAllValuesNull()) {
+    static boolean process(@Position int position, IntBlock superset, IntBlock subset) {
+        if (superset == subset || subset.areAllValuesNull()) {
             return true;
         }
 
         final var valueCount = subset.getValueCount(position);
         final var startIndex = subset.getFirstValueIndex(position);
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            var value = valueExtractor.extractValue(subset, valueIndex);
-            if (value == null) { // null entries are considered to always be an element in the superset.
-                continue;
-            }
-            if (hasValue(superset, position, value, valueExtractor) == false) {
+            var value = subset.getInt(valueIndex);
+            if (superset.hasValue(position, value) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    /**
-     * Check if the block has the value at any of it's positions
-     * @param superset Block to search
-     * @param value to search for
-     * @return true if the supplied long value is in the supplied Block
-     */
-    static <BlockType extends Block, Type> boolean hasValue(
-        BlockType superset,
-        final int position,
-        Type value,
-        ValueExtractor<BlockType, Type> valueExtractor
-    ) {
-        final var supersetCount = superset.getValueCount(position);
-        final var startIndex = superset.getFirstValueIndex(position);
-        for (int supersetIndex = startIndex; supersetIndex < startIndex + supersetCount; supersetIndex++) {
-            var element = valueExtractor.extractValue(superset, supersetIndex);
-            if (element != null && element.equals(value)) {
-                return true;
+    @Evaluator(extraName = "Boolean", allNullsIsNull = false)
+    static boolean process(@Position int position, BooleanBlock superset, BooleanBlock subset) {
+        if (superset == subset || subset.areAllValuesNull()) {
+            return true;
+        }
+
+        final var valueCount = subset.getValueCount(position);
+        final var startIndex = subset.getFirstValueIndex(position);
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            var value = subset.getBoolean(valueIndex);
+            if (superset.hasValue(position, value) == false) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
-    interface ValueExtractor<BlockType extends Block, Type> {
-        Type extractValue(BlockType block, int position);
+    @Evaluator(extraName = "Long", allNullsIsNull = false)
+    static boolean process(@Position int position, LongBlock superset, LongBlock subset) {
+        if (superset == subset || subset.areAllValuesNull()) {
+            return true;
+        }
+
+        final var valueCount = subset.getValueCount(position);
+        final var startIndex = subset.getFirstValueIndex(position);
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            var value = subset.getLong(valueIndex);
+            if (superset.hasValue(position, value) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Evaluator(extraName = "Double", allNullsIsNull = false)
+    static boolean process(@Position int position, DoubleBlock superset, DoubleBlock subset) {
+        if (superset == subset || subset.areAllValuesNull()) {
+            return true;
+        }
+
+        final var valueCount = subset.getValueCount(position);
+        final var startIndex = subset.getFirstValueIndex(position);
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            var value = subset.getDouble(valueIndex);
+            if (superset.hasValue(position, value) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
+    static boolean process(@Position int position, BytesRefBlock superset, BytesRefBlock subset) {
+        if (superset == subset || subset.areAllValuesNull()) {
+            return true;
+        }
+
+        final var valueCount = subset.getValueCount(position);
+        final var startIndex = subset.getFirstValueIndex(position);
+        var value = new BytesRef();
+        var scratch = new BytesRef();
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            // we pass in a reference, but sometimes we only get a return value, see ConstantBytesRefVector.getBytesRef
+            value = subset.getBytesRef(valueIndex, value);
+            if (superset.hasValue(position, value, scratch) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

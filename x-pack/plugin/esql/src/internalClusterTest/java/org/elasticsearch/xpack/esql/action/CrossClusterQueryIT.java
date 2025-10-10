@@ -383,24 +383,24 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         // an error is thrown if there is a concrete index that does not match
         {
             String q = "FROM nomatch*,cluster-a:nomatch";
-            String expectedError = "Unknown index [cluster-a:nomatch,nomatch*]";
+            String expectedError = "Unknown index [nomatch*,cluster-a:nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
         {
             String q = "FROM nomatch*,cluster-a:nomatch*";
-            String expectedError = "Unknown index [cluster-a:nomatch*,nomatch*]";
+            String expectedError = "Unknown index [nomatch*,cluster-a:nomatch*]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch";
-            String expectedError = "Unknown index [cluster-a:nomatch,nomatch]";
+            String expectedError = "Unknown index [nomatch,cluster-a:nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch*";
-            String expectedError = "Unknown index [cluster-a:nomatch*,nomatch]";
+            String expectedError = "Unknown index [nomatch,cluster-a:nomatch*]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 

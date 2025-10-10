@@ -540,7 +540,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final IndexOutput tempBinaryOffsets;
 
         CompressedBinaryBlockWriter() throws IOException {
-            compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(3);
+            compressor = new Zstd814StoredFieldsFormat.ZstdCompressor(1);
             tempBinaryOffsets = state.directory.createTempOutput(state.segmentInfo.name, "binary_pointers", state.context);
             boolean success = false;
             try {

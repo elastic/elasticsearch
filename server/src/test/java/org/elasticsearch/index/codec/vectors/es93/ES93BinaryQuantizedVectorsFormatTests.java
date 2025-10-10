@@ -84,7 +84,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(random().nextBoolean(), useBFloat16());
+        format = new ES93BinaryQuantizedVectorsFormat(useBFloat16(), random().nextBoolean());
         super.setUp();
     }
 

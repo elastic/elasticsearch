@@ -25,14 +25,12 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryFlatVectorsScorer;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsReader;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsWriter;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
@@ -91,55 +89,21 @@ public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsForm
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
-    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
-    );
-    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
-    );
-
-    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        float32VectorFormat.getName(),
-        float32VectorFormat,
-        bfloat16VectorFormat.getName(),
-        bfloat16VectorFormat
-    );
-
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-
-    private final boolean useDirectIO;
-    private final DirectIOCapableFlatVectorsFormat rawFormat;
 
     public ES93BinaryQuantizedVectorsFormat() {
         this(false, false);
     }
 
-    public ES93BinaryQuantizedVectorsFormat(boolean useDirectIO, boolean useBFloat16) {
-        super(NAME);
-        this.useDirectIO = useDirectIO;
-        this.rawFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
+    public ES93BinaryQuantizedVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
+        super(NAME, useBFloat16, useDirectIO);
     }
 
     @Override
     protected FlatVectorsScorer flatVectorsScorer() {
         return scorer;
-    }
-
-    @Override
-    protected boolean useDirectIOReads() {
-        return useDirectIO;
-    }
-
-    @Override
-    protected DirectIOCapableFlatVectorsFormat writeFlatVectorsFormat() {
-        return rawFormat;
-    }
-
-    @Override
-    protected Map<String, DirectIOCapableFlatVectorsFormat> supportedReadFlatVectorsFormats() {
-        return supportedFormats;
     }
 
     @Override

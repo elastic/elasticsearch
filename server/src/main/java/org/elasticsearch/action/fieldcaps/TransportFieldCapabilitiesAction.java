@@ -357,9 +357,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static ResolvedIndexExpression createResolvedIndexExpression(String original, String[] concreteIndexNames) {
-        return new ResolvedIndexExpression(original, new ResolvedIndexExpression.LocalExpressions(
-            Set.of(concreteIndexNames), ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, null
-        ), Collections.emptySet());
+        return new ResolvedIndexExpression(
+            original,
+            new ResolvedIndexExpression.LocalExpressions(
+                Set.of(concreteIndexNames),
+                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                null
+            ),
+            Collections.emptySet()
+        );
     }
 
     public static Executor buildSingleThreadedExecutor(Executor searchCoordinationExecutor, Logger logger) {
@@ -411,9 +417,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
         if (indexResponses.size() > 0) {
             if (request.isMergeResults()) {
-                ActionListener.completeWith(listener, () -> merge(indexResponses, resolvedLocally, resolvedRemotely, task, request, failures));
+                ActionListener.completeWith(
+                    listener,
+                    () -> merge(indexResponses, resolvedLocally, resolvedRemotely, task, request, failures)
+                );
             } else {
-                listener.onResponse(FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses.values()).withResolved(resolvedLocally, resolvedRemotely).withFailures(failures).build());
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder()
+                        .withIndexResponses(indexResponses.values())
+                        .withResolved(resolvedLocally, resolvedRemotely)
+                        .withFailures(failures)
+                        .build()
+                );
             }
         } else {
             // we have no responses at all, maybe because of errors
@@ -427,7 +442,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         failure -> failure.getException() instanceof IllegalStateException ise
                             && ise.getCause() instanceof ElasticsearchTimeoutException
                     )) {
-                    listener.onResponse(FieldCapabilitiesResponse.builder().withResolved(resolvedLocally, resolvedRemotely).withFailures(failures).build());
+                    listener.onResponse(
+                        FieldCapabilitiesResponse.builder().withResolved(resolvedLocally, resolvedRemotely).withFailures(failures).build()
+                    );
                 } else {
                     // throw back the first exception
                     listener.onFailure(failures.get(0).getException());
@@ -515,7 +532,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         }
 
-        return FieldCapabilitiesResponse.builder().withIndices(indices).withResolved(resolvedLocally, resolvedRemotely).withFields(fields).withFailures(failures).build();
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(indices)
+            .withResolved(resolvedLocally, resolvedRemotely)
+            .withFields(fields)
+            .withFailures(failures)
+            .build();
     }
 
     private static boolean shouldLogException(Exception e) {

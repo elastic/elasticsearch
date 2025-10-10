@@ -435,9 +435,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetResultMappings_DependentVariableMappingHasNoTypes() {
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder().withFields(
-            Collections.singletonMap("foo", Collections.emptyMap())
-        ).build();
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(Collections.singletonMap("foo", Collections.emptyMap()))
+            .build();
         expectThrows(
             ElasticsearchStatusException.class,
             () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse)
@@ -458,9 +458,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                 Map.of("type", "double")
             )
         );
-        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder().withFields(
-            Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy")))
-        ).build();
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = FieldCapabilitiesResponse.builder()
+            .withFields(Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy"))))
+            .build();
 
         Map<String, Object> resultMappings = new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse);
 

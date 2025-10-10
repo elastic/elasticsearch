@@ -49,8 +49,14 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
     public static FieldCapabilitiesResponse empty() {
-        return new FieldCapabilitiesResponse(Strings.EMPTY_ARRAY, null,
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList(), Collections.emptyList());
+        return new FieldCapabilitiesResponse(
+            Strings.EMPTY_ARRAY,
+            null,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
     }
 
     public static FieldCapabilitiesResponse.Builder builder() {
@@ -242,8 +248,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         private List<FieldCapabilitiesIndexResponse> indexResponses = Collections.emptyList();
         private List<FieldCapabilitiesFailure> failures = Collections.emptyList();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder withIndices(String[] indices) {
             this.indices = indices;
@@ -275,6 +280,5 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             return new FieldCapabilitiesResponse(indices, resolvedLocally, resolvedRemotely, fields, indexResponses, failures);
         }
     }
-
 
 }

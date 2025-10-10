@@ -9,7 +9,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -63,7 +62,11 @@ public enum FieldCapsUtils {
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
             List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
 
-            return FieldCapabilitiesResponse.builder().withIndices(indices.toArray(String[]::new)).withFields(responseMap).withFailures(failures).build();
+            return FieldCapabilitiesResponse.builder()
+                .withIndices(indices.toArray(String[]::new))
+                .withFields(responseMap)
+                .withFailures(failures)
+                .build();
         }
     );
 

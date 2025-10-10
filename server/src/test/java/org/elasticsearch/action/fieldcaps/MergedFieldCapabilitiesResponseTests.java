@@ -180,7 +180,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         List<FieldCapabilitiesFailure> failureMap = List.of(
             new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
-        return FieldCapabilitiesResponse.builder().withIndices(new String[] { "index1", "index2", "index3", "index4" }).withFields(responses).withFailures(failureMap).build();
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(new String[] { "index1", "index2", "index3", "index4" })
+            .withFields(responses)
+            .withFailures(failureMap)
+            .build();
     }
 
     public void testChunking() {

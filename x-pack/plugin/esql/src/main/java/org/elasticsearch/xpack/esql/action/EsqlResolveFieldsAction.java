@@ -146,12 +146,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
             // No indices at all!
-            listener.onResponse(
-                new EsqlResolveFieldsResponse(
-                    FieldCapabilitiesResponse.empty(),
-                    minTransportVersion.get()
-                )
-            );
+            listener.onResponse(new EsqlResolveFieldsResponse(FieldCapabilitiesResponse.empty(), minTransportVersion.get()));
             return;
         }
 
@@ -333,7 +328,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
         if (indexResponses.isEmpty() == false) {
-            listener.onResponse(FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses.values()).withFailures(failures).build());
+            listener.onResponse(
+                FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses.values()).withFailures(failures).build()
+            );
         } else {
             // we have no responses at all, maybe because of errors
             if (indexFailures.isEmpty() == false) {

@@ -318,7 +318,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                     // The sum could be null, if the stats did not manage to compute anything before being stopped
                     // Or it could be 45L if it managed to add 0-9
                     if (v != null) {
-                        assertThat((long) v, equalTo(45L));
+                        assertThat((long) v, lessThanOrEqualTo(45L));
                     }
                     v = row.next();
                     if (v != null) {

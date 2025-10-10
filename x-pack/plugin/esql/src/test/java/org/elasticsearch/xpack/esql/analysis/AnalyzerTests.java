@@ -3182,12 +3182,12 @@ public class AnalyzerTests extends ESTestCase {
             new IndexResolver.FieldsInfo(
                 FieldCapabilitiesResponse.builder()
                     .withIndexResponses(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
+                        List.of(
+                            fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                            fieldCapabilitiesIndexResponse("bar", Map.of())
                         )
                     )
-                        .build(),
+                    .build(),
                 true,
                 true
             )
@@ -3211,12 +3211,13 @@ public class AnalyzerTests extends ESTestCase {
             new IndexResolver.FieldsInfo(
                 FieldCapabilitiesResponse.builder()
                     .withIndexResponses(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ))
-                        .build(),
+                        List.of(
+                            fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                            fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                            fieldCapabilitiesIndexResponse("bazz", Map.of())
+                        )
+                    )
+                    .build(),
                 true,
                 true
             )
@@ -3239,11 +3240,12 @@ public class AnalyzerTests extends ESTestCase {
             new IndexResolver.FieldsInfo(
                 FieldCapabilitiesResponse.builder()
                     .withIndexResponses(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
-                    ))
-                .build(),
+                        List.of(
+                            fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                            fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
+                        )
+                    )
+                    .build(),
                 true,
                 true
             )
@@ -3264,12 +3266,13 @@ public class AnalyzerTests extends ESTestCase {
             new IndexResolver.FieldsInfo(
                 FieldCapabilitiesResponse.builder()
                     .withIndexResponses(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("qux", Map.of())
-                    ))
+                        List.of(
+                            fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                            fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                            fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
+                            fieldCapabilitiesIndexResponse("qux", Map.of())
+                        )
+                    )
                     .build(),
                 true,
                 true
@@ -3293,11 +3296,12 @@ public class AnalyzerTests extends ESTestCase {
             new IndexResolver.FieldsInfo(
                 FieldCapabilitiesResponse.builder()
                     .withIndexResponses(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ))
+                        List.of(
+                            fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                            fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                            fieldCapabilitiesIndexResponse("bazz", Map.of())
+                        )
+                    )
                     .build(),
                 true,
                 true
@@ -3316,9 +3320,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testResolveDenseVector() {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
-                .withIndexResponses(
-            List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
-        ).build();
+            .withIndexResponses(
+                List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3335,14 +3340,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testResolveAggregateMetricDouble() {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
-                .withIndexResponses(
-            List.of(
-                fieldCapabilitiesIndexResponse(
-                    "foo",
-                    Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+            .withIndexResponses(
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+                    )
                 )
             )
-        ).build();
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3803,7 +3809,11 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build(), true, true);
+        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(
+            FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build(),
+            true,
+            true
+        );
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);

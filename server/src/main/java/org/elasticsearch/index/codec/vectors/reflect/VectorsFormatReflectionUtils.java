@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.reflect;
 
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
@@ -73,9 +72,9 @@ public class VectorsFormatReflectionUtils {
         return (RandomVectorScorerSupplier) SUPPLIER_HANDLE.get(scorerSupplier);
     }
 
-    public static HasIndexSlice getFloatScoringSupplierVectorOrNull(RandomVectorScorerSupplier supplier) {
-        if (supplier.getClass().equals(FLOAT_SCORING_SUPPLIER_CLASS)) {
-            var vectorValues = FLOAT_VECTORS_HANDLE.get(supplier);
+    public static HasIndexSlice getFloatScoringSupplierVectorOrNull(RandomVectorScorerSupplier scorerSupplier) {
+        if (FLOAT_SCORING_SUPPLIER_CLASS.isAssignableFrom(scorerSupplier.getClass())) {
+            var vectorValues = FLOAT_VECTORS_HANDLE.get(scorerSupplier);
             if (vectorValues instanceof HasIndexSlice indexSlice) {
                 return indexSlice;
             }
@@ -83,9 +82,9 @@ public class VectorsFormatReflectionUtils {
         return null;
     }
 
-    public static HasIndexSlice getByteScoringSupplierVectorOrNull(RandomVectorScorerSupplier supplier) {
-        if (supplier.getClass().equals(BYTE_SCORING_SUPPLIER_CLASS)) {
-            var vectorValues = BYTE_VECTORS_HANDLE.get(supplier);
+    public static HasIndexSlice getByteScoringSupplierVectorOrNull(RandomVectorScorerSupplier scorerSupplier) {
+        if (BYTE_SCORING_SUPPLIER_CLASS.isAssignableFrom(scorerSupplier.getClass())) {
+            var vectorValues = BYTE_VECTORS_HANDLE.get(scorerSupplier);
             if (vectorValues instanceof HasIndexSlice indexSlice) {
                 return indexSlice;
             }

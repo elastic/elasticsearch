@@ -72,7 +72,7 @@ setup:
 # killing the node
   - do:
      cluster.health:
-       index: [".ml-state-000001", ".ml-anomalies-shared"]
+       index: [".ml-state-000001", ".ml-anomalies*"]
        wait_for_status: green
 
 ---
@@ -136,7 +136,7 @@ setup:
 # killing the node
   - do:
      cluster.health:
-       index: [".ml-state-000001", ".ml-anomalies-shared"]
+       index: [".ml-state-000001", ".ml-anomalies*"]
        wait_for_status: green
 
 ---
@@ -196,7 +196,7 @@ setup:
 # killing the node
   - do:
      cluster.health:
-       index: [".ml-state-000001", ".ml-anomalies-shared"]
+       index: [".ml-state-000001", ".ml-anomalies*"]
        wait_for_status: green
 
 ---
@@ -259,7 +259,7 @@ setup:
   # killing the node
   - do:
       cluster.health:
-        index: [".ml-state-000001", ".ml-anomalies-shared"]
+        index: [".ml-state-000001", ".ml-anomalies*"]
         wait_for_status: green
 
 ---

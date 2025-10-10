@@ -73,7 +73,8 @@
       }
     },
     "body": {
-      "description": "Influencer selection criteria"
+      "description": "Influencer selection criteria",
+      "required": true
     }
   }
 }

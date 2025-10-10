@@ -74,7 +74,8 @@
       }
     },
     "body": {
-      "description": "The conditions that needs to be met for executing rollover"
+      "description": "The conditions that needs to be met for executing rollover",
+      "required": true
     }
   }
 }

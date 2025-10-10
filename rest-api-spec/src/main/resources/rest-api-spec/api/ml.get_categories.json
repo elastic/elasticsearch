@@ -65,7 +65,8 @@
       }
     },
     "body": {
-      "description": "Category selection details if not provided in URI"
+      "description": "Category selection details if not provided in URI",
+      "required": true
     }
   }
 }

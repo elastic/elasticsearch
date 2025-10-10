@@ -46,7 +46,8 @@
       }
     },
     "body": {
-      "description": "The start datafeed parameters"
+      "description": "The start datafeed parameters",
+      "required": true
     }
   }
 }

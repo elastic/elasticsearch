@@ -42,7 +42,8 @@
       }
     },
     "body": {
-      "description": "Reversion options"
+      "description": "Reversion options",
+      "required": true
     }
   }
 }

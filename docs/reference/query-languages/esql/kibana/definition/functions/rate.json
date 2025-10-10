@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute)"
+    "TS k8s\n| STATS MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

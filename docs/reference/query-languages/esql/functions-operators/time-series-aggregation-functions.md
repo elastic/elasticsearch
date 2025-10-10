@@ -31,10 +31,10 @@ supports the following time series aggregation functions:
 :::{include} ../_snippets/functions/layout/first_over_time.md
 :::
 
-:::{include} ../_snippets/functions/layout/increase.md
+:::{include} ../_snippets/functions/layout/idelta.md
 :::
 
-:::{include} ../_snippets/functions/layout/idelta.md
+:::{include} ../_snippets/functions/layout/increase.md
 :::
 
 :::{include} ../_snippets/functions/layout/irate.md

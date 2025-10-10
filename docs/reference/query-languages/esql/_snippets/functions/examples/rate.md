@@ -4,7 +4,7 @@
 
 ```esql
 TS k8s
-| STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute)
+| STATS MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)
 ```
 
 | max(rate(network.total_bytes_in)): double | time_bucket:date |

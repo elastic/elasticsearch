@@ -28,13 +28,12 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 
 /**
  *  This indicator reports health data about the shard capacity across the cluster.
@@ -261,7 +260,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            verbose ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), unhealthyThresholdYellow, unhealthyThresholdRed) : HealthIndicatorDetails.EMPTY,
+            verbose
+                ? buildDetails(statusResults.stream().map(StatusResult::result).toList(), unhealthyThresholdYellow, unhealthyThresholdRed)
+                : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
             verbose ? List.copyOf(diagnoses) : List.of()
         );
@@ -288,8 +289,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results, int unhealthyThresholdYellow,
-        int unhealthyThresholdRed) {
+    static HealthIndicatorDetails buildDetails(
+        List<ShardLimitValidator.Result> results,
+        int unhealthyThresholdYellow,
+        int unhealthyThresholdRed
+    ) {
         return (builder, params) -> {
             builder.startObject();
             for (var result : results) {
@@ -325,7 +329,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         this.unhealthyThresholdYellow = value;
     }
 
-    private void setUnhealthyThresholdRed(int value){
+    private void setUnhealthyThresholdRed(int value) {
         this.unhealthyThresholdRed = value;
     }
 

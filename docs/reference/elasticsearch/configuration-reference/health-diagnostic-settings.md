@@ -50,5 +50,5 @@ The following are the *expert-level* settings available for configuring an inter
 `health.shard_capacity.unhealthy_threshold.yellow`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The minimum number of additional shards the cluster must still be able to allocate (on data or frozen nodes) for shard capacity health to remain `GREEN`. If fewer are available, health becomes `YELLOW`. Must be greater than `health.shard_capacity.unhealthy_threshold.red`. Defaults to `10`.
 
-`health.shard_capacity.unhealthy_threshold.red`
+`health.shard_capacity.unhealthy_threshold.red` {applies_to}`stack: ga 9.3`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The minimum number of additional shards the cluster must still be able to allocate (on data or frozen nodes) below which shard capacity health becomes `RED`. Must be less than `health.shard_capacity.unhealthy_threshold.yellow`. Defaults to `5`.

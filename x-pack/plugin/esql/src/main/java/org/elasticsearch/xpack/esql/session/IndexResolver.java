@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -24,12 +25,14 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -133,11 +136,33 @@ public class IndexResolver {
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
-        TransportVersion minTransportVersion,
+        @Nullable TransportVersion minTransportVersion,
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported
-    ) {}
+    ) {
+        /**
+         * The {@link #minTransportVersion}, but if any remote didn't tell us the version we assume
+         * that it's very, very old. This effectively disables any fields that were created "recently".
+         * Which is appropriate because those fields are not supported on *almost* all versions that
+         * don't return the transport version in the response.
+         * <p>
+         *     "Recently" above means that there are versions of Elasticsearch that we're wire
+         *     compatible that with that don't support the field. These fields use
+         *     {@link SupportedVersion#supportedOn} rather than {@link SupportedVersion#SUPPORTED_ON_ALL_NODES}.
+         *     We maintain wire compatibility with the entire line of a major release.
+         *     Thus, "recently" could mean "a few years".
+         * </p>
+         * <p>
+         *     Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
+         *     we can remove this and make sure {@link #minTransportVersion} is non-null. That'll
+         *     be 10.0-ish.
+         * </p>
+         */
+        TransportVersion effectiveMinTransportVersion() {
+            return minTransportVersion != null ? minTransportVersion : TransportVersion.minimumCompatible();
+        }
+    }
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -272,7 +297,8 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        boolean typeSupported = type.supportedVersion().supports(fieldsInfo.minTransportVersion, fieldsInfo.currentBuildIsSnapshot)
+        boolean typeSupported = type.supportedVersion()
+            .supports(fieldsInfo.effectiveMinTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
             || switch (type) {
                 case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
                 case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;

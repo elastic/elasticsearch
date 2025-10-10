@@ -110,17 +110,30 @@ POST /_query
 ```
 
 
+### Duration units and matching rules
+
+Duration literals can be written with or without a space between the number and the unit
+(for example, `1m` is equivalent to `1 m`). Matching is **case-insensitive**.
+
 ## Supported temporal units [esql-time-spans-table]
 
 | Temporal Units | Valid Abbreviations |
 | --- | --- |
 | year | y, yr, years |
 | quarter | q, quarters |
-| month | mo, months |
+| month | m, mm, month, months |
 | week | w, weeks |
 | day | d, days |
 | hour | h, hours |
-| minute | min, minutes |
+| minute | min, mi, n, minute, minutes |
 | second | s, sec, seconds |
 | millisecond | ms, milliseconds |
 
+**Examples**
+
+```esql
+FROM t | WHERE date_col > NOW() - 1m     // month (same as: 1 m)
+FROM t | WHERE ts > NOW() - 1mi          // minute
+FROM t | WHERE ts > NOW() - 1n           // minute
+FROM t | WHERE ts > NOW() - 500ms        // millisecond
+```

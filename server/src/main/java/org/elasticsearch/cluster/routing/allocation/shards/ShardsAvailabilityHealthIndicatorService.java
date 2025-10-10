@@ -532,7 +532,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         // computations to the maxAffectedResourcesCount. The main negative side effect of this is that
                         // we might miss some diagnoses. We are willing to take this risk, and users can always
                         // use the allocation explain API for more details or increase the maxAffectedResourcesCount.
-                        // Since we have two `SharAllocationCounts` instances (primaries and replicas), we technically
+                        // Since we have two ShardAllocationCounts instances (primaries and replicas), we technically
                         // do 2 * maxAffectedResourcesCount computations, but the added complexity of accurately
                         // limiting the number of calls doesn't outweigh the benefits, as the main goal is to limit
                         // the number of computations to a constant rather than a number that grows with the cluster size.
@@ -543,7 +543,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
                 case INITIALIZING -> {
                     initializing++;
-                    if (verbose && initializing <= maxAffectedResourcesCount) {
+                    if (verbose) {
                         addDefinition(DIAGNOSIS_WAIT_FOR_INITIALIZATION, projectIndex);
                     }
                 }

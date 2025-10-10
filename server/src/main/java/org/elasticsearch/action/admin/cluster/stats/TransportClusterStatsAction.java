@@ -462,13 +462,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             );
             var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
-            remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
-                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                    responseListener.onResponse(null);
-                } else {
-                    remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
-                }
-            }));
+            remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) ->
+                responseListener.onResponse(null)
+            ));
         }
 
         @Override

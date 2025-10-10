@@ -63,26 +63,19 @@ public final class SearchContextId {
         TransportVersion version,
         ShardSearchFailure[] shardFailures
     ) {
-        assert shardFailures.length == 0 || version.onOrAfter(TransportVersions.V_8_16_0)
-            : "[allow_partial_search_results] cannot be enabled on a cluster that has not been fully upgraded to version ["
-                + TransportVersions.V_8_16_0.toReleaseVersion()
-                + "] or higher.";
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            boolean allowNullContextId = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
-            int shardSize = searchPhaseResults.size() + (allowNullContextId ? shardFailures.length : 0);
+            int shardSize = searchPhaseResults.size() + shardFailures.length;
             out.writeVInt(shardSize);
             for (var searchResult : searchPhaseResults) {
                 final SearchShardTarget target = searchResult.getSearchShardTarget();
                 target.getShardId().writeTo(out);
                 new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchResult.getContextId()).writeTo(out);
             }
-            if (allowNullContextId) {
-                for (var failure : shardFailures) {
-                    failure.shard().getShardId().writeTo(out);
-                    new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
-                }
+            for (var failure : shardFailures) {
+                failure.shard().getShardId().writeTo(out);
+                new SearchContextIdForNode(failure.shard().getClusterAlias(), null, null).writeTo(out);
             }
             out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return out.bytes();

@@ -46,11 +46,7 @@ public class IndexResponse extends DocWriteResponse {
         } else {
             executedPipelines = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-        } else {
-            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-        }
+        failureStoreStatus = IndexDocFailureStoreStatus.read(in);
     }
 
     public IndexResponse(StreamInput in) throws IOException {
@@ -60,11 +56,7 @@ public class IndexResponse extends DocWriteResponse {
         } else {
             executedPipelines = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-        } else {
-            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-        }
+        failureStoreStatus = IndexDocFailureStoreStatus.read(in);
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
@@ -126,9 +118,7 @@ public class IndexResponse extends DocWriteResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus.writeTo(out);
-        }
+        failureStoreStatus.writeTo(out);
     }
 
     @Override
@@ -137,9 +127,7 @@ public class IndexResponse extends DocWriteResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus.writeTo(out);
-        }
+        failureStoreStatus.writeTo(out);
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {

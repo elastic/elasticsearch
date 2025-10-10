@@ -105,20 +105,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     @Override
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
-        final ClusterState clusterState = clusterService.state();
-        // Check if all the nodes in this cluster know about the service
-        if (request.allowPartialSearchResults() && clusterState.getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    format(
-                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. "
-                            + "Please wait until the upgrade is fully completed and try again."
-                    ),
-                    RestStatus.BAD_REQUEST
-                )
-            );
-            return;
-        }
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())

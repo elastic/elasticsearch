@@ -47,12 +47,10 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBytesReference(pointInTimeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(totalShards);
-            out.writeVInt(successfulShards);
-            out.writeVInt(failedShards);
-            out.writeVInt(skippedShards);
-        }
+        out.writeVInt(totalShards);
+        out.writeVInt(successfulShards);
+        out.writeVInt(failedShards);
+        out.writeVInt(skippedShards);
     }
 
     @Override

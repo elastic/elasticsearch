@@ -41,13 +41,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeStats = new NodeStats(in);
         this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
         searchUsageStats = new SearchUsageStats(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            repositoryUsageStats = RepositoryUsageStats.readFrom(in);
-            searchCcsMetrics = new CCSTelemetrySnapshot(in);
-        } else {
-            repositoryUsageStats = RepositoryUsageStats.EMPTY;
-            searchCcsMetrics = new CCSTelemetrySnapshot();
-        }
+        repositoryUsageStats = RepositoryUsageStats.readFrom(in);
+        searchCcsMetrics = new CCSTelemetrySnapshot(in);
         esqlCcsMetrics = new CCSTelemetrySnapshot(in);
     }
 
@@ -117,10 +112,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
         searchUsageStats.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            repositoryUsageStats.writeTo(out);
-            searchCcsMetrics.writeTo(out);
-        } // else just drop these stats, ok for bwc
+        repositoryUsageStats.writeTo(out);
+        searchCcsMetrics.writeTo(out);
         esqlCcsMetrics.writeTo(out);
     }
 

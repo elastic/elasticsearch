@@ -117,23 +117,11 @@ public class NodesStatsRequestParameters implements Writeable {
         }
 
         public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeEnumSet(metrics);
-            } else {
-                out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
-            }
+            out.writeEnumSet(metrics);
         }
 
         public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                return in.readEnumSet(Metric.class);
-            } else {
-                return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {
-                    var name = is.readString();
-                    var metric = Metric.get(name);
-                    out.add(metric);
-                });
-            }
+            return in.readEnumSet(Metric.class);
         }
 
         public String metricName() {

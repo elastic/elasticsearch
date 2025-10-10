@@ -23,8 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.locationtech.jts.io.WKTReader;
-import org.locationtech.jts.io.WKTWriter;
+import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
@@ -93,20 +92,13 @@ public class StSimplify extends EsqlScalarFunction {
         out.writeNamedWriteable(tolerance);
     }
 
-    private static class GeoSimplifier {
-        static WKTReader reader = new WKTReader();
-        static WKTWriter writer = new WKTWriter();
-
-        public static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
-            String wkt = UNSPECIFIED.wkbToWkt(inputGeometry);
-            try {
-                org.locationtech.jts.geom.Geometry jtsGeometry = reader.read(wkt);
-                org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
-                String simplifiedWkt = writer.write(simplifiedGeometry);
-                return UNSPECIFIED.wktToWkb(simplifiedWkt);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+    private static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, double inputTolerance) {
+        try {
+            org.locationtech.jts.geom.Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
+            org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
+            return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("could not parse the geometry expression: " + e);
         }
     }
 
@@ -128,11 +120,11 @@ public class StSimplify extends EsqlScalarFunction {
 
     @Evaluator(extraName = "NonFoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
     static BytesRef processNonFoldableGeoAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
-        return GeoSimplifier.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+        return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 
     @Evaluator(extraName = "FoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
     static BytesRef processFoldableGeoAndConstantTolerance(@Fixed BytesRef inputGeometry, @Fixed double inputTolerance) {
-        return GeoSimplifier.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+        return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 }

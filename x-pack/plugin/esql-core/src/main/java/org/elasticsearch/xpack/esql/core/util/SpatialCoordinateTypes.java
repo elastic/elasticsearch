@@ -16,6 +16,9 @@ import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+import org.locationtech.jts.io.WKTWriter;
 
 import java.nio.ByteOrder;
 
@@ -125,4 +128,17 @@ public enum SpatialCoordinateTypes {
     public Geometry wkbToGeometry(BytesRef wkb) {
         return WellKnownBinary.fromWKB(validator(), false, wkb.bytes, wkb.offset, wkb.length);
     }
+
+    public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException {
+        String wkt = wkbToWkt(wkb);
+        WKTReader reader = new WKTReader();
+        return reader.read(wkt);
+    }
+
+    public BytesRef jtsGeometryToWkb(org.locationtech.jts.geom.Geometry jtsGeometry) {
+        WKTWriter writer = new WKTWriter();
+        String wkt = writer.write(jtsGeometry);
+        return wktToWkb(wkt);
+    }
+
 }

@@ -46,6 +46,7 @@
     "params": {
       "scroll": {
         "type": "time",
+        "default": "1d",
         "description": "Specify how long a consistent view of the index should be maintained for scrolled search"
       },
       "scroll_id": {
@@ -59,7 +60,8 @@
       }
     },
     "body": {
-      "description": "The scroll ID if not passed by URL or query parameter."
+      "description": "The scroll ID if not passed by URL or query parameter.",
+      "required": false
     }
   }
 }

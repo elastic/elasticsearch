@@ -270,7 +270,7 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
+        when(connection.getTransportVersion()).thenReturn(transportVersion);
 
         sender.sendRequest(connection, action, request, null, new TransportResponseHandler<>() {
             @Override

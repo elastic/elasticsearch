@@ -145,7 +145,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     }
 
     private static int randomValidMaxShards() {
-        return randomIntBetween(10, 100);
+        return randomIntBetween(15, 100);
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

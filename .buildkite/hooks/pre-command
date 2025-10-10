@@ -44,7 +44,10 @@ export GRADLE_BUILD_CACHE_USERNAME
 GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
 
-DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)"
+DEVELOCITY_API_ACCESS_KEY=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export DEVELOCITY_API_ACCESS_KEY
+
+DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$DEVELOCITY_API_ACCESS_KEY"
 export DEVELOCITY_ACCESS_KEY
 
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
@@ -112,6 +115,7 @@ if [[ "${USE_PERF_CREDENTIALS:-}" == "true" ]]; then
   export PERF_METRICS_PASSWORD
 fi
 
+
 # Authenticate to the Docker Hub public read-only registry
 if which docker > /dev/null 2>&1; then
   DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
@@ -139,6 +143,21 @@ EOF
 
 <summary>Agent information from gobld</summary>
 EOF
+fi
+
+if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
+  echo "--- Resolving previously failed tests"
+  BUILD_JSON=$(curl -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}")
+  ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r--arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id')
+  BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]')
+  BUILD_SCAN_ID=$(echo "$BUILD_SCAN_URL" | sed 's|.*/s/||')
+  DEVELOCITY_FAILED_TEST_API_URL="https://gradle-enterprise.elastic.co/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
+
+  curl --request GET \
+    --url $DEVELOCITY_FAILED_TEST_API_URL \
+    --header 'accept: application/json' \
+    --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
+    --header 'content-type: application/json' | gunzip | jq '.' &> failed-tests.json
 fi
 
 # Amazon Linux 2 has DNS resolution issues with resource-based hostnames in EC2

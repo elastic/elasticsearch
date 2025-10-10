@@ -146,14 +146,17 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
     }
 
     @Override
-    public ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus createNewStatus(Metadata metadata) {
-        return new ServerlessShardAllocationStatus(metadata);
+    public ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus createNewStatus(
+        Metadata metadata,
+        int maxAffectedResourcesCount
+    ) {
+        return new ServerlessShardAllocationStatus(metadata, maxAffectedResourcesCount);
     }
 
     public class ServerlessShardAllocationStatus extends ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus {
 
-        ServerlessShardAllocationStatus(Metadata clusterMetadata) {
-            super(clusterMetadata);
+        ServerlessShardAllocationStatus(Metadata clusterMetadata, int maxAffectedResourcesCount) {
+            super(clusterMetadata, maxAffectedResourcesCount);
         }
 
         /**

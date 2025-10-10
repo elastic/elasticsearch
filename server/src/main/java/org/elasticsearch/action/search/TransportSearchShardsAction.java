@@ -175,7 +175,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         timeProvider,
                         (SearchTask) task,
                         false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                        null // do not record a phase duration for can_match in search_shards
                     )
                         .addListener(
                             delegate.map(

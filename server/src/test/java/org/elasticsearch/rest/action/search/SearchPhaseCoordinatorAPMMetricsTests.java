@@ -122,11 +122,9 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
 
-        assertMeasurements(
-            List.of(CAN_MATCH_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC)
-        );
-
+        assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC, FETCH_SEARCH_PHASE_METRIC, QUERY_SEARCH_PHASE_METRIC));
     }
+
     private void resetMeter() {
         getTestTelemetryPlugin().resetMeter();
     }

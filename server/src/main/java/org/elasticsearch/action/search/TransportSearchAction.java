@@ -1643,7 +1643,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider,
                     task,
                     requireAtLeastOneMatch,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                    searchResponseMetrics
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(

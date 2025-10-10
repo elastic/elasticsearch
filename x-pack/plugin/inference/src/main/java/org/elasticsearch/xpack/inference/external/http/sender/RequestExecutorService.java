@@ -282,7 +282,7 @@ public class RequestExecutorService implements RequestExecutor {
                     break;
                 }
 
-                executeTaskImmediately((RequestTask) task);
+                executeTaskImmediately(task);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -294,7 +294,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private void executeTaskImmediately(RequestTask task) {
+    private void executeTaskImmediately(RejectableTask task) {
         try {
             task.getRequestManager()
                 .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());

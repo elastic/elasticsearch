@@ -1,0 +1,5 @@
+pr: 136350
+summary: Generate snapshot metrics from last applied state
+area: Snapshot/Restore
+type: bug
+issues: []

@@ -75,7 +75,8 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
         clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         project = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-        response = createResponse(indices, clusterState, project);
+        // Use empty array since clusterState has no indices
+        response = createResponse(new String[0], clusterState, project);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(1));
     }
 

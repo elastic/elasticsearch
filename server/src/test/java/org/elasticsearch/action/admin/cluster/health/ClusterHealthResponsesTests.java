@@ -161,7 +161,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "bla",
-            new String[] { Metadata.ALL },
+            new String[0], // Use empty array since clusterState has no indices
             clusterState,
             clusterState.metadata().getProject().id(),
             pendingTasks,

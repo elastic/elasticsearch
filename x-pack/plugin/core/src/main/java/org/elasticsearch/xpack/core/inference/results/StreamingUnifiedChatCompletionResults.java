@@ -363,7 +363,6 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
         }
 
         public record Usage(int completionTokens, int promptTokens, int totalTokens, Integer cachedTokens) implements Writeable {
-            // Constructor for backward compatibility
             public Usage(int completionTokens, int promptTokens, int totalTokens) {
                 this(completionTokens, promptTokens, totalTokens, null);
             }

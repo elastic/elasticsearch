@@ -49,6 +49,16 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         Setting.Property.Dynamic
     );
 
+    /** The default minimum number of vectors required before we build on the GPU.*/
+    public static final int DEFAULT_MIN_NUM_VECTORS_FOR_GPU_BUILD = 10_000;
+
+    public static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = tinySegmentProperty();
+
+    static int tinySegmentProperty() {
+        int v = Integer.parseInt(System.getProperty("gpu.tiny.segment.size", "-1"));
+        return v == -1 ? DEFAULT_MIN_NUM_VECTORS_FOR_GPU_BUILD : v;
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
         if (GPU_FORMAT.isEnabled()) {

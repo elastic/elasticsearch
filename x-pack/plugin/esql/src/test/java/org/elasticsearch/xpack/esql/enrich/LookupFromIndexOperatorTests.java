@@ -359,7 +359,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         if (applyRightFilterAsJoinOnFilter && operation != null) {
             // When applyRightFilterAsJoinOnFilter is true and operation is not null, the join expression includes the filter condition
             sb.append(
-                " join_on_expression=(match\\d+left [=!<>]+ match\\d+right( AND match\\d+left [=!<>]+ match\\d+right)* AND lint\\{f}#\\d+ < "
+                " join_on_expression=(match\\d+left [=!<>]+ match\\d+right( "
+                    + "AND match\\d+left [=!<>]+ match\\d+right)* AND lint\\{f}#\\d+ < "
             ).append(LESS_THAN_VALUE).append("\\[INTEGER]|)\\]");
         } else {
             // Standard pattern for other cases

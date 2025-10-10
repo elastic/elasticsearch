@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -160,7 +161,15 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private boolean applyAsRightSidePushableFilter(Expression filter) {
         if (filter instanceof TranslationAware translationAware) {
             if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                addToLucenePushableFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
+                QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
+                // Rewrite the query builder to ensure doIndexMetadataRewrite is called
+                // Some functions, such as KQL require rewriting to work properly
+                try {
+                    queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                addToLucenePushableFilters(queryBuilder);
                 return true;
             }
         }

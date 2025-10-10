@@ -1451,7 +1451,7 @@ public class EsqlCapabilities {
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
 
         INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
-        /*
+        /**
         * Lookup join with Full Text Function or other Lucene Pushable condition
         * to be applied to the lookup index used
         */

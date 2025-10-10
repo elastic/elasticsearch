@@ -222,18 +222,19 @@ public abstract class FullTextFunction extends Function
         if (condition instanceof Score) {
             failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
         }
-
-        List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-            // Check for limitations of QSTR and KQL function.
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                functionClass,
-                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                failures
-            );
-        });
+        if (plan instanceof LookupJoin == false) {
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+        }
 
         checkCommandsBeforeExpression(
             plan,

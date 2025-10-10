@@ -796,7 +796,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new UnresolvedAttribute(
                     condition.source(),
                     "unsupported",
-                    "Unsupported join filter expression: " + condition.sourceText()
+                    "Unsupported join filter expression:" + condition.sourceText()
                 );
             }
         }

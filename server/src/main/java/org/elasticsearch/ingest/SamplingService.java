@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -499,7 +498,17 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
                 for (Map.Entry<String, SamplingConfiguration> entry : samplingMetadata.getIndexToSamplingConfigMap().entrySet()) {
                     SamplingConfiguration samplingConfiguration = entry.getValue();
                     if (samplingConfiguration.creationDate().millis() + samplingConfiguration.timeToLive().millis() < now) {
-                        logger.debug("Configuration created at " + ZonedDateTime.ofInstant(Instant.ofEpochMilli(samplingConfiguration.creationDate().millis()), ZoneOffset.UTC) + " is older than " + samplingConfiguration.timeToLive() + " because it is now " + ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC));
+                        logger.debug(
+                            "Configuration created at "
+                                + ZonedDateTime.ofInstant(
+                                    Instant.ofEpochMilli(samplingConfiguration.creationDate().millis()),
+                                    ZoneOffset.UTC
+                                )
+                                + " is older than "
+                                + samplingConfiguration.timeToLive()
+                                + " because it is now "
+                                + ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
+                        );
                         deleteSampleConfiguration(projectMetadata.id(), entry.getKey());
                     }
                 }

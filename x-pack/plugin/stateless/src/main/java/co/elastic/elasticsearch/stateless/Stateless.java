@@ -1163,6 +1163,7 @@ public class Stateless extends Plugin
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL,
             ReplicasUpdaterService.REPLICA_UPDATER_SCALEDOWN_REPETITIONS,
+            ReplicasUpdaterService.AUTO_EXPAND_REPLICA_INDICES,
             SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING,

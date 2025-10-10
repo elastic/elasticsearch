@@ -645,6 +645,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcher {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136391
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136392
 
 # Examples:
 #

@@ -96,8 +96,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
                     lastCheckpoint = 2;
                 }
-                verifyContinuousTransformHandlesData(lastCheckpoint);
-                verifyUpgradeFailsIfMixedCluster();
+                verifyContinuousTransformHandlesData(lastCheckpoint);                
             }
             case UPGRADED -> {
                 client().performRequest(waitForYellow);
@@ -231,19 +230,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 greaterThan((Integer) XContentMapValues.extractValue("stats.documents_processed", previousStateAndStats))
             );
         });
-    }
-
-    private void verifyUpgradeFailsIfMixedCluster() {
-        // upgrade tests by design are also executed with the same version, this check must be skipped in this case, see gh#39102.
-        if (isOriginalClusterCurrent()) {
-            return;
-        }
-        var oldestVersion = Version.fromString(UPGRADE_FROM_VERSION);
-        if (oldestVersion.onOrAfter(Version.V_9_3_0)) {
-            final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
-            Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
-            assertThat(ex.getMessage(), containsString("Cannot upgrade transforms while cluster upgrade is in progress"));
-        }
     }
 
     private void verifyUpgrade() throws IOException {

@@ -451,12 +451,11 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 "prompt_tokens": %d,
                 "total_tokens": %d%s
             }
-            """, completionTokens, promptTokens, totalTokens,
-            cachedTokens != null ? Strings.format("""
-                ,
-                "prompt_tokens_details": {
-                    "cached_tokens": %d
-                }""", cachedTokens) : "");
+            """, completionTokens, promptTokens, totalTokens, cachedTokens != null ? Strings.format("""
+            ,
+            "prompt_tokens_details": {
+                "cached_tokens": %d
+            }""", cachedTokens) : "");
     }
 
     public void testUsageParsing() throws IOException {

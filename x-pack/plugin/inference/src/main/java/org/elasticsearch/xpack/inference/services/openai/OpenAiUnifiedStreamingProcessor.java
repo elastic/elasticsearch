@@ -276,14 +276,22 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             );
 
             static {
-                PROMPT_TOKENS_DETAILS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(CACHED_TOKENS_FIELD));
+                PROMPT_TOKENS_DETAILS_PARSER.declareInt(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    new ParseField(CACHED_TOKENS_FIELD)
+                );
             }
 
             private static final ConstructingObjectParser<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage, Void> PARSER =
                 new ConstructingObjectParser<>(
                     USAGE_FIELD,
                     true,
-                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage((int) args[0], (int) args[1], (int) args[2], (Integer) args[3])
+                    args -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
+                        (int) args[0],
+                        (int) args[1],
+                        (int) args[2],
+                        (Integer) args[3]
+                    )
                 );
 
             static {

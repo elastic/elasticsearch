@@ -134,8 +134,7 @@ public final class FetchPhase {
             context.fetchSourceContext(res.v1());
         }
 
-        if (lookup.inferenceFields().isEmpty() == false
-            && shouldExcludeInferenceFieldsFromSource(context.indexShard().indexSettings(), context.fetchSourceContext()) == false) {
+        if (lookup.inferenceFields().isEmpty() == false && shouldExcludeInferenceFieldsFromSource(context.fetchSourceContext()) == false) {
             // Rehydrate the inference fields into the {@code _source} because they were explicitly requested.
             var oldFetchFieldsContext = context.fetchFieldsContext();
             var newFetchFieldsContext = new FetchFieldsContext(new ArrayList<>());

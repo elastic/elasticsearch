@@ -64,6 +64,18 @@ public class BasicPageTests extends SerializationTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             in,
             page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock(),
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()
+            ),
+            Page::releaseBlocks
+        );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
             page -> new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock()),
             Page::releaseBlocks
         );
@@ -136,10 +148,10 @@ public class BasicPageTests extends SerializationTestCase {
                 Block block = page.getBlock(blockIndex);
                 blocks[blockIndex] = block.elementType()
                     .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
-                    .copyFrom(block, 0, page.getPositionCount() - 1)
+                    .copyFrom(block, 0, positions)
                     .build();
             }
-            return new Page(blocks);
+            return new Page(positions, blocks);
         };
 
         int positions = randomIntBetween(0, 512);

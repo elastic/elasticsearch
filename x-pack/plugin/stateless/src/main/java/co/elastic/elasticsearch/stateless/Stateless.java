@@ -1149,6 +1149,7 @@ public class Stateless extends Plugin
             IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
             IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
+            IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             AverageWriteLoadSampler.QUEUE_SIZE_SAMPLER_EWMA_ALPHA_SETTING,
             SearchShardSizeCollector.PUSH_INTERVAL_SETTING,

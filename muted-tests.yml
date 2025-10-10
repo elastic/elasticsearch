@@ -592,9 +592,6 @@ tests:
   method: test {csv-spec:math.PowIntInt}
   issue: https://github.com/elastic/elasticsearch/issues/136106
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:text-embedding.Text_embedding with knn on semantic_text_dense_field}
-  issue: https://github.com/elastic/elasticsearch/issues/136108
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.ContainsFail}
   issue: https://github.com/elastic/elasticsearch/issues/136112
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
@@ -606,9 +603,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:bucket.BucketByWeekInString}
   issue: https://github.com/elastic/elasticsearch/issues/136136
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:text-embedding.Text_embedding with knn (inline) on semantic_text_dense_field}
-  issue: https://github.com/elastic/elasticsearch/issues/136142
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
@@ -624,21 +618,51 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:math.LeastGreatestMany}
   issue: https://github.com/elastic/elasticsearch/issues/136161
-- class: org.elasticsearch.xpack.esql.qa.*.EsqlSpecIT
-  method: test {csv-spec:text-embedding.*}
-  issue: https://github.com/elastic/elasticsearch/issues/136090
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:categorize.Values aggs}
   issue: https://github.com/elastic/elasticsearch/issues/136230
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:text-embedding.Text_embedding using a row source operator}
-  issue: https://github.com/elastic/elasticsearch/issues/136234
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/10_basic/Field caps for number field with only doc values}
   issue: https://github.com/elastic/elasticsearch/issues/136244
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.SpaceNegative}
   issue: https://github.com/elastic/elasticsearch/issues/136249
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testDataStreams {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136353
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
+  method: testBwcCCSViaRCS1orRCS2
+  issue: https://github.com/elastic/elasticsearch/issues/136368
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testServiceAccountApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136390
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcher {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136391
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136392
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testTransformLegacyTemplateCleanup {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136393
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testApiKeySuperuser {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136394
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSecurityNativeRealm {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136395
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSlmPolicyAndStats {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136399
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query in a bool clause - missing num_candidates}
+  issue: https://github.com/elastic/elasticsearch/issues/136402
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/220_dense_vector_node_index_stats/index node stats non-quantized}
+  issue: https://github.com/elastic/elasticsearch/issues/136403
+- class: org.elasticsearch.TransportVersionTests
+  method: testVersionComparison
+  issue: https://github.com/elastic/elasticsearch/issues/136410
 
 # Examples:
 #

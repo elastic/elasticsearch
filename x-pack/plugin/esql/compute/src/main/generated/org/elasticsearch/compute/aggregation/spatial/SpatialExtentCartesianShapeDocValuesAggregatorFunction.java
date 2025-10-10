@@ -70,22 +70,12 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      addRawBlock(valuesBlock, mask);
-      return;
-    }
-    addRawVector(valuesVector, mask);
+    addRawBlock(valuesBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      addRawBlock(valuesBlock);
-      return;
-    }
-    addRawVector(valuesVector);
+    addRawBlock(valuesBlock);
   }
 
   private void addRawVector(IntVector valuesVector) {

@@ -18,6 +18,16 @@ import java.util.List;
  */
 public record PositionArgument() implements Argument {
     @Override
+    public String name() {
+        return null;
+    }
+
+    @Override
+    public TypeName type() {
+        return null;
+    }
+
+    @Override
     public TypeName dataType(boolean blockStyle) {
         return TypeName.INT;
     }
@@ -64,7 +74,7 @@ public record PositionArgument() implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
         // nothing to do
     }
 
@@ -85,6 +95,11 @@ public record PositionArgument() implements Argument {
 
     @Override
     public void read(MethodSpec.Builder builder, boolean blockStyle) {
+        // nothing to do
+    }
+
+    @Override
+    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
         // nothing to do
     }
 

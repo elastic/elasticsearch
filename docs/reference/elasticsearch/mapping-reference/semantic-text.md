@@ -664,4 +664,4 @@ POST local-index,remote-cluster:remote-index/_search
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `false`.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
-* `semantic_text` fields do not support Cross-Cluster Replication (CCR).
+* `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).

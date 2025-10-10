@@ -46,7 +46,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -348,10 +347,6 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
      * Verify that on failure to write using chunked writes, we do not accidentally delete files
      * (bug that we had, notice that assertions must be disabled to provoke it directly)
      */
-    @TestIssueLogging(
-        value = "org.elasticsearch.indices.IndicesService:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1954"
-    )
     public void testWriteFailure() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         var masterNode = startMasterOnlyNode(

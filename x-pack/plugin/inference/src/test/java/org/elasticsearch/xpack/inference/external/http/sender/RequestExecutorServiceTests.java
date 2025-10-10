@@ -34,18 +34,15 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
-import static org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueueTests.mockQueueCreator;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettingsEmpty;
 import static org.hamcrest.Matchers.instanceOf;
@@ -380,35 +377,34 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testQueuePoll_DoesNotCauseServiceToTerminate_WhenItThrows() throws InterruptedException {
-        @SuppressWarnings("unchecked")
-        BlockingQueue<RejectableTask> queue = mock(LinkedBlockingQueue.class);
-
+    public void testTask_DoesNotCauseServiceToTerminate_WhenItThrows() throws InterruptedException {
         var requestSender = mock(RetryingHttpSender.class);
-
-        var service = new RequestExecutorService(
-            threadPool,
-            mockQueueCreator(queue),
-            null,
-            createRequestExecutorServiceSettingsEmpty(),
-            requestSender,
-            Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
-        );
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id");
-        service.submitTaskToRateLimitedExecutionPath(
-            new RequestTask(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, threadPool, listener)
-        );
+        CountDownLatch taskProcessedLatch = new CountDownLatch(1);
 
-        when(queue.poll()).thenThrow(new ElasticsearchException("failed")).thenAnswer(invocation -> {
-            service.shutdown();
-            return null;
-        });
+        doAnswer(invocation -> {
+            taskProcessedLatch.countDown();
+            throw new ElasticsearchException("failed");
+        }).when(requestManager).execute(any(), any(), any(), any());
+
+        var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettingsEmpty(), requestSender);
+
         service.start();
 
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
+
+        // Wait for throwing task to be executed
+        assertTrue(taskProcessedLatch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
+
+        // Make sure service is still running after processing a task, which threw an Exception
+        assertFalse(service.isShutdown());
+        assertFalse(service.isTerminated());
+
+        service.shutdown();
+
         service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        assertTrue(service.isShutdown());
         assertTrue(service.isTerminated());
     }
 

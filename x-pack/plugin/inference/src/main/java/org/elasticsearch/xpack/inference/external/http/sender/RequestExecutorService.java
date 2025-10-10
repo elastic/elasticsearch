@@ -288,7 +288,7 @@ public class RequestExecutorService implements RequestExecutor {
             Thread.currentThread().interrupt();
             logger.debug("Inference request queue interrupted, exiting");
         } catch (Exception e) {
-            logger.warn("Error processing task in inference request queue", e);
+            logger.warn("Error taking next task in inference request queue", e);
         } finally {
             cleanup();
         }

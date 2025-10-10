@@ -1631,9 +1631,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * Limit[10[INTEGER],true]
-     * \_MvExpand[first_name{f}#7,first_name{r}#17]
-     *   \_EsqlProject[[first_name{f}#7, last_name{f}#10]]
+     * EsqlProject[[first_name{r}#17, last_name{f}#10]]
+     * \_Limit[10[INTEGER],true]
+     *   \_MvExpand[first_name{f}#7,first_name{r}#17]
      *     \_Limit[1[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      * }</pre>
@@ -1646,11 +1646,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand first_name
             | limit 10
             """);
-
-        var limit = asLimit(plan, 10, true);
+        var project = as(plan, EsqlProject.class);
+        var limit = asLimit(project.child(), 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var project = as(mvExpand.child(), EsqlProject.class);
-        var limit2 = asLimit(project.child(), 1, false);
+        var limit2 = asLimit(mvExpand.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
 
@@ -3080,6 +3079,61 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var keep = as(plan, Project.class);
         as(keep.child(), Enrich.class);
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{r}#17]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[salary{r}#17 > 20[INTEGER]]
+     *     \_MvExpand[salary{f}#11,salary{r}#17]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | keep *
+            | mv_expand salary
+            | where salary > 20
+            """);
+
+        var keep = as(plan, Project.class);
+        var limit = asLimit(keep.child(), 1000, false);
+        var filter = as(limit.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        as(mvExpand.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],true]
+     * \_MvExpand[b{r}#7,b{r}#13]
+     *   \_Limit[1000[INTEGER],true]
+     *     \_MvExpand[a{r}#5,a{r}#12]
+     *       \_Project[[a{r}#5, a{r}#5 AS b#7]]
+     *         \_Limit[1000[INTEGER],false]
+     *           \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN]) AS a#5]]
+     *             \_LocalRelation[[a{r}#3],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@7c1]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject2() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1
+            | stats a = count(*), b = count(*)
+            | mv_expand a
+            | mv_expand b
+            """);
+
+        var limit = asLimit(plan, 1000, true);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        limit = asLimit(mvExpand.child(), 1000, true);
+        mvExpand = as(limit.child(), MvExpand.class);
+        var keep = as(mvExpand.child(), Project.class);
+        limit = asLimit(keep.child(), 1000, false);
+        var agg = as(limit.child(), Aggregate.class);
+        as(agg.child(), LocalRelation.class);
     }
 
     public void testTopNEnrich() {
@@ -8334,14 +8388,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expects
      *
      * <pre>{@code
-     * TopN[[Order[emp_no{f}#23,ASC,LAST]],1000[INTEGER]]
-     * \_Filter[emp_no{f}#23 > 1[INTEGER]]
-     *   \_MvExpand[languages{f}#26,languages{r}#36]
-     *     \_Project[[language_name{f}#35, foo{r}#5 AS bar#18, languages{f}#26, emp_no{f}#23]]
-     *       \_Join[LEFT,[languages{f}#26],[languages{f}#26],[language_code{f}#34]]
-     *         |_Eval[[TOSTRING(languages{f}#26) AS foo#5]]
-     *         | \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
-     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#34, language_name{f}#35]
+     * EsqlProject[[language_name{f}#35, foo{r}#5 AS bar#18, languages{r}#36, emp_no{f}#23]]
+     * \_TopN[[Order[emp_no{f}#23,ASC,LAST]],1000[INTEGER]]
+     *   \_Filter[emp_no{f}#23 > 1[INTEGER]]
+     *     \_MvExpand[languages{f}#26,languages{r}#36]
+     *       \_Project[[_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, gender{f}#25, hire_date{f}#30, job{f}#31, job.raw{f}#32, l
+     * anguages{f}#26, last_name{f}#27, long_noidx{f}#33, salary{f}#28, foo{r}#5, languages{f}#26 AS language_code#8, language_name{f}#35]]
+     *         \_Join[LEFT,[languages{f}#26],[language_code{f}#34],null]
+     *           |_Eval[[TOSTRING(languages{f}#26) AS foo#5]]
+     *           | \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     *           \_EsRelation[languages_lookup][LOOKUP][language_code{f}#34, language_name{f}#35]
      * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
@@ -8358,11 +8414,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT emp_no
             """);
 
-        var topN = as(plan, TopN.class);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
         var filter = as(topN.child(), Filter.class);
         var mvExpand = as(filter.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var join = as(project.child(), Join.class);
+        var project2 = as(mvExpand.child(), Project.class);
+        var join = as(project2.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         as(eval.child(), EsRelation.class);
 

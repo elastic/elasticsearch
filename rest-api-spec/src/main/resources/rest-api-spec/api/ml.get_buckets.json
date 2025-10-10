@@ -96,7 +96,8 @@
       }
     },
     "body": {
-      "description": "Bucket selection details if not provided in URI"
+      "description": "Bucket selection details if not provided in URI",
+      "required": false
     }
   }
 }

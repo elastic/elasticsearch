@@ -44,7 +44,8 @@
       }
     },
     "body": {
-      "description": "The stop deployment parameters"
+      "description": "The stop deployment parameters",
+      "required": false
     }
   }
 }

@@ -243,7 +243,8 @@
       }
     },
     "body": {
-      "description": "The search definition using the Query DSL"
+      "description": "The search definition using the Query DSL",
+      "required": false
     }
   }
 }

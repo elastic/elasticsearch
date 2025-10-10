@@ -16,7 +16,10 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class QuerySettings {
     // TODO check cluster state and see if project routing is allowed
@@ -53,26 +56,23 @@ public class QuerySettings {
         (_rcs) -> ZoneOffset.UTC
     );
 
-    public static final QuerySettingDef<?>[] ALL_SETTINGS = { PROJECT_ROUTING, TIME_ZONE };
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
+        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));;
 
     public static void validate(EsqlStatement statement, RemoteClusterService clusterService) {
         for (QuerySetting setting : statement.settings()) {
-            boolean found = false;
-            for (QuerySettingDef<?> def : ALL_SETTINGS) {
-                if (def.name().equals(setting.name())) {
-                    found = true;
-                    if (setting.value().dataType() != def.type()) {
-                        throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
-                    }
-                    String error = def.validator().validate(setting.value(), clusterService);
-                    if (error != null) {
-                        throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
-                    }
-                    break;
-                }
-            }
-            if (found == false) {
+            QuerySettingDef<?> def = SETTINGS_BY_NAME.get(setting.name());
+            if (def == null) {
                 throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
+            }
+
+            if (setting.value().dataType() != def.type()) {
+                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
+            }
+
+            String error = def.validator().validate(setting.value(), clusterService);
+            if (error != null) {
+                throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
             }
         }
     }

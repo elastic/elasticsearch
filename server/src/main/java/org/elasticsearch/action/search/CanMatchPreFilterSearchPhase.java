@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -76,6 +77,8 @@ final class CanMatchPreFilterSearchPhase {
     private final MinAndMax<?>[] minAndMaxes;
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
+    private final SearchResponseMetrics searchResponseMetrics;
+    private long phaseStartTimeInNanos;
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -90,7 +93,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        ActionListener<List<SearchShardIterator>> listener
+        ActionListener<List<SearchShardIterator>> listener,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -122,6 +126,7 @@ final class CanMatchPreFilterSearchPhase {
             shardItIndexMap.put(naturalOrder[j], j);
         }
         this.shardItIndexMap = shardItIndexMap;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     public static SubscribableListener<List<SearchShardIterator>> execute(
@@ -136,7 +141,8 @@ final class CanMatchPreFilterSearchPhase {
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
         boolean requireAtLeastOneMatch,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(List.of());
@@ -168,7 +174,8 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
-                    listener
+                    listener,
+                    searchResponseMetrics
                 ).runCoordinatorRewritePhase();
             }
         });
@@ -184,6 +191,7 @@ final class CanMatchPreFilterSearchPhase {
     private void runCoordinatorRewritePhase() {
         // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
+        phaseStartTimeInNanos = System.nanoTime();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
@@ -222,6 +230,10 @@ final class CanMatchPreFilterSearchPhase {
             // verify missing shards only for the shards that we hit for the query
             checkNoMissingShards(matchedShardLevelRequests);
             new Round(matchedShardLevelRequests).run();
+        }
+        // this could be null in the case where this phase is running in a remote cluster
+        if (searchResponseMetrics != null) {
+            searchResponseMetrics.recordSearchPhaseDuration("can_match", System.nanoTime() - phaseStartTimeInNanos);
         }
     }
 

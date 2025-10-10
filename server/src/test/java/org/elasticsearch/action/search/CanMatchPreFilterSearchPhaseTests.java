@@ -161,7 +161,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            null
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -256,7 +257,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            null
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -347,7 +349,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                null
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -446,7 +449,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 shardsIter.size() > shardToSkip.size(),
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                null
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1418,7 +1422,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                contextProvider
+                contextProvider,
+                null
             ),
             requests
         );

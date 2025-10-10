@@ -477,10 +477,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             // computation takes longer than 2s.
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(0L));
             MockLog.assertThatLogger(() -> {
-                    clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-1"));
-                    safeAwait(rerouteFinished);
-                    assertThat(clusterService.state().getRoutingTable().index("index-1").primaryShardsUnassigned(), equalTo(0));
-                },
+                clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-1"));
+                safeAwait(rerouteFinished);
+                assertThat(clusterService.state().getRoutingTable().index("index-1").primaryShardsUnassigned(), equalTo(0));
+            },
                 DesiredBalanceComputer.class,
                 new MockLog.SeenEventExpectation(
                     "Should log interrupted computation",
@@ -493,10 +493,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(2L));
             // The computation should not get interrupted when the newly created index shard stays unassigned.
             MockLog.assertThatLogger(() -> {
-                    clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask(ignoredIndexName));
-                    safeAwait(rerouteFinished);
-                    assertThat(clusterService.state().getRoutingTable().index(ignoredIndexName).primaryShardsUnassigned(), equalTo(1));
-                },
+                clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask(ignoredIndexName));
+                safeAwait(rerouteFinished);
+                assertThat(clusterService.state().getRoutingTable().index(ignoredIndexName).primaryShardsUnassigned(), equalTo(1));
+            },
                 DesiredBalanceComputer.class,
                 new MockLog.UnseenEventExpectation(
                     "Should log interrupted computation",

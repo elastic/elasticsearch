@@ -1240,7 +1240,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
 
                         final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
-                        shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());        ///////// add shard to node already has copy.
+                        shard = routingNodes.initializeShard(
+                            shard,
+                            minNode.getNodeId(),
+                            null,
+                            shardSize,
+                            allocation.changes()
+                        ); ///////// add shard to node already has copy.
                         shardAssignmentChanged = true;
                         minNode.addShard(index, shard);
                         if (shard.primary() == false) {

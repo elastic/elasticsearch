@@ -559,7 +559,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
             assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
             assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
-            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), equalTo(0f));                ////////////////
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), equalTo(0f)); ////////////////
             assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
         }
     }

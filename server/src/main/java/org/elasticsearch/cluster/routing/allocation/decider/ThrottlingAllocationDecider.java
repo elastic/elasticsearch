@@ -101,10 +101,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             this::setConcurrentOutgoingRecoverries
         );
-        clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION,
-            (settingVal) -> { unthrottleReplicaAssignmentInSimulation = settingVal; }
-        );
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION, (settingVal) -> {
+            unthrottleReplicaAssignmentInSimulation = settingVal;
+        });
         logger.debug(
             "using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], "
                 + "node_initial_primaries_recoveries [{}]",

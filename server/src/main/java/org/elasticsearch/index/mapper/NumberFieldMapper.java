@@ -2076,7 +2076,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat()), lookup);
         }
 
         @Override
@@ -2098,7 +2098,20 @@ public class NumberFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+                if (isSyntheticSource) {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                        fieldDataContext.indexSettings().getIndexVersionCreated()
+                    );
+                } else {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                }
+                return type.getValueFetcherFieldDataBuilder(
+                    name(),
+                    valuesSourceType,
+                    searchLookup,
+                    sourceValueFetcher(sourcePaths, ignoredSourceFormat)
+                );
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
@@ -2120,11 +2133,17 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.ignoredSourceFormat()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

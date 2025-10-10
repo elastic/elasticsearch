@@ -67,6 +67,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -551,6 +552,11 @@ public class OperatorTests extends MapperServiceTestCase {
 
             @Override
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
                 throw new UnsupportedOperationException();
             }
         };

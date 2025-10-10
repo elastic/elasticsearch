@@ -31,6 +31,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
     private final boolean isSyntheticSource;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -45,6 +46,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
         this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
         this.nullValue = nullValue;
         this.isSyntheticSource = context.isSourceSynthetic();
+        this.ignoredSourceFormat = context.ignoredSourceFormat();
     }
 
     /**
@@ -55,6 +57,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
         this.isSyntheticSource = false;
+        this.ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
     }
 
     @Override
@@ -79,7 +82,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.withSourcePaths(isSyntheticSource, sourcePaths);
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, isSyntheticSource, sourcePaths);
     }
 
     /**

@@ -670,8 +670,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         // returns a Long to support source fallback which emulates numeric doc values for dates
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource, ignoredSourceFormat) {
                 @Override
                 public Long parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
@@ -1007,7 +1010,10 @@ public final class DateFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || indexType.hasPoints()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.LongsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat()),
+                lookup
+            );
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -1071,11 +1077,18 @@ public final class DateFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+                if (isSyntheticSource) {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                        fieldDataContext.indexSettings().getIndexVersionCreated()
+                    );
+                } else {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                }
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType().getValuesSourceType(),
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, ignoredSourceFormat),
                     searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );

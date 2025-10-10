@@ -498,7 +498,10 @@ public class IpFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.IpsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat()),
+                lookup
+            );
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
@@ -515,8 +518,11 @@ public class IpFieldMapper extends FieldMapper {
             };
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource, ignoredSourceFormat) {
                 @Override
                 public InetAddress parseSourceValue(Object value) {
                     return parse(value);

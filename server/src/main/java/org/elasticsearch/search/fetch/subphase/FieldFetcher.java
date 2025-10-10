@@ -150,7 +150,8 @@ public class FieldFetcher {
                     NestedValueFetcher nvf = new NestedValueFetcher(
                         scope,
                         new FieldFetcher(scopedFields, unmappedFieldFetcher),
-                        context.isSourceSynthetic()
+                        context.isSourceSynthetic(),
+                        context.ignoredSourceFormat()
                     );
                     output.put(scope, new FieldContext(scope, nvf));
                 }

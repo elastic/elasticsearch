@@ -67,6 +67,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -600,6 +601,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             @Override
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
             }
         };
     }

@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -866,7 +867,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
                     boolean sourceSynthetic = searchContext.getSearchExecutionContext().isSourceSynthetic();
-                    return StoredFieldsSpec.withSourcePaths(sourceSynthetic, Set.of("thefield"));
+                    return StoredFieldsSpec.withSourcePaths(
+                        searchContext.getSearchExecutionContext().ignoredSourceFormat(),
+                        sourceSynthetic,
+                        Set.of("thefield")
+                    );
                 }
             }));
             fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
@@ -921,7 +926,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
                     boolean sourceSynthetic = fetchContext.getSearchExecutionContext().isSourceSynthetic();
-                    return StoredFieldsSpec.withSourcePaths(sourceSynthetic, Set.of("thefield"));
+                    return StoredFieldsSpec.withSourcePaths(
+                        IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        sourceSynthetic,
+                        Set.of("thefield")
+                    );
                 }
             }));
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(

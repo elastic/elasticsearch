@@ -54,11 +54,14 @@ public record StoredFieldsSpec(
      */
     public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
-    public static StoredFieldsSpec withSourcePaths(boolean isSyntheticSource, Set<String> sourcePaths) {
-        // TODO: pick format based on index version:
+    public static StoredFieldsSpec withSourcePaths(
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        boolean isSyntheticSource,
+        Set<String> sourcePaths
+    ) {
         // The fields in source paths might also be in ignored source, so include this as well.
         IgnoredFieldsSpec ignoredFieldsSpec = isSyntheticSource
-            ? new IgnoredFieldsSpec(sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE)
+            ? new IgnoredFieldsSpec(sourcePaths, ignoredSourceFormat)
             : IgnoredFieldsSpec.NONE;
         return new StoredFieldsSpec(true, false, Set.of(), ignoredFieldsSpec, sourcePaths);
     }

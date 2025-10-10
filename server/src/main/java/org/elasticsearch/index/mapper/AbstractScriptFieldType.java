@@ -195,7 +195,10 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         return new DocValueFetcher(
             docValueFormat(format, null),
             context.getForField(this, FielddataOperation.SEARCH),
-            StoredFieldsSpec.withSourcePaths(context.isSourceSynthetic(), Set.of(name())) // for now we assume runtime fields need source
+            StoredFieldsSpec.withSourcePaths(context.ignoredSourceFormat(), context.isSourceSynthetic(), Set.of(name())) // for now we
+                                                                                                                         // assume runtime
+                                                                                                                         // fields need
+                                                                                                                         // source
         );
     }
 

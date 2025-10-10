@@ -34,14 +34,21 @@ public class NestedValueFetcher implements ValueFetcher {
     private final String nestedFieldName;
     private final String[] nestedPathParts;
     private final boolean sourceSynthetic;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-    public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher, boolean sourceSynthetic) {
+    public NestedValueFetcher(
+        String nestedField,
+        FieldFetcher nestedFieldFetcher,
+        boolean sourceSynthetic,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+    ) {
         assert nestedField != null && nestedField.isEmpty() == false;
         this.nestedFieldPath = nestedField;
         this.nestedFieldFetcher = nestedFieldFetcher;
         this.nestedPathParts = nestedFieldPath.split("\\.");
         this.nestedFieldName = nestedPathParts[nestedPathParts.length - 1];
         this.sourceSynthetic = sourceSynthetic;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
@@ -96,6 +103,6 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.withSourcePaths(sourceSynthetic, new HashSet<>(Arrays.asList(nestedPathParts)));
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourceSynthetic, new HashSet<>(Arrays.asList(nestedPathParts)));
     }
 }

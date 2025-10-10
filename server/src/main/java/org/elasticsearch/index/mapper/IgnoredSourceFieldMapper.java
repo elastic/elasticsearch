@@ -483,7 +483,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     public IgnoredSourceFormat ignoredSourceFormat() {
-        return ignoredSourceFormat(indexSettings.getIndexVersionCreated());
+        var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings());
+        if (sourceMode == SourceFieldMapper.Mode.SYNTHETIC) {
+            return ignoredSourceFormat(indexSettings.getIndexVersionCreated());
+        } else {
+            return IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        }
     }
 
     public static IgnoredSourceFormat ignoredSourceFormat(IndexVersion indexCreatedVersion) {

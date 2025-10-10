@@ -153,7 +153,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         private SourceValueFetcher sourceValueFetcher(SearchExecutionContext context) {
             Set<String> sourcePaths = context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet();
-            return new SourceValueFetcher(sourcePaths, nullValue, context.isSourceSynthetic()) {
+            return new SourceValueFetcher(sourcePaths, nullValue, context.isSourceSynthetic(), context.ignoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return objectToFloat(value);

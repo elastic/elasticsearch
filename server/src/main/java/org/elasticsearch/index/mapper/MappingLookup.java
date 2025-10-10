@@ -489,6 +489,10 @@ public final class MappingLookup {
         return sfm != null && sfm.isSynthetic();
     }
 
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        return mapping.ignoredSourceFormat();
+    }
+
     /**
      * Build something to load source {@code _source}.
      */

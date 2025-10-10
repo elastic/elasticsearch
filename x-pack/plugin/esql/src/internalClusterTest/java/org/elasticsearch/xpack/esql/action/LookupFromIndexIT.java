@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -533,6 +534,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             @Override
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                throw new UnsupportedOperationException();
             }
         };
     }

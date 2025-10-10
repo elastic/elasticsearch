@@ -1055,7 +1055,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             String name = useLegacyFormat ? name().concat(".text") : name();
             boolean syntheticSourceEnabled = blContext.indexSettings().getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC;
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name), syntheticSourceEnabled);
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(
+                blContext.sourcePaths(name),
+                syntheticSourceEnabled,
+                blContext.ignoredSourceFormat()
+            );
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
 

@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -525,6 +526,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                     return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
+                }
+
+                @Override
+                public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                    return ctx.ignoredSourceFormat();
                 }
             });
             if (loader == null) {

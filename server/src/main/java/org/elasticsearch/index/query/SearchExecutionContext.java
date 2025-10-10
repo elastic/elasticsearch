@@ -446,6 +446,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.isSourceSynthetic();
     }
 
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        return mappingLookup.ignoredSourceFormat();
+    }
+
     /**
      * Build something to load source {@code _source}.
      */

@@ -832,7 +832,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
-            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }
 
@@ -915,12 +915,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 };
             }
-
             Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                sourceValueFetcher(sourcePaths),
+                sourceValueFetcher(sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE),
                 fieldDataContext.lookupSupplier().get(),
                 KeywordDocValuesField::new
             );
@@ -942,11 +941,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.ignoredSourceFormat()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSourceEnabled()) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSourceEnabled(), ignoredSourceFormat) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

@@ -18,6 +18,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -161,7 +162,7 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.withSourcePaths(context.isSourceSynthetic(), Set.of(name()));
+                return StoredFieldsSpec.withSourcePaths(context.ignoredSourceFormat(), context.isSourceSynthetic(), Set.of(name()));
             }
         };
     }

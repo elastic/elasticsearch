@@ -398,7 +398,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 };
             }
 
-            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat());
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
                 // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
@@ -487,10 +487,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
 
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+                if (isSyntheticSource) {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                        fieldDataContext.indexSettings().getIndexVersionCreated()
+                    );
+                } else {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                }
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, ignoredSourceFormat),
                     searchLookup,
                     ScaledFloatDocValuesField::new
                 );
@@ -504,11 +512,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.ignoredSourceFormat()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, isSyntheticSource, ignoredSourceFormat) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

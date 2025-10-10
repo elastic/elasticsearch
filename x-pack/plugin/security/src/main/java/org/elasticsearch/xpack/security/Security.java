@@ -103,6 +103,7 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -1162,7 +1163,8 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents)
+            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents),
+            new CrossProjectModeDecider(settings)
         );
 
         components.add(nativeRolesStore); // used by roles actions

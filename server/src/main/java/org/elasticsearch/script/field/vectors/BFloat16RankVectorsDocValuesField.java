@@ -31,7 +31,7 @@ public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField
     private BytesRef magnitudesValue;
     private BFloat16VectorIterator vectorValues;
     private int numVectors;
-    private float[] buffer;
+    private final float[] buffer;
 
     public BFloat16RankVectorsDocValuesField(
         BinaryDocValues input,

@@ -41,9 +41,11 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
     private static final String indexName = "test_coordinator_search_phase_metrics";
     private final int num_primaries = randomIntBetween(2, 7);
 
-    private static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.query.duration.histogram";
-    private static final String DFS_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.dfs.duration.histogram";
-    private static final String OPEN_PIT_SEARCH_PHASE_METRIC = "es.search_response.coordinator_phases.open_pit.duration.histogram";
+    // es.search_response.coordinator_phases.%s.duration.histogram
+    // es.search_response.took_durations.
+    private static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.took_durations.query.histogram";
+    private static final String DFS_SEARCH_PHASE_METRIC = "es.search_response.took_durations.dfs.histogram";
+    private static final String OPEN_PIT_SEARCH_PHASE_METRIC = "es.search_response.took_durations.open_pit.histogram";
 
     @Override
     protected boolean resetNodeAfterTest() {

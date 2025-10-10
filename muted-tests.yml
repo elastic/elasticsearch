@@ -636,6 +636,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136353
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
+  method: testBwcCCSViaRCS1orRCS2
+  issue: https://github.com/elastic/elasticsearch/issues/136368
 
 # Examples:
 #

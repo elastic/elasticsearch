@@ -140,6 +140,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
+        LogManager.getLogger("org.elasticsearch.transport.netty4.Netty4Plugin")
+            .info("Netty4Plugin#getSettings()", new RuntimeException("stack trace"));
         return Arrays.asList(
             SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             SETTING_HTTP_WORKER_COUNT,

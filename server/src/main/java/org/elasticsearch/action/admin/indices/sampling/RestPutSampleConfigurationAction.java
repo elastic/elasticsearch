@@ -77,6 +77,7 @@ public class RestPutSampleConfigurationAction extends BaseRestHandler {
         // Set the target index
         putRequest.indices(indexNames);
 
+        // TODO: Make this cancellable e.g. RestGetSampleStatsAction
         return channel -> client.execute(PutSampleConfigurationAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 

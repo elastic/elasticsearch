@@ -112,7 +112,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-sampling-configuration",
             Priority.NORMAL,
-            new UpdateSamplingConfigurationExecutor(projectResolver, this)
+            new UpdateSamplingConfigurationExecutor()
         );
         this.settings = settings;
     }
@@ -306,9 +306,10 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         ActionListener<AcknowledgedResponse> listener
     ) {
         // Early validation: check if adding a new configuration would exceed the limit
-        boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(projectId, index);
+        ClusterState clusterState = clusterService.state();
+        boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(projectId, index, clusterState);
         if (maxConfigLimitBreached) {
-            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterService.state().getMetadata().settings());
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
             listener.onFailure(
                 new IllegalStateException(
                     "Cannot add sampling configuration for index ["
@@ -462,8 +463,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
 
     // Checks whether the maximum number of sampling configurations has been reached for the given project.
     // If the limit is breached, it notifies the listener with an IllegalStateException and returns true.
-    private boolean checkMaxConfigLimitBreached(ProjectId projectId, String index) {
-        ClusterState currentState = clusterService.state();
+    private static boolean checkMaxConfigLimitBreached(ProjectId projectId, String index, ClusterState currentState) {
         Metadata currentMetadata = currentState.metadata();
         ProjectMetadata projectMetadata = currentMetadata.getProject(projectId);
 
@@ -1031,13 +1031,8 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
 
     static class UpdateSamplingConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateSamplingConfigurationTask> {
         private static final Logger logger = LogManager.getLogger(UpdateSamplingConfigurationExecutor.class);
-        private final ProjectResolver projectResolver;
-        private final SamplingService samplingService;
 
-        UpdateSamplingConfigurationExecutor(ProjectResolver projectResolver, SamplingService samplingService) {
-            this.projectResolver = projectResolver;
-            this.samplingService = samplingService;
-        }
+        UpdateSamplingConfigurationExecutor() {}
 
         @Override
         public Tuple<ClusterState, ClusterStateAckListener> executeTask(
@@ -1078,9 +1073,10 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
 
             Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(metadata.settings());
             // check if adding a new configuration would exceed the limit
-            boolean maxConfigLimitBreached = samplingService.checkMaxConfigLimitBreached(
+            boolean maxConfigLimitBreached = checkMaxConfigLimitBreached(
                 updateSamplingConfigurationTask.projectId,
-                updateSamplingConfigurationTask.indexName
+                updateSamplingConfigurationTask.indexName,
+                clusterState
             );
             if (maxConfigLimitBreached) {
                 throw new IllegalStateException(

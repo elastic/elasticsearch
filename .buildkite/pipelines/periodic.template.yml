@@ -131,6 +131,15 @@ steps:
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
+    retry:
+      automatic:
+        - exit_status: "-1"
+          limit: 3
+          signal_reason: none
+        - signal_reason: agent_stop
+          limit: 3
+        - exit_status: "1"
+          limit: 2
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

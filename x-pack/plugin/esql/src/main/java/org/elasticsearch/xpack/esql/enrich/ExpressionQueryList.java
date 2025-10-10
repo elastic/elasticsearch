@@ -167,7 +167,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 try {
                     queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    throw new UncheckedIOException("Error while rewriting query for Lucene pushable filter", e);
                 }
                 addToLucenePushableFilters(queryBuilder);
                 return true;

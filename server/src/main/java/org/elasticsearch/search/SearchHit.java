@@ -204,9 +204,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             rank = NO_RANK;
         }
         final Text id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalText();
-        }
         final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         final long version = in.readLong();
         final long seqNo = in.readZLong();
@@ -318,9 +315,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeZLong(seqNo);

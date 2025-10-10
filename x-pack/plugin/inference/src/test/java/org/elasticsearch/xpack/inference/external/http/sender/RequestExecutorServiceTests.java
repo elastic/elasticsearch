@@ -371,7 +371,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is(
                 Strings.format(
-                    "Failed to send request, request service [3355] for inference id [id] has shutdown prior to executing request",
+                    "Failed to send request, request service [%s] for inference id [id] has shutdown prior to executing request",
                     requestManager.rateLimitGrouping().hashCode()
                 )
             )

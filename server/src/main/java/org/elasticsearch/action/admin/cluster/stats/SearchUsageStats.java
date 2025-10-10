@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.V_8_12_0;
-import static org.elasticsearch.TransportVersions.V_8_16_0;
 
 /**
  * Holds a snapshot of the search usage statistics.

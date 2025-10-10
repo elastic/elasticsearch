@@ -122,6 +122,28 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum number of in-flight TLS handshakes to permit on each event loop.
+     */
+    public static final Setting<Integer> SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT = intSetting(
+        "http.netty.tls_handshakes.max_concurrent",
+        1000,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of TLS handshakes to delay by holding in a queue on each event loop.
+     */
+    public static final Setting<Integer> SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED = intSetting(
+        "http.netty.tls_handshakes.max_delayed",
+        1000,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
     @Override
@@ -130,6 +152,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             SETTING_HTTP_WORKER_COUNT,
             SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+            SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT,
+            SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED,
             WORKER_COUNT,
             NETTY_RECEIVE_PREDICTOR_SIZE,
             NETTY_RECEIVE_PREDICTOR_MIN,

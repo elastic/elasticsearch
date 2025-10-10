@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -80,6 +81,7 @@ public class QueryPlanningBenchmark {
             null,
             null,
             new QueryPragmas(Settings.EMPTY),
+            new QuerySettings.QuerySettingsMap(Map.of()),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
@@ -119,7 +121,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
+        var parsed = parser.createStatement(query, new QueryParams(), telemetry);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;

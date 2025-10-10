@@ -20,6 +20,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -68,6 +69,7 @@ public class ConfigurationTestUtils {
             username,
             clusterName,
             randomQueryPragmas(),
+            new QuerySettings.QuerySettingsMap(Map.of()),
             truncation,
             defaultTruncation,
             query,

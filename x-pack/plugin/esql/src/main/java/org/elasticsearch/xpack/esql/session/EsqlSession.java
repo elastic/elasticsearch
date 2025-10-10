@@ -439,7 +439,20 @@ public class EsqlSession {
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
         var result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false);
+        var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
+        resolveIndices(parsed, executionInfo, description, requestFilter, preAnalysis, result, logicalPlanListener);
+    }
+
+    private void resolveIndices(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        String description,
+        QueryBuilder requestFilter,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<LogicalPlan> logicalPlanListener
+    ) {
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
         SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
@@ -459,7 +472,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
+            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, executionInfo, description, requestFilter, preAnalysis, r, l))
             .addListener(logicalPlanListener);
     }
 
@@ -695,15 +708,14 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         if (preAnalysis.indexPattern() != null) {
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
+            if (executionInfo.clusterAliases().isEmpty()) {
+                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
                 listener.onResponse(
                     result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
                 );
             } else {
                 indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
+                    preAnalysis.indexPattern().indexPattern(),
                     result.fieldNames,
                     // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     switch (preAnalysis.indexMode()) {
@@ -732,13 +744,13 @@ public class EsqlSession {
 
     private void analyzeWithRetry(
         LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        String description,
         QueryBuilder requestFilter,
         PreAnalyzer.PreAnalysis preAnalysis,
-        EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         ActionListener<LogicalPlan> listener
     ) {
-        var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         LOGGER.debug("Analyzing the plan ({})", description);
         try {
             if (result.indices.isValid() || requestFilter != null) {
@@ -756,20 +768,9 @@ public class EsqlSession {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 listener.onFailure(ve);
             } else {
-                // retrying and make the index resolution work without any index filtering.
-                preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, listener.delegateFailure((l, r) -> {
-                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-                    try {
-                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
-                        LogicalPlan plan = analyzedPlan(parsed, r, executionInfo);
-                        LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
-                        l.onResponse(plan);
-                    } catch (Exception e) {
-                        l.onFailure(e);
-                    }
-                }));
+                // retrying the index resolution without index filtering.
+                executionInfo.clusterInfo.clear();
+                resolveIndices(parsed, executionInfo, "second attempt, without filter", null, preAnalysis, result, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);

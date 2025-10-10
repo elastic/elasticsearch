@@ -1,3 +1,5 @@
+env:
+  SMART_RETRIES: "true"
 steps:
   - group: bwc
     steps: $BWC_STEPS
@@ -139,7 +141,7 @@ steps:
         - signal_reason: agent_stop
           limit: 3
         - exit_status: "1"
-          limit: 2
+          limit: 1
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

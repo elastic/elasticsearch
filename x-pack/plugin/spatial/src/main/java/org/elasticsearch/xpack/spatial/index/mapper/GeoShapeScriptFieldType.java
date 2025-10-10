@@ -18,7 +18,6 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.ValueFetcher;

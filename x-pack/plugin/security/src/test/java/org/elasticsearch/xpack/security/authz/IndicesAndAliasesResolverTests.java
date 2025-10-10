@@ -139,6 +139,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -2397,8 +2398,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         resolved = searchRequest.getResolvedIndexExpressions();
-        assertThat(resolved, is(notNullValue()));
-        assertThat(resolved.expressions(), contains(resolvedIndexExpression("_all", Collections.emptySet(), SUCCESS)));
+        assertThat(resolved, is(nullValue()));
 
         // date math with default indices options
         searchRequest = new SearchRequest("<date-hidden-{now/d}>");
@@ -3034,36 +3034,29 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolved, is(notNullValue()));
         assertThat(
             resolved.expressions(),
-            contains(resolvedIndexExpression("_all", Set.of(expectedIndices), SUCCESS, Set.of("P1:*", "P2:*", "P3:*")))
+            contains(resolvedIndexExpression("_all", Set.of(expectedIndices), SUCCESS, Set.of("P1:_all", "P2:_all", "P3:_all")))
         );
     }
 
-    public void testCrossProjectSearchAllWithSelectors() {
+    public void testCrossProjectSearchSelectorsNotAllowed() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         var request = new SearchRequest("_all::data");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
-        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
-            "indices:/" + randomAlphaOfLength(8),
-            request,
-            projectMetadata,
-            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
-            new TargetProjects(
-                createRandomProjectWithAlias("local"),
-                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliases(
+                "indices:/" + randomAlphaOfLength(8),
+                request,
+                projectMetadata,
+                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+                new TargetProjects(
+                    createRandomProjectWithAlias("local"),
+                    List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+                )
             )
         );
-
-        var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
-
-        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
-
-        final var resolved = request.getResolvedIndexExpressions();
-        assertThat(resolved, is(notNullValue()));
-        assertThat(
-            resolved.expressions(),
-            contains(resolvedIndexExpression("_all::data", Set.of(expectedIndices), SUCCESS, Set.of("P1:*", "P2:*", "P3:*")))
-        );
+        assertThat(exception.getMessage(), equalTo("Selectors are not currently supported but was found in the expression [_all::data]"));
     }
 
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {

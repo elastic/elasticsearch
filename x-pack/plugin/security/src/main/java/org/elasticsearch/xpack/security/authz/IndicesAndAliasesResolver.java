@@ -345,14 +345,14 @@ class IndicesAndAliasesResolver {
             }
 
             if (isAllIndices) {
-                var localExpressions = new HashSet<String>();
-
                 // First, if a selector is present, check to make sure that selectors are even allowed here
                 if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
                     String originalIndexExpression = indicesRequest.indices()[0];
                     throw new UnsupportedSelectorException(originalIndexExpression);
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
+                    var localExpressions = new HashSet<String>();
+
                     IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
                     for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
@@ -369,30 +369,32 @@ class IndicesAndAliasesResolver {
                             );
                         }
                     }
-                }
 
-                var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
-                Set<String> remoteIndices = Collections.emptySet();
-                if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
-                    remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
-                        "*",
-                        authorizedProjects.originProjectAlias(),
-                        authorizedProjects.allProjectAliases()
-                    ).remoteExpressions();
-                }
+                    var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
+                    final var indexExpression = indicesRequest.indices().length > 0 ? indicesRequest.indices()[0] : Metadata.ALL;
 
-                resolvedExpressionsBuilder.addExpressions(
-                    indicesRequest.indices().length > 0 ? indicesRequest.indices()[0] : Metadata.ALL,
-                    localExpressions,
-                    ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                    remoteIndices
-                );
-                var resolved = resolvedExpressionsBuilder.build();
+                    Set<String> remoteIndices = Collections.emptySet();
+                    if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
+                        remoteIndices = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                            indexExpression,
+                            authorizedProjects.originProjectAlias(),
+                            authorizedProjects.allProjectAliases()
+                        ).remoteExpressions();
+                    }
 
-                if (crossProjectModeDecider.crossProjectEnabled()) {
-                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    resolvedExpressionsBuilder.addExpressions(
+                        indexExpression,
+                        localExpressions,
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        remoteIndices
+                    );
+                    var resolved = resolvedExpressionsBuilder.build();
+
+                    if (crossProjectModeDecider.crossProjectEnabled()) {
+                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    }
+                    resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                 }
-                resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
 
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.
                 // we honour allow_no_indices like es core does.

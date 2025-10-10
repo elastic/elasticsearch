@@ -169,8 +169,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeights,
-            balancerSettings.completeEarlyOnShardAssignmentChange(),
-            balancerSettings.getDiskUsageBalanceFactor() == 0
+            balancerSettings.completeEarlyOnShardAssignmentChange()
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
@@ -249,8 +248,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
-            balancerSettings.completeEarlyOnShardAssignmentChange(),
-            balancerSettings.getDiskUsageBalanceFactor() == 0
+            balancerSettings.completeEarlyOnShardAssignmentChange()
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -311,15 +309,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
-        private final boolean skipDiskUsageCalculation;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
             BalancingWeights balancingWeights,
-            boolean completeEarlyOnShardAssignmentChange,
-            boolean skipDiskUsageCalculation
+            boolean completeEarlyOnShardAssignmentChange
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -328,14 +324,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.threshold = threshold;
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
-            avgDiskUsageInBytesPerNode = skipDiskUsageCalculation
-                ? 0
-                : WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
-            nodes = Collections.unmodifiableMap(buildModelFromAssigned(skipDiskUsageCalculation));
+            avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(allocation.clusterInfo(), metadata, routingNodes);
+            nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
-            this.skipDiskUsageCalculation = skipDiskUsageCalculation;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -352,12 +345,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return (float) writeLoadForecaster.getForecastedWriteLoad(projectMetadata.index(index.indexName)).orElse(0.0);
         }
 
-        // This method is used only by NodeSorter#minWeightDelta to compute the node weight delta.
-        // Hence, we can return 0 when disk usage is ignored. Any future usage of this method should review whether this still holds.
         private float maxShardSizeBytes(ProjectIndex index) {
-            if (skipDiskUsageCalculation) {
-                return 0;
-            }
             final var indexMetadata = indexMetadata(index);
             if (indexMetadata.ignoreDiskWatermarks()) {
                 // disk watermarks are ignored for partial searchable snapshots
@@ -1168,10 +1156,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * on the target node which we respect during the allocation / balancing
          * process. In short, this method recreates the status-quo in the cluster.
          */
-        private Map<String, ModelNode> buildModelFromAssigned(boolean skipDiskUsageCalculation) {
+        private Map<String, ModelNode> buildModelFromAssigned() {
             Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn, skipDiskUsageCalculation);
+                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -1488,21 +1476,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final ClusterInfo clusterInfo;
         private final RoutingNode routingNode;
         private final Map<ProjectIndex, ModelIndex> indices;
-        private final boolean skipDiskUsageCalculation;
 
-        public ModelNode(
-            WriteLoadForecaster writeLoadForecaster,
-            Metadata metadata,
-            ClusterInfo clusterInfo,
-            RoutingNode routingNode,
-            boolean skipDiskUsageCalculation
-        ) {
+        public ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
             this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
-            this.skipDiskUsageCalculation = skipDiskUsageCalculation;
         }
 
         public ModelIndex getIndex(ProjectIndex index) {
@@ -1547,9 +1527,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             indices.computeIfAbsent(index, t -> new ModelIndex()).addShard(shard);
             IndexMetadata indexMetadata = metadata.getProject(index.project).index(shard.index());
             writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            if (skipDiskUsageCalculation == false) {
-                diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
-            }
+            diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards++;
         }
 
@@ -1563,9 +1541,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             IndexMetadata indexMetadata = metadata.getProject(projectIndex.project).index(shard.index());
             writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            if (skipDiskUsageCalculation == false) {
-                diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
-            }
+            diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards--;
         }
 

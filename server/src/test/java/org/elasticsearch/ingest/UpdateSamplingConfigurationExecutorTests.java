@@ -52,7 +52,6 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     @Mock
     private Metadata metadata;
 
-    private SamplingService samplingService;
     private SamplingService.UpdateSamplingConfigurationExecutor executor;
 
     @Override
@@ -61,8 +60,7 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
         MockitoAnnotations.openMocks(this);
 
         // Create a real SamplingService with mocked dependencies
-        samplingService = new SamplingService(scriptService, clusterService, projectResolver, timeSupplier);
-        executor = new SamplingService.UpdateSamplingConfigurationExecutor(projectResolver, samplingService);
+        executor = new SamplingService.UpdateSamplingConfigurationExecutor();
 
         // Set up settings with MAX_CONFIGURATIONS_SETTING = 100 (the default value)
         Settings settings = Settings.builder().put("sampling.max_configurations", 100).build();

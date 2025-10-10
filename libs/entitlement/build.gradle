@@ -42,9 +42,10 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+// invoke using ./gradlew :libs:entitlement:dumpInstrumentedMethods --args="entitlement-methods.dump"
 tasks.register('dumpInstrumentedMethods', JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
-  systemProperty 'es.entitlements.dump',
-    System.getProperty('es.entitlements.dump', project.getProjectDir().toPath().toAbsolutePath().resolve("build/entitlement-methods.dump").toString())
+  // default fallback location
+  systemProperty 'es.entitlements.dump', './build/instrumented-methods.dump'
 }

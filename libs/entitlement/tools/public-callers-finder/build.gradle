@@ -43,11 +43,8 @@ application {
 }
 
 tasks.named("run").configure {
-  // check public callers for entitlement instrumentation if dump is requested
-  if (System.getProperty("es.entitlements.dump") != null) {
-    dependsOn ':libs:entitlement:dumpInstrumentedMethods'
-    systemProperty "es.entitlements.dump", System.getProperty("es.entitlements.dump")
-  }
+  dependsOn ':libs:entitlement:dumpInstrumentedMethods'
+  systemProperty 'es.entitlements.dump', project(':libs:entitlement').projectDir.toPath().resolve('build/instrumented-methods.dump').toString()
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
 }
 

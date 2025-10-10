@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.tools.publiccallersfinder;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.tools.ExternalAccess;
 import org.elasticsearch.entitlement.tools.Utils;
@@ -26,11 +25,16 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Main {
 
     private static final String SEPARATOR = "\t";
+
+    private static String TRANSITIVE = "--transitive";
+    private static String CHECK_INSTRUMENTATION = "--check-instrumentation";
+    private static Set<String> OPTIONAL_ARGS = Set.of(TRANSITIVE, CHECK_INSTRUMENTATION);
 
     private static final Set<FindUsagesClassVisitor.MethodDescriptor> INSTRUMENTED_METHODS = new HashSet<>();
 
@@ -213,11 +217,31 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) throws IOException {
-        var csvFilePath = Path.of(args[0]);
-        boolean bubbleUpFromPublic = args.length >= 2 && Booleans.parseBoolean(args[1]);
+    private static Stream<String> optionalArgs(String[] args) {
+        return Arrays.stream(args).skip(1);
+    }
 
-        if (System.getProperty("es.entitlements.dump") != null) {
+    @SuppressForbidden(reason = "cli tool printing to standard err/out")
+    private static void validateArgs(String[] args) {
+        boolean valid = args.length > 0 && optionalArgs(args).allMatch(OPTIONAL_ARGS::contains);
+        if (valid && Path.of(args[0]).toFile().exists() == false) {
+            valid = false;
+            System.err.println("invalid input file: " + args[0]);
+        }
+        if (valid == false) {
+            String optionalArgs = OPTIONAL_ARGS.stream().collect(Collectors.joining("] [", " [", "]"));
+            System.err.println("usage: <input file>" + optionalArgs);
+            System.exit(1);
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        validateArgs(args);
+        var csvFilePath = Path.of(args[0]);
+        boolean bubbleUpFromPublic = optionalArgs(args).anyMatch(TRANSITIVE::equals);
+        boolean checkInstrumentation = optionalArgs(args).anyMatch(CHECK_INSTRUMENTATION::equals);
+
+        if (checkInstrumentation && System.getProperty("es.entitlements.dump") != null) {
             loadInstrumentedMethods(Path.of(System.getProperty("es.entitlements.dump")));
         }
         parseCsv(csvFilePath, (method, module, access) -> identifyTopLevelEntryPoints(method, module, access, bubbleUpFromPublic));

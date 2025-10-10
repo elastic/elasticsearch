@@ -41,6 +41,8 @@ cat libs/entitlement/tools/jdk-api-extractor/api.diff | grep '^+[^+]' | sed 's/^
 - `--deprecations-only`: reports public deprecations (by means of `@Deprecated`)
 - `--include-incubator`: include incubator modules (e.g. `jdk.incubator.vector`)
 
+If `-Druntime.java` is not provided, the bundled JDK is used.
+
 ```bash
 ./gradlew :libs:entitlement:tools:jdk-api-extractor:run -Druntime.java=24 --args="deprecations-jdk24.tsv --deprecations-only"
 ```

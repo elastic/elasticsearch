@@ -15,7 +15,7 @@ it treats calls to `super` in `S.m` as regular calls (e.g. `example() -> S.m() -
 
 In order to run the tool, use:
 ```shell
-./gradlew :libs:entitlement:tools:public-callers-finder:run -Druntime.java=25 --args="<input-file> [<bubble-up-from-public>]" [-Des.entitlements.dump="<entitlements-dump-file>"]
+./gradlew :libs:entitlement:tools:public-callers-finder:run [-Druntime.java=25] --args="<input-file> [--transitive] [--check-instrumentation]"
 ```
 
 - `input-file` is a `TAB`-separated TSV file containing the following columns:
@@ -27,16 +27,16 @@ In order to run the tool, use:
   6. Method descriptor (ASM signature)
   7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
 
+- optional: `--transitive` to not stop at the first public method, but continue to find the transitive public surface.
 
-- optional: `bubble-up-from-public` is a boolean (`true|false`, default is `false`) indicating if the code should stop at the first public method or continue to find usages recursively even after reaching the "public surface".
+- optional: `--check-instrumentation` to check if methods are instrumented for entitlements.
 
-- optional: if `entitlements-dump-file` is provided, all instrumented methods will be dumped to that file and checked against the output of this tool to mark methods as `COVERED` or `MISSING` (see below).
+If `-Druntime.java` is not provided, the bundled JDK is used.
 
 Examples:
 ```bash
-./gradlew :libs:entitlement:tools:public-callers-finder:run --args="$PWD/sensitive-methods.tsv true" -Des.entitlements.dump="$PWD/entitlements.tsv"
+./gradlew :libs:entitlement:tools:public-callers-finder:run --args="sensitive-methods.tsv true" --transitive --check-instrumentation"
 ```
-
 
 The tool writes the following `TAB`-separated columns to standard out:
 
@@ -47,7 +47,7 @@ The tool writes the following `TAB`-separated columns to standard out:
 5. Method name
 6. Method descriptor (ASM signature)
 7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
-8. Optional: `COVERED` if method is instrumented with entitlement checks, `MISSING` otherwise
+8. If using `--check-instrumentation`: `COVERED` if method is instrumented with entitlement checks, `MISSING` otherwise
 9. Original caller Module name
 10. Original caller Class name (ASM style, with `/` separators)
 11. Original caller Method name

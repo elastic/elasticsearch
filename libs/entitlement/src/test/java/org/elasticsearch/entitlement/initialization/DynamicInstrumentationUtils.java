@@ -27,18 +27,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Objects.requireNonNull;
+
 public class DynamicInstrumentationUtils {
 
-    // This main method dumps the list of instrumented methods to a file specified by the system property `es.entitlements.dump`.
+    /**
+     * This dumps the list of instrumented methods to a file specified by the first argument
+     * or alternatively the system property `es.entitlements.dump`.
+     */
     public static void main(String[] args) throws Exception {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
 
-        List<Descriptor> descriptors = loadInstrumentedMethodDescriptors();
-        Path path = Path.of(System.getProperty("es.entitlements.dump"));
-        assert path.isAbsolute() : "absolute path required for es.entitlements.dump";
+        var path = requireNonNull(args.length > 0 ? args[0] : System.getProperty("es.entitlements.dump"), "destination for dump required");
+        var descriptors = loadInstrumentedMethodDescriptors();
         Files.write(
-            path,
+            Path.of(path),
             () -> descriptors.stream().filter(d -> d.methodDescriptor != null).map(Descriptor::toLine).iterator(),
             StandardCharsets.UTF_8
         );

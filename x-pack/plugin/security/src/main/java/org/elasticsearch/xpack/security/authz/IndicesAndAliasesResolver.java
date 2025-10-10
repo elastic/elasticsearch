@@ -406,9 +406,9 @@ class IndicesAndAliasesResolver {
                     // only store resolved expressions if configured, to avoid unnecessary memory usage
                     // once we've migrated from `indices()` to using resolved expressions holistically,
                     // we will always store them
-                    // if (crossProjectModeDecider.crossProjectEnabled()) {
-                    setResolvedIndexExpressionsIfUnset(replaceable, resolved);
-                    // }
+                    if (crossProjectModeDecider.crossProjectEnabled()) {
+                        setResolvedIndexExpressionsIfUnset(replaceable, resolved);
+                    }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(split.getRemote());
                 }

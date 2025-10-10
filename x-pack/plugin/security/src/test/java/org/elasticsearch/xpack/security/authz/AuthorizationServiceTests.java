@@ -3857,6 +3857,18 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSetExceptionOnMissingIndexWhenIgnoreUnavailable() {
+        final ProjectRoutingInfo originProject = createRandomProjectWithAlias(randomAlphaOfLengthBetween(6, 10));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            callback.onResponse(new TargetProjects(originProject, Collections.emptyList()));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
         mockMetadataWithIndex("available-index");
         var authentication = createAuthentication(new User("user", "partial-access-role"));
         roleMap.put(

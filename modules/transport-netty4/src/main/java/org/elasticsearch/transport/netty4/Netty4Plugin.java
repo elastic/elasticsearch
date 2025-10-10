@@ -122,6 +122,14 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> NETTY_EXAMPLE_DYNAMIC_SETTING = intSetting(
+        "http.netty.example_setting",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
     @Override
@@ -134,6 +142,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             NETTY_RECEIVE_PREDICTOR_SIZE,
             NETTY_RECEIVE_PREDICTOR_MIN,
             NETTY_RECEIVE_PREDICTOR_MAX,
+            NETTY_EXAMPLE_DYNAMIC_SETTING,
             NETTY_BOSS_COUNT
         );
     }

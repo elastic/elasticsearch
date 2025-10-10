@@ -147,6 +147,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
+        clusterSettings.addSettingsUpdateConsumer(Netty4Plugin.NETTY_EXAMPLE_DYNAMIC_SETTING, value -> {});
+
         logger.debug(
             "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], "
                 + "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",

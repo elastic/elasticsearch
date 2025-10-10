@@ -14,10 +14,12 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -58,6 +61,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +84,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -87,6 +93,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class CrossClusterAccessTransportInterceptorTests extends AbstractServerTransportInterceptorTests {
@@ -182,6 +189,16 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
         TransportRequest request,
         Authentication authentication
     ) throws IOException {
+        doTestSendWithCrossClusterAccessHeaders(shouldAssertForSystemUser, action, request, authentication, TransportVersion.current());
+    }
+
+    private void doTestSendWithCrossClusterAccessHeaders(
+        boolean shouldAssertForSystemUser,
+        String action,
+        TransportRequest request,
+        Authentication authentication,
+        TransportVersion transportVersion
+    ) throws IOException {
         authentication.writeToContext(threadContext);
         final String expectedRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
@@ -242,7 +259,9 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                 sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {
                     sentCrossClusterAccessSubjectInfo.set(
-                        CrossClusterAccessSubjectInfo.readFromContext(securityContext.getThreadContext())
+                        CrossClusterAccessSubjectInfo.decode(
+                            securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
+                        )
                     );
                 } catch (IOException e) {
                     fail("no exceptions expected but got " + e);
@@ -251,7 +270,7 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
+        when(connection.getTransportVersion()).thenReturn(transportVersion);
 
         sender.sendRequest(connection, action, request, null, new TransportResponseHandler<>() {
             @Override
@@ -800,6 +819,73 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
             destructiveOperations
         );
         assertThat(remoteProfileTransportFilter.isPresent(), is(false));
+    }
+
+    public void testSendWithCrossClusterApiKeySignatureSkippedOnUnsupportedConnection() throws Exception {
+        final String action;
+        final TransportRequest request;
+        if (randomBoolean()) {
+            action = randomAlphaOfLengthBetween(5, 30);
+            request = mock(TransportRequest.class);
+        } else {
+            action = ClusterStateAction.NAME;
+            request = mock(ClusterStateRequest.class);
+        }
+
+        var signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
+        when(crossClusterApiKeySignatureManager.signerForClusterAlias(anyString())).thenReturn(signer);
+        var transportVersion = TransportVersionUtils.getPreviousVersion(
+            CrossClusterAccessTransportInterceptor.ADD_CROSS_CLUSTER_API_KEY_SIGNATURE
+        );
+        doTestSendWithCrossClusterAccessHeaders(
+            true,
+            action,
+            request,
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).transportVersion(transportVersion).build(),
+            transportVersion
+        );
+
+        verifyNoInteractions(signer);
+    }
+
+    public void testSendWithCrossClusterApiKeySignatureSentOnSupportedConnection() throws Exception {
+        final String action;
+        final TransportRequest request;
+        if (randomBoolean()) {
+            action = randomAlphaOfLengthBetween(5, 30);
+            request = mock(TransportRequest.class);
+        } else {
+            action = ClusterStateAction.NAME;
+            request = mock(ClusterStateRequest.class);
+        }
+
+        var testSignature = getTestSignature();
+        var signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
+        when(signer.sign(anyString(), anyString())).thenReturn(testSignature);
+        when(crossClusterApiKeySignatureManager.signerForClusterAlias(anyString())).thenReturn(signer);
+
+        var transportVersion = CrossClusterAccessTransportInterceptor.ADD_CROSS_CLUSTER_API_KEY_SIGNATURE;
+
+        doTestSendWithCrossClusterAccessHeaders(
+            true,
+            action,
+            request,
+            AuthenticationTestHelper.builder().internal(InternalUsers.SYSTEM_USER).transportVersion(transportVersion).build(),
+            transportVersion
+        );
+
+        verify(signer, times(1)).sign(anyString(), anyString());
+    }
+
+    private X509CertificateSignature getTestSignature() throws CertificateException, IOException {
+        return new X509CertificateSignature(getTestCertificates(), "SHA256withRSA", new BytesArray(new byte[] { 1, 2, 3, 4 }));
+    }
+
+    private X509Certificate[] getTestCertificates() throws CertificateException, IOException {
+        return PemUtils.readCertificates(List.of(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")))
+            .stream()
+            .map(cert -> (X509Certificate) cert)
+            .toArray(X509Certificate[]::new);
     }
 
 }

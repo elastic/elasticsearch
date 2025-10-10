@@ -54,7 +54,7 @@
     },
     "body": {
       "description": "Flush parameters",
-      "required": true
+      "required": false
     }
   }
 }

@@ -61,7 +61,7 @@
     },
     "body": {
       "description": "The scroll ID if not passed by URL or query parameter.",
-      "required": true
+      "required": false
     }
   }
 }

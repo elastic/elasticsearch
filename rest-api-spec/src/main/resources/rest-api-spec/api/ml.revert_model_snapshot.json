@@ -43,7 +43,7 @@
     },
     "body": {
       "description": "Reversion options",
-      "required": true
+      "required": false
     }
   }
 }

@@ -49,7 +49,7 @@
     },
     "body": {
       "description": "The configuration for the index (`settings` and `mappings`)",
-      "required": true
+      "required": false
     }
   }
 }

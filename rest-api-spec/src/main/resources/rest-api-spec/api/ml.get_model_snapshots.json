@@ -79,7 +79,7 @@
     },
     "body": {
       "description": "Model snapshot selection criteria",
-      "required": true
+      "required": false
     }
   }
 }

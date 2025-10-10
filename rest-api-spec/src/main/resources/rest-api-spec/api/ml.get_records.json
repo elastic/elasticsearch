@@ -75,7 +75,7 @@
     },
     "body": {
       "description": "Record selection criteria",
-      "required": true
+      "required": false
     }
   }
 }

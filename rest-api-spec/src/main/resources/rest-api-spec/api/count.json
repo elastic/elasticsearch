@@ -120,7 +120,7 @@
     },
     "body": {
       "description": "A query to restrict the results specified with the Query DSL (optional)",
-      "required": true
+      "required": false
     }
   }
 }

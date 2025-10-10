@@ -78,7 +78,7 @@
     },
     "body": {
       "description": "An index_filter specified with the Query DSL",
-      "required": true
+      "required": false
     }
   }
 }

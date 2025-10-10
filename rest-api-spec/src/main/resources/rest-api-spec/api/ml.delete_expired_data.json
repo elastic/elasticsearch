@@ -49,7 +49,7 @@
     },
     "body": {
       "description": "deleting expired data parameters",
-      "required": true
+      "required": false
     }
   }
 }

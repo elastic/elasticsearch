@@ -90,7 +90,7 @@
     },
     "body": {
       "description": "An index filter specified with the Query DSL",
-      "required": true
+      "required": false
     }
   }
 }

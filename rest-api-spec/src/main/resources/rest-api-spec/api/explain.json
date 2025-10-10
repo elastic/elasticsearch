@@ -94,7 +94,7 @@
     },
     "body": {
       "description": "The query definition using the Query DSL",
-      "required": true
+      "required": false
     }
   }
 }

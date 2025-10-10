@@ -44,7 +44,7 @@
     },
     "body": {
       "description": "licenses to be installed",
-      "required": true
+      "required": false
     }
   }
 }

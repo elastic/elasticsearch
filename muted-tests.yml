@@ -627,15 +627,36 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.SpaceNegative}
   issue: https://github.com/elastic/elasticsearch/issues/136249
-- class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
-  method: testIsLoadedOnSlice
-  issue: https://github.com/elastic/elasticsearch/issues/136331
-- class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
-  method: testSeekPastEOFAndRead
-  issue: https://github.com/elastic/elasticsearch/issues/136351
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136353
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
+  method: testBwcCCSViaRCS1orRCS2
+  issue: https://github.com/elastic/elasticsearch/issues/136368
+- class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
+  method: testIsLoaded
+  issue: https://github.com/elastic/elasticsearch/issues/136388
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testServiceAccountApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136390
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcher {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136391
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136392
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testTransformLegacyTemplateCleanup {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136393
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testApiKeySuperuser {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136394
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSecurityNativeRealm {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136395
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSlmPolicyAndStats {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136399
 
 # Examples:
 #

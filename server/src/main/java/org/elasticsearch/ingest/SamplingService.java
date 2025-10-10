@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -52,8 +53,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SamplingService implements ClusterStateListener {
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
@@ -280,10 +279,10 @@ public class SamplingService implements ClusterStateListener {
              * First, we collect the union of all project ids in the current state and the previous one. We include the project ids from the
              * previous state in case an entire project has been deleted -- in that case we would want to delete all of its samples.
              */
-            Set<ProjectId> allProjectIds = Stream.concat(
-                event.state().metadata().projects().values().stream().map(ProjectMetadata::id),
-                event.previousState().metadata().projects().values().stream().map(ProjectMetadata::id)
-            ).collect(Collectors.toSet());
+            Set<ProjectId> allProjectIds = Sets.union(
+                event.state().metadata().projects().keySet(),
+                event.previousState().metadata().projects().keySet()
+            );
             for (ProjectId projectId : allProjectIds) {
                 if (event.customMetadataChanged(projectId, SamplingMetadata.TYPE)) {
                     SamplingMetadata oldSamplingMetadata = event.previousState().metadata().hasProject(projectId)

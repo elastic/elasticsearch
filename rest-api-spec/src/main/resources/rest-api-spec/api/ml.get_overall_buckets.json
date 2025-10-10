@@ -65,7 +65,8 @@
       }
     },
     "body": {
-      "description": "Overall bucket selection details if not provided in URI"
+      "description": "Overall bucket selection details if not provided in URI",
+      "required": false
     }
   }
 }

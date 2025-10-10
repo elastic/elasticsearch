@@ -66,7 +66,7 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
      * </ol>
      */
     public IndexedByShardId<ComputeSearchContext> subRange(int fromIndex, int toIndex) {
-        if (fromIndex < 0 || toIndex > nextAddIndex || fromIndex >= toIndex) {
+        if (fromIndex < 0 || toIndex > nextAddIndex || fromIndex > toIndex) {
             throw new IndexOutOfBoundsException("Invalid subrange: [" + fromIndex + ", " + toIndex + ") in [0, " + nextAddIndex + ")");
         }
         return new SubRanged<>(array, fromIndex, toIndex);

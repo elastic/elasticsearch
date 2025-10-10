@@ -107,6 +107,31 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
     }
 
+    public ModelRegistryMetadata withAddedModels(List<ModelRegistry.ModelAndSettings> models) {
+        var modifiedMap = false;
+        ImmutableOpenMap.Builder<String, MinimalServiceSettings> settingsBuilder = ImmutableOpenMap.builder(modelMap);
+
+        for (var model : models) {
+            if (model.settings().equals(modelMap.get(model.inferenceEntityId())) == false) {
+                modifiedMap = true;
+
+                settingsBuilder.fPut(model.inferenceEntityId(), model.settings());
+            }
+        }
+
+        if (modifiedMap == false) {
+            return this;
+        }
+
+        if (isUpgraded) {
+            return new ModelRegistryMetadata(settingsBuilder.build());
+        }
+
+        var newTombstone = new HashSet<>(tombstones);
+        models.forEach(existing -> newTombstone.remove(existing.inferenceEntityId()));
+        return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
+    }
+
     public ModelRegistryMetadata withRemovedModel(Set<String> inferenceEntityIds) {
         var mapBuilder = ImmutableOpenMap.builder(modelMap);
         for (var toDelete : inferenceEntityIds) {

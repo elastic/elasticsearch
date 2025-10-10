@@ -2266,7 +2266,7 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON languages_left == language_code and abs(salary) > 1000
             """;
 
-        assertEquals("3:71: Unsupported join filter expression: abs(salary) > 1000", error(queryString));
+        assertEquals("3:71: Unsupported join filter expression:abs(salary) > 1000", error(queryString));
     }
 
     public void testLookupJoinExpressionAmbiguousLeft() {

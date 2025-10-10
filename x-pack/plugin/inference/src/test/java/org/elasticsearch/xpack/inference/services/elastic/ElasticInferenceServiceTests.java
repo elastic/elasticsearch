@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -90,6 +89,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -407,7 +407,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAValidModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -436,7 +436,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -445,30 +445,24 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
-        var sender = mock(Sender.class);
-
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
-
         try (var service = createServiceWithMockSender()) {
             var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-rerank-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    "search query",
-                    Boolean.TRUE,
-                    10,
-                    List.of("doc1", "doc2", "doc3"),
-                    false,
-                    new HashMap<>(),
-                    InputType.SEARCH,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+            service.infer(
+                model,
+                "search query",
+                Boolean.TRUE,
+                10,
+                List.of("doc1", "doc2", "doc3"),
+                false,
+                new HashMap<>(),
+                InputType.SEARCH,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(
                 thrownException.getMessage(),
@@ -478,7 +472,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid_ChatCompletion() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -512,7 +506,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -977,15 +971,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                        "name": "Elastic",
                        "task_types": ["sparse_embedding", "chat_completion", "text_embedding"],
                        "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
@@ -1034,15 +1019,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                        "name": "Elastic",
                        "task_types": [],
                        "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding" , "rerank", "chat_completion"]
-                           },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
@@ -1433,7 +1409,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);

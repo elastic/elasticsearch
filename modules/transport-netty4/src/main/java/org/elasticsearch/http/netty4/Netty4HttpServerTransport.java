@@ -39,6 +39,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -258,7 +259,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected void stopInternal() {
-        tlsHandshakeThrottleManager.stop();
+        if (tlsHandshakeThrottleManager.lifecycleState() != Lifecycle.State.INITIALIZED) {
+            tlsHandshakeThrottleManager.stop();
+        }
         if (sharedGroup != null) {
             sharedGroup.shutdown();
             sharedGroup = null;

@@ -1499,7 +1499,12 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Support for the TRANGE function
+         */
+        FN_TRANGE;
 
         private final boolean enabled;
 

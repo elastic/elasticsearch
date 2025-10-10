@@ -1,0 +1,75 @@
+trangeAbsolute
+required_capability: fn_trange
+// tag::docsTRangeAbsolute[]
+FROM k8s 
+| WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeAbsolute[]
+;
+
+// tag::docsTRangeAbsolute-result[]
+@timestamp:datetime
+2024-05-10T00:17:14.000Z
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeAbsolute-result[]
+;
+
+trangeAbsoluteEpochMillis
+required_capability: fn_trange
+// tag::docsTRangeEpochMillis[]
+FROM k8s 
+| WHERE TRANGE(1715300236000, 1715300282000) 
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeEpochMillis[]
+;
+
+// tag::docsTRangeEpochMillis-result[]
+@timestamp:datetime
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeEpochMillis-result[]
+;
+
+trangeInterval
+required_capability: fn_trange
+// tag::docsTRangeInterval[]
+FROM k8s
+| WHERE TRANGE(1h)
+| KEEP @timestamp
+// end::docsTRangeInterval[]
+;
+
+// tag::docsTRangeInterval-result[]
+@timestamp:datetime
+// tag::docsTRangeInterval-result[]
+;
+
+trangeIntervalNegative
+required_capability: fn_trange
+FROM k8s 
+| WHERE TRANGE(-1h) 
+| KEEP @timestamp
+;
+
+@timestamp:datetime
+;

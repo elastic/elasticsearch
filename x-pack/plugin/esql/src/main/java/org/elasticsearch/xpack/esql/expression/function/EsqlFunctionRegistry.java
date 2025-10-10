@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -534,8 +535,8 @@ public class EsqlFunctionRegistry {
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 // dense vector function
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
-
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
+                def(TRange.class, bi(TRange::new), "trange") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

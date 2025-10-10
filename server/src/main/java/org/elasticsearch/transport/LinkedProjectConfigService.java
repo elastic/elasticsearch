@@ -9,8 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
 import java.util.Collection;
 
 /**
@@ -29,22 +27,6 @@ public interface LinkedProjectConfigService {
          * @param config The updated {@link LinkedProjectConfig}.
          */
         void updateLinkedProject(LinkedProjectConfig config);
-
-        /**
-         * Called when the boolean skip_unavailable setting has changed for a linked project configuration.
-         * Note that skip_unavailable may not be supported in all contexts where linked projects are used.
-         *
-         * @param originProjectId The {@link ProjectId} of the owning project that has the linked project configuration.
-         * @param linkedProjectId The {@link ProjectId} of the linked project.
-         * @param linkedProjectAlias The alias used for the linked project.
-         * @param skipUnavailable The new value of the skip_unavailable setting.
-         */
-        default void skipUnavailableChanged(
-            ProjectId originProjectId,
-            ProjectId linkedProjectId,
-            String linkedProjectAlias,
-            boolean skipUnavailable
-        ) {}
     }
 
     /**

@@ -29,21 +29,17 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.store.LuceneFilesExtensions;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,7 +61,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
 class KnnIndexer {
-    private static final double WRITER_BUFFER_MB = 128;
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
 
@@ -78,6 +73,8 @@ class KnnIndexer {
     private final int numDocs;
     private final int numIndexThreads;
     private final MergePolicy mergePolicy;
+    private final double writerBufferSizeInMb;
+    private final int writerMaxBufferedDocs;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -88,7 +85,9 @@ class KnnIndexer {
         int dim,
         VectorSimilarityFunction similarityFunction,
         int numDocs,
-        MergePolicy mergePolicy
+        MergePolicy mergePolicy,
+        double writerBufferSizeInMb,
+        int writerMaxBufferedDocs
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -99,12 +98,15 @@ class KnnIndexer {
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
+        this.writerBufferSizeInMb = writerBufferSizeInMb;
+        this.writerMaxBufferedDocs = writerMaxBufferedDocs;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
-        iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
+        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
         iwc.setUseCompoundFile(false);
         if (mergePolicy != null) {
             iwc.setMergePolicy(mergePolicy);
@@ -183,15 +185,20 @@ class KnnIndexer {
 
                     VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
                     try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                        List<Future<?>> threads = new ArrayList<>();
+                        List<Future<?>> futures = new ArrayList<>();
+                        List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            threads.add(t);
                             t.setDaemon(true);
-                            threads.add(exec.submit(t));
+                            futures.add(exec.submit(t));
                         }
-                        for (Future<?> t : threads) {
-                            t.get();
+                        for (Future<?> future : futures) {
+                            future.get();
                         }
+                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
+                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
+                        );
                     }
                 }
             }
@@ -233,7 +240,7 @@ class KnnIndexer {
     static Directory getDirectory(Path indexPath) throws IOException {
         Directory dir = FSDirectory.open(indexPath);
         if (dir instanceof MMapDirectory mmapDir) {
-            return new HybridDirectory(mmapDir);
+            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir, 64);
         }
         return dir;
     }
@@ -247,6 +254,9 @@ class KnnIndexer {
         private final byte[] byteVectorBuffer;
         private final float[] floatVectorBuffer;
         private final VectorReader in;
+
+        long readTime;
+        long docAddTime;
 
         private IndexerThread(
             IndexWriter iw,
@@ -294,23 +304,32 @@ class KnnIndexer {
                     continue;
                 }
 
-                Document doc = new Document();
+                var startRead = System.nanoTime();
+                final IndexableField field;
                 switch (vectorEncoding) {
                     case BYTE -> {
                         in.next(byteVectorBuffer);
-                        doc.add(new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType));
+                        field = new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType);
                     }
                     case FLOAT32 -> {
                         in.next(floatVectorBuffer);
-                        doc.add(new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType));
+                        field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
                     }
+                    default -> throw new UnsupportedOperationException();
                 }
+                long endRead = System.nanoTime();
+                readTime += (endRead - startRead);
+
+                Document doc = new Document();
+                doc.add(field);
 
                 if ((id + 1) % 25000 == 0) {
                     logger.debug("Done indexing " + (id + 1) + " documents.");
                 }
                 doc.add(new StoredField(ID_FIELD, id));
                 iw.addDocument(doc);
+
+                docAddTime += (System.nanoTime() - endRead);
             }
         }
     }
@@ -373,66 +392,6 @@ class KnnIndexer {
         synchronized void next(byte[] dest) throws IOException {
             readNext();
             bytes.get(dest);
-        }
-    }
-
-    // Copy of Elastic's HybridDirectory which extends NIOFSDirectory and uses MMapDirectory for certain files.
-    static final class HybridDirectory extends NIOFSDirectory {
-        private final MMapDirectory delegate;
-
-        HybridDirectory(MMapDirectory delegate) throws IOException {
-            super(delegate.getDirectory(), NativeFSLockFactory.INSTANCE);
-            this.delegate = delegate;
-        }
-
-        @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (useDelegate(name, context)) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                ensureOpen();
-                ensureCanRead(name);
-                // we switch the context here since mmap checks for the READONCE context by identity
-                context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
-                // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                // we might run into trouble with files that are pendingDelete in one directory but still
-                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                // and intersect for perf reasons.
-                return delegate.openInput(name, context);
-            } else {
-                return super.openInput(name, context);
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(super::close, delegate);
-        }
-
-        private static String getExtension(String name) {
-            // Unlike FileSwitchDirectory#getExtension, we treat `tmp` as a normal file extension, which can have its own rules for mmaping.
-            final int lastDotIndex = name.lastIndexOf('.');
-            if (lastDotIndex == -1) {
-                return "";
-            } else {
-                return name.substring(lastDotIndex + 1);
-            }
-        }
-
-        static boolean useDelegate(String name, IOContext ioContext) {
-            if (ioContext == Store.READONCE_CHECKSUM) {
-                // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
-                // if pre-loading is enabled on this file.
-                return false;
-            }
-
-            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
-            if (extension == null || extension.shouldMmap() == false) {
-                // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
-                // or are large and have a random access pattern and mmap leads to page cache trashing
-                // (e.g. stored fields and term vectors).
-                return false;
-            }
-            return true;
         }
     }
 }

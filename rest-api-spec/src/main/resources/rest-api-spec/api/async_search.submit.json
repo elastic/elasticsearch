@@ -59,6 +59,7 @@
       },
       "request_cache": {
         "type": "boolean",
+        "default": true,
         "description": "Specify if request cache should be used for this request or not, defaults to true"
       },
       "analyzer": {
@@ -246,7 +247,8 @@
       }
     },
     "body": {
-      "description": "The search definition using the Query DSL"
+      "description": "The search definition using the Query DSL",
+      "required": false
     }
   }
 }

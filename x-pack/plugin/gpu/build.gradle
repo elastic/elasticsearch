@@ -15,14 +15,14 @@ base {
 
 repositories {
   maven {
-    url = uri("https://storage.googleapis.com/elasticsearch-cuvs-snapshots")
+    url = uri("file:///home/ldematte/.m2/repository/")
   }
 }
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation('com.nvidia.cuvs:cuvs-java:25.10.0-815d86dd')
+  implementation('com.nvidia.cuvs:cuvs-java:25.12.0')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   yamlRestTestImplementation(project(xpackModule('gpu')))

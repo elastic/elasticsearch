@@ -186,10 +186,10 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     static class RescorerOffHeapVectorValues extends FloatVectorValues implements BulkScorableFloatVectorValues {
-        VectorSimilarityFunction similarityFunction;
-        FloatVectorValues inner;
-        IndexInput inputSlice;
-        FlatVectorsScorer scorer;
+        private final VectorSimilarityFunction similarityFunction;
+        private final FloatVectorValues inner;
+        private final IndexInput inputSlice;
+        private final FlatVectorsScorer scorer;
 
         RescorerOffHeapVectorValues(FloatVectorValues inner, VectorSimilarityFunction similarityFunction, FlatVectorsScorer scorer) {
             this.inner = inner;

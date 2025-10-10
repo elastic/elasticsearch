@@ -1260,58 +1260,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private class IndexSnapshotsDeletion {
             private final IndexId indexId;
             private final Set<SnapshotId> snapshotsWithIndex;
-            private final BlobContainer indexContainer;
 
             IndexSnapshotsDeletion(IndexId indexId) {
                 this.indexId = indexId;
-                this.indexContainer = indexContainer(indexId);
                 this.snapshotsWithIndex = Set.copyOf(originalRepositoryData.getSnapshots(indexId));
             }
 
             // Computed by reading the relevant index metadata, which happens-before this value is used to determine the shards to process.
-            private int shardCount;
-
-            private synchronized void updateShardCount(int newShardCount) {
-                shardCount = Math.max(shardCount, newShardCount);
-            }
+            private volatile int shardCount;
 
             void run(ActionListener<Void> listener) {
                 determineShardCount(listener.delegateFailureAndWrap((l, v) -> processShards(l)));
             }
 
             // -----------------------------------------------------------------------------------------------------------------------------
-            // Determining the shard count by reading all the relevant index metadata
 
             private void determineShardCount(ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    for (final var indexMetaGeneration : snapshotIds.stream()
-                        .filter(snapshotsWithIndex::contains)
-                        .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
-                        .collect(Collectors.toSet())) {
-                        // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
-                        // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
-                        // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
-                        // TODO Skip this unnecessary work? Maybe track the shard count in RepositoryData?
-                        snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> getOneShardCount(indexMetaGeneration)));
-                    }
-                }
-            }
-
-            private void getOneShardCount(String indexMetaGeneration) {
-                try {
-                    updateShardCount(
-                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
-                            .getNumberOfShards()
-                    );
-                } catch (Exception ex) {
-                    logger.warn(() -> format("[%s] [%s] failed to read metadata for index", indexMetaGeneration, indexId.getName()), ex);
-                    // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we might get the
-                    // shard count from another metadata blob, or we might just not process these shards. If we skip these shards then the
-                    // repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots that no
-                    // longer exist) and may contain dangling blobs too. A subsequent delete that hits this index may repair the state if
-                    // the metadata read error is transient, but if not then the stale indices cleanup will eventually remove this index
-                    // and all its extra data anyway.
-                    // TODO: Should we fail the delete here? See https://github.com/elastic/elasticsearch/issues/100569.
+                    snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
+                        // Activates the index for testing purposes
+                        indexIsActive(indexId);
+                        shardCount = originalRepositoryData.getShardsForIndexId(indexId.getId());
+                    }));
                 }
             }
 
@@ -1764,6 +1734,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private record MetadataWriteResult(
+        RepositoryData existingRepositoryData,
+        Map<IndexId, String> indexMetas,
+        Map<String, String> indexMetaIdentifiers,
+        Map<String, Integer> indexShardCounts
+    ) {}
+
     @Override
     public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
@@ -1785,12 +1762,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         final boolean writeIndexGens = SnapshotsServiceUtils.useIndexGenerations(repositoryMetaVersion);
-
-        record MetadataWriteResult(
-            RepositoryData existingRepositoryData,
-            Map<IndexId, String> indexMetas,
-            Map<String, String> indexMetaIdentifiers
-        ) {}
 
         record RootBlobUpdateResult(RepositoryData oldRepositoryData, RepositoryData newRepositoryData) {}
 
@@ -1818,10 +1789,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     metadataWriteResult = new MetadataWriteResult(
                         existingRepositoryData,
                         ConcurrentCollections.newConcurrentMap(),
+                        ConcurrentCollections.newConcurrentMap(),
                         ConcurrentCollections.newConcurrentMap()
                     );
                 } else {
-                    metadataWriteResult = new MetadataWriteResult(existingRepositoryData, null, null);
+                    metadataWriteResult = new MetadataWriteResult(
+                        existingRepositoryData,
+                        null,
+                        null,
+                        ConcurrentCollections.newConcurrentMap()
+                    );
                 }
 
                 try (var allMetaListeners = new RefCountingListener(l.map(ignored -> metadataWriteResult))) {
@@ -1846,6 +1823,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = projectMetadata.index(index.getName());
+                            metadataWriteResult.indexShardCounts.put(index.getId(), indexMetaData.getNumberOfShards());
                             if (writeIndexGens) {
                                 final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
                                 String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
@@ -1883,15 +1861,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Update the root blob
             .<RootBlobUpdateResult>andThen((l, metadataWriteResult) -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final var snapshotDetails = SnapshotDetails.fromSnapshotInfo(snapshotInfo);
                 final var existingRepositoryData = metadataWriteResult.existingRepositoryData();
                 writeIndexGen(
-                    existingRepositoryData.addSnapshot(
+                    updateRepositoryDataAfterFinalizeSnapshot(
+                        existingRepositoryData,
                         snapshotId,
-                        snapshotDetails,
-                        finalizeSnapshotContext.updatedShardGenerations(),
-                        metadataWriteResult.indexMetas(),
-                        metadataWriteResult.indexMetaIdentifiers()
+                        SnapshotDetails.fromSnapshotInfo(snapshotInfo),
+                        finalizeSnapshotContext,
+                        metadataWriteResult
                     ),
                     repositoryStateId,
                     repositoryMetaVersion,
@@ -1928,6 +1905,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     (l, e) -> l.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))
                 )
             );
+    }
+
+    private RepositoryData updateRepositoryDataAfterFinalizeSnapshot(
+        RepositoryData existingRepositoryData,
+        SnapshotId snapshotId,
+        SnapshotDetails snapshotDetails,
+        FinalizeSnapshotContext finalizeSnapshotContext,
+        MetadataWriteResult metadataWriteResult
+    ) {
+        RepositoryData repositoryData = existingRepositoryData;
+        for (Map.Entry<String, Integer> indexShardCountEntry : metadataWriteResult.indexShardCounts.entrySet()) {
+            repositoryData = repositoryData.addShardsForIndexId(indexShardCountEntry.getKey(), indexShardCountEntry.getValue());
+        }
+        return repositoryData.addSnapshot(
+            snapshotId,
+            snapshotDetails,
+            finalizeSnapshotContext.updatedShardGenerations(),
+            metadataWriteResult.indexMetas(),
+            metadataWriteResult.indexMetaIdentifiers()
+        );
     }
 
     // Delete all old shard gen and root level index blobs that aren't referenced any longer as a result from moving to updated
@@ -4252,5 +4249,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoriesStats.SnapshotStats getSnapshotStats() {
         return blobStoreSnapshotMetrics.getSnapshotStats();
+    }
+
+    protected void indexIsActive(IndexId indexId) {
+        // Overridden inside BlobStoreRepositoryDeleteThrottlingTests
     }
 }

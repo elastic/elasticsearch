@@ -314,7 +314,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             Collections.emptyMap(),
             ShardGenerations.EMPTY,
             IndexMetaDataGenerations.EMPTY,
-            RepositoryData.MISSING_UUID
+            RepositoryData.MISSING_UUID,
+            repositoryData.getIndexShardCounts()
         ); // old-format repository has no cluster UUID
 
         Files.write(
@@ -461,7 +462,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
             ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, new ShardGeneration(0L)).build(),
             repositoryData.indexMetaDataGenerations(),
-            repositoryData.getClusterUUID()
+            repositoryData.getClusterUUID(),
+            repositoryData.getIndexShardCounts()
         );
         Files.write(
             repoPath.resolve(getRepositoryDataBlobName(repositoryData.getGenId())),

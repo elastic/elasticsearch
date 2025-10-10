@@ -602,7 +602,8 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
             repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
             newShardGenerations.build(),
             repositoryData.indexMetaDataGenerations(),
-            repositoryData.getClusterUUID()
+            repositoryData.getClusterUUID(),
+            repositoryData.getIndexShardCounts()
         );
 
         final Response response;

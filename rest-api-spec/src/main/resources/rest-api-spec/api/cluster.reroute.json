@@ -67,7 +67,8 @@
       }
     },
     "body": {
-      "description": "The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
+      "description": "The definition of `commands` to perform (`move`, `cancel`, `allocate`)",
+      "required": false
     }
   }
 }

@@ -180,7 +180,7 @@ public class IpFieldMapper extends FieldMapper {
 
                 @Override
                 public String name() {
-                    return "";
+                    return leafName();
                 }
             };
         }

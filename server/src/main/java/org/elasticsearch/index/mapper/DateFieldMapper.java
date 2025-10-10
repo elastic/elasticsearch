@@ -382,7 +382,7 @@ public final class DateFieldMapper extends FieldMapper {
 
                 @Override
                 public String name() {
-                    return "";
+                    return leafName();
                 }
             };
         }

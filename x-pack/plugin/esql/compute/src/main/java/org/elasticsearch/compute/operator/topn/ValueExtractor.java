@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DateRangeBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -53,6 +54,7 @@ interface ValueExtractor {
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
             case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
+            case DATE_RANGE -> new ValueExtractorForDateRange(encoder, (DateRangeBlock) block);
             default -> {
                 assert false : "No value extractor for [" + block.elementType() + "]";
                 throw new UnsupportedOperationException("No value extractor for [" + block.elementType() + "]");

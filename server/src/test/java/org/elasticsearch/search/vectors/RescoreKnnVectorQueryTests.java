@@ -13,9 +13,13 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -31,8 +35,10 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
@@ -137,7 +143,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
-            try (IndexReader reader = DirectoryReader.open(d)) {
+            try (DirectoryReader reader = DirectoryReader.open(d)) {
                 for (var innerQuery : innerQueries) {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
@@ -145,7 +151,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         VectorSimilarityFunction.COSINE,
                         k,
                         k,
-                        false,
                         innerQuery
                     );
 
@@ -153,13 +158,13 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
                     assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
 
+                    searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
                     rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
                         VectorSimilarityFunction.COSINE,
                         k,
                         k,
-                        true,
                         innerQuery
                     );
                     TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
@@ -304,6 +309,102 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 }
             }
             w.commit();
+        }
+    }
+
+    private static class SingleVectorQueryIndexReader extends FilterDirectoryReader {
+
+        /**
+         * Create a new FilterDirectoryReader that filters a passed in DirectoryReader, using the supplied
+         * SubReaderWrapper to wrap its subreader.
+         *
+         * @param in      the DirectoryReader to filter
+         */
+        public SingleVectorQueryIndexReader(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FilterLeafReader(reader) {
+                        @Override
+                        public CacheHelper getReaderCacheHelper() {
+                            return null;
+                        }
+
+                        @Override
+                        public CacheHelper getCoreCacheHelper() {
+                            return null;
+                        }
+
+                        @Override
+                        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+                            FloatVectorValues values = super.getFloatVectorValues(field);
+                            if (values == null) {
+                                return null;
+                            }
+                            return new RegularFloatVectorValues(values);
+                        }
+                    };
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new SingleVectorQueryIndexReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
+        }
+    }
+
+    private static final class RegularFloatVectorValues extends FloatVectorValues {
+
+        private final FloatVectorValues in;
+
+        RegularFloatVectorValues(FloatVectorValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public VectorScorer scorer(float[] target) throws IOException {
+            return in.scorer(target);
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return in.ordToDoc(ord);
+        }
+
+        @Override
+        public Bits getAcceptOrds(Bits acceptDocs) {
+            return in.getAcceptOrds(acceptDocs);
+        }
+
+        @Override
+        public DocIndexIterator iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return new RegularFloatVectorValues(in.copy());
+        }
+
+        @Override
+        public int dimension() {
+            return in.dimension();
+        }
+
+        @Override
+        public int size() {
+            return in.size();
         }
     }
 }

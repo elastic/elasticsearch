@@ -58,22 +58,19 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     protected final int k;
     protected final Query innerQuery;
     protected long vectorOperations = 0;
-    protected final boolean enforceSingleRescore;
 
     private RescoreKnnVectorQuery(
         String fieldName,
         float[] floatTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
         int k,
-        Query innerQuery,
-        boolean enforceSingleRescore
+        Query innerQuery
     ) {
         this.fieldName = fieldName;
         this.floatTarget = floatTarget;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
         this.innerQuery = innerQuery;
-        this.enforceSingleRescore = enforceSingleRescore;
     }
 
     /**
@@ -98,28 +95,9 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
             || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
             // Queries that return only the top `k` results and do not require reduction before re-scoring.
-            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery, false);
+            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
         }
-        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery, false);
-    }
-
-    // only used for testing purposes
-    static RescoreKnnVectorQuery fromInnerQuery(
-        String fieldName,
-        float[] floatTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        int k,
-        int rescoreK,
-        boolean enforceSingleRescore,
-        Query innerQuery
-    ) {
-        if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
-            || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
-            || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
-            // Queries that return only the top `k` results and do not require reduction before re-scoring.
-            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery, enforceSingleRescore);
-        }
-        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery, enforceSingleRescore);
+        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
     }
 
     public Query innerQuery() {
@@ -186,15 +164,14 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             float[] floatTarget,
             VectorSimilarityFunction vectorSimilarityFunction,
             int k,
-            Query innerQuery,
-            boolean enforceSingleRescore
+            Query innerQuery
         ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery, enforceSingleRescore);
+            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
         }
 
         @Override
         public Query rewrite(IndexSearcher searcher) throws IOException {
-            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, innerQuery, enforceSingleRescore);
+            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, innerQuery);
             var topDocs = searcher.search(rescoreQuery, k);
             vectorOperations = topDocs.totalHits.value();
             return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
@@ -222,10 +199,9 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             VectorSimilarityFunction vectorSimilarityFunction,
             int k,
             int rescoreK,
-            Query innerQuery,
-            boolean enforceSingleRescore
+            Query innerQuery
         ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery, enforceSingleRescore);
+            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
             this.rescoreK = rescoreK;
         }
 
@@ -238,7 +214,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             // Retrieve top `k` documents from the top `rescoreK` query
             var topDocsQuery = new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
-            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, topDocsQuery, enforceSingleRescore);
+            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, topDocsQuery);
             var rescoreTopDocs = searcher.search(rescoreQuery.rewrite(searcher), k);
             return new KnnScoreDocQuery(rescoreTopDocs.scoreDocs, searcher.getIndexReader());
         }
@@ -261,13 +237,11 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private final float[] floatTarget;
         private final String fieldName;
         private final Query innerQuery;
-        private final boolean enforceSingleRescore;
 
-        DirectRescoreKnnVectorQuery(String fieldName, float[] floatTarget, Query innerQuery, boolean enforceSingleRescore) {
+        DirectRescoreKnnVectorQuery(String fieldName, float[] floatTarget, Query innerQuery) {
             this.fieldName = fieldName;
             this.floatTarget = floatTarget;
             this.innerQuery = innerQuery;
-            this.enforceSingleRescore = enforceSingleRescore;
         }
 
         @Override
@@ -300,7 +274,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     continue;
                 }
                 var filterIterator = scorer.iterator();
-                if (knnVectorValues instanceof BulkScorableFloatVectorValues rescorableVectorValues && enforceSingleRescore == false) {
+                if (knnVectorValues instanceof BulkScorableFloatVectorValues rescorableVectorValues) {
                     rescoreBulk(leaf.docBase, rescorableVectorValues, results, filterIterator);
                 } else {
                     rescoreIndividually(

@@ -43,6 +43,11 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CrossClusterAsyncQueryStopIT.class);
 
+    @Override
+    protected boolean reuseClusters() {
+        return false;
+    }
+
     public void testStopQuery() throws Exception {
         assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);

@@ -370,7 +370,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(value = "org.elasticsearch.gateway:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/87952")
     public void testDataOnlyNodePersistence() throws Exception {
         final List<Closeable> cleanup = new ArrayList<>(2);
 

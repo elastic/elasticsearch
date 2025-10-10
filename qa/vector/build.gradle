@@ -51,7 +51,7 @@ tasks.register("checkVec", JavaExec) {
   systemProperty "es.logger.out", "console"
   systemProperty "es.logger.level", "INFO"  // Change to DEBUG if needed
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../../libs/native/libraries/build/platform/").toString())
-  jvmArgs '-Xms16g', '-Xmx16g', '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8', '-XX:+UnlockDiagnosticVMOptions', '-XX:+DebugNonSafepoints', '-XX:+HeapDumpOnOutOfMemoryError', '-agentpath:/home/ldematte/async-profiler-4.1-linux-x64/lib/libasyncProfiler.so=start,event=cpu,interval=10ms,wall=50ms,file=/tmp/elasticsearch-0_%t_%p.jfr'
+  jvmArgs '-Xms16g', '-Xmx16g', '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8', '-XX:+UnlockDiagnosticVMOptions', '-XX:+DebugNonSafepoints', '-XX:+HeapDumpOnOutOfMemoryError'
   if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
   }

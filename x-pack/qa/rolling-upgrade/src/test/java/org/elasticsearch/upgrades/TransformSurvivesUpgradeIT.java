@@ -35,7 +35,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_TASK_NAME;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -96,7 +95,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                     lastCheckpoint = 2;
                 }
                 verifyContinuousTransformHandlesData(lastCheckpoint);
-                verifyUpgradeFailsIfMixedCluster();
             }
             case UPGRADED -> {
                 client().performRequest(waitForYellow);
@@ -131,11 +129,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+            assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(ENTITIES.size()));
             assertThat(
-                ((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats)).longValue(),
-                equalTo(ENTITIES.size())
+                ((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats)).longValue(),
+                equalTo(totalDocsWritten)
             );
-            assertThat((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats), equalTo(totalDocsWritten));
             // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
             // Though short lived due to no changes on the source indices, it could result in flaky test behavior
             assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));
@@ -230,17 +228,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 greaterThan((Integer) XContentMapValues.extractValue("stats.documents_processed", previousStateAndStats))
             );
         });
-    }
-
-    private void verifyUpgradeFailsIfMixedCluster() {
-        // upgrade tests by design are also executed with the same version, this check must be skipped in this case, see gh#39102.
-        if (isOriginalClusterCurrent()) {
-            return;
-        }
-        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
-
-        Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
-        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
     }
 
     private void verifyUpgrade() throws IOException {

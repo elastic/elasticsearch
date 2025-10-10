@@ -94,7 +94,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
         );
         metricsToClose.add(
             meterRegistry.registerLongGauge(
-                "es.http.tls_handshakes.current_delayed",
+                "es.http.tls_handshakes.delayed.current",
                 "current number of delayed TLS handshakes for HTTP connections",
                 "count",
                 getMetric(TlsHandshakeThrottle::getCurrentDelayedHandshakesCount)
@@ -102,7 +102,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
         );
         metricsToClose.add(
             meterRegistry.registerLongAsyncCounter(
-                "es.http.tls_handshakes.total_delayed",
+                "es.http.tls_handshakes.delayed.total",
                 "total number of TLS handshakes for HTTP connections that were delayed due to throttling",
                 "count",
                 getMetric(TlsHandshakeThrottle::getTotalDelayedHandshakesCount)
@@ -110,7 +110,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
         );
         metricsToClose.add(
             meterRegistry.registerLongAsyncCounter(
-                "es.http.tls_handshakes.dropped",
+                "es.http.tls_handshakes.dropped.total",
                 "number of TLS handshakes for HTTP connections dropped due to throttling",
                 "count",
                 getMetric(TlsHandshakeThrottle::getDroppedHandshakesCount)

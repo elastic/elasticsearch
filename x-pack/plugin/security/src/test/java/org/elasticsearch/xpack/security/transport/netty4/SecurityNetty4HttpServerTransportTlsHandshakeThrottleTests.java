@@ -995,7 +995,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
 
     private static final String METRIC_PREFIX = "es.http.tls_handshakes.";
     private static final String CURRENT_IN_FLIGHT_METRIC = METRIC_PREFIX + "current";
-    private static final String CURRENT_DELAYED_METRIC = METRIC_PREFIX + "current_delayed";
-    private static final String TOTAL_DELAYED_METRIC = METRIC_PREFIX + "total_delayed";
-    private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped";
+    private static final String CURRENT_DELAYED_METRIC = METRIC_PREFIX + "delayed.current";
+    private static final String TOTAL_DELAYED_METRIC = METRIC_PREFIX + "delayed.total";
+    private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped.total";
 }

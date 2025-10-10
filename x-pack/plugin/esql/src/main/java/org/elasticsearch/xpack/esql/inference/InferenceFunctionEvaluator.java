@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -88,7 +89,7 @@ public class InferenceFunctionEvaluator {
         // Set up a DriverContext for executing the inference operator.
         // This follows the same pattern as EvaluatorMapper but in a simplified context
         // suitable for constant folding during optimization.
-        CircuitBreaker breaker = foldContext.circuitBreakerView(f.source());
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
             @Override
             public CircuitBreaker getBreaker(String name) {
@@ -123,13 +124,16 @@ public class InferenceFunctionEvaluator {
                 // Execute the inference operation asynchronously and handle the result
                 // The operator will perform the actual inference call and return a page with the result
                 driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
-                    Page output = inferenceOperator.getOutput();
-
                     try {
+                        Page output = inferenceOperator.getOutput();
+
                         if (output == null) {
                             l.onFailure(new IllegalStateException("Expected output page from inference operator"));
                             return;
                         }
+
+                        output.allowPassingToDifferentDriver();
+                        l = ActionListener.releaseBefore(output, l);
 
                         if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
                             l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
@@ -138,11 +142,10 @@ public class InferenceFunctionEvaluator {
 
                         // Convert the operator result back to an ESQL expression (Literal)
                         l.onResponse(Literal.of(f, processValue(f.dataType(), BlockUtils.toJavaObject(output.getBlock(0), 0))));
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     } finally {
                         Releasables.close(inferenceOperator);
-                        if (output != null) {
-                            output.releaseBlocks();
-                        }
                     }
                 }));
             } catch (Exception e) {

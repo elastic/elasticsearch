@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +38,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 //
 public class ToLongBase extends EsqlScalarFunction {
 
+    private static final TransportVersion ESQL_TO_LONG_BASE_TV = TransportVersion.fromName("esql_to_long_base_tv");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class, "ToLongBase", ToLongBase::new
     );
@@ -60,6 +63,9 @@ public class ToLongBase extends EsqlScalarFunction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_TO_LONG_BASE_TV) == false) {
+            throw new UnsupportedOperationException("version does not support to_long(string, base)");
+        }
         source().writeTo(out);
         out.writeNamedWriteable(string);
         out.writeNamedWriteable(base);

@@ -364,11 +364,18 @@ public class BooleanFieldMapper extends FieldMapper {
                 };
             }
 
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
+            if (isSyntheticSource) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
+
             ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             BlockSourceReader.LeafIteratorLookup lookup = indexType.hasTerms() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
+            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup, name(), format);
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

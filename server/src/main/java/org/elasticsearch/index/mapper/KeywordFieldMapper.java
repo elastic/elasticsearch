@@ -820,8 +820,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
+            if (isSyntheticSourceEnabled()) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), name(), format);
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

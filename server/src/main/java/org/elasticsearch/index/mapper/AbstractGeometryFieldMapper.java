@@ -187,7 +187,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
             ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
+            if (blContext.indexSettings().getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
+            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll(), name(), format);
         }
 
         protected abstract Object nullValueAsSource(T nullValue);

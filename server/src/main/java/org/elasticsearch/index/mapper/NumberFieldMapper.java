@@ -45,6 +45,7 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFiel
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -494,8 +495,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -688,8 +693,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -848,8 +857,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -976,8 +989,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -1104,8 +1121,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -1306,8 +1327,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -1468,8 +1493,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
+            BlockLoader blockLoaderFromSource(
+                SourceValueFetcher sourceValueFetcher,
+                BlockSourceReader.LeafIteratorLookup lookup,
+                IgnoredSourceFormat format
+            ) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, name(), format);
             }
 
             @Override
@@ -1779,7 +1808,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
+        abstract BlockLoader blockLoaderFromSource(
+            SourceValueFetcher sourceValueFetcher,
+            BlockSourceReader.LeafIteratorLookup lookup,
+            IgnoredSourceFormat format
+        );
 
         abstract BlockLoader blockLoaderFromFallbackSyntheticSource(
             String fieldName,
@@ -2055,7 +2088,13 @@ public class NumberFieldMapper extends FieldMapper {
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            IgnoredSourceFormat format;
+            if (isSyntheticSource) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, format);
         }
 
         @Override

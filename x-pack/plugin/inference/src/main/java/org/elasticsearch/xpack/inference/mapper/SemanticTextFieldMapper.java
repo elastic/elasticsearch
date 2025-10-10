@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -1054,7 +1056,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             String name = useLegacyFormat ? name().concat(".text") : name();
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
+            if (blContext.indexSettings().getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll(), name(), format);
         }
 
         private class SemanticTextFieldValueFetcher implements ValueFetcher {

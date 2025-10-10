@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -481,12 +482,17 @@ public class IpFieldMapper extends FieldMapper {
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
-
+            IgnoredSourceFormat format;
+            if (isSyntheticSource) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
             // see #indexValue
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, name(), format);
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {

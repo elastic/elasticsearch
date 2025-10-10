@@ -411,11 +411,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     return unsignedToSortableSignedLong(parseUnsignedLong(value));
                 }
             };
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
+            if (isSyntheticSource) {
+                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
+            } else {
+                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
                 // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
+            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup, name(), format);
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

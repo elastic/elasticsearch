@@ -1228,6 +1228,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     }
                 };
             }
+
+            @Override
+            public boolean diskUsageIgnored() {
+                return true;
+            }
         }
     }
 

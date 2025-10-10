@@ -286,19 +286,19 @@ public class SamplingService implements ClusterStateListener {
             ).collect(Collectors.toSet());
             for (ProjectId projectId : allProjectIds) {
                 if (event.customMetadataChanged(projectId, SamplingMetadata.TYPE)) {
-                    SamplingMetadata oldSamplingConfig = event.previousState().metadata().hasProject(projectId)
+                    SamplingMetadata oldSamplingMetadata = event.previousState().metadata().hasProject(projectId)
                         ? event.previousState().projectState(projectId).metadata().custom(SamplingMetadata.TYPE)
                         : null;
-                    SamplingMetadata newSamplingConfig = event.state().metadata().hasProject(projectId)
+                    SamplingMetadata newSamplingMetadata = event.state().metadata().hasProject(projectId)
                         ? event.state().projectState(projectId).metadata().custom(SamplingMetadata.TYPE)
                         : null;
-                    Map<String, SamplingConfiguration> newSampleConfigsMap = newSamplingConfig == null
+                    Map<String, SamplingConfiguration> newSampleConfigsMap = newSamplingMetadata == null
                         ? Map.of()
-                        : newSamplingConfig.getIndexToSamplingConfigMap();
+                        : newSamplingMetadata.getIndexToSamplingConfigMap();
                     Set<String> currentlyConfiguredIndexNames = newSampleConfigsMap.keySet();
-                    Set<String> previouslyConfiguredIndexNames = oldSamplingConfig == null
+                    Set<String> previouslyConfiguredIndexNames = oldSamplingMetadata == null
                         ? Set.of()
-                        : oldSamplingConfig.getIndexToSamplingConfigMap().keySet();
+                        : oldSamplingMetadata.getIndexToSamplingConfigMap().keySet();
                     Set<String> removedIndexNames = new HashSet<>(previouslyConfiguredIndexNames);
                     removedIndexNames.removeAll(currentlyConfiguredIndexNames);
                     /*
@@ -313,9 +313,9 @@ public class SamplingService implements ClusterStateListener {
                         samples.remove(new ProjectIndex(projectId, indexName));
                     }
                     ;
-                    Map<String, SamplingConfiguration> oldSampleConfigsMap = oldSamplingConfig == null
+                    Map<String, SamplingConfiguration> oldSampleConfigsMap = oldSamplingMetadata == null
                         ? Map.of()
-                        : oldSamplingConfig.getIndexToSamplingConfigMap();
+                        : oldSamplingMetadata.getIndexToSamplingConfigMap();
                     /*
                      * Now we check if any of the sampling configurations have changed. If they have, we remove the existing sample. Same as
                      * above, we have a race condition here that we can live with.

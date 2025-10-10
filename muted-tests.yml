@@ -639,6 +639,9 @@ tests:
 - class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
   method: testIsLoaded
   issue: https://github.com/elastic/elasticsearch/issues/136388
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testServiceAccountApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136390
 
 # Examples:
 #

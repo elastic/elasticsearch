@@ -30,28 +30,41 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.DEFAULT_MAX_TIME_TO_CLEAR_QUEUE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.calculateIngestionLoadForExecutor;
+import static org.elasticsearch.core.TimeValue.ZERO;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.closeTo;
 
 public class IngestLoadProbeTests extends ESTestCase {
 
     public void testCalculateIngestionLoadForExecutor() {
         final TimeValue maxTimeToClearQueue = TimeValue.timeValueSeconds(10);
+        final int maxThreads = between(1, 16);
         // Initially average task execution time is 0.0.
         double randomQueueContribution = randomDoubleBetween(0.1, 100.0, true);
         assertThat(
-            calculateIngestionLoadForExecutor("test", 0.0, 0.0, 0, maxTimeToClearQueue, randomQueueContribution).total(),
+            calculateIngestionLoadForExecutor("test", 0.0, 0.0, 0, maxThreads, maxTimeToClearQueue, ZERO, randomQueueContribution).total(),
             closeTo(0.0, 1e-3)
         );
         // When there is nothing in the queue, we'd still want to keep up with average load
         assertThat(
-            calculateIngestionLoadForExecutor("test", 1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue, randomQueueContribution)
-                .total(),
+            calculateIngestionLoadForExecutor(
+                "test",
+                1.0,
+                timeValueMillis(100).nanos(),
+                0,
+                maxThreads,
+                maxTimeToClearQueue,
+                ZERO,
+                randomQueueContribution
+            ).total(),
             closeTo(1.0, 1e-3)
         );
         // A threadpool of 2 with average task time of 100ms can run 200 tasks per 10 seconds.
@@ -61,7 +74,9 @@ public class IngestLoadProbeTests extends ESTestCase {
                 0.0,
                 timeValueMillis(100).nanos(),
                 100,
+                maxThreads,
                 maxTimeToClearQueue,
+                ZERO,
                 randomDoubleBetween(1.0, 100.0, true)
             ).total(),
             closeTo(1.00, 1e-3)
@@ -74,7 +89,9 @@ public class IngestLoadProbeTests extends ESTestCase {
                 1.0,
                 timeValueMillis(100).nanos(),
                 1,
+                maxThreads,
                 maxTimeToClearQueue,
+                ZERO,
                 randomDoubleBetween(0.01, 100, true)
             ).total(),
             closeTo(1.01, 1e-3)
@@ -85,7 +102,9 @@ public class IngestLoadProbeTests extends ESTestCase {
                 1.0,
                 timeValueMillis(100).nanos(),
                 100,
+                maxThreads,
                 maxTimeToClearQueue,
+                ZERO,
                 randomDoubleBetween(1.00, 100, true)
             ).total(),
             closeTo(2.00, 1e-3)
@@ -96,7 +115,9 @@ public class IngestLoadProbeTests extends ESTestCase {
                 2.0,
                 timeValueMillis(100).nanos(),
                 200,
+                maxThreads,
                 maxTimeToClearQueue,
+                ZERO,
                 randomDoubleBetween(2.00, 100, true)
             ).total(),
             closeTo(4.00, 1e-3)
@@ -107,7 +128,9 @@ public class IngestLoadProbeTests extends ESTestCase {
                 2.0,
                 timeValueMillis(100).nanos(),
                 400,
+                maxThreads,
                 maxTimeToClearQueue,
+                ZERO,
                 randomDoubleBetween(4.00, 100, true)
             ).total(),
             closeTo(6.0, 1e-3)
@@ -118,13 +141,16 @@ public class IngestLoadProbeTests extends ESTestCase {
                 2.0,
                 timeValueMillis(100).nanos(),
                 1000,
+                maxThreads,
                 maxTimeToClearQueue,
+                ZERO,
                 randomDoubleBetween(10.00, 100, true)
             ).total(),
             closeTo(12.0, 1e-3)
         );
         assertThat(
-            calculateIngestionLoadForExecutor("test", 2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue, 4.00).total(),
+            calculateIngestionLoadForExecutor("test", 2.0, timeValueMillis(100).nanos(), 1000, maxThreads, maxTimeToClearQueue, ZERO, 4.00)
+                .total(),
             closeTo(6.0, 1e-3)
         );
     }
@@ -138,7 +164,8 @@ public class IngestLoadProbeTests extends ESTestCase {
                 MAX_TIME_TO_CLEAR_QUEUE,
                 MAX_QUEUE_CONTRIBUTION_FACTOR,
                 INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
-                INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION
+                INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
+                MAX_MANAGEABLE_QUEUED_WORK
             )
         );
         AtomicLong nowInMillis = new AtomicLong(randomNonNegativeLong());
@@ -179,5 +206,26 @@ public class IngestLoadProbeTests extends ESTestCase {
         // Include coordination executors and the reported total should rise
         clusterSettings.applySettings(Settings.builder().put(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), true).build());
         assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(11.0 + expectedExtraThreads * 2, 1e-3));
+
+        final var maxManageableQueuedWork = timeValueSeconds(between(5, 10));
+        var averageTaskExecutionTime = timeValueMillis(200);
+        var maxThreads = between(1, 3);
+        var manageableQueueSize = maxThreads * (maxManageableQueuedWork.millis() / averageTaskExecutionTime.millis());
+        statsPerExecutor.clear();
+        queueSize = between(0, (int) manageableQueueSize);
+        // before updating the setting, we request extra threads for all the queued work
+        statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, averageTaskExecutionTime.nanos(), queueSize, queueSize, maxThreads));
+        statsPerExecutor.put(
+            Names.WRITE_COORDINATION,
+            new ExecutorStats(2.0, averageTaskExecutionTime.nanos(), queueSize, queueSize, maxThreads)
+        );
+        statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
+        statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, 0.0, between(1, 10)));
+        statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
+        var queueThreadsNeeded = queueSize / ((double) DEFAULT_MAX_TIME_TO_CLEAR_QUEUE.millis() / averageTaskExecutionTime.millis());
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(10.0 + 2 * queueThreadsNeeded, 1e-3));
+
+        clusterSettings.applySettings(Settings.builder().put(MAX_MANAGEABLE_QUEUED_WORK.getKey(), maxManageableQueuedWork).build());
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(10.0, 1e-3));
     }
 }

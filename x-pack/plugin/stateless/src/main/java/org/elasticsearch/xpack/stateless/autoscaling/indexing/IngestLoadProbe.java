@@ -84,6 +84,19 @@ public class IngestLoadProbe {
         Setting.Property.OperatorDynamic
     );
 
+    /**
+     * The maximum amount of queued work (measured by the time it takes to finish) that is considered manageable with
+     * the current number of threads. Note that while {@link #MAX_TIME_TO_CLEAR_QUEUE} is used to size up the queue when
+     * estimating required threads to handle the queued work, this setting is used to determine if the current queued work
+     * is manageable by the node or not. If not, then we calculated the required extra threads.
+     */
+    public static final Setting<TimeValue> MAX_MANAGEABLE_QUEUED_WORK = Setting.timeSetting(
+        "serverless.autoscaling.indexing.sampler.max_manageable_queued_work",
+        TimeValue.ZERO, // This defaults to the existing behaviour before introducing this setting
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     private final Function<String, ExecutorStats> executorStatsProvider;
     private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
     private final TimeProvider timeProvider;
@@ -92,6 +105,7 @@ public class IngestLoadProbe {
     private volatile boolean includeWriteCoordinationExecutors;
     private volatile TimeValue initialIntervalToIgnoreQueueContribution;
     private volatile long probeStartTimeInMillis;
+    private volatile TimeValue maxManageableQueuedWork;
 
     @SuppressWarnings("this-escape")
     public IngestLoadProbe(
@@ -108,6 +122,7 @@ public class IngestLoadProbe {
             INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
             value -> this.initialIntervalToIgnoreQueueContribution = value
         );
+        clusterSettings.initializeAndWatch(MAX_MANAGEABLE_QUEUED_WORK, value -> this.maxManageableQueuedWork = value);
         ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
         AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
     }
@@ -140,7 +155,9 @@ public class IngestLoadProbe {
                 executorStats.averageLoad(),
                 executorStats.averageTaskExecutionEWMA(),
                 executorStats.averageQueueSize(),
+                executorStats.maxThreads(),
                 maxTimeToClearQueue,
+                maxManageableQueuedWork,
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
             if (ingestionLoadForExecutor.queueThreadsNeeded > 0.0
@@ -184,7 +201,9 @@ public class IngestLoadProbe {
         double averageWriteLoad,
         double averageTaskExecutionTime,
         double averageQueueSize,
+        int maxThreads,
         TimeValue maxTimeToClearQueue,
+        TimeValue maxManageableQueuedWork,
         double maxThreadsToHandleQueue
     ) {
         if (logger.isDebugEnabled()) {
@@ -203,6 +222,13 @@ public class IngestLoadProbe {
         if (averageTaskExecutionTime == 0.0) {
             return new ExecutorIngestionLoad(averageWriteLoad, 0.0);
         }
+        double tasksManageablePerExistingThread = maxManageableQueuedWork.nanos() / averageTaskExecutionTime;
+        if (averageQueueSize <= tasksManageablePerExistingThread * maxThreads) {
+            // The current number of threads can handle the queued tasks within the max manageable time
+            return new ExecutorIngestionLoad(averageWriteLoad, 0.0);
+        }
+        // We intentionally do not subtract the manageable queue size from the averageQueueSize here when calculating how many more
+        // threads we need. The assumption is that the existing threads are needed to handle non-queued work anyway.
         double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueue.nanos() / averageTaskExecutionTime;
         double queueThreadsNeeded = Math.min(averageQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
         assert queueThreadsNeeded >= 0.0;

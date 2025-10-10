@@ -152,7 +152,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return canRemainYes() == false && canMoveDecision == AllocationDecision.YES;
+        return canRemain() == false && canMoveDecision == AllocationDecision.YES;
     }
 
     /**
@@ -169,7 +169,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Returns {@code true} if the shard can remain on its current node, returns {@code false} otherwise.
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
-    public boolean canRemainYes() {
+    public boolean canRemain() {
         checkDecisionState();
         return canRemainDecision.type() == Type.YES;
     }
@@ -197,7 +197,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     /**
      * Returns the decision for being allowed to rebalance the shard.  Invoking this method will return
-     * {@code null} if {@link #canRemainYes()} ()} returns {@code false}, which means the node is not allowed to
+     * {@code null} if {@link #canRemain()} ()} returns {@code false}, which means the node is not allowed to
      * remain on its current node, so the cluster is forced to attempt to move the shard to a different node,
      * as opposed to attempting to rebalance the shard if a better cluster balance is possible by moving it.
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
@@ -256,7 +256,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             };
         } else {
             // it was a decision to force move the shard
-            assert canRemainYes() == false;
+            assert canRemain() == false;
             return switch (canMoveDecision) {
                 case YES -> Explanations.Move.YES;
                 case THROTTLED -> Explanations.Move.THROTTLED;
@@ -278,8 +278,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 discoveryNodeToXContent(targetNode, true, builder);
                 builder.endObject();
             }
-            builder.field("can_remain_on_current_node", canRemainYes() ? "yes" : "no");
-            if (canRemainYes() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+            builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
+            if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
                 builder.startArray("can_remain_decisions");
                 canRemainDecision.toXContent(builder, params);
                 builder.endArray();

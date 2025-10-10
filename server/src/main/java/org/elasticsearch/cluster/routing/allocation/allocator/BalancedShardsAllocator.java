@@ -257,7 +257,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocateUnassignedDecision = balancer.decideAllocateUnassigned(index, shard);
         } else {
             moveDecision = balancer.decideMove(index, shard);
-            if (moveDecision.isDecisionTaken() && moveDecision.canRemainYes()) {
+            if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
                 moveDecision = balancer.decideRebalance(index, shard, moveDecision.getCanRemainDecision());
             }
         }
@@ -829,7 +829,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                         shardMoved = true;
                     }
-                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemainYes() == false) {
+                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }

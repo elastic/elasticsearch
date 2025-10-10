@@ -56,6 +56,7 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,9 +78,13 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     private KnnVectorsFormat format;
 
+    boolean useBFloat16() {
+        return false;
+    }
+
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(random().nextBoolean(), useBFloat16());
         super.setUp();
     }
 
@@ -239,7 +244,8 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
                     assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
                     assertTrue(offHeap.get("veb") > 0L);
                     if (expectVecOffHeap) {
-                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                        int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
+                        assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
                     }
                 }
             }

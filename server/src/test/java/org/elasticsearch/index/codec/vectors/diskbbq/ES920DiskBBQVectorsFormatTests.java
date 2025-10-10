@@ -60,7 +60,12 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
-    KnnVectorsFormat format;
+
+    private KnnVectorsFormat format;
+
+    boolean useBFloat16() {
+        return false;
+    }
 
     @Before
     @Override
@@ -69,14 +74,16 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                random().nextBoolean()
+                random().nextBoolean(),
+                useBFloat16()
             );
         } else {
             // run with low numbers to force many clusters with parents
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                random().nextBoolean()
+                random().nextBoolean(),
+                useBFloat16()
             );
         }
         super.setUp();

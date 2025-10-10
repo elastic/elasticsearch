@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifications copyright (C) 2024 Elasticsearch B.V.
+ * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 package org.elasticsearch.index.codec.vectors.es93;
 
@@ -91,13 +91,18 @@ public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsForm
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
-    private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        rawVectorFormat.getName(),
-        rawVectorFormat
+        float32VectorFormat.getName(),
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
     );
 
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
@@ -105,15 +110,16 @@ public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsForm
     );
 
     private final boolean useDirectIO;
+    private final DirectIOCapableFlatVectorsFormat rawFormat;
 
     public ES93BinaryQuantizedVectorsFormat() {
-        super(NAME);
-        this.useDirectIO = false;
+        this(false, false);
     }
 
-    public ES93BinaryQuantizedVectorsFormat(boolean useDirectIO) {
+    public ES93BinaryQuantizedVectorsFormat(boolean useDirectIO, boolean useBFloat16) {
         super(NAME);
         this.useDirectIO = useDirectIO;
+        this.rawFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
     }
 
     @Override
@@ -128,7 +134,7 @@ public class ES93BinaryQuantizedVectorsFormat extends ES93GenericFlatVectorsForm
 
     @Override
     protected DirectIOCapableFlatVectorsFormat writeFlatVectorsFormat() {
-        return rawVectorFormat;
+        return rawFormat;
     }
 
     @Override

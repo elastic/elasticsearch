@@ -46,6 +46,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,9 +69,13 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
 
     private KnnVectorsFormat format;
 
+    boolean useBFloat16() {
+        return false;
+    }
+
     @Override
     public void setUp() throws Exception {
-        format = new ES93HnswBinaryQuantizedVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, random().nextBoolean());
+        format = new ES93HnswBinaryQuantizedVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, random().nextBoolean(), useBFloat16());
         super.setUp();
     }
 
@@ -83,7 +88,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, false, 1, null);
+                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, false, false, 1, null);
             }
         };
         String expectedPattern = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
@@ -137,15 +142,15 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(-1, 20, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(0, 20, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 0, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, -1, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(512 + 1, 20, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 3201, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(-1, 20, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(0, 20, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 0, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, -1, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(512 + 1, 20, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 3201, false, false));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, false, 1, new SameThreadExecutorService())
+            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, false, false, 1, new SameThreadExecutorService())
         );
     }
 
@@ -189,7 +194,8 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
                     assertEquals(1L, (long) offHeap.get("vex"));
                     assertTrue(offHeap.get("veb") > 0L);
                     if (expectVecOffHeap) {
-                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                        int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
+                        assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
                     }
                 }
             }

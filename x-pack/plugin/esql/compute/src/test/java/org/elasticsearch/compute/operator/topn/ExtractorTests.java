@@ -65,9 +65,10 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
-                case DATE_RANGE -> cases.add(
-                    valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, ExtractorTests::randomDateRange)
-                );
+                case DATE_RANGE -> {
+                    cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(true)));
+                    cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(false)));
+                }
                 case FLOAT -> {
                 }
                 case BYTES_REF -> {
@@ -258,9 +259,9 @@ public class ExtractorTests extends ESTestCase {
         );
     }
 
-    private static DateRangeBlockBuilder.DateRangeLiteral randomDateRange() {
+    private static DateRangeBlockBuilder.DateRangeLiteral randomDateRange(boolean isNull) {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-        return new DateRangeBlockBuilder.DateRangeLiteral(from, to);
+        return isNull ? null : new DateRangeBlockBuilder.DateRangeLiteral(from, to);
     }
 }

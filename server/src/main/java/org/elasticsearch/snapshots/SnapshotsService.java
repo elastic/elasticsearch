@@ -200,7 +200,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     );
 
     private volatile int maxConcurrentOperations;
-    private volatile ClusterState lastAppliedClusterState;
 
     public SnapshotsService(
         Settings settings,
@@ -673,7 +672,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        lastAppliedClusterState = event.state();
         try {
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master

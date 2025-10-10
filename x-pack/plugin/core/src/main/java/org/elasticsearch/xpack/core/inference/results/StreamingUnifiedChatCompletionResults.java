@@ -184,22 +184,16 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 chunk((b, p) -> b.field(ID_FIELD, id)),
                 choices != null ? ChunkedToXContentHelper.array(CHOICES_FIELD, choices.iterator(), params) : Collections.emptyIterator(),
                 chunk((b, p) -> b.field(MODEL_FIELD, model).field(OBJECT_FIELD, object)),
-                usage != null
-                    ? chunk(
-                        (b, p) -> {
-                            var builder = b.startObject(USAGE_FIELD)
-                                .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
-                                .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
-                                .field(TOTAL_TOKENS_FIELD, usage.totalTokens());
-                            if (usage.cachedTokens() != null) {
-                                builder.startObject(PROMPT_TOKENS_DETAILS_FIELD)
-                                    .field(CACHED_TOKENS_FIELD, usage.cachedTokens())
-                                    .endObject();
-                            }
-                            return builder.endObject();
-                        }
-                    )
-                    : Collections.emptyIterator(),
+                usage != null ? chunk((b, p) -> {
+                    var builder = b.startObject(USAGE_FIELD)
+                        .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
+                        .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
+                        .field(TOTAL_TOKENS_FIELD, usage.totalTokens());
+                    if (usage.cachedTokens() != null) {
+                        builder.startObject(PROMPT_TOKENS_DETAILS_FIELD).field(CACHED_TOKENS_FIELD, usage.cachedTokens()).endObject();
+                    }
+                    return builder.endObject();
+                }) : Collections.emptyIterator(),
                 ChunkedToXContentHelper.endObject()
             );
         }

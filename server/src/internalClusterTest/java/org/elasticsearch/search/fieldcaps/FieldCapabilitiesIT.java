@@ -85,6 +85,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
@@ -598,11 +599,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
-    private void moveOrCloseShardsOnNodes(String nodeName) throws Exception {
+    private void moveOrCloseShardsOnNodes(String nodeName, Predicate<String> indexName) throws Exception {
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         final ClusterState clusterState = clusterService().state();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
+                if (indexName.test(indexShard.shardId().getIndexName()) == false) {
+                    continue;
+                }
                 if (randomBoolean()) {
                     closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
@@ -644,13 +648,21 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testRelocation() throws Exception {
         populateTimeRangeIndices();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("log-index-*")
+                .setSettings(Settings.builder().put("index.routing.rebalance.enable", "none").build())
+                .get()
+        );
+        ensureGreen("log-index-*");
         try {
             final AtomicBoolean relocated = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService.getInstance(node)
                     .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (relocated.compareAndSet(false, true)) {
-                            moveOrCloseShardsOnNodes(node);
+                            moveOrCloseShardsOnNodes(node, indexName -> indexName.startsWith("log-index-"));
                         }
                         handler.messageReceived(request, channel, task);
                     });

@@ -86,6 +86,22 @@ score = ln(score), if score < 0
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
+`chunk_rescorer` {applies_to}`stack: beta 9.2`
+:   (Optional, `object`)
+
+    When specified, chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit.
+
+    Parameters for `chunk_rescorer`:
+
+    `size`
+    :   (Optional, `int`)
+
+    The number of chunks to pass to the reranker for consideration. Defaults to `1`.
+
+    `chunking_settings`
+    :   (Optional, `object`)
+
+    Settings for chunking text into smaller passages for scoring and reranking. Defaults to the optimal chunk size for the Elastic Reranker. Note that if chunking settings are specified that chunk content into larger chunks than the reranker's token limit, it may result in truncation and negatively impact relevance.
 
 
 ## Example: Elastic Rerank [text-similarity-reranker-retriever-example-elastic-rerank]

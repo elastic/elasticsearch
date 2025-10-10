@@ -203,6 +203,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     );
 
     private volatile int maxConcurrentOperations;
+    private volatile ClusterState lastAppliedClusterState;
 
     public SnapshotsService(
         Settings settings,
@@ -677,6 +678,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
+        lastAppliedClusterState = event.state();
         try {
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
@@ -3358,7 +3360,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private Collection<LongWithAttributes> getShardsByState() {
-        final ClusterState currentState = clusterService.state();
+        final ClusterState currentState = lastAppliedClusterState;
+        // If we haven't seen a state, we can't report metrics
+        if (currentState == null) {
+            return List.of();
+        }
         // Only the master should report on shards-by-state
         if (currentState.nodes().isLocalNodeElectedMaster() == false) {
             return List.of();
@@ -3367,7 +3373,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private Collection<LongWithAttributes> getSnapshotsByState() {
-        final ClusterState currentState = clusterService.state();
+        final ClusterState currentState = lastAppliedClusterState;
+        // If we haven't seen a state, we can't report metrics
+        if (currentState == null) {
+            return List.of();
+        }
         // Only the master should report on snapshots-by-state
         if (currentState.nodes().isLocalNodeElectedMaster() == false) {
             return List.of();

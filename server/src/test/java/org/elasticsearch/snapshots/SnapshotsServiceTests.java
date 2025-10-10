@@ -10,13 +10,21 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -25,30 +33,46 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotsServiceTests extends ESTestCase {
 
@@ -464,6 +488,112 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertEquals(
             SnapshotsInProgress.ShardState.QUEUED,
             SnapshotsInProgress.get(updatedState).snapshot(snapshot2).shards().get(shardId).state()
+        );
+    }
+
+    public void testMetricsAreCalculatedFromLastAppliedClusterState() {
+        final ClusterService clusterService = mock(ClusterService.class);
+        final Settings settings = Settings.EMPTY;
+        final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        final SnapshotMetrics snapshotMetrics = new SnapshotMetrics(recordingMeterRegistry);
+        try (
+            TestThreadPool testThreadPool = new TestThreadPool("test");
+            SnapshotsService snapshotsService = new SnapshotsService(
+                settings,
+                clusterService,
+                (reason, priority, listener) -> listener.onResponse(null),
+                new IndexNameExpressionResolver(
+                    new ThreadContext(settings),
+                    EmptySystemIndices.INSTANCE,
+                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                ),
+                new RepositoriesService(
+                    settings,
+                    clusterService,
+                    Map.of(),
+                    Map.of(),
+                    testThreadPool,
+                    new NoOpNodeClient(testThreadPool),
+                    List.of(),
+                    snapshotMetrics
+                ),
+                mock(TransportService.class),
+                EmptySystemIndices.INSTANCE,
+                randomBoolean(),
+                snapshotMetrics
+            )
+        ) {
+            // No metrics should be recorded before seeing a cluster state
+            recordingMeterRegistry.getRecorder().collect();
+            assertThat(
+                recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE),
+                empty()
+            );
+            assertThat(
+                recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_BY_STATE),
+                empty()
+            );
+
+            // Simulate a cluster state being applied
+            final ClusterState withSnapshotsInProgress = createClusterStateWithSnapshotsInProgress();
+            snapshotsService.applyClusterState(new ClusterChangedEvent("test", withSnapshotsInProgress, withSnapshotsInProgress));
+
+            // Now we should publish some metrics
+            recordingMeterRegistry.getRecorder().collect();
+            assertThat(
+                recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE),
+                not(empty())
+            );
+            assertThat(
+                recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_BY_STATE),
+                not(empty())
+            );
+        }
+    }
+
+    private ClusterState createClusterStateWithSnapshotsInProgress() {
+        final var indexName = randomIdentifier();
+        final var repositoryName = randomIdentifier();
+        final ClusterState state = ClusterStateCreationUtils.state(indexName, randomIntBetween(1, 3), randomIntBetween(1, 2));
+        final IndexMetadata index = state.projectState(ProjectId.DEFAULT).metadata().index(indexName);
+        return ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
+            .putProjectMetadata(
+                ProjectMetadata.builder(state.getMetadata().getProject(ProjectId.DEFAULT))
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(List.of(new RepositoryMetadata(repositoryName, "fs", Settings.EMPTY)))
+                    )
+            )
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(createEntry(index, repositoryName)))
+            .incrementVersion()
+            .build();
+    }
+
+    private SnapshotsInProgress.Entry createEntry(IndexMetadata indexMetadata, String repositoryName) {
+        return SnapshotsInProgress.Entry.snapshot(
+            new Snapshot(ProjectId.DEFAULT, repositoryName, new SnapshotId("", "")),
+            false,
+            randomBoolean(),
+            SnapshotsInProgress.State.STARTED,
+            Map.of(indexMetadata.getIndex().getName(), new IndexId(indexMetadata.getIndex().getName(), randomIdentifier())),
+            List.of(),
+            Collections.emptyList(),
+            0,
+            1,
+            IntStream.range(0, indexMetadata.getNumberOfShards())
+                .mapToObj(i -> new ShardId(indexMetadata.getIndex(), i))
+                .collect(
+                    Collectors.toUnmodifiableMap(
+                        Function.identity(),
+                        shardId -> new SnapshotsInProgress.ShardSnapshotStatus(randomIdentifier(), ShardGeneration.newGeneration())
+                    )
+                ),
+            null,
+            null,
+            null
         );
     }
 

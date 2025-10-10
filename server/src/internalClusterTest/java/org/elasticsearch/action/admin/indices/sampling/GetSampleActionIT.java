@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class GetSampleActionIT extends ESIntegTestCase {
 
@@ -34,7 +36,8 @@ public class GetSampleActionIT extends ESIntegTestCase {
         createIndex(indexName);
         // the index exists but there is no sampling configuration for it, so getting its sample will throw an exception:
         assertGetSampleThrowsResourceNotFoundException(indexName);
-        addSamplingConfig(indexName);
+        final int maxSamples = 30;
+        addSamplingConfig(indexName, maxSamples);
         // There is now a sampling configuration, but no data has been ingested:
         assertEmptySample(indexName);
         int docsToIndex = randomIntBetween(1, 20);
@@ -49,6 +52,29 @@ public class GetSampleActionIT extends ESIntegTestCase {
         for (int i = 0; i < docsToIndex; i++) {
             assertRawDocument(sample.get(i), indexName);
         }
+
+        GetSampleStatsAction.Request statsRequest = new GetSampleStatsAction.Request(indexName);
+        GetSampleStatsAction.Response statsResponse = client().execute(GetSampleStatsAction.INSTANCE, statsRequest).actionGet();
+        SamplingService.SampleStats stats = statsResponse.getSampleStats();
+        assertThat(stats.getSamples(), equalTo((long) docsToIndex));
+        assertThat(stats.getPotentialSamples(), equalTo((long) docsToIndex));
+        assertThat(stats.getTimeSampling(), greaterThan(TimeValue.ZERO));
+        assertThat(stats.getSamplesRejectedForMaxSamplesExceeded(), equalTo(0L));
+        assertThat(stats.getSamplesRejectedForRate(), equalTo(0L));
+        assertThat(stats.getSamplesRejectedForCondition(), equalTo(0L));
+        assertThat(stats.getSamplesRejectedForCondition(), equalTo(0L));
+
+        final int samplesOverMax = randomIntBetween(1, 5);
+        for (int i = docsToIndex; i < maxSamples + samplesOverMax; i++) {
+            indexDoc(indexName, randomIdentifier(), randomAlphanumericOfLength(10), randomAlphanumericOfLength(10));
+        }
+        statsRequest = new GetSampleStatsAction.Request(indexName);
+        statsResponse = client().execute(GetSampleStatsAction.INSTANCE, statsRequest).actionGet();
+        stats = statsResponse.getSampleStats();
+        assertThat(stats.getSamples(), equalTo((long) maxSamples));
+        assertThat(stats.getPotentialSamples(), equalTo((long) maxSamples + samplesOverMax));
+        assertThat(stats.getSamplesRejectedForMaxSamplesExceeded(), equalTo((long) samplesOverMax));
+
     }
 
     private void assertRawDocument(SamplingService.RawDocument rawDocument, String indexName) {
@@ -68,7 +94,7 @@ public class GetSampleActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("deprecation")
-    private void addSamplingConfig(String indexName) throws Exception {
+    private void addSamplingConfig(String indexName, int maxSamples) throws Exception {
         /*
          * Note: The following code writes a sampling config directly to the cluster state. It can be replaced with a call to the action
          * that does this once that action exists.
@@ -81,7 +107,7 @@ public class GetSampleActionIT extends ESIntegTestCase {
                     currentState.metadata().getProject(ProjectId.DEFAULT)
                 );
                 SamplingMetadata samplingMetadata = new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0d, 100, null, null, null))
+                    Map.of(indexName, new SamplingConfiguration(1.0d, maxSamples, null, null, null))
                 );
                 projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, samplingMetadata);
                 ClusterState newState = new ClusterState.Builder(currentState).putProjectMetadata(projectMetadataBuilder).build();

@@ -44,7 +44,7 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
-
+    private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
     private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
 
     private int from;
@@ -79,6 +79,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private final RefCounted refCounted;
 
     private final SubscribableListener<Void> aggsContextReleased;
+
+    @Nullable
+    private Long timeRangeFilterFromMillis;
 
     public QuerySearchResult() {
         this(false);
@@ -456,6 +459,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     reduced = in.readBoolean();
                 }
             }
+            if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
+                timeRangeFilterFromMillis = in.readOptionalLong();
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -526,6 +532,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
         }
+        if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
+            out.writeOptionalLong(timeRangeFilterFromMillis);
+        }
     }
 
     @Nullable
@@ -576,5 +585,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
         return transportVersion.supports(BATCHED_QUERY_PHASE_VERSION);
+    }
+
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
+    public void setTimeRangeFilterFromMillis(Long timeRangeFilterFromMillis) {
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
     }
 }

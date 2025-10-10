@@ -29,20 +29,20 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -53,13 +53,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
-    private final Map<String, FlatVectorsReader> rawVectorReaders;
+    private final GenericFlatVectorReaders genericReaders;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+    protected IVFVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader loadReader) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
+        this.genericReaders = new GenericFlatVectorReaders();
         String meta = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -70,7 +71,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         boolean success = false;
         try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
             Throwable priorE = null;
-            Map<String, FlatVectorsReader> readers = null;
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     ivfMeta,
@@ -80,13 +80,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                readers = readFields(ivfMeta, getFormatReader);
+                readFields(ivfMeta, versionMeta, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            this.rawVectorReaders = readers;
             ivfCentroids = openDataInput(
                 state,
                 versionMeta,
@@ -153,33 +152,28 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    private Map<String, FlatVectorsReader> readFields(ChecksumIndexInput meta, IOFunction<String, FlatVectorsReader> loadReader)
-        throws IOException {
-        Map<String, FlatVectorsReader> readers = new HashMap<>();
+    private void readFields(
+        ChecksumIndexInput meta,
+        int versionMeta,
+        GenericFlatVectorReaders genericFields,
+        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+    ) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            FieldEntry fieldEntry = readField(meta, info);
-
-            FlatVectorsReader reader = readers.get(fieldEntry.rawVectorFormatName);
-            if (reader == null) {
-                reader = loadReader.apply(fieldEntry.rawVectorFormatName);
-                if (reader == null) {
-                    throw new IllegalStateException("Cannot find flat vector format: " + fieldEntry.rawVectorFormatName);
-                }
-                readers.put(fieldEntry.rawVectorFormatName, reader);
-            }
+            FieldEntry fieldEntry = readField(meta, info, versionMeta);
+            genericFields.loadField(fieldNumber, fieldEntry, loadReader);
 
             fields.put(info.number, fieldEntry);
         }
-        return readers;
     }
 
-    private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
+    private FieldEntry readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
         final String rawVectorFormat = input.readString();
+        final boolean useDirectIOReads = versionMeta >= VERSION_DIRECT_IO && input.readByte() == 1;
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -207,6 +201,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         return new FieldEntry(
             rawVectorFormat,
+            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -237,29 +232,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public final void checkIntegrity() throws IOException {
-        for (var reader : rawVectorReaders.values()) {
+        for (var reader : genericReaders.allReaders()) {
             reader.checkIntegrity();
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private FieldEntry getFieldEntryOrThrow(String field) {
-        final FieldInfo info = fieldInfos.fieldInfo(field);
-        final FieldEntry entry;
-        if (info == null || (entry = fields.get(info.number)) == null) {
-            throw new IllegalArgumentException("field=\"" + field + "\" not found");
-        }
-        return entry;
-    }
-
     private FlatVectorsReader getReaderForField(String field) {
-        var formatName = getFieldEntryOrThrow(field).rawVectorFormatName;
-        FlatVectorsReader reader = rawVectorReaders.get(formatName);
-        if (reader == null) throw new IllegalArgumentException(
-            "Could not find raw vector format [" + formatName + "] for field [" + field + "]"
-        );
-        return reader;
+        FieldInfo info = fieldInfos.fieldInfo(field);
+        if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
+        return genericReaders.getReaderForField(info.number);
     }
 
     @Override
@@ -380,13 +363,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>(rawVectorReaders.values());
+        List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
         IOUtils.close(closeables);
     }
 
     protected record FieldEntry(
         String rawVectorFormatName,
+        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -396,7 +380,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListLength,
         float[] globalCentroid,
         float globalCentroidDp
-    ) {
+    ) implements GenericFlatVectorReaders.Field {
         IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }

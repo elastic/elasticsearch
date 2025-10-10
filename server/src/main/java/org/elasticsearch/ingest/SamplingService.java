@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
@@ -19,6 +20,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -28,10 +31,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -51,6 +58,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -66,13 +77,13 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SamplingService implements ClusterStateListener {
+public class SamplingService implements ClusterStateListener, SchedulerEngine.Listener {
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
+    private static final String TTL_JOB_ID = "sampling_ttl";
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
-    private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
 
@@ -83,7 +94,11 @@ public class SamplingService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
+    private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
+    private SchedulerEngine.Job scheduledJob;
+    private volatile TimeValue pollInterval = TimeValue.timeValueMinutes(30);
+    private final Settings settings;
+    private final Clock clock = Clock.systemUTC();
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -91,21 +106,16 @@ public class SamplingService implements ClusterStateListener {
      */
     private final Map<ProjectIndex, SoftReference<SampleInfo>> samples = new ConcurrentHashMap<>();
 
-    public SamplingService(
-        ScriptService scriptService,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        LongSupplier relativeMillisTimeSupplier
-    ) {
+    public SamplingService(ScriptService scriptService, ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
-        this.relativeMillisTimeSupplier = relativeMillisTimeSupplier;
         this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-sampling-configuration",
             Priority.NORMAL,
             new UpdateSamplingConfigurationExecutor(projectResolver, this)
         );
+        this.settings = settings;
     }
 
     /**
@@ -165,11 +175,7 @@ public class SamplingService implements ClusterStateListener {
         }
         SoftReference<SampleInfo> sampleInfoReference = samples.compute(
             new ProjectIndex(projectMetadata.id(), indexName),
-            (k, v) -> v == null || v.get() == null
-                ? new SoftReference<>(
-                    new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
-                )
-                : v
+            (k, v) -> v == null || v.get() == null ? new SoftReference<>(new SampleInfo(samplingConfig.maxSamples())) : v
         );
         SampleInfo sampleInfo = sampleInfoReference.get();
         if (sampleInfo == null) {
@@ -328,6 +334,17 @@ public class SamplingService implements ClusterStateListener {
         if (RANDOM_SAMPLING_FEATURE_FLAG == false) {
             return;
         }
+        final boolean isMaster = event.localNodeMaster();
+        final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
+        if (wasMaster != isMaster) {
+            if (isMaster) {
+                // we weren't the master, and now we are
+                maybeScheduleJob();
+            } else {
+                // we were the master, and now we aren't
+                cancelJob();
+            }
+        }
         if (samples.isEmpty()) {
             return;
         }
@@ -390,6 +407,33 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    private void maybeScheduleJob() {
+        if (scheduler.get() == null) {
+            // don't create scheduler if the node is shutting down
+            if (isClusterServiceStoppedOrClosed() == false) {
+                scheduler.set(new SchedulerEngine(settings, clock));
+                scheduler.get().register(this);
+            }
+        }
+        // scheduler could be null if the node is shutting down
+        if (scheduler.get() != null) {
+            scheduledJob = new SchedulerEngine.Job(TTL_JOB_ID, new TimeValueSchedule(pollInterval));
+            scheduler.get().add(scheduledJob);
+        }
+    }
+
+    private void cancelJob() {
+        if (scheduler.get() != null) {
+            scheduler.get().remove(TTL_JOB_ID);
+            scheduledJob = null;
+        }
+    }
+
+    private boolean isClusterServiceStoppedOrClosed() {
+        final Lifecycle.State state = clusterService.lifecycleState();
+        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    }
+
     private boolean evaluateCondition(
         Supplier<IngestDocument> ingestDocumentSupplier,
         Script script,
@@ -439,6 +483,61 @@ public class SamplingService implements ClusterStateListener {
             }
         }
         return false;
+    }
+
+    @Override
+    public void triggered(SchedulerEngine.Event event) {
+        logger.debug("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
+        checkTTLs();
+    }
+
+    private void checkTTLs() {
+        long now = Instant.now().toEpochMilli();
+        for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            if (samplingMetadata != null) {
+                for (Map.Entry<String, SamplingConfiguration> entry : samplingMetadata.getIndexToSamplingConfigMap().entrySet()) {
+                    SamplingConfiguration samplingConfiguration = entry.getValue();
+                    if (samplingConfiguration.creationDate().millis() + samplingConfiguration.timeToLive().millis() < now) {
+                        logger.debug("Configuration created at " + ZonedDateTime.ofInstant(Instant.ofEpochMilli(samplingConfiguration.creationDate().millis()), ZoneOffset.UTC) + " is older than " + samplingConfiguration.timeToLive() + " because it is now " + ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC));
+                        deleteSampleConfiguration(projectMetadata.id(), entry.getKey());
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    public void deleteSampleConfiguration(ProjectId projectId, String index) {
+        clusterService.submitUnbatchedStateUpdateTask("delete sample config", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
+                if (currentState.metadata().hasProject(projectId) == false) {
+                    return currentState;
+                }
+                ProjectMetadata currentProjectMetadata = currentState.metadata().getProject(projectId);
+                SamplingMetadata samplingMetadata = currentProjectMetadata.custom(SamplingMetadata.TYPE);
+                if (samplingMetadata == null) {
+                    return currentState;
+                }
+                ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
+                Map<String, SamplingConfiguration> newSamplingConfigurationMap = new HashMap<>();
+                for (Map.Entry<String, SamplingConfiguration> entry : samplingMetadata.getIndexToSamplingConfigMap().entrySet()) {
+                    if (entry.getKey().equals(index) == false) {
+                        newSamplingConfigurationMap.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                SamplingMetadata newSamplingMetadata = new SamplingMetadata(newSamplingConfigurationMap);
+                projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+                return clusterStateBuilder.putProjectMetadata(projectMetadataBuilder).build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("error deleting configuration for " + index, e);
+            }
+        });
     }
 
     /*
@@ -819,18 +918,14 @@ public class SamplingService implements ClusterStateListener {
          */
         private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
         private final SampleStats stats;
-        private final long expiration;
-        private final TimeValue timeToLive;
         private volatile Script script;
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
 
-        SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
-            this.timeToLive = timeToLive;
+        SampleInfo(int maxSamples) {
             this.rawDocuments = new RawDocument[maxSamples];
             this.stats = new SampleStats();
-            this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
         }
 
         /*

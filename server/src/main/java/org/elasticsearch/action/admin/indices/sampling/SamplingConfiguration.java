@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -30,11 +31,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Configuration for sampling raw documents in an index.
  */
-public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
-    implements
-        ToXContentObject,
-        SimpleDiffable<SamplingConfiguration> {
+public record SamplingConfiguration(
+    TimeValue creationDate,
+    double rate,
+    Integer maxSamples,
+    ByteSizeValue maxSize,
+    TimeValue timeToLive,
+    String condition
+) implements ToXContentObject, SimpleDiffable<SamplingConfiguration> {
 
+    private static final String CREATION_TIME_IN_MILLIS_FIELD_NAME = "creation_time_in_millis";
     public static final String TYPE = "sampling_configuration";
     private static final String RATE_FIELD_NAME = "rate";
     private static final String MAX_SAMPLES_FIELD_NAME = "max_samples";
@@ -64,19 +70,29 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         + " days";
     public static final String INVALID_CONDITION_MESSAGE = "condition script, if provided, must not be empty";
 
-    private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<SamplingConfiguration, Boolean> PARSER = new ConstructingObjectParser<>(
         TYPE,
         false,
         args -> {
             Double rate = (Double) args[0];
-            Integer maxSamples = (Integer) args[1];
-            ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[2];
-            ByteSizeValue rawMaxSize = (ByteSizeValue) args[3];
-            TimeValue humanReadableTimeToLive = (TimeValue) args[4];
-            TimeValue rawTimeToLive = (TimeValue) args[5];
-            String condition = (String) args[6];
-
+            TimeValue creationTime = (TimeValue) args[1];
+            Integer maxSamples = (Integer) args[2];
+            ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[3];
+            ByteSizeValue rawMaxSize = (ByteSizeValue) args[4];
+            TimeValue humanReadableTimeToLive = (TimeValue) args[5];
+            TimeValue rawTimeToLive = (TimeValue) args[6];
+            String condition = (String) args[7];
+            if (creationTime == null) {
+                return new SamplingConfiguration(
+                    rate,
+                    maxSamples,
+                    determineValue(humanReadableMaxSize, rawMaxSize),
+                    determineValue(humanReadableTimeToLive, rawTimeToLive),
+                    condition
+                );
+            }
             return new SamplingConfiguration(
+                creationTime,
                 rate,
                 maxSamples,
                 determineValue(humanReadableMaxSize, rawMaxSize),
@@ -88,6 +104,14 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
 
     static {
         PARSER.declareDouble(constructorArg(), new ParseField(RATE_FIELD_NAME));
+        PARSER.declareField(optionalConstructorArg(), (p, fromClusterState) -> {
+            long creationTime = p.longValue();
+            if (fromClusterState) {
+                return TimeValue.timeValueMillis(creationTime);
+            } else {
+                throw new IllegalArgumentException("Cannot set creationTime");
+            }
+        }, new ParseField(CREATION_TIME_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.LONG);
         PARSER.declareInt(optionalConstructorArg(), new ParseField(MAX_SAMPLES_FIELD_NAME));
         // Handle both human-readable and machine-readable fields for maxSize.
         PARSER.declareField(
@@ -130,14 +154,15 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
      * @throws IllegalArgumentException If any of the parameters are invalid, according to the validation rules
      */
     public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
+        this(
+            TimeValue.timeValueMillis(Instant.now().toEpochMilli()),
+            rate,
+            maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples,
+            maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize,
+            timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive,
+            condition
+        );
         validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
-
-        // Initialize record fields
-        this.rate = rate;
-        this.maxSamples = maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples;
-        this.maxSize = maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize;
-        this.timeToLive = timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive;
-        this.condition = condition;
     }
 
     /**
@@ -183,7 +208,11 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
      * @throws IOException If parsing fails due to invalid JSON or I/O errors
      */
     public static SamplingConfiguration fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return PARSER.parse(parser, true);
+    }
+
+    public static SamplingConfiguration fromXContentUserData(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, false);
     }
 
     /**

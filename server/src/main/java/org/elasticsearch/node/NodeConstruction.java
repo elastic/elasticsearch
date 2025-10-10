@@ -727,12 +727,7 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = new SamplingService(
-            scriptService,
-            clusterService,
-            projectResolver,
-            threadPool.relativeTimeInMillisSupplier()
-        );
+        SamplingService samplingService = new SamplingService(scriptService, clusterService, projectResolver, settings);
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 

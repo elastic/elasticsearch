@@ -351,6 +351,6 @@ public class SamplingServiceTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
         final ProjectId projectId = ProjectId.DEFAULT;
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
-        return new SamplingService(scriptService, clusterService, projectResolver, System::currentTimeMillis);
+        return new SamplingService(scriptService, clusterService, projectResolver, Settings.EMPTY);
     }
 }

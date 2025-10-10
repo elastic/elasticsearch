@@ -1,9 +1,7 @@
 setup:
-  - skip:
-      features:
-        - close_to
   - requires:
-      test_runner_features: "close_to"
+      cluster_features: "search.usage.extended_data"
+      reason: extended search usage data introduced in 9.2.0
 
   - do:
       inference.put:
@@ -91,7 +89,7 @@ setup:
         refresh: true
 
 ---
-"Reranking based on rescore_chunks on a semantic_text field specifying chunk size":
+"Reranking based on rescore_chunks is reflected in extended search usage stats":
 
   - do:
       search:
@@ -111,15 +109,8 @@ setup:
               inference_id: my-rerank-model
               inference_text: "how often does the moon hide the sun?"
               field: semantic_text_field
-              chunk_rescorer:
-                chunk_size: 20
+              chunk_rescorer: {}
           size: 10
-
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
-
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_2" }
 
   - do:
       cluster.stats: {}

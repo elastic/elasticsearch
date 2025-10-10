@@ -2254,6 +2254,21 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoinExpressionRightNotPushable() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code and abs(salary) > 1000
+            """;
+
+        assertEquals("3:71: Unsupported join filter expression: abs(salary) > 1000", error(queryString));
+    }
+
     public void testLookupJoinExpressionAmbiguousLeft() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

@@ -861,11 +861,22 @@ public class HeapAttackIT extends ESRestTestCase {
                 }
             }
             if (lookupEntries != lookupEntriesToKeep) {
-                // add a filter to reduce the number of matches
-                // we add both a Lucene pushable filter and a non-pushable filter
-                // this is to make sure that even if there are non-pushable filters the pushable filters is still applied
-                query.append(" | WHERE ABS(filter_key) > -1 AND filter_key < ").append(lookupEntriesToKeep);
-
+                boolean applyAsExpressionJoinFilter = expressionBasedJoin && randomBoolean();
+                // we randomly add the filter after the join or as part of the join
+                // in both cases we should have the same amount of results
+                if (applyAsExpressionJoinFilter == false) {
+                    // add a filter after the join to reduce the number of matches
+                    // we add both a Lucene pushable filter and a non-pushable filter
+                    // this is to make sure that even if there are non-pushable filters the pushable filters is still applied
+                    query.append(" | WHERE ABS(filter_key) > -1 AND filter_key < ").append(lookupEntriesToKeep);
+                } else {
+                    // apply the filter as part of the join
+                    // then we filter out the rows that do not match the filter after
+                    // so the number of rows is the same as in the field based join case
+                    // and can get the same number of rows for verification purposes
+                    query.append(" AND filter_key < ").append(lookupEntriesToKeep);
+                    query.append(" | WHERE filter_key IS NOT NULL ");
+                }
             }
             query.append(" | STATS COUNT(location) | LIMIT 100\"}");
             return responseAsMap(query(query.toString(), null));

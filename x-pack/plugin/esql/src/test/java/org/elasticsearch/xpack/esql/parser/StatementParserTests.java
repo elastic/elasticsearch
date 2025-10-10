@@ -3510,6 +3510,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         expectError(
+            "FROM test  | LOOKUP JOIN test2 ON "
+                + singleExpressionJoinClause()
+                + " AND ("
+                + randomIdentifier()
+                + " OR "
+                + singleExpressionJoinClause()
+                + ")",
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON "
+                + singleExpressionJoinClause()
+                + " AND ("
+                + randomIdentifier()
+                + "OR"
+                + randomIdentifier()
+                + ")",
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
             "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + randomIdentifier(),
             "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
         );
@@ -5061,7 +5083,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     expectError(
                         LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
                         List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                        "JOIN ON clause only supports fields or AND of Binary Expressions at the moment"
+                        "line 1:33: JOIN ON clause must be a comma separated list of fields or a single expression, found [?f1]"
                     );
 
                 }

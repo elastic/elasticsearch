@@ -133,19 +133,89 @@ public class ParsingTests extends ESTestCase {
     public void testJoinOnConstant() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [123]",
+            "1:55: JOIN ON clause must be a comma separated list of fields or a single expression, found [123]",
             error("row languages = 1, gender = \"f\" | lookup join test on 123")
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [\"abc\"]",
+            "1:55: JOIN ON clause must be a comma separated list of fields or a single expression, found [\"abc\"]",
             error("row languages = 1, gender = \"f\" | lookup join test on \"abc\"")
         );
         assertEquals(
-            "1:55: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [false]",
+            "1:55: JOIN ON clause must be a comma separated list of fields or a single expression, found [false]",
             error("row languages = 1, gender = \"f\" | lookup join test on false")
+        );
+    }
+
+    public void testLookupJoinExpressionMixed() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code or salary > 1000
+            """;
+
+        assertEquals(
+            "3:32: JOIN ON clause with expressions must contain at least one condition relating the left index and the lookup index",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionOnlyRightFilter() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON salary > 1000
+            """;
+
+        assertEquals(
+            "3:32: JOIN ON clause with expressions must contain at least one condition relating the left index and the lookup index",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionFieldBasePlusRightFilterAnd() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+        );
+        String queryString = """
+            from test
+            | lookup join languages_lookup ON languages and salary > 1000
+            """;
+
+        assertEquals(
+            "2:32: JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [languages]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionFieldBasePlusRightFilterComma() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+        );
+        String queryString = """
+            from test
+            | lookup join languages_lookup ON languages, salary > 1000
+            """;
+
+        assertEquals(
+            "2:46: JOIN ON clause must be a comma separated list of fields or a single expression, found [salary > 1000]",
+            error(queryString)
         );
     }
 

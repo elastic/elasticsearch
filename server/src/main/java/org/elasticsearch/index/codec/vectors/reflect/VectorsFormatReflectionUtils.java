@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -22,12 +22,10 @@ public class VectorsFormatReflectionUtils {
     private static final VarHandle FLOAT_SUPPLIER_HANDLE;
     private static final VarHandle BYTE_SUPPLIER_HANDLE;
     private static final VarHandle FLOAT_VECTORS_HANDLE;
-    private static final VarHandle BYTE_VECTORS_HANDLE;
 
     private static final Class<?> FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS;
     private static final Class<?> SCALAR_QUANTIZED_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS;
     private static final Class<?> FLOAT_SCORING_SUPPLIER_CLASS;
-    private static final Class<?> BYTE_SCORING_SUPPLIER_CLASS;
     static {
         try {
             FLAT_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS = Class.forName(
@@ -55,10 +53,6 @@ public class VectorsFormatReflectionUtils {
                 "supplier",
                 RandomVectorScorerSupplier.class
             );
-
-            BYTE_SCORING_SUPPLIER_CLASS = Class.forName("org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier");
-            lookup = MethodHandles.privateLookupIn(BYTE_SCORING_SUPPLIER_CLASS, MethodHandles.lookup());
-            BYTE_VECTORS_HANDLE = lookup.findVarHandle(BYTE_SCORING_SUPPLIER_CLASS, "values", QuantizedByteVectorValues.class);
 
         } catch (IllegalAccessException e) {
             throw new AssertionError("should not happen, check opens", e);
@@ -94,8 +88,8 @@ public class VectorsFormatReflectionUtils {
     }
 
     public static HasIndexSlice getByteScoringSupplierVectorOrNull(RandomVectorScorerSupplier scorerSupplier) {
-        if (BYTE_SCORING_SUPPLIER_CLASS.isAssignableFrom(scorerSupplier.getClass())) {
-            return (QuantizedByteVectorValues) BYTE_VECTORS_HANDLE.get(scorerSupplier);
+        if (scorerSupplier instanceof QuantizedByteVectorValuesAccess quantizedByteVectorValuesAccess) {
+            return quantizedByteVectorValuesAccess.get();
         }
         return null;
     }

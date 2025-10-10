@@ -34,7 +34,8 @@ public class VectorBuilderTests extends ESTestCase {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
-                || e == ElementType.AGGREGATE_METRIC_DOUBLE) {
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE
+                || e == ElementType.DATE_RANGE) {
                 continue;
             }
             params.add(new Object[] { e });

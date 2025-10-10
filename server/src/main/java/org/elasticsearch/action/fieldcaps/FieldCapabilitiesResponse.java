@@ -213,6 +213,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
         return Arrays.equals(indices, that.indices)
             && Objects.equals(resolvedLocally, that.resolvedLocally)
+            && Objects.equals(resolvedRemotely, that.resolvedRemotely)
             && Objects.equals(fields, that.fields)
             && Objects.equals(indexResponses, that.indexResponses)
             && Objects.equals(failures, that.failures);
@@ -220,7 +221,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(resolvedLocally, fields, indexResponses, failures);
+        int result = Objects.hash(resolvedLocally, resolvedRemotely, fields, indexResponses, failures);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

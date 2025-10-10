@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -47,6 +48,11 @@ import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
+
+    static {
+        LogManager.getLogger("org.elasticsearch.transport.netty4.Netty4Plugin")
+            .info("Netty4Plugin#<clinit>", new RuntimeException("stack trace"));
+    }
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";

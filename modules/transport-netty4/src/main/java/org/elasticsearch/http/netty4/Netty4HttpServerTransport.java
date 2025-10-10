@@ -37,6 +37,7 @@ import io.netty.util.ResourceLeakDetector;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
@@ -147,6 +148,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
+        logger.info("Netty4HttpServerTransport#<init>", new RuntimeException("stack trace"));
         clusterSettings.addSettingsUpdateConsumer(Netty4Plugin.NETTY_EXAMPLE_DYNAMIC_SETTING, value -> {});
 
         logger.debug(

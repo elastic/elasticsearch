@@ -96,10 +96,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     public static final class PlaceHolderFieldType extends MappedFieldType {
 
-        private String type;
+        private final String type;
 
         public PlaceHolderFieldType(String name, String type, Map<String, String> meta) {
-            super(name, false, false, false, meta);
+            super(name, IndexType.NONE, false, meta);
             this.type = type;
         }
 

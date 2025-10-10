@@ -130,6 +130,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
 
     public static boolean isNotUnitVector(float magnitude) {
+        // TODO: need different EPS for bfloat16?
         return Math.abs(magnitude - 1.0f) > EPS;
     }
 
@@ -2213,14 +2214,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 case FLOAT -> new ES920DiskBBQVectorsFormat(
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                    onDiskRescore,
-                    false
+                    false,
+                    onDiskRescore
                 );
                 case BFLOAT16 -> new ES920DiskBBQVectorsFormat(
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                    onDiskRescore,
-                    true
+                    true,
+                    onDiskRescore
                 );
                 default -> throw new AssertionError();
             };

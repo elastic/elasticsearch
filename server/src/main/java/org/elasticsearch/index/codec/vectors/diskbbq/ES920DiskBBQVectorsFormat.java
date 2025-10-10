@@ -18,6 +18,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,9 +62,14 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
         float32VectorFormat.getName(),
-        float32VectorFormat
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
     );
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
@@ -78,14 +84,15 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final boolean useDirectIO;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
+    private final boolean useDirectIO;
 
     public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(vectorPerCluster, centroidsPerParentCluster, false);
+        this(vectorPerCluster, centroidsPerParentCluster, false, false);
     }
 
-    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useDirectIO) {
+    // TODO: ElementType
+    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useBFloat16, boolean useDirectIO) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -109,8 +116,8 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.rawVectorFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
         this.useDirectIO = useDirectIO;
-        this.rawVectorFormat = float32VectorFormat;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */

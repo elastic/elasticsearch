@@ -57,6 +57,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         this(false, false);
     }
 
+    // TODO: ElementType
     public ES93GenericFlatVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
         super(NAME);
         writeFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;

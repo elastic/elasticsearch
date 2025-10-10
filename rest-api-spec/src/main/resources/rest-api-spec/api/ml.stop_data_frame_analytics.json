@@ -48,7 +48,8 @@
       }
     },
     "body": {
-      "description": "The stop data frame analytics parameters"
+      "description": "The stop data frame analytics parameters",
+      "required": false
     }
   }
 }

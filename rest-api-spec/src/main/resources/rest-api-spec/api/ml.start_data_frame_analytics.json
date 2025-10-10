@@ -38,7 +38,8 @@
       }
     },
     "body": {
-      "description": "The start data frame analytics parameters"
+      "description": "The start data frame analytics parameters",
+      "required": false
     }
   }
 }

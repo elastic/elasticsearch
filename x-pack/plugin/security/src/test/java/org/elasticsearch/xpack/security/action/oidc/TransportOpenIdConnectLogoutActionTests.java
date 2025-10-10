@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -105,6 +106,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final var defaultContext = threadContext.newStoredContext();
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
             .realmRef(new Authentication.RealmRef("realm", "type", "node"))

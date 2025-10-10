@@ -52,7 +52,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
-        private static final TransportVersion INFERENCE_UPDATE_ML = TransportVersion.fromName("inference_update_ml");
+        private static final TransportVersion UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE = TransportVersion.fromName(
+            "inference_update_trained_model_deployment_request_source"
+        );
 
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
@@ -102,7 +104,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 numberOfAllocations = in.readOptionalVInt();
                 adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-                if (in.getTransportVersion().supports(INFERENCE_UPDATE_ML)) {
+                if (in.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
                     source = in.readEnum(Source.class);
                 } else {
                     // we changed over from a boolean to an enum
@@ -157,7 +159,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
-                if (out.getTransportVersion().supports(INFERENCE_UPDATE_ML)) {
+                if (out.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
                     out.writeEnum(source);
                 } else {
                     // we changed over from a boolean to an enum

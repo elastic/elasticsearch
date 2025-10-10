@@ -3,8 +3,6 @@
 ### DELTA
 Calculates the absolute change of a gauge field in a time window.
 
-Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command
-
 ```esql
 TS k8s
 | WHERE pod == "one"

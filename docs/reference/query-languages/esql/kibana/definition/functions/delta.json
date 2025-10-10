@@ -3,7 +3,6 @@
   "type" : "time_series_agg",
   "name" : "delta",
   "description" : "Calculates the absolute change of a gauge field in a time window.",
-  "note" : "Available with the TS command",
   "signatures" : [
     {
       "params" : [

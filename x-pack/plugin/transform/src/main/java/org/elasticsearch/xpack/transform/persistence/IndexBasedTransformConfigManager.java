@@ -302,7 +302,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             );
 
             for (var index : matchingIndexes) {
-                var meta = state.getMetadata().indexMetadata(index);
+                var meta = state.getMetadata().getIndexSafe(index);
                 if (meta.isSystem() == false) { // ignore system indices as these are automatically managed
                     indicesToDelete.add(meta.getIndex().getName());
                 }

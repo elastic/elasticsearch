@@ -33,11 +33,6 @@ import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeployment
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 
 public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAssignmentAction.Response> {
-    public enum Source {
-        API,
-        ADAPTIVE_ALLOCATIONS,
-        INFERENCE
-    }
 
     public static final UpdateTrainedModelDeploymentAction INSTANCE = new UpdateTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/update";
@@ -135,7 +130,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         }
 
         public boolean isInternal() {
-            return source == Source.INFERENCE || source == Source.ADAPTIVE_ALLOCATIONS;
+            return source == Source.INFERENCE_API || source == Source.ADAPTIVE_ALLOCATIONS;
         }
 
         public void setSource(Source source) {
@@ -231,6 +226,12 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        public enum Source {
+            API,
+            ADAPTIVE_ALLOCATIONS,
+            INFERENCE_API
         }
     }
 }

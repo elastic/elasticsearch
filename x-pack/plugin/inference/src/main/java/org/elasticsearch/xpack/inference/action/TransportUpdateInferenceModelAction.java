@@ -294,7 +294,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             var updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
             updateRequest.setNumberOfAllocations(elasticServiceSettings.getNumAllocations());
             updateRequest.setAdaptiveAllocationsSettings(elasticServiceSettings.getAdaptiveAllocationsSettings());
-            updateRequest.setSource(UpdateTrainedModelDeploymentAction.Source.INFERENCE);
+            updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.INFERENCE_API);
 
             var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure((l2, response) -> {
                 modelRegistry.updateModelTransaction(newModel, existingParsedModel, l2);

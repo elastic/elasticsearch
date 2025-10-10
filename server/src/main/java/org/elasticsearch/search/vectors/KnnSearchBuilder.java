@@ -339,11 +339,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.queryName = in.readOptionalString();
-        } else {
-            this.queryName = null;
-        }
+        this.queryName = in.readOptionalString();
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.querySupplier = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -602,9 +598,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalString(queryName);
-        }
+        out.writeOptionalString(queryName);
         out.writeOptionalNamedWriteable(queryVectorBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(similarity);

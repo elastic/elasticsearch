@@ -50,7 +50,6 @@ import java.util.Objects;
 public class CommonStats implements Writeable, ToXContentFragment {
 
     private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersions.V_8_10_X;
-    private static final TransportVersion VERSION_SUPPORTING_SPARSE_VECTOR_STATS = TransportVersions.V_8_15_0;
 
     @Nullable
     public DocsStats docs;
@@ -222,9 +221,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
         }
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
-        }
+        sparseVectorStats = in.readOptionalWriteable(SparseVectorStats::new);
     }
 
     @Override
@@ -251,9 +248,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             out.writeOptionalWriteable(denseVectorStats);
         }
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            out.writeOptionalWriteable(sparseVectorStats);
-        }
+        out.writeOptionalWriteable(sparseVectorStats);
     }
 
     @Override

@@ -3,8 +3,8 @@
 **Parameters**
 
 `text`
-:   Text to generate embeddings from
+:   Text string to generate embeddings from. Must be a non-null literal string value.
 
 `inference_id`
-:   Identifier of the inference endpoint
+:   Identifier of an existing inference endpoint the that will generate the embeddings. The inference endpoint must have the `text_embedding` task type and should use the same model that was used to embed your indexed data.
 

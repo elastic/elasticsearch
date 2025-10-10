@@ -10,17 +10,16 @@ This page provides practical examples of how to configure highlighting in {{es}}
 
 # Highlighting examples [highlighting-examples]
 
-- [Highlighting examples \[highlighting-examples\]](#highlighting-examples-highlighting-examples)
-  - [Override global settings \[override-global-settings\]](#override-global-settings-override-global-settings)
-  - [Specify a highlight query \[specify-highlight-query\]](#specify-a-highlight-query-specify-highlight-query)
-  - [Set highlighter type \[set-highlighter-type\]](#set-highlighter-type-set-highlighter-type)
-  - [Configure highlighting tags \[configure-tags\]](#configure-highlighting-tags-configure-tags)
-  - [Highlight in all fields \[highlight-all\]](#highlight-in-all-fields-highlight-all)
-  - [Combine matches on multiple fields \[matched-fields\]](#combine-matches-on-multiple-fields-matched-fields)
-  - [Explicitly order highlighted fields \[explicit-field-order\]](#explicitly-order-highlighted-fields-explicit-field-order)
-  - [Control highlighted fragments \[control-highlighted-frags\]](#control-highlighted-fragments-control-highlighted-frags)
-  - [Highlight using the postings list \[highlight-postings-list\]](#highlight-using-the-postings-list-highlight-postings-list)
-  - [Specify a fragmenter for the plain highlighter \[specify-fragmenter\]](#specify-a-fragmenter-for-the-plain-highlighter-specify-fragmenter)
+* [Override global settings](#override-global-settings)
+* [Specify a highlight query](#specify-highlight-query)
+* [Set highlighter type](#set-highlighter-type)
+* [Configure highlighting tags](#configure-tags)
+* [Highlight all fields](#highlight-all)
+* [Combine matches on multiple fields](#matched-fields)
+* [Explicitly order highlighted fields](#explicit-field-order)
+* [Control highlighted fragments](#control-highlighted-frags)
+* [Highlight using the postings list](#highlight-postings-list)
+* [Specify a fragmenter for the plain highlighter](#specify-fragmenter)
 
 
 ## Override global settings [override-global-settings]

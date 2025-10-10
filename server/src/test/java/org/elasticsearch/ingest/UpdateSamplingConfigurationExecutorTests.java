@@ -16,15 +16,18 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.when;
@@ -35,7 +38,13 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     private ProjectResolver projectResolver;
 
     @Mock
-    SamplingService samplingService;
+    private ClusterService clusterService;
+
+    @Mock
+    private ScriptService scriptService;
+
+    @Mock
+    private LongSupplier timeSupplier;
 
     @Mock
     private ClusterState clusterState;
@@ -43,17 +52,31 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
     @Mock
     private Metadata metadata;
 
+    private SamplingService samplingService;
     private SamplingService.UpdateSamplingConfigurationExecutor executor;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
+
+        // Create a real SamplingService with mocked dependencies
+        samplingService = new SamplingService(scriptService, clusterService, projectResolver, timeSupplier);
         executor = new SamplingService.UpdateSamplingConfigurationExecutor(projectResolver, samplingService);
 
-        // Mock the cluster state metadata chain
+        // Set up settings with MAX_CONFIGURATIONS_SETTING = 100 (the default value)
+        Settings settings = Settings.builder().put("sampling.max_configurations", 100).build();
+
+        // Mock the complete chain for checkMaxConfigLimitBreached() method:
+        // clusterService.state() -> ClusterState
+        when(clusterService.state()).thenReturn(clusterState);
+        // currentState.metadata() -> Metadata
+        when(clusterState.metadata()).thenReturn(metadata);
+        // currentMetadata.settings() -> Settings (for MAX_CONFIGURATIONS_SETTING)
+        when(metadata.settings()).thenReturn(settings);
+
+        // Also mock for the executor's executeTask method
         when(clusterState.getMetadata()).thenReturn(metadata);
-        when(metadata.settings()).thenReturn(Settings.EMPTY);
     }
 
     public void testExecuteTaskWithUpperBoundLimit() {
@@ -77,7 +100,11 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
             .putCustom(SamplingMetadata.TYPE, existingSamplingMetadata)
             .build();
 
-        when(projectResolver.getProjectMetadata(clusterState)).thenReturn(projectMetadata);
+        // Mock both methods that get project metadata:
+        // 1. For the executor's executeTask method: clusterState.metadata().getProject()
+        when(metadata.getProject(ProjectId.DEFAULT)).thenReturn(projectMetadata);
+        // 2. For the checkMaxConfigLimitBreached method: currentMetadata.getProject()
+        // (this uses the same metadata mock, so the above mock covers both)
 
         // Try to add the 101st configuration - this should fail
         String newIndexName = "new-index-101";
@@ -92,7 +119,7 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
         );
 
         // Execute the task and expect an IllegalStateException
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> { executor.executeTask(task, clusterState); });
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> executor.executeTask(task, clusterState));
 
         // Verify the exception message contains expected information
         assertThat(exception.getMessage(), containsString("Cannot add sampling configuration for index [" + newIndexName + "]"));

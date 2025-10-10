@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -350,7 +351,8 @@ public class SamplingService implements ClusterStateListener {
     // If the limit is breached, it notifies the listener with an IllegalStateException and returns true.
     private boolean checkMaxConfigLimitBreached(ProjectId projectId, String index) {
         ClusterState currentState = clusterService.state();
-        ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+        Metadata currentMetadata = currentState.metadata();
+        ProjectMetadata projectMetadata = currentMetadata.getProject(projectId);
 
         if (projectMetadata != null) {
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
@@ -359,7 +361,7 @@ public class SamplingService implements ClusterStateListener {
                 : Map.of();
 
             boolean isUpdate = existingConfigs.containsKey(index);
-            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(currentState.getMetadata().settings());
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(currentMetadata.settings());
 
             // Only check limit for new configurations, not updates
             if (isUpdate == false && existingConfigs.size() >= maxConfigurations) {
@@ -812,7 +814,8 @@ public class SamplingService implements ClusterStateListener {
             );
 
             // Get sampling metadata
-            ProjectMetadata projectMetadata = clusterState.metadata().getProject(updateSamplingConfigurationTask.projectId);
+            Metadata metadata = clusterState.getMetadata();
+            ProjectMetadata projectMetadata = metadata.getProject(updateSamplingConfigurationTask.projectId);
             ;
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
 
@@ -831,7 +834,7 @@ public class SamplingService implements ClusterStateListener {
             }
             boolean isUpdate = updatedConfigMap.containsKey(updateSamplingConfigurationTask.indexName);
 
-            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(clusterState.getMetadata().settings());
+            Integer maxConfigurations = MAX_CONFIGURATIONS_SETTING.get(metadata.settings());
             // check if adding a new configuration would exceed the limit
             boolean maxConfigLimitBreached = samplingService.checkMaxConfigLimitBreached(
                 updateSamplingConfigurationTask.projectId,

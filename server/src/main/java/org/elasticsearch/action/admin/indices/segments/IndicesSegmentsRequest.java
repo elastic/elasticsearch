@@ -31,9 +31,6 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
 
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readBoolean();   // old 'verbose' option, since removed
-        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.includeVectorFormatsInfo = in.readBoolean();
         }
@@ -56,9 +53,6 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(includeVectorFormatsInfo);
         }

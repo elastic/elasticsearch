@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -136,10 +135,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
     private static Kql readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         // Options are not serialized - they're embedded in the QueryBuilder
         return new Kql(source, query, null, queryBuilder);
     }
@@ -148,9 +144,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+        out.writeOptionalNamedWriteable(queryBuilder());
         // Options are not serialized - they're embedded in the QueryBuilder
     }
 

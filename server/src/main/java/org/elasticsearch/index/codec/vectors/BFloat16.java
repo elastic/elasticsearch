@@ -14,7 +14,7 @@ import org.apache.lucene.util.BitUtil;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
-public class BFloat16 {
+public final class BFloat16 {
 
     public static final int BYTES = Short.BYTES;
 

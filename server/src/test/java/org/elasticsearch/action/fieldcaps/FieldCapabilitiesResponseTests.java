@@ -28,6 +28,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -53,7 +54,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             var indexMode = randomFrom(IndexMode.values());
             responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
-        randomResponse = new FieldCapabilitiesResponse(responses, null, Collections.emptyList());
+        randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
         return randomResponse;
     }
 
@@ -88,7 +89,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 );
             }
         }
-        return new FieldCapabilitiesResponse(null, null, mutatedResponses, Collections.emptyList());
+        return FieldCapabilitiesResponse.builder().withFields(mutatedResponses).build();
     }
 
     public void testFailureSerialization() throws IOException {
@@ -144,7 +145,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 failures.get(failures.size() - 1).addIndex(index);
             }
         }
-        return new FieldCapabilitiesResponse(indices, null, Collections.emptyMap(), failures);
+        return FieldCapabilitiesResponse.builder().withIndices(indices).withFailures(failures).build();
     }
 
     private static FieldCapabilitiesResponse randomCCSResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
@@ -154,7 +155,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             String index = "index_" + i;
             failures.add(new FieldCapabilitiesFailure(new String[] { index }, ElasticsearchExceptionTests.randomExceptions().v2()));
         }
-        return new FieldCapabilitiesResponse(indexResponses, null, failures);
+        return FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses).withFailures(failures).build();
     }
 
     public void testSerializeCCSResponseBetweenNewClusters() throws Exception {

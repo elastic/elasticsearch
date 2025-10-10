@@ -367,7 +367,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (false == valuesSourceConfig.alignesWithSearchIndex()) {
+        if (false == valuesSourceConfig.alignsWithSearchIndex()) {
             return null;
         }
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {

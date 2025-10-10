@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -52,7 +50,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static final TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersions.V_8_4_0;
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
@@ -92,11 +89,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
-            quiet = in.readBoolean();
-        } else {
-            quiet = true;
-        }
+        quiet = in.readBoolean();
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
@@ -116,9 +109,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
-            out.writeBoolean(quiet);
-        }
+        out.writeBoolean(quiet);
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);

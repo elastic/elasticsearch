@@ -62,7 +62,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
 class KnnIndexer {
-    private static final double WRITER_BUFFER_MB = 1024;
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
 
@@ -75,6 +74,8 @@ class KnnIndexer {
     private final int numDocs;
     private final int numIndexThreads;
     private final MergePolicy mergePolicy;
+    private final double writerBufferSizeInMb;
+    private final int writerMaxBufferedDocs;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -85,7 +86,9 @@ class KnnIndexer {
         int dim,
         VectorSimilarityFunction similarityFunction,
         int numDocs,
-        MergePolicy mergePolicy
+        MergePolicy mergePolicy,
+        double writerBufferSizeInMb,
+        int writerMaxBufferedDocs
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -96,18 +99,19 @@ class KnnIndexer {
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
+        this.writerBufferSizeInMb = writerBufferSizeInMb;
+        this.writerMaxBufferedDocs = writerMaxBufferedDocs;
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
-        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
-        iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
+        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
         iwc.setUseCompoundFile(false);
-        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-//        if (mergePolicy != null) {
-//            iwc.setMergePolicy(mergePolicy);
-//        }
+        if (mergePolicy != null) {
+            iwc.setMergePolicy(mergePolicy);
+        }
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
@@ -182,15 +186,20 @@ class KnnIndexer {
 
                     VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
                     try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                        List<Future<?>> threads = new ArrayList<>();
+                        List<Future<?>> futures = new ArrayList<>();
+                        List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            threads.add(t);
                             t.setDaemon(true);
-                            threads.add(exec.submit(t));
+                            futures.add(exec.submit(t));
                         }
-                        for (Future<?> t : threads) {
-                            t.get();
+                        for (Future<?> future : futures) {
+                            future.get();
                         }
+                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
+                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
+                        );
                     }
                 }
             }
@@ -211,9 +220,6 @@ class KnnIndexer {
 
     void forceMerge(KnnIndexTester.Results results) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
-        iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
-        iwc.setUseCompoundFile(false);
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
             public boolean isEnabled(String component) {
@@ -288,7 +294,6 @@ class KnnIndexer {
             } catch (IOException ioe) {
                 throw new UncheckedIOException(ioe);
             }
-            logger.info("Index thread times: [{}] read, [{}] add doc", readTime, docAddTime);
         }
 
         private void _run() throws IOException {
@@ -300,7 +305,6 @@ class KnnIndexer {
                     continue;
                 }
 
-                // read
                 var startRead = System.nanoTime();
                 final IndexableField field;
                 switch (vectorEncoding) {
@@ -314,10 +318,9 @@ class KnnIndexer {
                     }
                     default -> throw new UnsupportedOperationException();
                 }
-
                 long endRead = System.nanoTime();
                 readTime += (endRead - startRead);
-                // build doc
+
                 Document doc = new Document();
                 doc.add(field);
 
@@ -327,8 +330,7 @@ class KnnIndexer {
                 doc.add(new StoredField(ID_FIELD, id));
                 iw.addDocument(doc);
 
-                var endDoc = System.nanoTime();
-                docAddTime += (endDoc - endRead);
+                docAddTime += (System.nanoTime() - endRead);
             }
         }
     }

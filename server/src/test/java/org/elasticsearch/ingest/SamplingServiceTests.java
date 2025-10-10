@@ -29,6 +29,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.HashMap;
 import java.util.List;
@@ -96,6 +97,7 @@ public class SamplingServiceTests extends ESTestCase {
         assertThat(stats.getSamplesRejectedForRate(), equalTo(0L));
         assertThat(stats.getSamplesRejectedForCondition(), equalTo(0L));
         assertThat(stats.getSamplesRejectedForException(), equalTo(0L));
+        assertThat(stats.getSamplesRejectedForSize(), equalTo(0L));
         assertThat(stats.getSamplesRejectedForMaxSamplesExceeded(), equalTo(0L));
         assertThat(stats.getLastException(), nullValue());
         assertThat(stats.getTimeSampling(), greaterThan(TimeValue.ZERO));
@@ -222,6 +224,36 @@ public class SamplingServiceTests extends ESTestCase {
         assertThat(stats.getTimeSampling(), greaterThan(TimeValue.ZERO));
         assertThat(stats.getTimeCompilingCondition(), equalTo(TimeValue.ZERO));
         assertThat(stats.getTimeEvaluatingCondition(), equalTo(TimeValue.ZERO));
+    }
+
+    public void testMaybeSampleMaxSize() {
+        /*
+         * This tests that the max size limit on the SamplingConfiguration is enforced. Here we set maxSize to 400. The source field of
+         * each index request is an array of 150 bytes. Since the size of the raw document is approximately the size of the source byte
+         * array, we expect to be able to insert 2 raw documents before all others are rejected due to the max size limit.
+         */
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
+        SamplingService samplingService = getTestSamplingService();
+        String indexName = randomIdentifier();
+        int maxSamples = randomIntBetween(2, 50);
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(
+                SamplingMetadata.TYPE,
+                new SamplingMetadata(
+                    Map.of(
+                        indexName,
+                        new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofBytes(400), TimeValue.timeValueDays(3), null)
+                    )
+                )
+            );
+        final ProjectId projectId = projectBuilder.getId();
+        ProjectMetadata projectMetadata = projectBuilder.build();
+        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(randomByteArrayOfLength(150), XContentType.JSON);
+        for (int i = 0; i < maxSamples; i++) {
+            samplingService.maybeSample(projectMetadata, indexRequest);
+        }
+        assertThat(samplingService.getLocalSample(projectId, indexName).size(), equalTo(2));
+        assertThat(samplingService.getLocalSampleStats(projectId, indexName).getSamplesRejectedForSize(), equalTo((long) maxSamples - 2));
     }
 
     private SamplingService getTestSamplingService() {

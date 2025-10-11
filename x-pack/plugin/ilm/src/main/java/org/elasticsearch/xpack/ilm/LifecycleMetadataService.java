@@ -52,9 +52,9 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
-public class PutLifecycleMetadataService {
+public class LifecycleMetadataService {
 
-    private static final Logger logger = LogManager.getLogger(PutLifecycleMetadataService.class);
+    private static final Logger logger = LogManager.getLogger(LifecycleMetadataService.class);
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -63,7 +63,7 @@ public class PutLifecycleMetadataService {
     private final ProjectResolver projectResolver;
     private final MasterServiceTaskQueue<UpdateLifecyclePolicyTask> taskQueue;
 
-    public PutLifecycleMetadataService(
+    public LifecycleMetadataService(
         ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
         Client client,

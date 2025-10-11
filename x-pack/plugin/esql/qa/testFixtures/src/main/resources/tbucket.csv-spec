@@ -255,6 +255,7 @@ errors:long | day:datetime             | message:keyword
 keepWildcardBeforeStats
 required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
+required_capability: temporal_amount_m
 
 FROM sample_data
 | WHERE client_ip IS NOT NULL

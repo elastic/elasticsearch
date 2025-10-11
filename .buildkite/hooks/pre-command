@@ -147,17 +147,28 @@ fi
 
 if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   echo "--- Resolving previously failed tests"
-  BUILD_JSON=$(curl -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}")
-  ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id')
-  BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]')
-  BUILD_SCAN_ID=$(echo "$BUILD_SCAN_URL" | sed 's|.*/s/||')
-  DEVELOCITY_FAILED_TEST_API_URL="https://gradle-enterprise.elastic.co/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
-
-  curl --request GET \
-    --url $DEVELOCITY_FAILED_TEST_API_URL \
-    --header 'accept: application/json' \
-    --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
-    --header 'content-type: application/json' | gunzip | jq '.' &> failed-tests.json
+  if BUILD_JSON=$(curl -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}" 2>/dev/null); then
+    if ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id' 2>/dev/null) && [ "$ORIGIN_JOB_ID" != "null" ] && [ -n "$ORIGIN_JOB_ID" ]; then
+      if BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null) && [ "$BUILD_SCAN_URL" != "null" ] && [ -n "$BUILD_SCAN_URL" ]; then
+        BUILD_SCAN_ID=$(echo "$BUILD_SCAN_URL" | sed 's|.*/s/||')
+        DEVELOCITY_FAILED_TEST_API_URL="https://gradle-enterprise.elastic.co/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
+        
+        if ! curl --request GET \
+          --url $DEVELOCITY_FAILED_TEST_API_URL \
+          --header 'accept: application/json' \
+          --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
+          --header 'content-type: application/json' 2>/dev/null | gunzip | jq '.' &> failed-tests.json; then
+          echo "Warning: Failed to fetch failed tests from Develocity API"
+        fi
+      else
+        echo "Warning: Could not extract build scan URL from build metadata"
+      fi
+    else
+      echo "Warning: Could not find origin job ID for retry"
+    fi
+  else
+    echo "Warning: Failed to fetch build information from Buildkite API"
+  fi
 fi
 
 # Amazon Linux 2 has DNS resolution issues with resource-based hostnames in EC2

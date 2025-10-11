@@ -39,7 +39,7 @@ public record SamplingConfiguration(
     ByteSizeValue maxSize,
     TimeValue timeToLive,
     String condition,
-    Long creationDate
+    Long creationTime
 ) implements ToXContentObject, SimpleDiffable<SamplingConfiguration> {
 
     public static final String TYPE = "sampling_configuration";
@@ -85,7 +85,7 @@ public record SamplingConfiguration(
             TimeValue humanReadableTimeToLive = (TimeValue) args[4];
             TimeValue rawTimeToLive = (TimeValue) args[5];
             String condition = (String) args[6];
-            Long rawCreationDate = (Long) args[8];
+            Long rawCreationTime = (Long) args[8];
 
             return new SamplingConfiguration(
                 rate,
@@ -93,7 +93,7 @@ public record SamplingConfiguration(
                 determineValue(humanReadableMaxSize, rawMaxSize),
                 determineValue(humanReadableTimeToLive, rawTimeToLive),
                 condition,
-                rawCreationDate
+                rawCreationTime
             );
         });
 
@@ -160,7 +160,7 @@ public record SamplingConfiguration(
         ByteSizeValue maxSize,
         TimeValue timeToLive,
         String condition,
-        Long creationDate
+        Long creationTime
     ) {
         validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
 
@@ -169,10 +169,10 @@ public record SamplingConfiguration(
         this.maxSize = maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize;
         this.timeToLive = timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive;
         this.condition = condition;
-        this.creationDate = creationDate == null ? Instant.now().toEpochMilli() : creationDate;
+        this.creationTime = creationTime == null ? Instant.now().toEpochMilli() : creationTime;
     }
 
-    // Convenience constructor without creationDate
+    // Convenience constructor without creationTime
     public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         this(rate, maxSamples, maxSize, timeToLive, condition, null);
     }
@@ -195,7 +195,7 @@ public record SamplingConfiguration(
         out.writeWriteable(this.maxSize);
         out.writeTimeValue(this.timeToLive);
         out.writeOptionalString(this.condition);
-        out.writeLong(this.creationDate);
+        out.writeLong(this.creationTime);
     }
 
     // Serialize to XContent (JSON)
@@ -209,7 +209,7 @@ public record SamplingConfiguration(
         if (condition != null) {
             builder.field(CONDITION_FIELD_NAME, condition);
         }
-        builder.timestampFieldsFromUnixEpochMillis(CREATION_TIME_IN_MILLIS_FIELD_NAME, CREATION_TIME_FIELD_NAME, creationDate);
+        builder.timestampFieldsFromUnixEpochMillis(CREATION_TIME_IN_MILLIS_FIELD_NAME, CREATION_TIME_FIELD_NAME, creationTime);
         builder.endObject();
         return builder;
     }

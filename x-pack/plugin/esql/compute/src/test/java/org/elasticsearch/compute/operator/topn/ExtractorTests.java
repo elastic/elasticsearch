@@ -259,9 +259,11 @@ public class ExtractorTests extends ESTestCase {
         );
     }
 
-    private static DateRangeBlockBuilder.DateRangeLiteral randomDateRange(boolean isNull) {
+    private static DateRangeBlockBuilder.DateRangeLiteral randomDateRange(boolean haveNulls) {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-        return isNull ? null : new DateRangeBlockBuilder.DateRangeLiteral(from, to);
+        return haveNulls
+            ? new DateRangeBlockBuilder.DateRangeLiteral(randomBoolean() ? from : null, randomBoolean() ? to : null)
+            : new DateRangeBlockBuilder.DateRangeLiteral(from, to);
     }
 }

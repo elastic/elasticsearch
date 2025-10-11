@@ -21,12 +21,17 @@ public class ValueExtractorForDateRange implements ValueExtractor {
     @Override
     public void writeValue(BreakingBytesRefBuilder values, int position) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
-        if (block.isNull(position)) {
+        if (block.getFromBlock().isNull(position)) {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
         } else {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(true, values);
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeDouble(block.getFromBlock().getLong(position), values);
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeDouble(block.getToBlock().getLong(position), values);
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(block.getFromBlock().getLong(position), values);
+        }
+        if (block.getToBlock().isNull(position)) {
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
+        } else {
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(true, values);
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(block.getToBlock().getLong(position), values);
         }
     }
 

@@ -8,12 +8,9 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.index.mapper.BlockLoader;
-
-import java.util.List;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 
 public class ResultBuilderForDateRange implements ResultBuilder {
 
@@ -34,8 +31,16 @@ public class ResultBuilderForDateRange implements ResultBuilder {
         if (count == 0) {
             builder.appendNull();
         } else {
-            builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-            builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
+                builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
+            } else {
+                builder.from().appendNull();
+            }
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
+                builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
+            } else {
+                builder.to().appendNull();
+            }
         }
     }
 

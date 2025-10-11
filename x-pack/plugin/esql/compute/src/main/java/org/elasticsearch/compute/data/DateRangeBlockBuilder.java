@@ -103,8 +103,16 @@ public class DateRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     public DateRangeBlockBuilder appendDateRange(DateRangeLiteral lit) {
-        fromBuilder.appendLong(lit.from);
-        toBuilder.appendLong(lit.to);
+        if (lit.from == null) {
+            fromBuilder.appendNull();
+        } else {
+            fromBuilder.appendLong(lit.from);
+        }
+        if (lit.to == null) {
+            toBuilder.appendNull();
+        } else {
+            toBuilder.appendLong(lit.to);
+        }
         return this;
     }
 

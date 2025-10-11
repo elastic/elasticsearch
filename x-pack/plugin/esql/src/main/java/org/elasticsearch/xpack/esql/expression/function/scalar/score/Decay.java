@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -38,8 +39,10 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
@@ -91,7 +95,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     private static final Map<String, Collection<DataType>> ALLOWED_OPTIONS = Map.of(
         OFFSET,
-        Set.of(TIME_DURATION, INTEGER, LONG, DOUBLE, KEYWORD, TEXT),
+        Set.of(TIME_DURATION, INTEGER, LONG, UNSIGNED_LONG, DOUBLE, KEYWORD, TEXT),
         DECAY,
         Set.of(DOUBLE),
         TYPE,
@@ -140,17 +144,17 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Source source,
         @Param(
             name = "value",
-            type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
+            type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
             description = "The input value to apply decay scoring to."
         ) Expression value,
         @Param(
             name = ORIGIN,
-            type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
+            type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
             description = "Central point from which the distances are calculated."
         ) Expression origin,
         @Param(
             name = SCALE,
-            type = { "double", "integer", "long", "time_duration", "keyword", "text" },
+            type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
         @MapParam(
@@ -158,7 +162,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,
-                    type = { "double", "integer", "long", "time_duration", "keyword", "text" },
+                    type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
                     description = "Distance from the origin where no decay occurs."
                 ),
                 @MapParam.MapParamEntry(
@@ -285,8 +289,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
-        Object originFolded = origin.fold(foldCtx);
-        Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
+        Object originFolded = convertToExpectedType(origin.fold(foldCtx), origin.dataType(), valueDataType);
+        Object scaleFolded = convertToExpectedType(getFoldedScale(foldCtx, valueDataType), scale.dataType(), valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
         Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
@@ -311,6 +315,15 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 decayFunction
             );
             case LONG -> new DecayLongEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                decayFunction
+            );
+            case UNSIGNED_LONG -> new DecayUnsignedLongEvaluator.Factory(
                 source(),
                 valueFactory,
                 (Long) originFolded,
@@ -403,7 +416,24 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed DecayFunction decayFunction
     ) {
         return decayFunction.numericDecay(value, origin, scale, offset, decay);
+    }
 
+    @Evaluator(extraName = "UnsignedLong")
+    static double processUnsignedLong(
+        long value,
+        @Fixed long origin,
+        @Fixed long scale,
+        @Fixed long offset,
+        @Fixed double decay,
+        @Fixed DecayFunction decayFunction
+    ) {
+        return decayFunction.numericDecay(
+            NumericUtils.unsignedLongToDouble(value),
+            NumericUtils.unsignedLongToDouble(origin),
+            NumericUtils.unsignedLongToDouble(scale),
+            NumericUtils.unsignedLongToDouble(offset),
+            decay
+        );
     }
 
     @Evaluator(extraName = "GeoPoint")
@@ -634,13 +664,34 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     private Object getDefaultOffset(DataType valueDataType) {
         return switch (valueDataType) {
             case INTEGER -> DEFAULT_INTEGER_OFFSET;
-            case LONG -> DEFAULT_LONG_OFFSET;
+            case LONG, UNSIGNED_LONG -> DEFAULT_LONG_OFFSET;
             case DOUBLE -> DEFAULT_DOUBLE_OFFSET;
             case GEO_POINT -> DEFAULT_GEO_POINT_OFFSET;
             case CARTESIAN_POINT -> DEFAULT_CARTESIAN_POINT_OFFSET;
             case DATETIME, DATE_NANOS -> DEFAULT_TEMPORAL_OFFSET;
             default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
+    }
+
+    private Object convertToExpectedType(Object value, DataType valueType, DataType targetType) {
+        // No conversion needed
+        if (targetType.isNumeric() == false) {
+            return value;
+        }
+
+        // Conversion needed as unsigned longs are represented as signed longs
+        if (valueType == UNSIGNED_LONG) {
+            value = NumericUtils.unsignedLongToDouble(((Number) value).longValue());
+        }
+
+        Object convertedValue = EsqlDataTypeConverter.convert(value, targetType);
+
+        // Unsigned long evaluator expects unsigned longs in signed long representation
+        if (convertedValue instanceof BigInteger valueAsBigInteger) {
+            return NumericUtils.asLongUnsigned(valueAsBigInteger);
+        }
+
+        return convertedValue;
     }
 
 }

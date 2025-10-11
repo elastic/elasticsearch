@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -26,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -58,7 +56,6 @@ public class PutLifecycleMetadataService {
 
     private static final Logger logger = LogManager.getLogger(PutLifecycleMetadataService.class);
 
-    private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -74,18 +71,12 @@ public class PutLifecycleMetadataService {
         ThreadPool threadPool,
         ProjectResolver projectResolver
     ) {
-        this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.taskQueue = clusterService.createTaskQueue("ilm-put-lifecycle-queue", Priority.NORMAL, new IlmLifecycleExecutor());
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public void addLifecycle(PutLifecycleRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {

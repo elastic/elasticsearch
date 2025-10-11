@@ -1499,7 +1499,14 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Create new block when filtering OrdinalBytesRefBlock
+         */
+        FIX_FILTER_ORDINALS,
+
+        ;
 
         private final boolean enabled;
 

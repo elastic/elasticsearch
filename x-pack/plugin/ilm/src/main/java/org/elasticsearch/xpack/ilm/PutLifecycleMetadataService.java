@@ -154,7 +154,7 @@ public class PutLifecycleMetadataService {
         for (Phase phase : phasesWithSearchableSnapshotActions) {
             SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
             String repository = action.getSnapshotRepository();
-            if (RepositoriesMetadata.get(state.cluster()).repository(repository) == null) {
+            if (RepositoriesMetadata.get(state.metadata()).repository(repository) == null) {
                 throw new IllegalArgumentException(
                     "no such repository ["
                         + repository

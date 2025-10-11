@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134902
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/133619
 
 # Examples:
 #

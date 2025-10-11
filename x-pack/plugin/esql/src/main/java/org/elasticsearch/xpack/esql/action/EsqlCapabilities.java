@@ -1485,6 +1485,12 @@ public class EsqlCapabilities {
         METADATA_TSID_FIELD,
 
         /**
+         * Permit the data type of a field changing from TEXT to KEYWORD
+         * when being grouped on in aggregations on the TS command.
+         */
+        TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */

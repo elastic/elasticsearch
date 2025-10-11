@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -57,8 +56,8 @@ public class TRangeTests extends AbstractScalarFunctionTestCase {
 
         for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
             long timestampInsideRange = timestampDataType != DataType.DATE_NANOS
-                ? randomLong(startTime, endTime, duration)
-                : DateUtils.toNanoSeconds(randomLong(startTime, endTime, duration));
+                ? timestampInRange(startTime, endTime)
+                : DateUtils.toNanoSeconds(timestampInRange(startTime, endTime));
 
             long timestampOutsideRange = timestampDataType != DataType.DATE_NANOS
                 ? startTime - 100_000
@@ -103,8 +102,8 @@ public class TRangeTests extends AbstractScalarFunctionTestCase {
 
         for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
             long timestampInsideRange = timestampDataType != DataType.DATE_NANOS
-                ? randomLong(startTime, endTime, period)
-                : DateUtils.toNanoSeconds(randomLong(startTime, endTime, period));
+                ? timestampInRange(startTime, endTime)
+                : DateUtils.toNanoSeconds(timestampInRange(startTime, endTime));
 
             long timestampOutsideRange = timestampDataType != DataType.DATE_NANOS
                 ? startTime - Duration.ofMinutes(10).toMillis()
@@ -148,8 +147,8 @@ public class TRangeTests extends AbstractScalarFunctionTestCase {
 
         for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
             long timestampInsideRange = timestampDataType != DataType.DATE_NANOS
-                ? randomLong(startTime, endTime, List.of(startTime, endTime))
-                : DateUtils.toNanoSeconds(randomLong(startTime, endTime, List.of(startTime, endTime)));
+                ? timestampInRange(startTime, endTime)
+                : DateUtils.toNanoSeconds(timestampInRange(startTime, endTime));
 
             long timestampOutsideRange = timestampDataType != DataType.DATE_NANOS
                 ? startTime - Duration.ofMinutes(10).toMillis()
@@ -194,8 +193,8 @@ public class TRangeTests extends AbstractScalarFunctionTestCase {
             for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
 
                 long timestampInsideRange = timestampDataType != DataType.DATE_NANOS
-                    ? randomLong(startEpoch, endEpoch, List.of(startEpoch, endEpoch))
-                    : DateUtils.toNanoSeconds(randomLong(startEpoch, endEpoch, List.of(startEpoch, endEpoch)));
+                    ? timestampInRange(startEpoch, endEpoch)
+                    : DateUtils.toNanoSeconds(timestampInRange(startEpoch, endEpoch));
 
                 long timestampOutsideRange = timestampDataType != DataType.DATE_NANOS
                     ? startEpoch - Duration.ofMinutes(10).toMillis()
@@ -240,8 +239,8 @@ public class TRangeTests extends AbstractScalarFunctionTestCase {
         return EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
     }
 
-    private static long randomLong(long startInclusive, long endExclusive, Object obj) {
-        return Randomness.get().nextLong(startInclusive, endExclusive);
+    private static long timestampInRange(long min, long max) {
+        return (min + max) / 2;
     }
 
     @Override

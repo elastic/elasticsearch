@@ -209,15 +209,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != AGGREGATE_METRIC_DOUBLE,
+                t -> t != AGGREGATE_METRIC_DOUBLE && t != DataType.DATE_RANGE,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double"
+                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double or date_range"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE,
+            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != DataType.DATE_RANGE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

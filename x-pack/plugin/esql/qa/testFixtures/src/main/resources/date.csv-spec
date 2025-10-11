@@ -2030,7 +2030,6 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 dateRange
-required_capability: date_range_field_type
 
 from date_ranges;
 

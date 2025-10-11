@@ -38,8 +38,8 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 "first argument of ["
                     + sourceForSignature(signature)
                     + "] must be [any type except counter types, dense_vector,"
-                    + " aggregate_metric_double, dense_vector or date_range], found value [] type ["
-                    + signature.getFirst()
+                    + " aggregate_metric_double or date_range], found value [] type ["
+                    + signature.getFirst().esType()
                     + "]"
             );
         }

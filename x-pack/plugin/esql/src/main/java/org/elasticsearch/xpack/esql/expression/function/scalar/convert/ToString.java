@@ -113,7 +113,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "date_range" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v
     ) {

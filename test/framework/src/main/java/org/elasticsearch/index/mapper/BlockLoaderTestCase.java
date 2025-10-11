@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.MappingGenerator;

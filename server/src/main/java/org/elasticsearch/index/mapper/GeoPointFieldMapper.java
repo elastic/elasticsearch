@@ -557,7 +557,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (hasDocValues()) {
                 if (preferToLoadFromDocValues) {
                     return new BlockDocValuesReader.LongsBlockLoader(name());
-                } else if (noPreference || isSyntheticSource) {
+                } else if (noPreference && isSyntheticSource) {
                     // when the preference is not explicitly set to DOC_VALUES, we expect a BytesRef -> see PlannerUtils.toElementType()
                     return new BytesRefFromLongsBlockLoader(name());
                 }

@@ -181,7 +181,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we use the correct block value reader
-        assertThat(loader, instanceOf(GeoPointFieldMapper.BytesRefFromLongsBlockLoader.class));
+        assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
     }
 
     public void testBlockLoaderWhenFieldIsStoredAndThePreferenceIsToUseStoredFields() {

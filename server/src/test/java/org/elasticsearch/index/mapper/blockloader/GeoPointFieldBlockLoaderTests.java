@@ -42,7 +42,7 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (hasDocValues(fieldMapping, true)) {
             if (preferToLoadFromDocValues) {
                 return longValues(values, nullValue, testContext.isMultifield());
-            } else if (noPreference || params.syntheticSource()) {
+            } else if (noPreference && params.syntheticSource()) {
                 return bytesRefValues(values, nullValue, false);
             }
         }

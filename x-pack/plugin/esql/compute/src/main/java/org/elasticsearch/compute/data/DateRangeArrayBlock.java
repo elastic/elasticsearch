@@ -205,7 +205,7 @@ public final class DateRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof DateRangeArrayBlock that) {
+        if (obj instanceof DateRangeBlock that) {
             return DateRangeBlock.equals(this, that);
         }
         return false;

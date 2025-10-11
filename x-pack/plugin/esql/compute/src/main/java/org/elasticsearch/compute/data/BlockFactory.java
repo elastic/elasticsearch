@@ -486,9 +486,21 @@ public class BlockFactory {
     }
 
     public DateRangeBlock newConstantDateRangeBlock(DateRangeBlockBuilder.DateRangeLiteral value, int positions) {
-        var fromBuilder = newConstantLongBlockWith(value.from(), positions);
-        var toBuilder = newConstantLongBlockWith(value.to(), positions);
-        return new DateRangeArrayBlock(fromBuilder, toBuilder);
+        try (var builder = newDateRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
+            }
+            return builder.build();
+        }
     }
 
     public DateRangeBlock newDateRangeBlock(long[] fromValues, long[] toValues, int positions) {

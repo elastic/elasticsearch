@@ -138,7 +138,7 @@ public class Present extends AggregateFunction implements ToAggregator {
             dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types or dense_vector / date_range"
+            "any type except counter types, dense_vector or date_range"
         );
     }
 }

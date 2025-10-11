@@ -48,7 +48,7 @@ public class RerunPlugin implements Plugin<Project> {
                 spec.getParameters().getInfoPath().set(settingsRoot);
             });
 
-        project.getTasks().withType(Test.class).configureEach(task -> configureTestTask(task, retryTestsProvider, objectFactory));
+        project.getTasks().withType(Test.class).configureEach(task -> configureTestTask(task, retryTestsProvider));
 
     }
 
@@ -62,9 +62,7 @@ public class RerunPlugin implements Plugin<Project> {
 
         public RetryTestsBuildService() {
             File failedTestsJsonFile = new File(getParameters().getInfoPath().getAsFile().get(), "failed-tests.json");
-
             if (failedTestsJsonFile.exists()) {
-                System.out.println("RetryTestsBuildService.RetryTestsBuildService");
                 try {
                     ObjectMapper objectMapper = new ObjectMapper();
                     this.failureReport = objectMapper.readValue(failedTestsJsonFile, FailedTestsReport.class);
@@ -72,7 +70,7 @@ public class RerunPlugin implements Plugin<Project> {
                     throw new RuntimeException("Failed to parse retry-tests.json", e);
                 }
             } else {
-                this.failureReport = new FailedTestsReport();
+                this.failureReport = null;
             }
         }
 

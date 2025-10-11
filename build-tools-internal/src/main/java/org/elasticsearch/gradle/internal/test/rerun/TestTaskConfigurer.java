@@ -12,10 +12,10 @@ package org.elasticsearch.gradle.internal.test.rerun;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.elasticsearch.gradle.internal.test.rerun.model.FailedTestsReport;
 import org.elasticsearch.gradle.internal.test.rerun.model.TestCase;
 import org.elasticsearch.gradle.internal.test.rerun.model.WorkUnit;
 import org.gradle.api.file.Directory;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.testing.TestDescriptor;
@@ -33,12 +33,13 @@ public final class TestTaskConfigurer {
 
     private TestTaskConfigurer() {}
 
-    public static void configureTestTask(
-        Test test,
-        Provider<RerunPlugin.RetryTestsBuildService> testsBuildServiceProvider,
-        ObjectFactory objectFactory
-    ) {
-        List<WorkUnit> workUnits = testsBuildServiceProvider.get().getFailureReport().getWorkUnits();
+    public static void configureTestTask(Test test, Provider<RerunPlugin.RetryTestsBuildService> testsBuildServiceProvider) {
+        FailedTestsReport failureReport = testsBuildServiceProvider.get().getFailureReport();
+        if (failureReport == null) {
+            // no historical test failures found
+            return;
+        }
+        List<WorkUnit> workUnits = failureReport.getWorkUnits();
         Optional<WorkUnit> first = workUnits.stream().filter(workunit -> workunit.getName().equals(test.getPath())).findFirst();
         if (first.isPresent()) {
             test.filter(testFilter -> {

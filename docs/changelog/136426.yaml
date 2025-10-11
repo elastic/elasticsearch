@@ -1,0 +1,6 @@
+summary: "Docs: clarify ESQL time span alias rules (month m/mm vs minute min/mi/n), note case-insensitive matching and optional whitespace, and add unambiguous examples."
+area: ES|QL
+type: docs
+issues:
+  - 135552
+pr: 136426

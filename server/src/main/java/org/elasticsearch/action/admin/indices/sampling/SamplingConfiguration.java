@@ -129,14 +129,14 @@ public record SamplingConfiguration(
         PARSER.declareString(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (c.get(IS_USER_DATA_CONTEXT_KEY) == Boolean.TRUE) {
-                throw new IllegalArgumentException("Cannot set creationTime");
+                throw new IllegalArgumentException("Creation time cannot be set by user (field: creation_time)");
             } else {
                 return Instant.parse(p.text()).toEpochMilli();
             }
         }, new ParseField(CREATION_TIME_FIELD_NAME), ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (c.get(IS_USER_DATA_CONTEXT_KEY) == Boolean.TRUE) {
-                throw new IllegalArgumentException("Cannot set creationTime");
+                throw new IllegalArgumentException("Creation time cannot be set by user (field: creation_time_in_millis)");
             } else {
                 return p.longValue();
             }

@@ -1145,6 +1145,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
         private LogicalPlan resolveKeep(Project p, List<Attribute> childOutput) {
+
             List<NamedExpression> resolvedProjections = new ArrayList<>();
             var projections = p.projections();
             // start with projections
@@ -1192,6 +1193,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
+
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (var ne : drop.removals()) {
@@ -1343,13 +1345,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
         Predicate<Attribute> matcher = a -> up.match(a.name());
+
+        // unified early ambiguity check
+        checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList));
+
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
+        /// unified early ambiguity check
+        checkAmbiguousUnqualifiedName(ua, new ArrayList<>(attrList));
+
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+    }
+
+    private static void checkAmbiguousUnqualifiedName(UnresolvedAttribute ua, List<Attribute> available) {
+        if (ua.qualifier() != null) return; // qualified => not ambiguous here
+
+        final String name = ua.name();
+        List<Attribute> matches = available.stream()
+            .filter(a -> name.equals(a.name()))
+            .collect(java.util.stream.Collectors.toList());
+
+        if (matches.size() > 1) {
+            List<String> names = matches.stream()
+                .map(Attribute::name)
+                .collect(java.util.stream.Collectors.toList());
+
+            throw new VerificationException(UnresolvedAttribute.errorMessage(name, names));
+        }
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(

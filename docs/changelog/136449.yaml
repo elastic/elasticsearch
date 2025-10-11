@@ -1,0 +1,5 @@
+pr: 136449
+summary: "Add ambiguity check for unqualified attribute names in Analyzer"
+area: SQL
+type: enhancement
+issues: [134468]

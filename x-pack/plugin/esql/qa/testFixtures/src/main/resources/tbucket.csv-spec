@@ -259,7 +259,7 @@ required_capability: tbucket
 FROM sample_data
 | WHERE client_ip IS NOT NULL
 | KEEP *stamp*, client_ip, event_duration
-| STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10min), client_ip
+| STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10m), client_ip
 ;
 ignoreOrder:true
 

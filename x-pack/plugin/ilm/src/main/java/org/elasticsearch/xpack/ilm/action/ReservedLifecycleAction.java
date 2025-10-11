@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.LifecycleMetadataService;
 
@@ -104,13 +103,11 @@ public class ReservedLifecycleAction implements ReservedProjectStateHandler<List
         toDelete.removeAll(entities);
 
         for (var policyToDelete : toDelete) {
-            TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask task = new TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask(
+            LifecycleMetadataService.DeleteLifecyclePolicyTask task = new LifecycleMetadataService.DeleteLifecyclePolicyTask(
                 state.metadata().getProject(projectId).id(),
-                new DeleteLifecycleAction.Request(
-                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
-                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
-                    policyToDelete
-                ),
+                policyToDelete,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
                 ActionListener.noop()
             );
             state = task.execute(state);

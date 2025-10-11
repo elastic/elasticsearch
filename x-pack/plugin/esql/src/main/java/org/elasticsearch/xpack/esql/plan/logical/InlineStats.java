@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -167,15 +168,30 @@ public class InlineStats extends UnaryPlan
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            // Don't allow inline stats to be used with the TS command
-            if (p instanceof EsRelation esRelation) {
-                if (esRelation.indexMode() == IndexMode.TIME_SERIES) {
+            // Allow inline stats to be used with TS command if it follows a STATS command
+            // Examples:
+            // valid: TS metrics | STATS ...
+            // valid: TS metrics | STATS ... | INLINE STATS ...
+            // invalid: TS metrics | INLINE STATS ...
+            // invalid: TS metrics | INLINE STATS ... | STATS ...
+            if (p instanceof InlineStats inlineStats) {
+                Holder<Boolean> foundInlineStats = new Holder<>(false);
+                Holder<Boolean> foundPreviousStats = new Holder<>(false);
+                Holder<Boolean> isTimeSeries = new Holder<>(false);
+                inlineStats.child().forEachUp(lp -> {
+                    if (lp instanceof Aggregate) {
+                        if (foundInlineStats.get() == false) {
+                            foundInlineStats.set(true);
+                        } else {
+                            foundPreviousStats.set(true);
+                        }
+                    } else if (lp instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES) {
+                        isTimeSeries.set(true);
+                    }
+                });
+                if (isTimeSeries.get() && foundPreviousStats.get() == false) {
                     failures.add(
-                        fail(
-                            esRelation,
-                            "inline stats [{}] is not allowed with TS command, please use the FROM command instead",
-                            this.sourceText()
-                        )
+                        fail(inlineStats, "INLINE STATS [{}] can only be used after STATS when used with TS command", this.sourceText())
                     );
                 }
             }

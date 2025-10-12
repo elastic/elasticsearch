@@ -26,7 +26,6 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     static Codec codec;
 
-    /** Format that mostly builds indices on the GPU rarely using the CPU, because of the tinySegmentThreshold. */
     static ES92GpuHnswSQVectorsFormat createES92GpuHnswSQVectorsFormat(int tinySegmentsThreshold) {
         return new ES92GpuHnswSQVectorsFormat(
             ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,

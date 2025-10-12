@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
-import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -25,12 +24,13 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        // assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
     @Override
@@ -54,7 +54,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
     }
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {

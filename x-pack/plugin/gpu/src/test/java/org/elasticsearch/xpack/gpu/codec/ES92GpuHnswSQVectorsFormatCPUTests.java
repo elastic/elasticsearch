@@ -17,7 +17,6 @@ import org.junit.BeforeClass;
 
 import static org.hamcrest.Matchers.startsWith;
 
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCase {
 
     static {
@@ -27,24 +26,23 @@ public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTest
 
     static Codec codec;
 
-    /** Format that only builds indices on the CPU never uses the GPU, because of the large tinySegmentThreshold. */
-    static class ES92GpuHnswSQVectorsFormatTinyOneMillion extends ES92GpuHnswSQVectorsFormat {
-        ES92GpuHnswSQVectorsFormatTinyOneMillion() {
-            super(
-                ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
-                ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                null,
-                7,
-                false,
-                ThrowingCuVSResourceManager.supplier,
-                1_000_000
-            );
-        }
+    /** Format that can only build indices on the CPU, because of the ThrowingCuVSResourceManager. */
+    static ES92GpuHnswSQVectorsFormat createES92GpuHnswSQVectorsFormat(int tinySegmentsThreshold) {
+        return new ES92GpuHnswSQVectorsFormat(
+            ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
+            ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+            null,
+            7,
+            false,
+            ThrowingCuVSResourceManager.supplier,
+            tinySegmentsThreshold
+        );
     }
 
     @BeforeClass
     public static void beforeClass() {
-        codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswSQVectorsFormatTinyOneMillion());
+        // Create the format that builds indices on the CPU, because of the tinySegmentThreshold
+        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswSQVectorsFormat(1_000_000));
     }
 
     @Override
@@ -53,7 +51,7 @@ public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTest
     }
 
     public void testKnnVectorsFormatToString() {
-        KnnVectorsFormat knnVectorsFormat = new ES92GpuHnswSQVectorsFormatTinyOneMillion();
+        KnnVectorsFormat knnVectorsFormat = createES92GpuHnswSQVectorsFormat(1000000);
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, tinySegmentsThreshold=1000000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
         assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));

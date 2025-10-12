@@ -190,8 +190,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, tinySegmentsThreshold);
                 }
-                // Will not be indexed on the CPU, rather than the GPU
-                flushFieldWithCPUGraph(field, sortMap);
+                // Will not be indexed on the GPU, rather than the CPU
+                flushFieldBuildingGraphOnCPU(field, sortMap);
             } else {
                 var fieldInfo = field.fieldInfo;
                 var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
@@ -217,7 +217,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    void flushFieldWithCPUGraph(FieldWriter fieldWriter, Sorter.DocMap sortMap) throws IOException {
+    void flushFieldBuildingGraphOnCPU(FieldWriter fieldWriter, Sorter.DocMap sortMap) throws IOException {
         var fieldInfo = fieldWriter.fieldInfo;
         var scorer = flatVectorWriter.getFlatVectorScorer();
         RandomVectorScorerSupplier scorerSupplier = switch (fieldInfo.getVectorEncoding()) {
@@ -306,12 +306,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         final FieldInfo fieldInfo = fieldWriter.fieldInfo;
         OnHeapHnswGraph graph = null;
         if (datasetSize > 0) {
-            graph = buildOnHeapGraphWithScorer(scorerSupplier, datasetSize);
+            graph = buildGraphWithTheCPU(scorerSupplier, datasetSize);
         }
         writeGraphAndMeta(fieldInfo, graph, datasetSize);
     }
 
-    OnHeapHnswGraph buildOnHeapGraphWithScorer(RandomVectorScorerSupplier scorerSupplier, int numVectors) throws IOException {
+    OnHeapHnswGraph buildGraphWithTheCPU(RandomVectorScorerSupplier scorerSupplier, int numVectors) throws IOException {
         assert numVectors > 0;
         var hnswGraphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed);
         // hnswGraphBuilder.setInfoStream(infoStream);
@@ -328,7 +328,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetSize, graph, graphLevelNodeOffsets);
     }
 
-    void createCPUGraphAndWriteMeta(FieldInfo fieldInfo, IndexInput input, int size) throws IOException {
+    void createGraphWithCPUAndWriteMeta(FieldInfo fieldInfo, IndexInput input, int size) throws IOException {
         OnHeapHnswGraph graph = null;
         if (size > 0) {
             var vectorsScorer = flatVectorWriter.getFlatVectorScorer();
@@ -345,7 +345,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 );
                 default -> throw new UnsupportedOperationException("unsupported datatype:" + dataType);
             };
-            graph = buildOnHeapGraphWithScorer(scoreSupplier, size);
+            graph = buildGraphWithTheCPU(scoreSupplier, size);
         }
         writeGraphAndMeta(fieldInfo, graph, size); // a null graph is ok
     }
@@ -588,7 +588,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     }
                 }
             } else {
-                createCPUGraphAndWriteMeta(fieldInfo, input, numVectors);
+                createGraphWithCPUAndWriteMeta(fieldInfo, input, numVectors);
             }
         } catch (Throwable t) {
             throw new IOException("Failed to merge GPU index: ", t);

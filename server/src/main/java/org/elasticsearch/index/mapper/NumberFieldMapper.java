@@ -2088,12 +2088,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            IgnoredSourceFormat format;
-            if (isSyntheticSource) {
-                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
-            } else {
-                format = IgnoredSourceFormat.NO_IGNORED_SOURCE;
-            }
+            IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, format);
         }
 

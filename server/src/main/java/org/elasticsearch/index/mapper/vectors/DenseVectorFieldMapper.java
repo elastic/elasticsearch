@@ -2692,12 +2692,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.DenseVectorFromBinaryBlockLoader(name(), dims, indexVersionCreated, element.elementType());
             }
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
-            if (isSyntheticSource) {
-                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
-            } else {
-                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
-            }
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DenseVectorBlockLoader(
                 sourceValueFetcher(blContext.sourcePaths(name())),

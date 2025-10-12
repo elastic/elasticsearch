@@ -482,12 +482,7 @@ public class IpFieldMapper extends FieldMapper {
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
-            IgnoredSourceFormat format;
-            if (isSyntheticSource) {
-                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
-            } else {
-                format = IgnoredSourceFormat.NO_IGNORED_SOURCE;
-            }
+            IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             // see #indexValue
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())

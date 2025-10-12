@@ -605,13 +605,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
             }
 
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
-            if (isSyntheticSourceEnabled()) {
-                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
-            } else {
-                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
-            }
-
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             // fallback to _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field

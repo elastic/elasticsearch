@@ -703,6 +703,15 @@ public abstract class MappedFieldType {
          * The {@code _field_names} field mapper, mostly used to check if it is enabled.
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
+
+        default IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
+            IndexSettings indexSettings = indexSettings();
+            if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
+                return IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated());
+            } else {
+                return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+            }
+        }
     }
 
 }

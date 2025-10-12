@@ -820,12 +820,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format;
-            if (isSyntheticSourceEnabled()) {
-                format = IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated());
-            } else {
-                format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
-            }
+            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), name(), format);
         }

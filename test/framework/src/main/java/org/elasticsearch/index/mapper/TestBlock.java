@@ -106,7 +106,6 @@ public class TestBlock implements BlockLoader.Block {
                         super(expectedCount);
                     }
 
-
                     @Override
                     public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException {
                         for (int i = 0; i < offsets.length - 1; i++) {

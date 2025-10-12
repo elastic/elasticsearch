@@ -18,7 +18,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -26,7 +25,6 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Loads values from {@code _source}. This whole process is very slow and cast-tastic,
@@ -96,22 +94,10 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private abstract static class SourceBlockLoader implements BlockLoader {
         protected final ValueFetcher fetcher;
         private final LeafIteratorLookup lookup;
-        private final Set<String> sourcePaths;
-        private final IgnoredSourceFormat ignoredSourceFormat;
 
-        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        private SourceBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             this.fetcher = fetcher;
             this.lookup = lookup;
-            if (fetcher instanceof SourceValueFetcher sourceValueFetcher) {
-                this.sourcePaths = sourceValueFetcher.getSourcePaths();
-                this.ignoredSourceFormat = sourceValueFetcher.getIgnoredSourceFormat();
-            } else if (fetcher instanceof ArraySourceValueFetcher arraySourceValueFetcher) {
-                this.sourcePaths = arraySourceValueFetcher.getSourcePaths();
-                this.ignoredSourceFormat = arraySourceValueFetcher.getIgnoredSourceFormat();
-            } else {
-                // TODO: maybe introduce a common interface for SourceValueFetcher and ArraySourceValueFetcher?
-                throw new IllegalStateException("unexpected fetcher type " + fetcher);
-            }
         }
 
         @Override
@@ -121,7 +107,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
+            return fetcher.storedFieldsSpec();
         }
 
         @Override
@@ -157,7 +143,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code boolean}s from {@code _source}.
      */
     public static class BooleansBlockLoader extends SourceBlockLoader {
-        public BooleansBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public BooleansBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -197,7 +183,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@link BytesRef}s from {@code _source}.
      */
     public static class BytesRefsBlockLoader extends SourceBlockLoader {
-        public BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public BytesRefsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -218,7 +204,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     public static class GeometriesBlockLoader extends SourceBlockLoader {
-        public GeometriesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public GeometriesBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -281,7 +267,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code double}s from {@code _source}.
      */
     public static class DoublesBlockLoader extends SourceBlockLoader {
-        public DoublesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public DoublesBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -323,7 +309,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     public static class DenseVectorBlockLoader extends SourceBlockLoader {
         private final int dimensions;
 
-        public DenseVectorBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
+        public DenseVectorBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
             super(fetcher, lookup);
             this.dimensions = dimensions;
         }
@@ -364,7 +350,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code int}s from {@code _source}.
      */
     public static class IntsBlockLoader extends SourceBlockLoader {
-        public IntsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public IntsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -404,7 +390,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code long}s from {@code _source}.
      */
     public static class LongsBlockLoader extends SourceBlockLoader {
-        public LongsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public LongsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -444,7 +430,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code ip}s from {@code _source}.
      */
     public static class IpsBlockLoader extends SourceBlockLoader {
-        public IpsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public IpsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 

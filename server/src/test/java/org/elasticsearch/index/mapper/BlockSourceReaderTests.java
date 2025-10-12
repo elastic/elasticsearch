@@ -67,7 +67,7 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
             )
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"), indexSettings);
+        var valueFetcher = SourceValueFetcher.toString(Set.of("field"), indexSettings);
         BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromNorms("field");
         BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());

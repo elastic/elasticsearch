@@ -30,7 +30,7 @@ import java.util.Set;
  *
  * Field types that handle arrays directly should instead use {@link ArraySourceValueFetcher}.
  */
-public abstract class SourceValueFetcher implements ValueFetcher {
+public abstract class SourceValueFetcher implements SourceBasedValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
     private final IgnoredSourceFormat ignoredSourceFormat;
@@ -107,15 +107,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
-    }
-
-    public Set<String> getSourcePaths() {
-        return sourcePaths;
-    }
-
-    public IgnoredSourceFormat getIgnoredSourceFormat() {
-        return ignoredSourceFormat;
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**

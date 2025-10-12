@@ -399,7 +399,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     }
                 };
             }
-            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
+            var valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
                 // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())

@@ -400,7 +400,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
 
             var ignoredSourceFormat = blContext.indexSettings().getIgnoredSourceFormat();
-            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted, ignoredSourceFormat) {
+            var valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

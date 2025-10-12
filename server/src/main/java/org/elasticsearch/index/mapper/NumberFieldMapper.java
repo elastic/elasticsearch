@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -45,7 +46,6 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFiel
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -495,12 +495,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -693,12 +689,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -857,12 +849,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -989,12 +977,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -1121,12 +1105,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -1327,12 +1307,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -1493,12 +1469,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                IgnoredSourceFormat format
-            ) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, format);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
             }
 
             @Override
@@ -1808,11 +1780,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(
-            SourceValueFetcher sourceValueFetcher,
-            BlockSourceReader.LeafIteratorLookup lookup,
-            IgnoredSourceFormat format
-        );
+        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
 
         abstract BlockLoader blockLoaderFromFallbackSyntheticSource(
             String fieldName,
@@ -2088,8 +2056,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, format);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()), lookup);
         }
 
         @Override
@@ -2111,7 +2078,12 @@ public class NumberFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-                return type.getValueFetcherFieldDataBuilder(name(), valuesSourceType, searchLookup, sourceValueFetcher(sourcePaths));
+                return type.getValueFetcherFieldDataBuilder(
+                    name(),
+                    valuesSourceType,
+                    searchLookup,
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings())
+                );
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
@@ -2133,11 +2105,14 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

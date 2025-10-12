@@ -33,7 +33,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -54,7 +53,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
@@ -482,12 +480,11 @@ public class IpFieldMapper extends FieldMapper {
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
-            IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             // see #indexValue
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, name(), format);
+            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext), lookup);
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
@@ -504,8 +501,8 @@ public class IpFieldMapper extends FieldMapper {
             };
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(BlockLoaderContext blContext) {
+            return new SourceValueFetcher(blContext.sourcePaths(name()), nullValue, blContext.indexSettings().getIgnoredSourceFormat()) {
                 @Override
                 public InetAddress parseSourceValue(Object value) {
                     return parse(value);

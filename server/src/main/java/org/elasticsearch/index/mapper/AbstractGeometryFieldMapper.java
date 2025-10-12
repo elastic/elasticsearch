@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -172,9 +173,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        public ArraySourceValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format) {
+        public ArraySourceValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format, IndexSettings indexSettings) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
+            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue), indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();
@@ -185,10 +186,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
-            var fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
+            var fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB, blContext.indexSettings());
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-            var format = blContext.getIgnoredSourceFormat();
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll(), format);
+            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
 
         protected abstract Object nullValueAsSource(T nullValue);

@@ -662,8 +662,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         // returns a Long to support source fallback which emulates numeric doc values for dates
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 public Long parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
@@ -998,8 +998,10 @@ public final class DateFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || indexType.hasPoints()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var format = blContext.getIgnoredSourceFormat();
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, format);
+            return new BlockSourceReader.LongsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()),
+                lookup
+            );
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -1067,7 +1069,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType().getValuesSourceType(),
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );

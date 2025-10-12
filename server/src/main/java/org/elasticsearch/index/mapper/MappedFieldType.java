@@ -704,14 +704,6 @@ public abstract class MappedFieldType {
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
-        default IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
-            IndexSettings indexSettings = indexSettings();
-            if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
-                return IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated());
-            } else {
-                return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
-            }
-        }
     }
 
 }

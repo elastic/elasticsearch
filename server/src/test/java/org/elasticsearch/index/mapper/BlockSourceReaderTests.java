@@ -11,9 +11,15 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -49,19 +55,32 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     private void loadBlock(LeafReaderContext ctx, Consumer<TestBlock> test) throws IOException {
-        boolean synteticSource = randomBoolean();
-        IgnoredSourceFieldMapper.IgnoredSourceFormat format;
-        if (synteticSource) {
-            format = IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE;
-        } else {
-            format = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
-        }
-        ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"));
+        boolean syntheticSource = randomBoolean();
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(
+                Settings.builder()
+                    .put(
+                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1)
+                            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), syntheticSource ? "synthetic" : "stored")
+                            .build()
+                    )
+            )
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"), indexSettings);
         BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromNorms("field");
-        BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup, format);
+        BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
         BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
-        assertThat(loader.rowStrideStoredFieldSpec(), equalTo(StoredFieldsSpec.withSourcePaths(format, Set.of("field"))));
+        assertThat(
+            loader.rowStrideStoredFieldSpec(),
+            equalTo(
+                StoredFieldsSpec.withSourcePaths(
+                    syntheticSource ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                    Set.of("field")
+                )
+            )
+        );
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
             loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null

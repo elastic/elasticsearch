@@ -1117,9 +1117,8 @@ public final class TextFieldMapper extends FieldMapper {
                 return fallbackSyntheticSourceBlockLoader(blContext);
             }
             // otherwise, load values from _source (synthetic or not)
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
-            var format = blContext.getIgnoredSourceFormat();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), format);
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
         FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
@@ -1247,7 +1246,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name()), fieldDataContext.indexSettings()),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );

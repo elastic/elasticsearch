@@ -33,7 +33,6 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             // set the tiny segment size so that most of the tests exercise GPU index build
             .systemProperty("gpu.tiny.segment.size", "1");
 
-
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {
             builder.environment("LD_LIBRARY_PATH", libraryPath);

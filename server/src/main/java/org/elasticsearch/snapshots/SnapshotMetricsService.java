@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Generates the snapshots-by-state and shards-by-state metrics when polled. Only produces
@@ -129,11 +128,11 @@ public class SnapshotMetricsService implements ClusterStateListener {
          * Are these metrics stale?
          *
          * @param currentClusterState The current cluster state
-         * @return true if these metrics were calculated from a prior cluster state and need to be recalculated, false otherwise
+         * @return true if these metrics were calculated from a prior {@link SnapshotsInProgress} and need to be recalculated, false
+         *         otherwise
          */
         public boolean isStale(ClusterState currentClusterState) {
-            return (Objects.equals(clusterStateId, currentClusterState.stateUUID()) == false
-                && System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode);
+            return System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode;
         }
     }
 }

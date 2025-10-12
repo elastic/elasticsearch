@@ -22,7 +22,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.ELASTIC_RERANKER_CHUNKING;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 public class ElasticRerankerServiceSettings extends ElasticsearchInternalServiceSettings {
@@ -102,30 +101,26 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
         ValidationException validationException = new ValidationException();
         var baseSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
 
-        LongDocumentStrategy longDocumentStrategy = null;
-        Integer maxChunksPerDoc = null;
-        if (ELASTIC_RERANKER_CHUNKING.isEnabled()) {
-            longDocumentStrategy = extractOptionalEnum(
-                map,
-                LONG_DOCUMENT_STRATEGY,
-                ModelConfigurations.SERVICE_SETTINGS,
-                LongDocumentStrategy::fromString,
-                EnumSet.allOf(LongDocumentStrategy.class),
-                validationException
-            );
+        LongDocumentStrategy longDocumentStrategy = extractOptionalEnum(
+            map,
+            LONG_DOCUMENT_STRATEGY,
+            ModelConfigurations.SERVICE_SETTINGS,
+            LongDocumentStrategy::fromString,
+            EnumSet.allOf(LongDocumentStrategy.class),
+            validationException
+        );
 
-            maxChunksPerDoc = extractOptionalPositiveInteger(
-                map,
-                MAX_CHUNKS_PER_DOC,
-                ModelConfigurations.SERVICE_SETTINGS,
-                validationException
-            );
+        Integer maxChunksPerDoc = extractOptionalPositiveInteger(
+            map,
+            MAX_CHUNKS_PER_DOC,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
-            if (maxChunksPerDoc != null && (longDocumentStrategy == null || longDocumentStrategy == LongDocumentStrategy.TRUNCATE)) {
-                validationException.addValidationError(
-                    "The [" + MAX_CHUNKS_PER_DOC + "] setting requires [" + LONG_DOCUMENT_STRATEGY + "] to be set to [chunk]"
-                );
-            }
+        if (maxChunksPerDoc != null && (longDocumentStrategy == null || longDocumentStrategy == LongDocumentStrategy.TRUNCATE)) {
+            validationException.addValidationError(
+                "The [" + MAX_CHUNKS_PER_DOC + "] setting requires [" + LONG_DOCUMENT_STRATEGY + "] to be set to [chunk]"
+            );
         }
 
         if (validationException.validationErrors().isEmpty() == false) {

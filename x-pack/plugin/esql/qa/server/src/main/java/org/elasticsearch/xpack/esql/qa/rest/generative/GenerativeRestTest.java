@@ -78,8 +78,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time_series aggregate.* can only be used with the TS command",
         "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
         // https://github.com/elastic/elasticsearch/issues/134793
-        "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block",
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

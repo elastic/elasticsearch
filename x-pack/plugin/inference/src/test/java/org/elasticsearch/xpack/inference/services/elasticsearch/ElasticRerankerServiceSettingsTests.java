@@ -20,7 +20,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticRerankerServiceSettings.LONG_DOCUMENT_STRATEGY;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticRerankerServiceSettings.MAX_CHUNKS_PER_DOC;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.ELASTIC_RERANKER_CHUNKING;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
@@ -39,12 +38,10 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
     }
 
     public static ElasticRerankerServiceSettings createRandom() {
-        var longDocumentStrategy = ELASTIC_RERANKER_CHUNKING.isEnabled()
-            ? randomFrom(ElasticRerankerServiceSettings.LongDocumentStrategy.values())
+        var longDocumentStrategy = randomBoolean() ? randomFrom(ElasticRerankerServiceSettings.LongDocumentStrategy.values()) : null;
+        var maxChunksPerDoc = ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(longDocumentStrategy) && randomBoolean()
+            ? randomIntBetween(1, 10)
             : null;
-        var maxChunksPerDoc = ELASTIC_RERANKER_CHUNKING.isEnabled()
-            && ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK.equals(longDocumentStrategy)
-            && randomBoolean() ? randomIntBetween(1, 10) : null;
         return createRandom(longDocumentStrategy, maxChunksPerDoc);
     }
 
@@ -145,78 +142,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
         );
     }
 
-    public void testFromMap_ChunkingFeatureFlagDisabledAndLongDocumentStrategyProvided_CreatesSettingsIgnoringStrategy() {
-        assumeTrue(
-            "Only if 'elastic_reranker_chunking_long_documents' feature flag is disabled",
-            ELASTIC_RERANKER_CHUNKING.isEnabled() == false
-        );
-        var withAdaptiveAllocations = randomBoolean();
-        var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
-        var numThreads = randomIntBetween(1, 10);
-        var modelId = randomAlphaOfLength(8);
-        var adaptiveAllocationsSettings = withAdaptiveAllocations
-            ? new AdaptiveAllocationsSettings(true, randomIntBetween(0, 2), randomIntBetween(2, 5))
-            : null;
-        var longDocumentStrategy = ElasticRerankerServiceSettings.LongDocumentStrategy.TRUNCATE;
-
-        Map<String, Object> settingsMap = buildServiceSettingsMap(
-            withAdaptiveAllocations ? Optional.empty() : Optional.of(numAllocations),
-            numThreads,
-            modelId,
-            withAdaptiveAllocations ? Optional.of(adaptiveAllocationsSettings) : Optional.empty(),
-            Optional.of(longDocumentStrategy),
-            Optional.empty()
-        );
-
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
-        assertExpectedSettings(
-            settings,
-            Optional.ofNullable(numAllocations),
-            numThreads,
-            modelId,
-            Optional.ofNullable(adaptiveAllocationsSettings),
-            Optional.empty(),
-            Optional.empty()
-        );
-    }
-
-    public void testFromMap_ChunkingFeatureFlagDisabledAndMaxChunksPerDocProvided_CreatesSettingsIgnoringMaxChunksPerDoc() {
-        assumeTrue(
-            "Only if 'elastic_reranker_chunking_long_documents' feature flag is disabled",
-            ELASTIC_RERANKER_CHUNKING.isEnabled() == false
-        );
-        var withAdaptiveAllocations = randomBoolean();
-        var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
-        var numThreads = randomIntBetween(1, 10);
-        var modelId = randomAlphaOfLength(8);
-        var adaptiveAllocationsSettings = withAdaptiveAllocations
-            ? new AdaptiveAllocationsSettings(true, randomIntBetween(0, 2), randomIntBetween(2, 5))
-            : null;
-        var maxChunksPerDoc = randomIntBetween(1, 10);
-
-        Map<String, Object> settingsMap = buildServiceSettingsMap(
-            withAdaptiveAllocations ? Optional.empty() : Optional.of(numAllocations),
-            numThreads,
-            modelId,
-            withAdaptiveAllocations ? Optional.of(adaptiveAllocationsSettings) : Optional.empty(),
-            Optional.empty(),
-            Optional.of(maxChunksPerDoc)
-        );
-
-        ElasticRerankerServiceSettings settings = ElasticRerankerServiceSettings.fromMap(settingsMap);
-        assertExpectedSettings(
-            settings,
-            Optional.ofNullable(numAllocations),
-            numThreads,
-            modelId,
-            Optional.ofNullable(adaptiveAllocationsSettings),
-            Optional.empty(),
-            Optional.empty()
-        );
-    }
-
-    public void testFromMap_ChunkingFeatureFlagEnabledAndTruncateSelected_CreatesSettingsCorrectly() {
-        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
+    public void testFromMap_TruncateLongDocumentStrategySelected_CreatesSettingsCorrectly() {
         var withAdaptiveAllocations = randomBoolean();
         var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
         var numThreads = randomIntBetween(1, 10);
@@ -247,8 +173,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
         );
     }
 
-    public void testFromMap_ChunkingFeatureFlagEnabledAndTruncateSelectedWithMaxChunksPerDoc_ThrowsValidationException() {
-        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
+    public void testFromMap_TruncateLongDocumentStrategySelectedWithMaxChunksPerDoc_ThrowsValidationException() {
         var withAdaptiveAllocations = randomBoolean();
         var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
         var numThreads = randomIntBetween(1, 10);
@@ -278,8 +203,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
         );
     }
 
-    public void testFromMap_ChunkingFeatureFlagEnabledAndChunkSelected_CreatesSettingsCorrectly() {
-        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
+    public void testFromMap_ChunkLongDocumentStrategySelected_CreatesSettingsCorrectly() {
         var withAdaptiveAllocations = randomBoolean();
         var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
         var numThreads = randomIntBetween(1, 10);
@@ -311,8 +235,7 @@ public class ElasticRerankerServiceSettingsTests extends AbstractWireSerializing
         );
     }
 
-    public void testFromMap_ChunkingFeatureFlagEnabledAndChunkSelectedWithMaxChunksPerDoc_CreatesSettingsCorrectly() {
-        assumeTrue("Only if 'elastic_reranker_chunking_long_documents' feature flag is enabled", ELASTIC_RERANKER_CHUNKING.isEnabled());
+    public void testFromMap_ChunkLongDocumentStrategySelectedWithMaxChunksPerDoc_CreatesSettingsCorrectly() {
         var withAdaptiveAllocations = randomBoolean();
         var numAllocations = withAdaptiveAllocations ? null : randomIntBetween(1, 10);
         var numThreads = randomIntBetween(1, 10);

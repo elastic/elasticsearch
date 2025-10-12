@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -279,7 +280,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private final IgnoreAbove ignoreAbove;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
-            super(name, true, false, true, meta);
+            super(name, IndexType.terms(true, true), false, meta);
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {

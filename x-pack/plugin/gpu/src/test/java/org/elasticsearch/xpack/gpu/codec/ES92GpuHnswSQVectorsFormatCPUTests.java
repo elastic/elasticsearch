@@ -17,6 +17,7 @@ import org.junit.BeforeClass;
 
 import static org.hamcrest.Matchers.startsWith;
 
+/** Runs format tests with a large segment threshold to exercise graph building on the CPU. */
 public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCase {
 
     static {

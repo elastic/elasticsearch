@@ -10,7 +10,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,18 +20,13 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
-import org.elasticsearch.repositories.SnapshotMetrics;
-import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matcher;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,34 +37,36 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-public class SnapshotMetricsServiceTests extends ESTestCase {
+public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCase {
 
     public void testMetricsAreOnlyCalculatedAfterAValidClusterStateHasBeenSeen() {
         final ClusterService clusterService = mock(ClusterService.class);
-        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        final SnapshotMetrics snapshotMetrics = new SnapshotMetrics(recordingMeterRegistry);
-        final SnapshotMetricsService snapshotsService = new SnapshotMetricsService(snapshotMetrics, clusterService);
+        final CachingSnapshotAndShardByStateMetricsService byStateMetricsService = new CachingSnapshotAndShardByStateMetricsService(
+            clusterService
+        );
 
-        // No metrics should be recorded before seeing a cluster state
-        collectAndAssertSnapshotAndShardMetricsMatch(recordingMeterRegistry, empty());
-        verifyNoInteractions(clusterService);
+        // No metrics should be recorded before the cluster service is started
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.INITIALIZED);
+        assertThat(byStateMetricsService.getShardsByState(), empty());
+        assertThat(byStateMetricsService.getSnapshotsByState(), empty());
+        verify(clusterService, never()).state();
 
-        // Simulate a cluster state being applied
+        // Simulate the metrics service being started/a state being applied
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         final ClusterState withSnapshotsInProgress = createClusterStateWithSnapshotsInProgress();
         when(clusterService.state()).thenReturn(withSnapshotsInProgress);
-        snapshotsService.clusterChanged(new ClusterChangedEvent("test", withSnapshotsInProgress, withSnapshotsInProgress));
 
         // This time we should publish some metrics
-        collectAndAssertSnapshotAndShardMetricsMatch(recordingMeterRegistry, not(empty()));
+        assertThat(byStateMetricsService.getShardsByState(), not(empty()));
+        assertThat(byStateMetricsService.getSnapshotsByState(), not(empty()));
         verify(clusterService, times(2)).state();
 
-        recordingMeterRegistry.getRecorder().resetCalls();
         reset(clusterService);
 
         // Then publish a new state in which we aren't master
@@ -85,26 +81,12 @@ public class SnapshotMetricsServiceTests extends ESTestCase {
                     )
             )
             .build();
-        snapshotsService.clusterChanged(new ClusterChangedEvent("test", noLongerMaster, noLongerMaster));
+        when(clusterService.state()).thenReturn(noLongerMaster);
 
         // We should no longer publish metrics
-        collectAndAssertSnapshotAndShardMetricsMatch(recordingMeterRegistry, empty());
-        verifyNoInteractions(clusterService);
-    }
-
-    private void collectAndAssertSnapshotAndShardMetricsMatch(
-        RecordingMeterRegistry recordingMeterRegistry,
-        Matcher<Collection<? extends Measurement>> matcher
-    ) {
-        recordingMeterRegistry.getRecorder().collect();
-        assertThat(
-            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE),
-            matcher
-        );
-        assertThat(
-            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_BY_STATE),
-            matcher
-        );
+        assertThat(byStateMetricsService.getShardsByState(), empty());
+        assertThat(byStateMetricsService.getSnapshotsByState(), empty());
+        verify(clusterService, never()).state();
     }
 
     private ClusterState createClusterStateWithSnapshotsInProgress() {

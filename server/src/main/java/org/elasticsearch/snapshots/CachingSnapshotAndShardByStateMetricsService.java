@@ -9,16 +9,14 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
@@ -29,40 +27,41 @@ import java.util.Map;
 
 /**
  * Generates the snapshots-by-state and shards-by-state metrics when polled. Only produces
- * metrics on the master node, and only after it's seen a cluster state applied.
+ * metrics on the master node, and only while the {@link ClusterService} is started. Will only
+ * re-calculate the metrics if the {@link SnapshotsInProgress} has changed since the last time
+ * they were calculated.
  */
-public class SnapshotMetricsService implements ClusterStateListener {
+public class CachingSnapshotAndShardByStateMetricsService {
 
     private final ClusterService clusterService;
-    private volatile boolean shouldReturnSnapshotMetrics;
     private CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
 
-    public SnapshotMetricsService(SnapshotMetrics snapshotMetrics, ClusterService clusterService) {
+    public CachingSnapshotAndShardByStateMetricsService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        snapshotMetrics.createSnapshotShardsByStateMetric(this::getShardsByState);
-        snapshotMetrics.createSnapshotsByStateMetric(this::getSnapshotsByState);
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        final ClusterState clusterState = event.state();
-        // Only return metrics when the state is recovered and we are the master
-        shouldReturnSnapshotMetrics = clusterState.nodes().isLocalNodeElectedMaster()
-            && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
-    }
-
-    private Collection<LongWithAttributes> getShardsByState() {
-        if (shouldReturnSnapshotMetrics == false) {
+    public Collection<LongWithAttributes> getShardsByState() {
+        if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
             return List.of();
         }
-        return recalculateIfStale(clusterService.state()).shardStateMetrics();
-    }
-
-    private Collection<LongWithAttributes> getSnapshotsByState() {
-        if (shouldReturnSnapshotMetrics == false) {
+        final ClusterState state = clusterService.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            // Only the master should report on shards-by-state
             return List.of();
         }
-        return recalculateIfStale(clusterService.state()).snapshotStateMetrics();
+        return recalculateIfStale(state).shardStateMetrics();
+    }
+
+    public Collection<LongWithAttributes> getSnapshotsByState() {
+        if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+            return List.of();
+        }
+        final ClusterState state = clusterService.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            // Only the master should report on snapshots-by-state
+            return List.of();
+        }
+        return recalculateIfStale(state).snapshotStateMetrics();
     }
 
     private CachedSnapshotStateMetrics recalculateIfStale(ClusterState currentState) {

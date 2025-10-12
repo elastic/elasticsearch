@@ -210,12 +210,12 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.shutdown.PluginShutdownService;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotMetricsService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -1188,7 +1188,10 @@ class NodeConstruction {
             transportService,
             indicesService
         );
-        clusterService.addListener(new SnapshotMetricsService(snapshotMetrics, clusterService));
+        final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
+            new CachingSnapshotAndShardByStateMetricsService(clusterService);
+        snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState);
+        snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState);
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());

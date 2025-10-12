@@ -280,25 +280,21 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             } else {
                 var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), g));
                 firstPassAggs.add(valuesAgg);
-                if (g.isDimension()) {
-                    Alias pack = new Alias(
-                        g.source(),
-                        internalNames.next("pack" + g.name()),
-                        new PackDimension(g.source(), valuesAgg.toAttribute())
-                    );
-                    packDimensions.add(pack);
-                    Alias grouping = new Alias(g.source(), internalNames.next("group" + g.name()), pack.toAttribute());
-                    secondPassGroupings.add(grouping);
-                    Alias unpack = new Alias(
-                        g.source(),
-                        g.name(),
-                        new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType()),
-                        g.id()
-                    );
-                    unpackDimensions.add(unpack);
-                } else {
-                    secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
-                }
+                Alias pack = new Alias(
+                    g.source(),
+                    internalNames.next("pack" + g.name()),
+                    new PackDimension(g.source(), valuesAgg.toAttribute())
+                );
+                packDimensions.add(pack);
+                Alias grouping = new Alias(g.source(), internalNames.next("group" + g.name()), pack.toAttribute());
+                secondPassGroupings.add(grouping);
+                Alias unpack = new Alias(
+                    g.source(),
+                    g.name(),
+                    new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType()),
+                    g.id()
+                );
+                unpackDimensions.add(unpack);
             }
         }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {

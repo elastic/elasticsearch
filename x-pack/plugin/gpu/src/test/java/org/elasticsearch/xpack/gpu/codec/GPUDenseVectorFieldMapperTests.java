@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
+import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @BeforeClass
     public static void setup() {
-        // assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
     @Override
@@ -44,7 +45,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         // TODO improve test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());
     }
 
@@ -53,7 +54,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
         assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
     }
 

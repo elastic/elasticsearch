@@ -261,14 +261,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                         if (isDense(firstDocId, doc, count)) {
                             try (var builder = factory.singletonBytesRefs(count)) {
-                                long[] offsets = new long[count];
+                                long[] offsets = new long[count + 1];
 
-                                int j = 0;
+                                // Normalize the offsets to check of bytes that is going to be fetched:
+                                int j = 1;
                                 long startOffset = addresses.get(firstDocId);
                                 for (int i = offset; i < docs.count(); i++) {
                                     int docId = docs.get(i);
-                                    long translatedOffset = addresses.get(docId) - startOffset;
-                                    offsets[j++] = translatedOffset;
+                                    long nextOffset = addresses.get(docId + 1) - startOffset;
+                                    offsets[j++] = nextOffset;
                                 }
 
                                 int lastDocId = docs.get(docs.count() - 1);

@@ -173,7 +173,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        public ArraySourceValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format, IndexSettings indexSettings) {
+        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format, IndexSettings indexSettings) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
             return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue), indexSettings.getIgnoredSourceFormat()) {
                 @Override

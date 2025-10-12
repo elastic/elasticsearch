@@ -157,7 +157,6 @@ public abstract class SourceValueFetcher implements ValueFetcher {
 
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to Strings
-     *
      * @param sourcePaths   the paths to fetch values from in the source
      */
     public static SourceValueFetcher toString(Set<String> sourcePaths, IndexSettings indexSettings) {

@@ -170,18 +170,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     @Override
     // TODO: fix sorted index case
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
+        var started = System.nanoTime();
         flatVectorWriter.flush(maxDoc, sortMap);
         try {
             flushFieldsWithoutMemoryMappedFile(sortMap);
         } catch (Throwable t) {
             throw new IOException("Failed to flush GPU index: ", t);
         }
+        var elapsed = started - System.nanoTime();
+        logger.debug("Flush total time [{}ms]", elapsed / 1_000_000.0);
     }
 
     private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException, InterruptedException {
         // No tmp file written, or the file cannot be mmapped
         for (FieldWriter field : fields) {
-
+            var started = System.nanoTime();
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
             if (numVectors < tinySegmentsThreshold) {
                 if (logger.isDebugEnabled()) {
@@ -209,6 +212,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     cuVSResourceManager.release(cuVSResources);
                 }
             }
+            var elapsed = started - System.nanoTime();
+            logger.debug("Flushed [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
         }
     }
 
@@ -512,6 +517,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     @Override
     // fix sorted index case
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        var started = System.nanoTime();
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
         final int numVectors;
         String tempRawVectorsFileName = null;
@@ -589,6 +595,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         } finally {
             deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
+        var elapsed = started - System.nanoTime();
+        logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
     }
 
     private ByteVectorValues getMergedByteVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {

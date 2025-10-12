@@ -11,15 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
-public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    @BeforeClass
-    public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
-    }
+/**
+ * This test sets a large(ish) tiny segment size so that it effectively only exercises code paths
+ * that build the index on CPU.
+ */
+public class GPUClientYamlCPUTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
@@ -30,9 +28,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
-            // set the tiny segment size so that most of our tests exercise GPU index build
-            .systemProperty("gpu.tiny.segment.size", "1");
-
+            .systemProperty("gpu.tiny.segment.size", "1000000");
 
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {
@@ -41,7 +37,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return builder.build();
     }
 
-    public GPUClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientYamlCPUTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

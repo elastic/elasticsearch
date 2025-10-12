@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
@@ -20,6 +22,8 @@ import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
+
+    private static final Logger logger = LogManager.getLogger(GPUPlugin.class);
 
     public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_vectors_indexing");
 
@@ -49,14 +53,27 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         Setting.Property.Dynamic
     );
 
-    /** The default minimum number of vectors required before we build on the GPU.*/
+    /** The default minimum number of vectors required before building on the GPU. */
     public static final int DEFAULT_MIN_NUM_VECTORS_FOR_GPU_BUILD = 10_000;
 
     public static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = tinySegmentProperty();
 
-    static int tinySegmentProperty() {
-        int v = Integer.parseInt(System.getProperty("gpu.tiny.segment.size", "-1"));
-        return v == -1 ? DEFAULT_MIN_NUM_VECTORS_FOR_GPU_BUILD : v;
+    public static int tinySegmentProperty() {
+        int v = DEFAULT_MIN_NUM_VECTORS_FOR_GPU_BUILD;
+        String str = System.getProperty("gpu.tiny.segment.size");
+        if (str != null) {
+            try {
+                int parsedValue = Integer.parseInt(str);
+                if (parsedValue > 1) {
+                    v = parsedValue;
+                } else {
+                    logger.warn("Ignoring gpu.tiny.segment.size. Value too small:" + parsedValue);
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Bad gpu.tiny.segment.size. Not a number:" + str);
+            }
+        }
+        return v;
     }
 
     @Override

@@ -67,8 +67,8 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
         int tinySegmentsThreshold
     ) {
         super(NAME);
-        if (tinySegmentsThreshold < 1) {
-            throw new IllegalArgumentException("tinySegmentsThreshold must be greater than 0, got:" + tinySegmentsThreshold);
+        if (tinySegmentsThreshold < 2) {
+            throw new IllegalArgumentException("tinySegmentsThreshold must be greater than 1, got:" + tinySegmentsThreshold);
         }
         this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
         this.maxConn = maxConn;

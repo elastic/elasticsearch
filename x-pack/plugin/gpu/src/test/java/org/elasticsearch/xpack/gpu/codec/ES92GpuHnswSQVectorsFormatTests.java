@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
@@ -28,36 +27,29 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     static Codec codec;
 
     /** Format that mostly builds indices on the GPU rarely using the CPU, because of the tinySegmentThreshold. */
-    static class ES92GpuHnswSQVectorsFormatTinyOne extends ES92GpuHnswSQVectorsFormat {
-        ES92GpuHnswSQVectorsFormatTinyOne() {
-            super(
-                ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
-                ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                null,
-                7,
-                false,
-                CuVSResourceManager::pooling,
-                1
-            );
-        }
+    static ES92GpuHnswSQVectorsFormat createES92GpuHnswSQVectorsFormat(int tinySegmentsThreshold) {
+        return new ES92GpuHnswSQVectorsFormat(
+            ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
+            ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+            null,
+            7,
+            false,
+            CuVSResourceManager::pooling,
+            tinySegmentsThreshold
+        );
     }
 
     @BeforeClass
     public static void beforeClass() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
-        codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswSQVectorsFormatTinyOne());
+
+        // Create the format that mostly builds indices on the GPU, because of the tinySegmentThreshold
+        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswSQVectorsFormat((2)));
     }
 
     @Override
     protected Codec getCodec() {
         return codec;
-    }
-
-    public void testKnnVectorsFormat() {
-        KnnVectorsFormat knnVectorsFormat = new ES92GpuHnswVectorsFormatTests.ES92GpuHnswVectorsFormatTinyOne();
-        String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=1, flatVectorFormat=Lucene99FlatVectorsFormat)";
-        assertEquals(expectedStr, knnVectorsFormat.toString());
     }
 
     @Override

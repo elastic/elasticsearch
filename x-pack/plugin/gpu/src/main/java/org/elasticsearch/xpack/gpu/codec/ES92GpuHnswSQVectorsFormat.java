@@ -70,8 +70,8 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
                 "beamWidth must be positive and less than or equal to " + MAXIMUM_BEAM_WIDTH + "; beamWidth=" + beamWidth
             );
         }
-        if (tinySegmentsThreshold < 1) {
-            throw new IllegalArgumentException("tinySegmentsThreshold must be greater than 0, got:" + tinySegmentsThreshold);
+        if (tinySegmentsThreshold < 2) {
+            throw new IllegalArgumentException("tinySegmentsThreshold must be greater than 1, got:" + tinySegmentsThreshold);
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;

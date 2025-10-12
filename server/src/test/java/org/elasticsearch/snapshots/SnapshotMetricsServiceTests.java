@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -26,9 +27,12 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +43,9 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -51,15 +58,7 @@ public class SnapshotMetricsServiceTests extends ESTestCase {
         final SnapshotMetricsService snapshotsService = new SnapshotMetricsService(snapshotMetrics, clusterService);
 
         // No metrics should be recorded before seeing a cluster state
-        recordingMeterRegistry.getRecorder().collect();
-        assertThat(
-            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE),
-            empty()
-        );
-        assertThat(
-            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_BY_STATE),
-            empty()
-        );
+        collectAndAssertSnapshotAndShardMetricsMatch(recordingMeterRegistry, empty());
         verifyNoInteractions(clusterService);
 
         // Simulate a cluster state being applied
@@ -68,14 +67,43 @@ public class SnapshotMetricsServiceTests extends ESTestCase {
         snapshotsService.clusterChanged(new ClusterChangedEvent("test", withSnapshotsInProgress, withSnapshotsInProgress));
 
         // This time we should publish some metrics
+        collectAndAssertSnapshotAndShardMetricsMatch(recordingMeterRegistry, not(empty()));
+        verify(clusterService, times(2)).state();
+
+        recordingMeterRegistry.getRecorder().resetCalls();
+        reset(clusterService);
+
+        // Then publish a new state in which we aren't master
+        final ClusterState noLongerMaster = ClusterState.builder(withSnapshotsInProgress)
+            .nodes(
+                DiscoveryNodes.builder(withSnapshotsInProgress.nodes())
+                    .masterNodeId(
+                        randomValueOtherThan(
+                            withSnapshotsInProgress.nodes().getLocalNodeId(),
+                            () -> randomFrom(withSnapshotsInProgress.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()))
+                        )
+                    )
+            )
+            .build();
+        snapshotsService.clusterChanged(new ClusterChangedEvent("test", noLongerMaster, noLongerMaster));
+
+        // We should no longer publish metrics
+        collectAndAssertSnapshotAndShardMetricsMatch(recordingMeterRegistry, empty());
+        verifyNoInteractions(clusterService);
+    }
+
+    private void collectAndAssertSnapshotAndShardMetricsMatch(
+        RecordingMeterRegistry recordingMeterRegistry,
+        Matcher<Collection<? extends Measurement>> matcher
+    ) {
         recordingMeterRegistry.getRecorder().collect();
         assertThat(
             recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE),
-            not(empty())
+            matcher
         );
         assertThat(
             recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_BY_STATE),
-            not(empty())
+            matcher
         );
     }
 

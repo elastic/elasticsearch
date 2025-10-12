@@ -500,7 +500,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override
@@ -698,7 +698,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override
@@ -862,7 +862,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override
@@ -994,7 +994,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override
@@ -1126,7 +1126,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override
@@ -1332,7 +1332,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override
@@ -1498,7 +1498,7 @@ public class NumberFieldMapper extends FieldMapper {
                 BlockSourceReader.LeafIteratorLookup lookup,
                 IgnoredSourceFormat format
             ) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, name(), format);
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, format);
             }
 
             @Override

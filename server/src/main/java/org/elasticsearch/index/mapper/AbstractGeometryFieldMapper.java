@@ -172,7 +172,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format) {
+        public ArraySourceValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
             return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
                 @Override
@@ -185,10 +185,10 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
-            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
+            var fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll(), name(), format);
+            var format = blContext.getIgnoredSourceFormat();
+            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll(), format);
         }
 
         protected abstract Object nullValueAsSource(T nullValue);

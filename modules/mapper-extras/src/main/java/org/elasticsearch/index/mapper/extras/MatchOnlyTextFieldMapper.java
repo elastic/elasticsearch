@@ -605,12 +605,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
             }
 
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             // fallback to _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup, name(), format);
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup, blContext.getIgnoredSourceFormat());
         }
 
         @Override

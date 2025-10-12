@@ -397,13 +397,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     }
                 };
             }
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
                 // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup, name(), format);
+            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup, blContext.getIgnoredSourceFormat());
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

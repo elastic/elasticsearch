@@ -2694,13 +2694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.DenseVectorBlockLoader(
-                sourceValueFetcher(blContext.sourcePaths(name())),
-                lookup,
-                dims,
-                name(),
-                format
-            );
+            return new BlockSourceReader.DenseVectorBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, dims, format);
         }
 
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {

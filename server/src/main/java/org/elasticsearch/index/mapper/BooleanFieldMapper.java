@@ -364,12 +364,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 };
             }
 
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             BlockSourceReader.LeafIteratorLookup lookup = indexType.hasTerms() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup, name(), format);
+            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup, blContext.getIgnoredSourceFormat());
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

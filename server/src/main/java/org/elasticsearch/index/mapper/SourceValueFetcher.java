@@ -101,6 +101,10 @@ public abstract class SourceValueFetcher implements ValueFetcher {
         return StoredFieldsSpec.NEEDS_SOURCE;
     }
 
+    public Set<String> getSourcePaths() {
+        return sourcePaths;
+    }
+
     /**
      * Given a value that has been extracted from a document's source, parse it into a standard
      * format. This parsing logic should closely mirror the value parsing in

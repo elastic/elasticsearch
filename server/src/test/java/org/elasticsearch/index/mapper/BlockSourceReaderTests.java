@@ -58,7 +58,7 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         }
         ValueFetcher valueFetcher = SourceValueFetcher.toString(Set.of("field"));
         BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromNorms("field");
-        BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup, "field", format);
+        BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup, format);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
         BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
         assertThat(loader.rowStrideStoredFieldSpec(), equalTo(StoredFieldsSpec.withSourcePaths(format, Set.of("field"))));

@@ -820,9 +820,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
-            IgnoredSourceFieldMapper.IgnoredSourceFormat format = blContext.getIgnoredSourceFormat();
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), name(), format);
+            var format = blContext.getIgnoredSourceFormat();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), format);
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

@@ -75,11 +75,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(
-                    indicesService.getIndicesQueryCache(),
-                    indexShard.shardId(),
-                    cacheTotals
-                );
+                final var queryCache = indicesService.getIndicesQueryCache();
+                long sharedRam = (queryCache == null)
+                    ? 0L
+                    : IndicesQueryCache.getSharedRamSizeForShard(queryCache, indexShard.shardId(), cacheTotals);
                 // as a size optimization, only store non-zero values in the map
                 if (sharedRam > 0L) {
                     shardIdToSharedRam.put(indexShard.shardId(), sharedRam);
@@ -144,7 +143,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     public static long getSharedRamSizeForShard(IndicesService indicesService, ShardId shardId) {
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
-        return getSharedRamSizeForShard(indicesService.getIndicesQueryCache(), shardId, cacheTotals);
+        final var queryCache = indicesService.getIndicesQueryCache();
+        return (queryCache == null) ? 0L : IndicesQueryCache.getSharedRamSizeForShard(queryCache, shardId, cacheTotals);
     }
 
     /**
@@ -155,7 +155,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
     private static long getSharedRamSizeForShard(IndicesQueryCache queryCache, ShardId shardId, CacheTotals cacheTotals) {
-        long sharedRamBytesUsed = queryCache != null ? queryCache.getSharedRamBytesUsed() : 0L;
+        long sharedRamBytesUsed = queryCache.getSharedRamBytesUsed();
         if (sharedRamBytesUsed == 0L) {
             return 0L;
         }

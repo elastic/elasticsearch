@@ -186,6 +186,52 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         );
     }
 
+    public void testReindexFromRemoteRejectsUsernameWithNoPassword() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                "user",
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote source included username but not password;",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteRejectsPasswordWithNoUsername() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                new SecureString("password".toCharArray()),
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote source included password but not username;",
+            e.getMessage()
+        );
+    }
+
     public void testNoSliceBuilderSetWithSlicedRequest() {
         ReindexRequest reindex = newRequest();
         reindex.getSearchRequest().source().slice(new SliceBuilder(0, 4));

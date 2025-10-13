@@ -215,7 +215,6 @@ public class EsqlSession {
             plan = explain.query();
             parsedPlanString = plan.toString();
         }
-<<<<<<< HEAD
         analyzedPlan(
             plan,
             configuration,
@@ -243,7 +242,7 @@ public class EsqlSession {
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, l))
                         .<LogicalPlan>andThen((l, p) -> {
                             if (request.approximate()) {
-                                new Approximate(p);  // to verify whether the pre-optimized plan is suitable for approximation
+                                Approximate.verifyPlan(p);
                             }
                             l.onResponse(p);
                         })
@@ -310,7 +309,17 @@ public class EsqlSession {
             // TODO: this could be snuck into the underlying listener
             EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
             // execute any potential subplans
-            executeSubPlans(optimizedPlan, configuration, foldContext, planRunner, executionInfo, request, logicalPlanOptimizer, physicalPlanOptimizer, listener);
+            executeSubPlans(
+                optimizedPlan,
+                configuration,
+                foldContext,
+                planRunner,
+                executionInfo,
+                request,
+                logicalPlanOptimizer,
+                physicalPlanOptimizer,
+                listener
+            );
         }
     }
 
@@ -347,7 +356,12 @@ public class EsqlSession {
             );
         } else if (request.approximate()) {
             new Approximate(optimizedPlan).approximate(
-                (p, l) -> runner.run(logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer), request, physicalPlanOptimizer), configuration, foldContext, l),
+                (p, l) -> runner.run(
+                    logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer), request, physicalPlanOptimizer),
+                    configuration,
+                    foldContext,
+                    l
+                ),
                 listener
             );
         } else {

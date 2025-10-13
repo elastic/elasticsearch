@@ -53,7 +53,8 @@
       }
     },
     "body": {
-      "description": "The configuration for the target index (`settings` and `aliases`)"
+      "description": "The configuration for the target index (`settings` and `aliases`)",
+      "required": false
     }
   }
 }

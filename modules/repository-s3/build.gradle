@@ -68,7 +68,6 @@ restResources {
   }
 }
 
-<<<<<<< HEAD
 tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'

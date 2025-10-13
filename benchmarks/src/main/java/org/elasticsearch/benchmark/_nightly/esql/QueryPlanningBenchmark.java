@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -107,7 +108,9 @@ public class QueryPlanningBenchmark {
                 IndexResolution.valid(esIndex),
                 Map.of(),
                 new EnrichResolution(),
-                InferenceResolution.EMPTY
+                InferenceResolution.EMPTY,
+                // Assume all nodes are on the current version for the benchmark.
+                TransportVersion.current()
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );

@@ -27,11 +27,13 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
+import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
@@ -69,6 +71,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             assert binarizedVectors.size() > 0 : "BinarizedByteVectorValues must have at least one vector for ES816BinaryFlatVectorsScorer";
             OptimizedScalarQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
+            assert similarityFunction != COSINE || BQVectorUtils.isUnitVector(target);
             float[] scratch = new float[vectorValues.dimension()];
             int[] initial = new int[target.length];
             byte[] quantized = new byte[BQSpaceUtils.B_QUERY * binarizedVectors.discretizedDimensions() / 8];

@@ -371,7 +371,9 @@ class IndicesAndAliasesResolver {
                     }
 
                     var resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
-                    final var indexExpression = indicesRequest.indices().length > 0 ? indicesRequest.indices()[0] : Metadata.ALL;
+                    final var indexExpression = indicesRequest.indices() != null && indicesRequest.indices().length > 0
+                        ? indicesRequest.indices()[0]
+                        : Metadata.ALL;
 
                     Set<String> remoteIndices = Collections.emptySet();
                     if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
@@ -394,6 +396,8 @@ class IndicesAndAliasesResolver {
                         setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
+                } else if (crossProjectModeDecider.crossProjectEnabled()) {
+                    setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
                 }
 
                 // if we cannot replace wildcards the indices list stays empty. Same if there are no authorized indices.

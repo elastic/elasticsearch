@@ -2316,7 +2316,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         assertThat(resolvedIndices.getLocal(), contains(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
-        assertThat(searchRequest.getResolvedIndexExpressions(), is(nullValue()));
+        assertThat(searchRequest.getResolvedIndexExpressions(), is(notNullValue()));
+        assertThat(searchRequest.getResolvedIndexExpressions().expressions(), empty());
 
         // date math with default indices options
         searchRequest = new SearchRequest("<date-hidden-{now/d}>");

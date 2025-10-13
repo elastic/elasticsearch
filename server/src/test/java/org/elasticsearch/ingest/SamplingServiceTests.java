@@ -259,6 +259,7 @@ public class SamplingServiceTests extends ESTestCase {
     }
 
     public void testClusterChanged() {
+        assumeTrue("Requires sampling feature flag", RANDOM_SAMPLING_FEATURE_FLAG);
         String indexName = randomIdentifier();
         SamplingService samplingService = getTestSamplingService();
         Map<String, Object> inputRawDocSource = randomMap(1, 100, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
@@ -274,7 +275,7 @@ public class SamplingServiceTests extends ESTestCase {
                         new SamplingConfiguration(
                             1.0,
                             randomIntBetween(1, 1000),
-                            ByteSizeValue.ofBytes(randomLongBetween(100, 1000000)),
+                            ByteSizeValue.ofBytes(randomLongBetween(indexRequest.source().length(), 1_000_000)),
                             TimeValue.timeValueDays(randomIntBetween(1, 10)),
                             null
                         )
@@ -314,7 +315,7 @@ public class SamplingServiceTests extends ESTestCase {
                         new SamplingConfiguration(
                             1.0,
                             1001,
-                            ByteSizeValue.ofBytes(randomLongBetween(100, 1000000)),
+                            ByteSizeValue.ofBytes(randomLongBetween(indexRequest.source().length(), 1_000_000)),
                             TimeValue.timeValueDays(randomIntBetween(1, 10)),
                             null
                         )

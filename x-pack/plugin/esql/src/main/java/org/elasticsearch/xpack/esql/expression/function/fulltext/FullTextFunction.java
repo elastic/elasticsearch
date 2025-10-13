@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
@@ -356,6 +357,11 @@ public abstract class FullTextFunction extends Function
     }
 
     public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        // Only run the check if the current node contains the full-text function
+        // This is to avoid running the check multiple times in the same plan
+        if (isInCurrentNode(plan, function) == false) {
+            return;
+        }
         var fieldAttribute = fieldAsFieldAttribute(field);
         if (fieldAttribute == null) {
             plan.forEachExpression(function.getClass(), m -> {
@@ -372,16 +378,12 @@ public abstract class FullTextFunction extends Function
                 }
             });
         } else {
-            // Only run the check if the current node is in the tree of the full-text function
-            if (isInTree(plan, function) == false) {
+            if (plan instanceof LookupJoin) {
+                // Full Text Functions are allowed in LOOKUP JOIN ON conditions
+                // We are only running this code for the node containing the Full Text Function
+                // So if it is a Lookup Join we know the function is in the join on condition
                 return;
             }
-
-            // Full Text Functions are allowed in LOOKUP JOIN ON conditions
-            if (isInLookupJoinOnCondition(plan, function)) {
-                return;
-            }
-
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
                 if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
@@ -455,45 +457,15 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Check if the current node is in the tree of the full-text function
+     * Check if the full-text function exists only in the current node (not in child nodes)
      */
-    private static boolean isInTree(LogicalPlan plan, FullTextFunction function) {
-        return plan.forEachDownMayReturnEarly((p, found) -> {
-            p.forEachExpression(FullTextFunction.class, ftf -> {
-                if (ftf == function) {
-                    found.set(true);
-                }
-            });
-        });
-    }
-
-    /**
-     * Check if the full-text function is within a LOOKUP JOIN ON condition
-     */
-    private static boolean isInLookupJoinOnCondition(LogicalPlan plan, FullTextFunction function) {
-        return plan.forEachDownMayReturnEarly((p, found) -> {
-            if (p instanceof LookupJoin lookupJoin) {
-                Expression joinOnConditions = lookupJoin.config().joinOnConditions();
-                if (joinOnConditions != null && containsFullTextFunction(joinOnConditions, function)) {
-                    found.set(true);
-                }
+    private static boolean isInCurrentNode(LogicalPlan plan, FullTextFunction function) {
+        final Holder<Boolean> found = new Holder<>(false);
+        plan.forEachExpression(FullTextFunction.class, ftf -> {
+            if (ftf == function) {
+                found.set(true);
             }
         });
+        return found.get();
     }
-
-    /**
-     * Check if an expression contains the given full-text function
-     */
-    private static boolean containsFullTextFunction(Expression expression, FullTextFunction targetFunction) {
-        if (expression == targetFunction) {
-            return true;
-        }
-        for (Expression child : expression.children()) {
-            if (containsFullTextFunction(child, targetFunction)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
 }

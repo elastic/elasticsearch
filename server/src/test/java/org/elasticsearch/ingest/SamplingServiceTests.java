@@ -12,6 +12,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -254,6 +256,85 @@ public class SamplingServiceTests extends ESTestCase {
         }
         assertThat(samplingService.getLocalSample(projectId, indexName).size(), equalTo(2));
         assertThat(samplingService.getLocalSampleStats(projectId, indexName).getSamplesRejectedForSize(), equalTo((long) maxSamples - 2));
+    }
+
+    public void testClusterChanged() {
+        String indexName = randomIdentifier();
+        SamplingService samplingService = getTestSamplingService();
+        Map<String, Object> inputRawDocSource = randomMap(1, 100, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(inputRawDocSource);
+
+        // Test that the sample is removed if the new state does not have the project that the sample was configured in:
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.fromId(randomIdentifier()))
+            .putCustom(
+                SamplingMetadata.TYPE,
+                new SamplingMetadata(
+                    Map.of(
+                        indexName,
+                        new SamplingConfiguration(
+                            1.0,
+                            randomIntBetween(1, 1000),
+                            ByteSizeValue.ofBytes(randomLongBetween(100, 1000000)),
+                            TimeValue.timeValueDays(randomIntBetween(1, 10)),
+                            null
+                        )
+                    )
+                )
+            )
+            .build();
+        samplingService.maybeSample(projectMetadata, indexRequest);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(1L));
+        ClusterState oldState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
+        ClusterState newState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.fromId(randomIdentifier())))
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("test", newState, oldState);
+        samplingService.clusterChanged(event);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(0L));
+
+        // Test that the sample is removed if the sampling metadata is removed from the project:
+        samplingService.maybeSample(projectMetadata, indexRequest);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(1L));
+        oldState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
+        newState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(ProjectMetadata.builder(projectMetadata.id())).build();
+        event = new ClusterChangedEvent("test", newState, oldState);
+        samplingService.clusterChanged(event);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(0L));
+
+        // Test that the sample is removed if the sampling configuration is changed
+        samplingService.maybeSample(projectMetadata, indexRequest);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(1L));
+        oldState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
+        projectMetadata = ProjectMetadata.builder(projectMetadata.id())
+            .putCustom(
+                SamplingMetadata.TYPE,
+                new SamplingMetadata(
+                    Map.of(
+                        indexName,
+                        new SamplingConfiguration(
+                            1.0,
+                            1001,
+                            ByteSizeValue.ofBytes(randomLongBetween(100, 1000000)),
+                            TimeValue.timeValueDays(randomIntBetween(1, 10)),
+                            null
+                        )
+                    )
+                )
+            )
+            .build();
+        newState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
+        event = new ClusterChangedEvent("test", newState, oldState);
+        samplingService.clusterChanged(event);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(0L));
+
+        // Test that the sample is _not_ removed if the sampling configuration does not change:
+        samplingService.maybeSample(projectMetadata, indexRequest);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(1L));
+        oldState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
+        newState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
+        event = new ClusterChangedEvent("test", newState, oldState);
+        samplingService.clusterChanged(event);
+        assertThat(samplingService.getLocalSampleStats(projectMetadata.id(), indexName).getSamples(), equalTo(1L));
     }
 
     private SamplingService getTestSamplingService() {

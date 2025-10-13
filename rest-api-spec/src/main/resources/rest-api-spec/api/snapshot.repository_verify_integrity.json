@@ -29,35 +29,43 @@
     },
     "params": {
       "meta_thread_pool_concurrency": {
-        "type": "number",
+        "type": "int",
+        "default": 0,
         "description": "Number of threads to use for reading metadata"
       },
       "blob_thread_pool_concurrency": {
-        "type": "number",
+        "type": "int",
+        "default": 1,
         "description": "Number of threads to use for reading blob contents"
       },
       "snapshot_verification_concurrency": {
-        "type": "number",
+        "type": "int",
+        "default": 0,
         "description": "Number of snapshots to verify concurrently"
       },
       "index_verification_concurrency": {
-        "type": "number",
+        "type": "int",
+        "default": 0,
         "description": "Number of indices to verify concurrently"
       },
       "index_snapshot_verification_concurrency": {
-        "type": "number",
+        "type": "int",
+        "default": 1,
         "description": "Number of snapshots to verify concurrently within each index"
       },
       "max_failed_shard_snapshots": {
-        "type": "number",
+        "type": "int",
+        "default": 10000,
         "description": "Maximum permitted number of failed shard snapshots"
       },
       "verify_blob_contents": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to verify the contents of individual blobs"
       },
       "max_bytes_per_sec": {
         "type": "string",
+        "default": "10mb",
         "description": "Rate limit for individual blob verification"
       }
     }

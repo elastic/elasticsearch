@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -225,9 +226,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue(),
+                IndexType.points(indexed.get(), hasDocValues.get()),
                 stored.getValue(),
-                hasDocValues.getValue(),
                 parsedNullValue(),
                 meta.getValue(),
                 dimension.getValue(),
@@ -275,9 +275,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         public UnsignedLongFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Number nullValueFormatted,
             Map<String, String> meta,
             boolean isDimension,
@@ -285,7 +284,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, isStored, hasDocValues, meta);
+            super(name, indexType, isStored, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
@@ -294,7 +293,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap(), false, null, null, false);
+            this(name, IndexType.points(true, true), false, null, Collections.emptyMap(), false, null, null, false);
         }
 
         @Override
@@ -412,8 +411,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     return unsignedToSortableSignedLong(parseUnsignedLong(value));
                 }
             };
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
-                // We only write the field names field if there aren't doc values or norms
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
+                // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
@@ -490,6 +489,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
+                boolean indexed = indexType.hasPoints();
                 return (cache, breakerService) -> {
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                         name(),
@@ -498,9 +498,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        isIndexed()
+                        indexed
                     ).build(cache, breakerService);
-                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, isIndexed());
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, indexed);
                 };
             }
 
@@ -561,7 +561,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 // convert from the shifted value back to the original value
                 return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }

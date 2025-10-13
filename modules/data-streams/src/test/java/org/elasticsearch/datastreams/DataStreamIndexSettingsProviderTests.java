@@ -71,7 +71,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder()
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .build();
         String mapping = """
             {
                 "_doc": {
@@ -117,11 +119,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result)
-            .put("index.mode", "time_series")
-            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
-            .build();
-        assertThat(result.size(), equalTo(5));
+        result = builder().put(result).put("index.mode", "time_series").build();
+        assertThat(result.size(), equalTo(4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -187,7 +186,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        Settings settings = Settings.EMPTY;
+        Settings settings = Settings.builder()
+            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
+            .build();
         String mapping1 = """
             {
                 "_doc": {
@@ -249,11 +250,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
-        result = builder().put(result)
-            .put("index.mode", "time_series")
-            .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting)
-            .build();
-        assertThat(result.size(), equalTo(5));
+        result = builder().put(result).put("index.mode", "time_series").build();
+        assertThat(result.size(), equalTo(4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));

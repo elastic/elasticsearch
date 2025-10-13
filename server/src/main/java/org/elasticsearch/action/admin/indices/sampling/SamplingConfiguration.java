@@ -94,7 +94,7 @@ public record SamplingConfiguration(
                     determineValue(humanReadableMaxSize, rawMaxSize),
                     determineValue(humanReadableTimeToLive, rawTimeToLive),
                     condition
-                    );
+                );
             }
 
             return new SamplingConfiguration(

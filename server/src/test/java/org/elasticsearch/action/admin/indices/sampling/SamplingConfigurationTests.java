@@ -233,18 +233,23 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(config.maxSamples(), equalTo(1));
 
         // Test boundary conditions - maximum values
-        parser = createParser(JsonXContent.jsonXContent, String.format("""
-            {
-              "rate": 1.0,
-              "max_samples": %d,
-              "max_size": "%dgb",
-              "time_to_live": "%dd",
-              "if": "test_condition"
-            }
-            """,
-            SamplingConfiguration.MAX_SAMPLES_LIMIT,
-            SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES,
-            SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS));
+        parser = createParser(
+            JsonXContent.jsonXContent,
+            String.format(
+                """
+                    {
+                      "rate": 1.0,
+                      "max_samples": %d,
+                      "max_size": "%dgb",
+                      "time_to_live": "%dd",
+                      "if": "test_condition"
+                    }
+                    """,
+                SamplingConfiguration.MAX_SAMPLES_LIMIT,
+                SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES,
+                SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS
+            )
+        );
         config = SamplingConfiguration.fromXContent(parser);
         assertThat(config.rate(), equalTo(1.0));
         assertThat(config.maxSamples(), equalTo(SamplingConfiguration.MAX_SAMPLES_LIMIT));

@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.lang.invoke.MethodHandles;
@@ -45,7 +46,7 @@ public class VectorsFormatReflectionUtils {
             FLOAT_VECTORS_HANDLE = lookup.findVarHandle(FLOAT_SCORING_SUPPLIER_CLASS, "values", FloatVectorValues.class);
 
             SCALAR_QUANTIZED_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS = Class.forName(
-                "org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter$ScalarQuantizedCloseableRandomVectorScorerSupplier"
+                Lucene99ScalarQuantizedVectorsWriter.class.getCanonicalName() + "$ScalarQuantizedCloseableRandomVectorScorerSupplier"
             );
             lookup = MethodHandles.privateLookupIn(SCALAR_QUANTIZED_CLOSEABLE_RANDOM_VECTOR_SCORER_SUPPLIER_CLASS, MethodHandles.lookup());
             BYTE_SUPPLIER_HANDLE = lookup.findVarHandle(

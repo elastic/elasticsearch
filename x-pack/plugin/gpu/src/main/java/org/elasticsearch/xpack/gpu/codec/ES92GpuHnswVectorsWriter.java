@@ -542,7 +542,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         } else {
-            logger.debug("Cannot get merged raw vectors from scorer.");
+            logger.warn("Cannot get merged raw vectors from scorer.");
             var byteVectorValues = getMergedByteVectorValues(fieldInfo, mergeState);
             try (
                 var resourcesHolder = new ResourcesHolder(
@@ -624,7 +624,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         } else {
-            logger.debug("Cannot get merged raw vectors from scorer.");
+            logger.warn("Cannot get merged raw vectors from scorer.");
             FloatVectorValues floatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
             try (
                 var resourcesHolder = new ResourcesHolder(

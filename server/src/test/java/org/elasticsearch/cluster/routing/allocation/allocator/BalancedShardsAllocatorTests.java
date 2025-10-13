@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -63,6 +64,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.stream.Collector;
@@ -74,6 +76,7 @@ import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.summingDouble;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
@@ -614,9 +617,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             () -> ClusterInfo.builder()
                 .shardSizes(
                     Map.of(
-                        ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 0), true),
+                        shardIdentifierFromRouting(new ShardId(index, 0), true),
                         0L,
-                        ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 1), true),
+                        shardIdentifierFromRouting(new ShardId(index, 1), true),
                         ByteSizeUnit.GB.toBytes(500)
                     )
                 )
@@ -689,6 +692,87 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // The partition that balances on shard count only has an even distribution of shards
         assertThat(shardBalancedPartition.get("shardsOnly-1"), hasSize(3));
         assertThat(shardBalancedPartition.get("shardsOnly-2"), hasSize(3));
+    }
+
+    public void testSkipDiskUsageComputation() {
+        final var modelNodesRef = new AtomicReference<BalancedShardsAllocator.ModelNode[]>();
+        final var balancerRef = new AtomicReference<BalancedShardsAllocator.Balancer>();
+        // Intentionally configure disk weight factor to be non-zero so that the test would fail if disk usage is not ignored
+        final var weightFunction = new WeightFunction(1, 1, 1, 1);
+        final var allocator = new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            () -> new BalancingWeights() {
+                @Override
+                public WeightFunction weightFunctionForShard(ShardRouting shard) {
+                    return weightFunction;
+                }
+
+                @Override
+                public WeightFunction weightFunctionForNode(RoutingNode node) {
+                    return weightFunction;
+                }
+
+                @Override
+                public NodeSorters createNodeSorters(
+                    BalancedShardsAllocator.ModelNode[] modelNodes,
+                    BalancedShardsAllocator.Balancer balancer
+                ) {
+                    modelNodesRef.set(modelNodes);
+                    balancerRef.set(balancer);
+                    final BalancedShardsAllocator.NodeSorter nodeSorter = new BalancedShardsAllocator.NodeSorter(
+                        modelNodes,
+                        weightFunction,
+                        balancer
+                    );
+                    return new NodeSorters() {
+                        @Override
+                        public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                            return nodeSorter;
+                        }
+
+                        @Override
+                        public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
+                            return Iterators.single(nodeSorter);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean diskUsageIgnored() {
+                    return true; // This makes the computation ignore disk usage
+                }
+            }
+        );
+
+        final String indexName = randomIdentifier();
+        final var clusterState = createStateWithIndices(anIndex(indexName).shardSizeInBytesForecast(ByteSizeValue.ofGb(8).getBytes()));
+        final var index = clusterState.metadata().getProject(ProjectId.DEFAULT).index(indexName);
+
+        // A cluster info with shard sizes
+        final var clusterInfo = new ClusterInfo(
+            Map.of(),
+            Map.of(),
+            Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+        allocator.allocate(
+            new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, clusterInfo, null, 0L).mutableCloneForSimulation()
+        );
+
+        final var modelNodes = modelNodesRef.get();
+        assertNotNull(modelNodes);
+        final var balancer = balancerRef.get();
+        assertNotNull(balancer);
+
+        assertThat(balancer.avgDiskUsageInBytesPerNode(), equalTo(0.0));
+        Arrays.stream(modelNodes).forEach(modelNode -> assertThat(modelNode.diskUsageInBytes(), equalTo(0.0)));
     }
 
     public void testReturnEarlyOnShardAssignmentChanges() {

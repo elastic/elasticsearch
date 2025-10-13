@@ -30,7 +30,7 @@ import java.io.IOException;
 public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder> implements EvalOperator.ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LuceneQueryExpressionEvaluator.class);
 
-    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
         super(blockFactory, shards);
     }
 
@@ -69,7 +69,7 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
         return BASE_RAM_BYTES_USED;
     }
 
-    public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
+    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);

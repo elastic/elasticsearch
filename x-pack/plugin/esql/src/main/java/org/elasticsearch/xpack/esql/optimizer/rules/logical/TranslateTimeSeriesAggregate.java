@@ -291,7 +291,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 Alias unpack = new Alias(
                     g.source(),
                     g.name(),
-                    new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType()),
+                    new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
                     g.id()
                 );
                 unpackDimensions.add(unpack);

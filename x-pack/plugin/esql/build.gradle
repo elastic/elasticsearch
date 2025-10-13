@@ -45,6 +45,7 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:h3")
   implementation project('arrow')
+  implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')

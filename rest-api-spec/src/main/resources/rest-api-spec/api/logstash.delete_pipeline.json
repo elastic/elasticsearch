@@ -1,28 +1,32 @@
 {
-  "logstash.delete_pipeline":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/logstash-api-delete-pipeline.html",
-      "description":"Delete a Logstash pipeline"
+  "logstash.delete_pipeline": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/logstash-api-delete-pipeline.html",
+      "description": "Delete a Logstash pipeline"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_logstash/pipeline/{id}",
-          "methods":[ "DELETE" ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the Pipeline"
+          "path": "/_logstash/pipeline/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the Pipeline"
             }
           }
         }
       ]
     },
-    "params":{}
+    "params": {}
   }
 }

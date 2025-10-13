@@ -84,7 +84,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
-    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersions.ZERO;
+    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersion.zero();
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -1938,7 +1938,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             183,
             TransportVersions.V_8_16_0
         ),
-        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersions.REMOTE_EXCEPTION_8_19);
+        // requires from id since remote_exception is a dead transport version on main
+        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersion.fromId(8841016));
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -94,6 +94,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return builder;
         }
 
+        private static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = TransportVersion.fromName("rerank_common_options_added");
+
         private final TaskType taskType;
         private final String inferenceEntityId;
         private final String query;
@@ -173,7 +175,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.inputType = InputType.UNSPECIFIED;
             }
-
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 this.query = in.readOptionalString();
                 this.inferenceTimeout = in.readTimeValue();
@@ -181,8 +182,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (in.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 this.returnDocuments = in.readOptionalBoolean();
                 this.topN = in.readOptionalInt();
             } else {
@@ -294,17 +294,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
-
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
-
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
             }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (out.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
             }

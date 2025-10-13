@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -173,6 +172,11 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
+
+        private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = TransportVersion.fromName(
+            "esql_aggregate_metric_double_literal"
+        );
+
         public AggregateMetricDoubleLiteral {
             min = (min == null || min.isNaN()) ? null : min;
             max = (max == null || max.isNaN()) ? null : max;
@@ -204,7 +208,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL;
+            return ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL;
         }
 
     }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -39,6 +40,8 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
 
     public static final String NAME = "indices:admin/data_stream/settings/update";
     public static final UpdateDataStreamSettingsAction INSTANCE = new UpdateDataStreamSettingsAction();
+
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
 
     public UpdateDataStreamSettingsAction() {
         super(NAME);
@@ -82,7 +85,11 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super(in);
             this.dataStreamNames = in.readStringArray();
             this.settings = Settings.readSettingsFromStream(in);
-            this.dryRun = in.readBoolean();
+            if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
+                this.dryRun = in.readBoolean();
+            } else {
+                this.dryRun = false;
+            }
         }
 
         @Override
@@ -90,7 +97,9 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super.writeTo(out);
             out.writeStringArray(dataStreamNames);
             settings.writeTo(out);
-            out.writeBoolean(dryRun);
+            if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
+                out.writeBoolean(dryRun);
+            }
         }
 
         @Override

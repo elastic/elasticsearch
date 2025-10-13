@@ -63,7 +63,6 @@ public class MultiFieldsTests extends ESTestCase {
             "field",
             IndexAnalyzers.of(Map.of(), Map.of("normalizer", Lucene.STANDARD_ANALYZER), Map.of()),
             ScriptCompiler.NONE,
-            Integer.MAX_VALUE,
             IndexVersion.current(),
             Mapper.SourceKeepMode.NONE
         );

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,8 +33,8 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
         ElasticInferenceServiceRateLimitServiceSettings {
 
     public static final String NAME = "elastic_rerank_service_settings";
-
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
+    private static final TransportVersion ML_INFERENCE_ELASTIC_RERANK = TransportVersion.fromName("ml_inference_elastic_rerank");
 
     public static ElasticInferenceServiceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -83,7 +82,7 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19;
+        return ML_INFERENCE_ELASTIC_RERANK;
     }
 
     @Override

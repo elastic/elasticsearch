@@ -1,20 +1,24 @@
 {
-  "security.enroll_kibana":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-kibana-enrollment.html",
-      "description":"Enroll Kibana"
+  "security.enroll_kibana": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-kibana-enrollment.html",
+      "description": "Enroll Kibana"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/enroll/kibana",
-          "methods":[
+          "path": "/_security/enroll/kibana",
+          "methods": [
             "GET"
           ]
         }

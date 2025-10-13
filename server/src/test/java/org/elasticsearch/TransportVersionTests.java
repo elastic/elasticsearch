@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -40,7 +41,7 @@ public class TransportVersionTests extends ESTestCase {
      * If the test fails, there is something wrong with your backport PR.
      */
     public void testMaximumAllowedTransportVersion() {
-        assertThat(TransportVersion.current().isPatchFrom(TransportVersions.INITIAL_ELASTICSEARCH_8_19), is(true));
+        assertThat(TransportVersion.current().isPatchFrom(TransportVersion.fromId(8841000)), is(true));
     }
 
     public void testVersionComparison() {
@@ -185,7 +186,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<TransportVersion> ignore = Set.of(TransportVersions.ZERO, TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
+        Set<TransportVersion> ignore = Set.of(TransportVersion.zero(), TransportVersion.current(), TransportVersion.minimumCompatible());
         assertThat(TransportVersion.current(), sameInstance(TransportVersion.fromId(TransportVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -437,5 +438,36 @@ public class TransportVersionTests extends ESTestCase {
             5000000
         );
         assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
+    }
+
+    public void testMoreLikeThis() {
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("esql_ixed_index_like"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [esql_ixed_index_like]. "
+                    + "Did you mean [esql_fixed_index_like]? "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+
+        ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("brand_new_version_unrelated_to_others"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [brand_new_version_unrelated_to_others]. "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+    }
+
+    public void testTransportVersionsLocked() {
+        List<TransportVersion> versions = TransportVersions.DEFINED_VERSIONS;
+        assertThat(
+            "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
+                + "and generateTransportVersion gradle task",
+            versions.get(versions.size() - 1).id(),
+            equalTo(8_840_0_00)
+        );
     }
 }

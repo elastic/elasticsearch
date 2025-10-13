@@ -402,7 +402,7 @@ public final class TextFieldMapper extends FieldMapper {
                     store.getValue(),
                     tsi,
                     context.isSourceSynthetic(),
-                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
+                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
                     indexPhrases.getValue()
@@ -739,6 +739,20 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
 
+        public TextFieldType(String name, boolean isSyntheticSource, KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate) {
+            this(
+                name,
+                true,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                isSyntheticSource,
+                syntheticSourceDelegate,
+                Collections.emptyMap(),
+                false,
+                false
+            );
+        }
+
         public boolean fielddata() {
             return fielddata;
         }
@@ -998,7 +1012,7 @@ public final class TextFieldMapper extends FieldMapper {
          * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE;
+            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove().isSet() == false;
         }
 
         /**
@@ -1006,7 +1020,7 @@ public final class TextFieldMapper extends FieldMapper {
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate != null
-                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && syntheticSourceDelegate.ignoreAbove().isSet() == false
                 && syntheticSourceDelegate.isIndexed();
         }
 
@@ -1022,7 +1036,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return false;
             }
             // Can't push equality if the field we're checking for is so big we'd ignore it.
-            return str.length() <= syntheticSourceDelegate.ignoreAbove();
+            return syntheticSourceDelegate.ignoreAbove().isIgnored(str) == false;
         }
 
         @Override
@@ -1593,8 +1607,9 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     public static class SyntheticSourceHelper {
-        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
-            if (fieldType.stored()) {
+        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(boolean isParentFieldStored, MultiFields multiFields) {
+            // if the parent field is stored, there is no need to delegate anything as we can get source directly from the stored field
+            if (isParentFieldStored) {
                 return null;
             }
             var kwd = getKeywordFieldMapperForSyntheticSource(multiFields);

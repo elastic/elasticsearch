@@ -498,6 +498,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -1052,7 +1057,14 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT;
+        CORRECT_SKIPPED_SHARDS_COUNT,
+        /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED;
 
         private final boolean enabled;
 

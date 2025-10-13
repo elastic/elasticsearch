@@ -94,7 +94,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -105,22 +105,31 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         );
 
         // TODO chunking sparse embeddings not implemented
-        doInfer(model, inputs, taskSettings, timeout, inferListener);
+        doInfer(
+            model,
+            new EmbeddingsInput(inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
+            taskSettings,
+            timeout,
+            inferListener
+        );
     }
 
-    private static List<ChunkedInference> translateToChunkedResults(EmbeddingsInput inputs, InferenceServiceResults inferenceResults) {
+    private static List<ChunkedInference> translateToChunkedResults(
+        List<ChunkInferenceInput> inputs,
+        InferenceServiceResults inferenceResults
+    ) {
         if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs.getInputs()), textEmbeddingResults.embeddings().size());
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), textEmbeddingResults.embeddings().size());
 
-            var results = new ArrayList<ChunkedInference>(inputs.getInputs().size());
+            var results = new ArrayList<ChunkedInference>(inputs.size());
 
-            for (int i = 0; i < inputs.getInputs().size(); i++) {
+            for (int i = 0; i < inputs.size(); i++) {
                 results.add(
                     new ChunkedInferenceEmbedding(
                         List.of(
                             new EmbeddingResults.Chunk(
                                 textEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).input().length())
+                                new ChunkedInference.TextOffset(0, inputs.get(i).input().length())
                             )
                         )
                     )
@@ -128,7 +137,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             }
             return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            var inputsAsList = ChunkInferenceInput.inputs(EmbeddingsInput.of(inputs).getInputs());
+            var inputsAsList = ChunkInferenceInput.inputs(inputs);
             return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));

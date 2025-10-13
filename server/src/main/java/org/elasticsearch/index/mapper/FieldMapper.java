@@ -1311,6 +1311,14 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
 
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
+        }
+
         /**
          * Defines a script parameter
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
@@ -1679,6 +1687,12 @@ public abstract class FieldMapper extends Mapper {
             List<BiConsumer<String, MappingParserContext>> contextValidator
         ) {
             this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
+        }
+
+        private static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
+
+        public static TypeParser createTypeParserWithLegacySupport(BiFunction<String, MappingParserContext, Builder> builderFunction) {
+            return new TypeParser(builderFunction, MINIMUM_LEGACY_COMPATIBILITY_VERSION);
         }
 
         private TypeParser(

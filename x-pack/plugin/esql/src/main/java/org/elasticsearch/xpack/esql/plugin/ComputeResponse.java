@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,12 +20,16 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
+
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
+    private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
+        "esql_documents_found_and_values_loaded"
+    );
+
     private final DriverCompletionInfo completionInfo;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
@@ -59,7 +64,7 @@ final class ComputeResponse extends TransportResponse {
 
     ComputeResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             completionInfo = DriverCompletionInfo.readFrom(in);
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
@@ -83,7 +88,7 @@ final class ComputeResponse extends TransportResponse {
             this.skippedShards = 0;
             this.failedShards = 0;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
+        if (in.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         } else {
             this.failures = List.of();
@@ -92,7 +97,7 @@ final class ComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
             completionInfo.writeTo(out);
         } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(true);
@@ -105,7 +110,7 @@ final class ComputeResponse extends TransportResponse {
             out.writeVInt(skippedShards);
             out.writeVInt(failedShards);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
+        if (out.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }

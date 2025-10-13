@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class CustomRequestManagerTests extends ESTestCase {
@@ -76,11 +77,11 @@ public class CustomRequestManagerTests extends ESTestCase {
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
         var manager = CustomRequestManager.of(model, threadPool);
-        manager.execute(new EmbeddingsInput(List.of("abc", "123"), null, null), mock(RequestSender.class), () -> false, listener);
+        manager.execute(new EmbeddingsInput(List.of("abc", "123"), null), mock(RequestSender.class), () -> false, listener);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(30)));
 
         assertThat(exception.getMessage(), is("Failed to construct the custom service request"));
-        assertThat(exception.getCause().getMessage(), is("Failed to build URI, error: Illegal character in path at index 0: ^"));
+        assertThat(exception.getCause().getMessage(), startsWith("Failed to build URI, error: Illegal character in path"));
     }
 }

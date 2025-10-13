@@ -3,3 +3,4 @@
 
 ES_RUNTIME_JAVA:
   - openjdk17
+  - adoptopenjdk17

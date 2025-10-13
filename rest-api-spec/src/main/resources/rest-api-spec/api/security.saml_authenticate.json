@@ -1,28 +1,32 @@
 {
-  "security.saml_authenticate":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-saml-authenticate.html",
-      "description":"Authenticate SAML"
+  "security.saml_authenticate": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-saml-authenticate.html",
+      "description": "Authenticate SAML"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/saml/authenticate",
-          "methods":[
+          "path": "/_security/saml/authenticate",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "body":{
-      "description":"The SAML response to authenticate",
-      "required":true
+    "body": {
+      "description": "The SAML response to authenticate",
+      "required": true
     }
   }
 }

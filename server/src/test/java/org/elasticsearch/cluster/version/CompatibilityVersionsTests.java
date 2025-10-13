@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -28,12 +27,12 @@ public class CompatibilityVersionsTests extends ESTestCase {
     public void testEmptyVersionsList() {
         assertThat(
             CompatibilityVersions.minimumVersions(List.of()),
-            equalTo(new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()))
+            equalTo(new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()))
         );
     }
 
     public void testMinimumTransportVersions() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
+        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(version1, true),
@@ -80,7 +79,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
      * complaint.
      */
     public void testMinimumsAreMerged() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
+        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.minimumCompatible(), true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(version1, true),

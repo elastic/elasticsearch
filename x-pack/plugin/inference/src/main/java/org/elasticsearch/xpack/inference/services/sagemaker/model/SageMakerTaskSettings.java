@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,6 +45,7 @@ record SageMakerTaskSettings(
     private static final String INFERENCE_ID = "inference_id";
     private static final String SESSION_ID = "session_id";
     private static final String TARGET_VARIANT = "target_variant";
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
     SageMakerTaskSettings(StreamInput in) throws IOException {
         this(
@@ -111,7 +111,7 @@ record SageMakerTaskSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER_8_19;
+        return ML_INFERENCE_SAGEMAKER;
     }
 
     @Override

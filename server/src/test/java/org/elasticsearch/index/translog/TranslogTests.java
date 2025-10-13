@@ -27,7 +27,6 @@ import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -3465,7 +3464,7 @@ public class TranslogTests extends ESTestCase {
 
         TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersion.current()
         );
         BytesStreamOutput out = new BytesStreamOutput();

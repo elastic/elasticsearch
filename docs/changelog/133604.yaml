@@ -1,5 +1,0 @@
-pr: 133604
-summary: Update `DefBootstrap` to handle Error from `ClassValue`
-area: Infra/Scripting
-type: bug
-issues: []

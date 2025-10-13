@@ -104,7 +104,8 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
         assertThat(
             captor.getValue().getMessage(),
             Matchers.is(
-                "Validation call did not return expected results type. Expected a result of type [DenseEmbeddingResults] got [SparseEmbeddingResults]"
+                "Validation call did not return expected results type. "
+                    + "Expected a result of type [DenseEmbeddingResults] got [SparseEmbeddingResults]"
             )
         );
 
@@ -142,7 +143,8 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
             captor.getValue().getMessage(),
             Matchers.is(
                 Strings.format(
-                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. Please recreate the [%s] configuration with the correct dimensions",
+                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
+                        + "Please recreate the [%s] configuration with the correct dimensions",
                     embeddingSize,
                     dimensions,
                     null

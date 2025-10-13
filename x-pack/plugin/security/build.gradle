@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -172,7 +174,7 @@ tasks.named('assemble').configure {
   dependsOn tasks.named('jar')
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'

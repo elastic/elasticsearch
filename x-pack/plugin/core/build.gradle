@@ -8,6 +8,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
@@ -29,7 +30,7 @@ esplugin {
   requiresKeystore =false
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }

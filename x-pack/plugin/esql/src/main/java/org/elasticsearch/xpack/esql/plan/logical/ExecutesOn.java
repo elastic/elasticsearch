@@ -14,6 +14,7 @@ public interface ExecutesOn {
     enum ExecuteLocation {
         COORDINATOR,
         REMOTE,
+        DATA,
         ANY; // Can be executed on either coordinator or remote nodes
     }
 
@@ -36,6 +37,16 @@ public interface ExecutesOn {
         @Override
         default ExecuteLocation executesOn() {
             return ExecuteLocation.COORDINATOR;
+        }
+    }
+
+    /**
+     * Executes on data nodes only (note that may include coordinator, but not on the aggregation stage).
+     */
+    interface Data extends ExecutesOn {
+        @Override
+        default ExecuteLocation executesOn() {
+            return ExecuteLocation.DATA;
         }
     }
 }

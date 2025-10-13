@@ -492,6 +492,10 @@ public abstract class TransportReplicationAction<
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
+            ActionListener<Response> setFinishedListener = ActionListener.runBefore(
+                onCompletionListener,
+                () -> setPhase(replicationTask, "finished")
+            );
             try {
                 final ClusterState clusterState = clusterService.state();
                 final Index index = primaryShardReference.routingEntry().index();
@@ -521,42 +525,30 @@ public abstract class TransportReplicationAction<
                         new ConcreteShardRequest<>(primaryRequest.getRequest(), allocationID, primaryRequest.getPrimaryTerm()),
                         transportOptions,
                         new ActionListenerResponseHandler<>(
-                            onCompletionListener,
+                            setFinishedListener,
                             TransportReplicationAction.this::newResponseInstance,
                             TransportResponseHandler.TRANSPORT_WORKER
-                        ) {
-
-                            @Override
-                            public void handleResponse(Response response) {
-                                setPhase(replicationTask, "finished");
-                                super.handleResponse(response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                setPhase(replicationTask, "finished");
-                                super.handleException(exp);
-                            }
-                        }
+                        )
                     );
-                } else if (ReplicationSplitHelper.needsSplitCoordination(primaryRequest, indexMetadata)) {
+                } else if (ReplicationSplitHelper.needsSplitCoordination(primaryRequest.getRequest(), indexMetadata)) {
                     ReplicationSplitHelper<Request, ReplicaRequest, Response>.SplitCoordinator splitCoordinator = splitHelper
                         .newSplitRequest(
                             TransportReplicationAction.this,
                             replicationTask,
                             project,
                             primaryShardReference,
-                            primaryRequest,
+                            primaryRequest.getRequest(),
                             this::executePrimaryRequest,
-                            onCompletionListener
+                            setFinishedListener
                         );
                     splitCoordinator.coordinate();
                 } else {
-                    executePrimaryRequest(primaryShardReference, onCompletionListener);
+                    setPhase(replicationTask, "primary");
+                    executePrimaryRequest(primaryShardReference, setFinishedListener);
                 }
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference);
-                onFailure(e);
+                setFinishedListener.onFailure(e);
             }
         }
 
@@ -564,8 +556,6 @@ public abstract class TransportReplicationAction<
             final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
             final ActionListener<Response> listener
         ) throws Exception {
-            setPhase(replicationTask, "primary");
-
             final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
                 adaptResponse(response, primaryShardReference.indexShard);
 
@@ -589,9 +579,11 @@ public abstract class TransportReplicationAction<
 
                 assert primaryShardReference.indexShard.isPrimaryMode();
                 primaryShardReference.close(); // release shard operation lock before responding to caller
-                setPhase(replicationTask, "finished");
                 listener.onResponse(response);
-            }, e -> handleException(primaryShardReference, e));
+            }, e -> {
+                Releasables.closeWhileHandlingException(primaryShardReference);
+                listener.onFailure(e);
+            });
 
             new ReplicationOperation<>(
                 primaryRequest.getRequest(),
@@ -605,11 +597,6 @@ public abstract class TransportReplicationAction<
                 initialRetryBackoffBound,
                 retryTimeout
             ).execute();
-        }
-
-        private void handleException(PrimaryShardReference primaryShardReference, Exception e) {
-            Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
-            onFailure(e);
         }
 
         @Override

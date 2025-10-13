@@ -62,16 +62,14 @@ public class ReplicationSplitHelper<
     }
 
     public static <Request extends ReplicationRequest<Request>> boolean needsSplitCoordination(
-        final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest,
+        final Request primaryRequest,
         final IndexMetadata indexMetadata
     ) {
-        SplitShardCountSummary requestSplitSummary = primaryRequest.getRequest().reshardSplitShardCountSummary();
+        SplitShardCountSummary requestSplitSummary = primaryRequest.reshardSplitShardCountSummary();
         // TODO: We currently only set the request split summary transport shard bulk. Only evaluate this at the moment or else every
         // request would say it needs a split.
         return requestSplitSummary.isUnset() == false
-            && requestSplitSummary.equals(
-                SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.getRequest().shardId().getId())
-            ) == false;
+            && requestSplitSummary.equals(SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId())) == false;
     }
 
     public SplitCoordinator newSplitRequest(
@@ -79,7 +77,7 @@ public class ReplicationSplitHelper<
         ReplicationTask task,
         ProjectMetadata project,
         TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
-        TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest,
+        Request primaryRequest,
         CheckedBiConsumer<
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
             ActionListener<Response>,
@@ -103,7 +101,7 @@ public class ReplicationSplitHelper<
         private final ReplicationTask task;
         private final ProjectMetadata project;
         private final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference;
-        private final TransportReplicationAction.ConcreteShardRequest<Request> originalRequest;
+        private final Request originalRequest;
         private final CheckedBiConsumer<
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
             ActionListener<Response>,
@@ -115,7 +113,7 @@ public class ReplicationSplitHelper<
             ReplicationTask task,
             ProjectMetadata project,
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
-            TransportReplicationAction.ConcreteShardRequest<Request> originalRequest,
+            Request originalRequest,
             CheckedBiConsumer<
                 TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
                 ActionListener<Response>,
@@ -132,7 +130,7 @@ public class ReplicationSplitHelper<
         }
 
         public void coordinate() throws Exception {
-            Map<ShardId, Request> splitRequests = action.splitRequestOnPrimary(originalRequest.getRequest());
+            Map<ShardId, Request> splitRequests = action.splitRequestOnPrimary(originalRequest);
 
             int numSplitRequests = splitRequests.size();
 
@@ -142,7 +140,8 @@ public class ReplicationSplitHelper<
 
             if (numSplitRequests == 1) {
                 // If the request is for source, same behavior as before
-                if (splitRequests.containsKey(originalRequest.getRequest().shardId())) {
+                if (splitRequests.containsKey(originalRequest.shardId())) {
+                    TransportReplicationAction.setPhase(task, "primary");
                     doPrimaryRequest.accept(primaryShardReference, onCompletionListener);
                 } else {
                     // If the request is for target, forward request to target.
@@ -198,11 +197,7 @@ public class ReplicationSplitHelper<
                     }
 
                     private void finish() {
-                        Tuple<Response, Exception> finalResponse = action.combineSplitResponses(
-                            originalRequest.getRequest(),
-                            splitRequests,
-                            results
-                        );
+                        Tuple<Response, Exception> finalResponse = action.combineSplitResponses(originalRequest, splitRequests, results);
                         TransportReplicationAction.setPhase(task, "finished");
                         if (finalResponse.v1() != null) {
                             onCompletionListener.onResponse(finalResponse.v1());
@@ -211,7 +206,7 @@ public class ReplicationSplitHelper<
                         }
                     }
                 };
-                if (splitRequest.getKey().equals(originalRequest.getRequest().shardId())) {
+                if (splitRequest.getKey().equals(originalRequest.shardId())) {
                     doPrimaryRequest.accept(primaryShardReference, listener);
                 } else {
                     delegateToTarget(splitRequest.getKey(), splitRequest.getValue(), clusterService::state, project, listener);

@@ -3899,7 +3899,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(
             expressions.get(1).localExpressions().exception().getMessage(),
             equalTo(
-                "action [indices:data/read/search] is unauthorized for user [user] with effective roles [partial-access-role], "
+                "action [indices:data/read/search] is unauthorized for user [user]" +
+                    " with effective roles [partial-access-role] on indices [not-available-index], "
                     + "this action is granted by the index privileges [read,all]"
             )
         );

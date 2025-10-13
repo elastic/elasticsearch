@@ -717,7 +717,17 @@ public class AuthorizationService {
                 if (indexExpressions != null) {
                     indexExpressions.expressions().forEach(resolved -> {
                         if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                            resolved.localExpressions().setException(actionDenied(authentication, authzInfo, action, request));
+                            resolved.localExpressions()
+                                .setException(
+                                    actionDenied(
+                                        authentication,
+                                        authzInfo,
+                                        action,
+                                        request,
+                                        IndexAuthorizationResult.getFailureDescription(List.of(resolved.original()), restrictedIndices),
+                                        null
+                                    )
+                                );
                         }
                     });
                 }

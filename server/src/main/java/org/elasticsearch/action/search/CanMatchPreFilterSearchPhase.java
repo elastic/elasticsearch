@@ -77,8 +77,6 @@ final class CanMatchPreFilterSearchPhase {
     private final MinAndMax<?>[] minAndMaxes;
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
-    private final SearchResponseMetrics searchResponseMetrics;
-    private long phaseStartTimeInNanos;
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -126,7 +124,6 @@ final class CanMatchPreFilterSearchPhase {
             shardItIndexMap.put(naturalOrder[j], j);
         }
         this.shardItIndexMap = shardItIndexMap;
-        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     public static SubscribableListener<List<SearchShardIterator>> execute(
@@ -148,6 +145,23 @@ final class CanMatchPreFilterSearchPhase {
             return SubscribableListener.newSucceeded(List.of());
         }
         final SubscribableListener<List<SearchShardIterator>> listener = new SubscribableListener<>();
+        long phaseStartTimeInNanos = System.nanoTime();
+
+        listener.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(List<SearchShardIterator> shardsIts) {
+                // searchResponseMetrics is null for node can-match requests
+                if (searchResponseMetrics != null) {
+                    searchResponseMetrics.recordSearchPhaseDuration("can_match", System.nanoTime() - phaseStartTimeInNanos);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // do not record duration of failed phases
+            }
+        });
+
         // Note that the search is failed when this task is rejected by the executor
         executor.execute(new AbstractRunnable() {
             @Override
@@ -191,7 +205,6 @@ final class CanMatchPreFilterSearchPhase {
     private void runCoordinatorRewritePhase() {
         // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
-        phaseStartTimeInNanos = System.nanoTime();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
@@ -230,10 +243,6 @@ final class CanMatchPreFilterSearchPhase {
             // verify missing shards only for the shards that we hit for the query
             checkNoMissingShards(matchedShardLevelRequests);
             new Round(matchedShardLevelRequests).run();
-        }
-        // this could be null in the case where this phase is running in a remote cluster
-        if (searchResponseMetrics != null) {
-            searchResponseMetrics.recordSearchPhaseDuration("can_match", System.nanoTime() - phaseStartTimeInNanos);
         }
     }
 

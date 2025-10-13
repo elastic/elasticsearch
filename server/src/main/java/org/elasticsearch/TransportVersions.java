@@ -77,6 +77,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_15_0 = def(8_702_0_02);
     public static final TransportVersion V_8_15_2 = def(8_702_0_03);
     public static final TransportVersion V_8_16_0 = def(8_772_0_01);
+    public static final TransportVersion V_8_16_1 = def(8_772_0_04);
     // TODO: leave this version until the very end to satisfy max transport version test
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
 

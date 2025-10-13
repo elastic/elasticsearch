@@ -20,7 +20,10 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertNotNull;
 
 public class SamplingConfigurationTests extends AbstractXContentSerializingTestCase<SamplingConfiguration> {
 
@@ -197,4 +200,60 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(configuration.timeToLive(), equalTo(TimeValue.timeValueDays(1)));
     }
 
+    public void testCreationTime() throws IOException {
+        // Test that creation time is automatically set when not provided
+        long beforeCreation = java.time.Instant.now().toEpochMilli();
+        SamplingConfiguration config = new SamplingConfiguration(0.5, null, null, null, null);
+        long afterCreation = java.time.Instant.now().toEpochMilli();
+
+        assertThat(config.creationTime(), greaterThanOrEqualTo(beforeCreation));
+        assertThat(config.creationTime(), lessThanOrEqualTo(afterCreation));
+
+        // Test that explicit creation time is preserved
+        long explicitTime = java.time.Instant.parse("2023-10-05T12:34:56.789Z").toEpochMilli();
+        SamplingConfiguration configWithTime = new SamplingConfiguration(0.5, null, null, null, null, explicitTime);
+        assertThat(configWithTime.creationTime(), equalTo(explicitTime));
+    }
+
+    public void testCreationTimeUserDataRestriction() throws IOException {
+        // Test that user data cannot set creation time via human-readable field
+        final XContentParser parserA = createParser(JsonXContent.jsonXContent, """
+            {
+              "rate": "0.05",
+              "creation_time": "2023-10-05T12:34:56.789Z"
+            }
+            """);
+        Exception e = expectThrows(
+            Exception.class,
+            () -> SamplingConfiguration.fromXContentUserData(parserA)
+        );
+        // The IllegalArgumentException may be wrapped by the parser, so check the cause chain
+        Throwable cause = e;
+        while (cause != null && (cause instanceof IllegalArgumentException &&
+                cause.getMessage().equals("Creation time cannot be set by user (field: creation_time)")) == false) {
+            cause = cause.getCause();
+        }
+        assertNotNull("Expected IllegalArgumentException with creation_time message", cause);
+        assertThat(cause.getMessage(), equalTo("Creation time cannot be set by user (field: creation_time)"));
+
+        // Test that user data cannot set creation time via machine-readable field
+        final XContentParser parserB = createParser(JsonXContent.jsonXContent, """
+            {
+              "rate": "0.05",
+              "creation_time_in_millis": 1696508096789
+            }
+            """);
+        e = expectThrows(
+            Exception.class,
+            () -> SamplingConfiguration.fromXContentUserData(parserB)
+        );
+        // The IllegalArgumentException may be wrapped by the parser, so check the cause chain
+        cause = e;
+        while (cause != null && (cause instanceof IllegalArgumentException &&
+                cause.getMessage().equals("Creation time cannot be set by user (field: creation_time_in_millis)")) == false) {
+            cause = cause.getCause();
+        }
+        assertNotNull("Expected IllegalArgumentException with creation_time_in_millis message", cause);
+        assertThat(cause.getMessage(), equalTo("Creation time cannot be set by user (field: creation_time_in_millis)"));
+    }
 }

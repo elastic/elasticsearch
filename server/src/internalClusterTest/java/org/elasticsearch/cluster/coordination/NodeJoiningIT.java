@@ -134,10 +134,10 @@ public class NodeJoiningIT extends ESIntegTestCase {
         Node N should join the cluster, but it should not be disconnected (#ES-11449)
      */
     @TestIssueLogging(
-        value = "org.elasticsearch.cluster.coordination.NodeJoiningIT:DEBUG," +
-            "org.elasticsearch.cluster.coordination.Coordinator:DEBUG," +
-            "org.elasticsearch.cluster.service.MasterService:DEBUG," +
-            "org.elasticsearch.cluster.coordination.NodeJoinExecutor:DEBUG",
+        value = "org.elasticsearch.cluster.coordination.NodeJoiningIT:DEBUG,"
+            + "org.elasticsearch.cluster.coordination.Coordinator:DEBUG,"
+            + "org.elasticsearch.cluster.service.MasterService:DEBUG,"
+            + "org.elasticsearch.cluster.coordination.NodeJoinExecutor:DEBUG",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/136332"
     )
     public void testNodeTriesToJoinClusterAndThenSameMasterIsElected() {

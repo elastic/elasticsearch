@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class CrossProjectModeDecider {
     private static final String CROSS_PROJECT_ENABLED_SETTING_KEY = "serverless.cross_project.enabled";
-    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(CrossProjectModeDecider.class);
     private final boolean crossProjectEnabled;
 
     public CrossProjectModeDecider(Settings settings) {

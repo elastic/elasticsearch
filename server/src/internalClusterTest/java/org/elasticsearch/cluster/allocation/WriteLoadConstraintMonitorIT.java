@@ -45,6 +45,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         reason = "so we can see what the monitor is doing"
     )
     public void testRerouteIsCalledWhenHotSpotAppears() {
+        // Set the threshold very high so we don't get any non-synthetic hot-spotting occurring
         final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
         final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis);
         internalCluster().startMasterOnlyNode(settings);

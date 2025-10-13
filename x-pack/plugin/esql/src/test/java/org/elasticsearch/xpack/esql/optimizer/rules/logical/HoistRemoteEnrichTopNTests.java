@@ -95,11 +95,11 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         // EVAL emp_no = emp_no + 1
         var eval1 = as(enrich.child(), Eval.class);
-        var evalAlias = as(eval1.expressions().get(0), Alias.class);
+        var evalAlias = as(eval1.expressions().getFirst(), Alias.class);
         assertThat(evalAlias.name(), equalTo("emp_no"));
         // Generated aliasing Eval
         var eval2 = as(eval1.child(), Eval.class);
-        var evalAlias2 = as(eval2.expressions().get(0), Alias.class);
+        var evalAlias2 = as(eval2.expressions().getFirst(), Alias.class);
         var evalName2 = as(evalAlias2.child(), NamedExpression.class);
         assertThat(evalName2.name(), equalTo("emp_no"));
         var innerTopN = as(eval2.child(), TopN.class);
@@ -159,7 +159,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             | KEEP host*, description
             | ENRICH _remote:hosts
             """);
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         var plan = logicalOptimizer.optimize(analyzed);
 
         var proj1 = as(plan, Project.class);
@@ -169,7 +169,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         var eval = as(enrich.child(), Eval.class);
-        var evalAlias = as(eval.expressions().get(0), Alias.class);
+        var evalAlias = as(eval.expressions().getFirst(), Alias.class);
         var evalName = as(evalAlias.child(), NamedExpression.class);
         assertThat(evalName.name(), equalTo("description"));
         var innerTopN = as(eval.child(), TopN.class);

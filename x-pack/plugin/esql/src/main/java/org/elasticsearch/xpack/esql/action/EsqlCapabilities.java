@@ -1491,6 +1491,11 @@ public class EsqlCapabilities {
         TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
 
         /**
+         * INLINE STATS support after aggregate pruning
+         */
+        INLINE_STATS_AFTER_PRUNING_AGGREGATE,
+
+        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */

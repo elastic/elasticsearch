@@ -3990,3 +3990,33 @@ Canada            |English               |null                       |null
 Mv-Land           |Mv-Lang               |null                       |null
 Mv-Land2          |Mv-Lang2              |null                       |null
 ;
+
+
+inlineStatsAfterPruningAggregate
+required_capability: inline_stats
+required_capability: inline_stats_after_pruning_aggregate
+
+row a = 1
+| stats b = max(a)
+| inline stats c = count(*)
+| drop b
+;
+
+c:long
+1
+;
+
+inlineStatsAfterPruningAggregate2
+required_capability: inline_stats
+required_capability: inline_stats_after_pruning_aggregate
+
+from k8s
+| stats PRezTcny = median(network.cost), `network.cost` = count(network.cost) 
+| drop network.cost 
+| inline stats QaoRGYyf = count(*) 
+| drop `PRezTcny`
+;
+
+QaoRGYyf:long    
+1              
+;

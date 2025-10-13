@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -2624,6 +2626,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         var localRelation = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(eval.output()), contains("x"));
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[c{r}#8]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_LocalRelation[[b{r}#6],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@3fe]
+     *     \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN]) AS c#8]]
+     *       \_StubRelation[[b{r}#6]]
+     * }</pre>
+     */
+    public void testInlineStatsAfterPruningAggregate() {
+        var plan = optimizedPlan("""
+            row a = 1
+            | stats b = max(a)
+            | inline stats c = count(*)
+            | drop b
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, false);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+        var localRelation = as(inlineJoin.left(), LocalRelation.class);
+        var copyingLocalSupplier = as(localRelation.supplier(), CopyingLocalSupplier.class);
+        as(copyingLocalSupplier.get().getBlock(0), ConstantNullBlock.class);
+        var right = as(inlineJoin.right(), Aggregate.class);
+        var StubRelation = as(right.child(), StubRelation.class);
     }
 
     /**

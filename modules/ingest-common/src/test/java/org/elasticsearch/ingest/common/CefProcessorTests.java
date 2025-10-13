@@ -235,8 +235,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEqualsSignInHeader() {
-        String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
+    public void testEqualsSignInHeader() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("equals_in_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -266,8 +266,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEmptyExtensionValue() {
-        String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst= spt=1232";
+    public void testEmptyExtensionValue() throws IOException, URISyntaxException{
+        String message = readCefMessageFile("empty_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -296,8 +296,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testLeadingWhitespace() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10| src=10.0.0.192 dst=12.121.122.82 spt=1232";
+    public void testLeadingWhitespace() throws IOException, URISyntaxException{
+        String message = readCefMessageFile("leading_whitespace.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -327,8 +327,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEscapedPipeInExtension() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this\\|has an escaped pipe";
+    public void testEscapedPipeInExtension() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("escaped_pipe_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -336,8 +336,8 @@ public class CefProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
     }
 
-    public void testPipeInMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this|has a pipe";
+    public void testPipeInMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("pipe_in_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -366,9 +366,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEqualsInMessage() {
-        String message =
-            "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this =has = equals\\= dst=12.121.122.82 spt=1232";
+    public void testEqualsInMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("equals_in_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -377,8 +376,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testEscapesInExtension() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|msg=a+b\\=c x=c\\\\d\\=z";
+    public void testEscapesInExtension() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("escapes_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -407,10 +406,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testMalformedExtensionEscape() {
-        String message = "CEF:0|FooBar|Web Gateway|1.2.3.45.67|200|Success|2|rt=Sep 07 2018 14:50:39 cat=Access Log dst=1.1.1.1 "
-            + "dhost=foo.example.com suser=redacted src=2.2.2.2 requestMethod=POST request='https://foo.example.com/bar/bingo/1' "
-            + "requestClientApplication='Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test=' cs1= cs1Label=Foo Bar";
+    public void testMalformedExtensionEscape() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("malformed_extension_escape.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -419,9 +416,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testMultipleMalformedExtensionValues() {
-        String message = "CEF:0|vendor|product|version|event_id|name|Very-High| "
-            + "msg=Hello World error=Failed because id==old_id user=root angle=106.7<=180";
+    public void testMultipleMalformedExtensionValues() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("multiple_malformed_extension_values.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -430,9 +426,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testPaddedMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|spt=1232 "
-            + "msg=Trailing space in non-final extensions is  preserved    src=10.0.0.192 ";
+    public void testPaddedMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("padded_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -461,9 +456,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testCrlfMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
-            + "spt=1232 msg=Trailing space in final extensions is not preserved\t \r\n";
+    public void testCrlfMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("crlf_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -492,9 +486,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testTabMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
-            + "spt=1232 msg=Tabs\tand\rcontrol\ncharacters are preserved\t src=127.0.0.1";
+    public void testTabMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("tab_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -523,8 +516,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testTabNoSepMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message has tabs|10|spt=1232 msg=Tab is not a separator\tsrc=127.0.0.1";
+    public void testTabNoSepMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("tab_no_sep_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -553,9 +546,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEscapedMessage() {
-        String message = "CEF:0|security\\compliance|threat\\|->manager|1.0|100|message contains escapes|10|"
-            + "spt=1232 msg=Newlines in messages\\\nare allowed.\\\r\\\nAnd so are carriage feeds\\\\newlines\\\\\\=. dpt=4432";
+    public void testEscapedMessage() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("escaped_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -584,15 +576,14 @@ public class CefProcessorTests extends ESTestCase {
                 entry("event", Map.of("code", "100")),
                 entry("observer", Map.of("product", "threat|->manager", "vendor", "security\\compliance", "version", "1.0")),
                 entry("source", Map.of("port", 1232)),
-                entry("message", "Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."),
+                entry("message", "Newlines in messages\\nare allowed.\\r\\nAnd so are carriage feeds\\newlines\\=."),
                 entry("destination", Map.of("port", 4432))
             )
         );
     }
 
-    public void testTruncatedHeader() {
-        String message = "CEF:0|SentinelOne|Mgmt|activityID=1111111111111111111 activityType=3505 "
-            + "siteId=None siteName=None accountId=1222222222222222222 accountName=foo-bar mdr notificationScope=ACCOUNT";
+    public void testTruncatedHeader() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("truncated_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -601,8 +592,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Incomplete CEF header"));
     }
 
-    public void testIgnoreEmptyValuesInExtension() {
-        String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src= dst=12.121.122.82 spt=";
+    public void testIgnoreEmptyValuesInExtension() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("ignore_empty_values_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -631,8 +622,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testHyphenInExtensionKey() {
-        String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|Some-Key=123456";
+    public void testHyphenInExtensionKey() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("hyphen_in_extension_key.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
@@ -661,46 +652,8 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testAllFieldsInExtension() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|"
-            + "agt=192.168.0.1 agentDnsDomain=example.com ahost=agentHost aid=agentId amac=00:0a:95:9d:68:16 agentNtDomain=example.org "
-            + "art=1622547800000 atz=UTC agentTranslatedAddress=10.0.0.1 agentTranslatedZoneExternalID=ext123 agentTranslatedZoneURI=uri "
-            + "at=agentType av=1.0 agentZoneExternalID=zoneExtId agentZoneURI=zoneUri app=HTTP cnt=1234 in=5678 out=91011 "
-            + "customerExternalID=custExtId customerURI=custUri dst=192.168.0.2 dlat=37.7749 dlong=-122.4194 "
-            + "dhost=destHost dmac=00:0a:95:9d:68:16 dntdom=destNtDomain dpt=80 dpid=1234 "
-            + "dproc=destProc destinationServiceName=destService "
-            + "destinationTranslatedAddress=10.0.0.2 destinationTranslatedPort=8080 destinationTranslatedZoneExternalID=destExtId "
-            + "destinationTranslatedZoneURI=destUri duid=destUserId duser=destUser dpriv=admin destinationZoneExternalID=destZoneExtId "
-            + "destinationZoneURI=destZoneUri act=blocked dvc=192.168.0.3 cfp1Label=cfp1Label cfp3Label=cfp3Label cfp4Label=cfp4Label "
-            + "deviceCustomDate1=1622547800000 deviceCustomDate1Label=customDate1Label deviceCustomDate2=1622547900000 "
-            + "deviceCustomDate2Label=customDate2Label cfp1=1.23 cfp2=2.34 cfp2Label=cfp2Label cfp3=3.45 cfp4=4.56 c6a1=2001:db8::1 "
-            + "c6a1Label=c6a1Label c6a2=2001:db8::2 c6a2Label=c6a2Label c6a3=2001:db8::3 c6a3Label=c6a3Label c6a4=2001:db8::4 "
-            + "c6a4Label=c6a4Label cn1=123 cn1Label=cn1Label cn2=234 cn2Label=cn2Label cn3=345 cn3Label=cn3Label cs1=customString1 "
-            + "cs1Label=cs1Label cs2=customString2 cs2Label=cs2Label cs3=customString3 cs3Label=cs3Label "
-            + "cs4=customString4 cs4Label=cs4Label "
-            + "cs5=customString5 cs5Label=cs5Label cs6=customString6 cs6Label=cs6Label deviceDirection=inbound deviceDnsDomain=example.com "
-            + "cat=category deviceExternalId=extId deviceFacility=16 dvchost=host1 deviceInboundInterface=eth0 dvcmac=00:0a:95:9d:68:16 "
-            + "deviceNtDomain=example.org deviceOutboundInterface=eth1 devicePayloadId=payloadId dvcpid=5678 deviceProcessName=procName "
-            + "rt=1622547800000 dtz=UTC deviceTranslatedAddress=10.0.0.3 deviceTranslatedZoneExternalID=transExtId "
-            + "deviceTranslatedZoneURI=transUri deviceZoneExternalID=zoneExtId deviceZoneURI=zoneUri end=1622547900000 eventId=evt123 "
-            + "outcome=success externalId=extId fileCreateTime=1622547800000 fileHash=abcd1234 fileId=5678 "
-            + "fileModificationTime=1622547900000 "
-            + "fname=file.txt filePath=/path/to/file filePermission=rw-r--r-- fsize=1024 fileType=txt flexDate1=1622547800000 "
-            + "flexDate1Label=flexDate1Label flexString1=flexString1 flexString2=flexString2 flexString1Label=flexString1Label "
-            + "flexString2Label=flexString2Label msg=message oldFileCreateTime=1622547800000 oldFileHash=oldHash oldFileId=oldId "
-            + "oldFileModificationTime=1622547900000 oldFileName=oldFile oldFilePath=/old/path "
-            + "oldFilePermission=rw-r--r-- oldFileSize=2048 "
-            + "oldFileType=oldType rawEvent=rawEvent reason=reason requestClientApplication=Mozilla requestContext=referrer "
-            + "requestCookies=cookies requestMethod=GET request=url src=192.168.0.4 sourceDnsDomain=sourceDomain "
-            + "slat=37.7749 slong=-122.4194 "
-            + "shost=sourceHost smac=00:0a:95:9d:68:16 sntdom=sourceNtDomain spt=443 spid=1234 "
-            + "sproc=sourceProc sourceServiceName=sourceService "
-            + "sourceTranslatedAddress=10.0.0.4 sourceTranslatedPort=8081 sourceTranslatedZoneExternalID=sourceExtId "
-            + "sourceTranslatedZoneURI=sourceUri suid=sourceUserId suser=sourceUser spriv=sourcePriv sourceZoneExternalID=sourceZoneExtId "
-            + "sourceZoneURI=sourceZoneUri start=1622547800000 proto=TCP type=1 catdt=catDeviceType mrt=1622547800000 "
-            + "agentTranslatedZoneKey=54854 agentZoneKey=54855 customerKey=54866 destinationTranslatedZoneKey=54867 "
-            + "dZoneKey=54877 deviceTranslatedZoneKey=54898 deviceZoneKey=54899 sTranslatedZoneKey=54998 sZoneKey=546986 "
-            + "parserVersion=1.x.2 parserIdentifier=ABC123";
+    public void testAllFieldsInExtension() throws IOException, URISyntaxException {
+        String message = readCefMessageFile("all_fields_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);

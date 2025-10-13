@@ -756,6 +756,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """);
         }
+        if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled()) {
+            typesAndValues = new HashMap<>(typesAndValues);
+            typesAndValues.put(DataType.DATE_RANGE, "2020-01-01..2030-01-01");
+        }
         Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
@@ -769,8 +773,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
-        // TODO this is temporary only until caps supppot is complete
-        shouldBeSupported.remove(DataType.DATE_RANGE);
+        if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.DATE_RANGE);
+        }
         for (DataType type : shouldBeSupported) {
             assertTrue(type.typeName(), typesAndValues.containsKey(type));
         }

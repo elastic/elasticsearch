@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
     public void testClusterConcurrentRebalance() {
-        AllocationService strategy = createAllocationService(
+        AllocationService allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
@@ -62,11 +62,11 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
             }
         };
 
-        testClusterConcurrentInternal(strategy, metadata, nodeFactory);
+        testClusterConcurrentInternal(allocationService, metadata, nodeFactory);
     }
 
     public void testClusterConcurrentRebalanceFrozen() {
-        AllocationService strategy = createAllocationService(
+        AllocationService allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 3)
@@ -93,14 +93,14 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
             }
         };
 
-        testClusterConcurrentInternal(strategy, metadata, nodeFactory);
+        testClusterConcurrentInternal(allocationService, metadata, nodeFactory);
     }
 
     /**
      * Run a series of concurrent rebalance checks on an index as nodes are created and the index changes state.
      * Index must be named "test"
      */
-    void testClusterConcurrentInternal(AllocationService strategy, Metadata metadata, Supplier<DiscoveryNode> nodeFactory) {
+    void testClusterConcurrentInternal(AllocationService allocationService, Metadata metadata, Supplier<DiscoveryNode> nodeFactory) {
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.getProject().index("test"))
             .build();
@@ -122,7 +122,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(nodeFactory.get()).add(nodeFactory.get()))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         indexRouting = clusterState.routingTable().index("test");
         for (int i = 0; i < indexRouting.size(); i++) {
@@ -133,7 +133,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("start all the primary shards, replicas will start initializing");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
 
         indexRouting = clusterState.routingTable().index("test");
         for (int i = 0; i < indexRouting.size(); i++) {
@@ -158,7 +158,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
             )
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         indexRouting = clusterState.routingTable().index("test");
         for (int i = 0; i < indexRouting.size(); i++) {
@@ -169,7 +169,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("start the replica shards, rebalancing should start, but, only 3 should be rebalancing");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         // we only allow one relocation at a time
@@ -177,7 +177,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(routingNodes, RELOCATING).size(), equalTo(3));
 
         logger.info("finalize this session relocation, 3 more should relocate now");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         routingNodes = clusterState.getRoutingNodes();
 
         // we only allow one relocation at a time
@@ -185,7 +185,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(routingNodes, RELOCATING).size(), equalTo(3));
 
         logger.info("finalize this session relocation, 2 more should relocate now");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         routingNodes = clusterState.getRoutingNodes();
 
         // we only allow one relocation at a time
@@ -193,7 +193,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(routingNodes, RELOCATING).size(), equalTo(2));
 
         logger.info("finalize this session relocation, no more relocation");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         routingNodes = clusterState.getRoutingNodes();
 
         // we only allow one relocation at a time
@@ -204,7 +204,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
     public void testClusterConcurrentRebalanceFrozenUnlimited() {
         Set<DiscoveryNodeRole> frozenRole = Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
 
-        AllocationService strategy = createAllocationService(
+        AllocationService allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", -1)
@@ -243,10 +243,10 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1", frozenRole)).add(newNode("node2", frozenRole)))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("start all the primary shards, replicas will start initializing");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
 
         var clusterStateBuilder = ClusterState.builder(clusterState);
 
@@ -262,10 +262,10 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
         clusterState = clusterStateBuilder.nodes(nodeBuilder).build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("start the replica shards, rebalancing should start, but with a limit " + nodeCount + " should be rebalancing");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
 
         // we only allow any number of relocations at a time
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(2));

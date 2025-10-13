@@ -281,7 +281,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
-        skipInnerHits = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+            skipInnerHits = in.readBoolean();
+        } else {
+            skipInnerHits = false;
+        }
     }
 
     @Override
@@ -348,7 +352,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
-        out.writeBoolean(skipInnerHits);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+            out.writeBoolean(skipInnerHits);
+        }
     }
 
     /**

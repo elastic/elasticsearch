@@ -18,12 +18,14 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Path;
@@ -132,7 +134,7 @@ class FileTokensTool extends MultiCommand {
                         + "]"
                 );
             }
-            Predicate<String> filter = k -> true;
+            Predicate<String> filter = Predicates.always();
             if (args.size() == 1) {
                 final String principal = args.get(0);
                 if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {

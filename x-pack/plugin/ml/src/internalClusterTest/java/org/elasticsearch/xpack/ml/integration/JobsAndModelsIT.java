@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -55,8 +56,10 @@ import static org.hamcrest.Matchers.nullValue;
  * Tests that involve interactions of ML jobs that are persistent tasks
  * and trained models.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103588")
     public void testCluster_GivenAnomalyDetectionJobAndTrainedModelDeployment_ShouldNotAllocateBothOnSameNode() throws Exception {
         // This test starts 2 ML nodes and then starts an anomaly detection job and a
         // trained model deployment that do not both fit in one node. We then proceed

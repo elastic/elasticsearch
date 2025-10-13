@@ -266,7 +266,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
-        GetIndexResponse index = indicesAdmin().prepareGetIndex().setIndices(originalIndexOrAlias).get();
+        GetIndexResponse index = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(originalIndexOrAlias).get();
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
@@ -280,9 +280,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, originalIndexOrAlias)
+            .get()
+            .getAliases()
+            .isEmpty() == false;
         if (watchesIsAlias) {
-            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get();
+            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
             aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
                 assertEquals(1, aliasRecord.getValue().size());
@@ -290,7 +293,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         }
         indicesAdmin().prepareDelete(originalIndex.get()).get();
-        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {
@@ -353,7 +356,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
         try {
             assertBusy(() -> {
-                ClusterState state = clusterAdmin().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -377,7 +380,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         lastResponse.set(searchResponse);
                         assertThat(
                             "could not find executed watch record for watch " + watchName,
-                            searchResponse.getHits().getTotalHits().value,
+                            searchResponse.getHits().getTotalHits().value(),
                             greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed)
                         );
                         if (assertConditionMet) {
@@ -396,7 +399,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
             try {
-                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
+                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value(), watchName);
                 int counter = 1;
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -429,7 +432,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             assertBusy(() -> {
                 // The watch_history index gets created in the background when the first watch is triggered
                 // so we to check first is this index is created and shards are started
-                ClusterState state = clusterAdmin().prepareState().get().getState();
+                ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                     state,
                     IndicesOptions.lenientExpandOpen(),
@@ -452,7 +455,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     searchResponse -> {
                         lastResponse.set(searchResponse);
                         assertThat(
-                            searchResponse.getHits().getTotalHits().value,
+                            searchResponse.getHits().getTotalHits().value(),
                             greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded)
                         );
                     }
@@ -461,7 +464,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } catch (AssertionError error) {
             SearchResponse searchResponse = lastResponse.get();
             try {
-                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value, watchName);
+                logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().getTotalHits().value(), watchName);
                 int counter = 1;
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
@@ -476,7 +479,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void assertWatchWithMinimumActionsCount(final String watchName, final ExecutionState recordState, final long recordCount)
         throws Exception {
         assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(
                 state,
                 IndicesOptions.lenientExpandOpen(),
@@ -497,7 +500,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 searchResponse -> {
                     assertThat(
                         "could not find executed watch record",
-                        searchResponse.getHits().getTotalHits().value,
+                        searchResponse.getHits().getTotalHits().value(),
                         greaterThanOrEqualTo(recordCount)
                     );
                 }
@@ -510,7 +513,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertBusy(() -> {
             GetComposableIndexTemplateAction.Response response = client().execute(
                 GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, HISTORY_TEMPLATE_NAME)
             ).get();
             assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });
@@ -540,7 +543,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             boolean isAllStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
             if (isAllStateStopped) {
-                assertAcked(new WatcherServiceRequestBuilder(client()).start().get());
+                assertAcked(new WatcherServiceRequestBuilder(TEST_REQUEST_TIMEOUT, client()).start().get());
                 throw new AssertionError("all nodes are stopped, restarting");
             }
 
@@ -582,7 +585,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             boolean isAllStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
             if (isAllStateStarted) {
-                assertAcked(new WatcherServiceRequestBuilder(client()).stop().get());
+                assertAcked(new WatcherServiceRequestBuilder(TEST_REQUEST_TIMEOUT, client()).stop().get());
                 throw new AssertionError("all nodes are started, stopping");
             }
 

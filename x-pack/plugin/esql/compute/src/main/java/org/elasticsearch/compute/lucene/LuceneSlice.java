@@ -10,12 +10,18 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.search.Weight;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * Holds a list of multiple partial Lucene segments
  */
-public record LuceneSlice(ShardContext shardContext, List<PartialLeafReaderContext> leaves, Supplier<Weight> weight) {
+public record LuceneSlice(
+    int slicePosition,
+    boolean queryHead,
+    ShardContext shardContext,
+    List<PartialLeafReaderContext> leaves,
+    Weight weight,
+    List<Object> tags
+) {
     int numLeaves() {
         return leaves.size();
     }

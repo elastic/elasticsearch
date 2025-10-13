@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -15,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -63,6 +65,12 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         ScriptType.INLINE,
         MockScriptEngine.NAME,
         "reduceScript",
+        Collections.emptyMap()
+    );
+    private static final Script REDUCE_SCRIPT_COUNT_STATES = new Script(
+        ScriptType.INLINE,
+        MockScriptEngine.NAME,
+        "reduceScriptCountStates",
         Collections.emptyMap()
     );
 
@@ -170,6 +178,10 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             List<?> states = (List<?>) params.get("states");
             return states.stream().filter(a -> a instanceof Number).map(a -> (Number) a).mapToInt(Number::intValue).sum();
         });
+        SCRIPTS.put("reduceScriptCountStates", params -> {
+            List<?> states = (List<?>) params.get("states");
+            return states.size();
+        });
 
         SCRIPTS.put("initScriptScore", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
@@ -274,7 +286,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -308,7 +326,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[combineScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[combine_script] must not be null: [scriptedMetric]");
             }
         }
     }
@@ -327,7 +345,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
                     searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder));
                 });
-                assertEquals(exception.getMessage(), "[reduceScript] must not be null: [scriptedMetric]");
+                assertEquals(exception.getMessage(), "[reduce_script] must not be null: [scriptedMetric]");
             }
         }
     }
@@ -350,6 +368,31 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    public void testNoParallelization() throws IOException {
+        try (Directory directory = newDirectory()) {
+            int numDocs = randomInt(100);
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numDocs; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT)
+                    .mapScript(MAP_SCRIPT)
+                    .combineScript(COMBINE_SCRIPT)
+                    .reduceScript(REDUCE_SCRIPT_COUNT_STATES);
+                ScriptedMetric scriptedMetric = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(aggregationBuilder).withSplitLeavesIntoSeperateAggregators(false)
+                );
+                assertEquals(AGG_NAME, scriptedMetric.getName());
+                assertNotNull(scriptedMetric.aggregation());
+                assertEquals(1, scriptedMetric.aggregation());
             }
         }
     }
@@ -405,10 +448,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggParamsPassedToReduceScript() throws IOException {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
-        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
-
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < 100; i++) {

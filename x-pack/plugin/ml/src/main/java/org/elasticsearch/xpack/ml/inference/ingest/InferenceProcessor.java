@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -55,9 +57,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassifica
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorConstants;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
-import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,15 +88,15 @@ public class InferenceProcessor extends AbstractProcessor {
         Setting.Property.NodeScope
     );
 
-    public static final String TYPE = "inference";
+    public static final String TYPE = InferenceProcessorConstants.TYPE;
     public static final String MODEL_ID = "model_id";
-    public static final String INFERENCE_CONFIG = "inference_config";
+    public static final String INFERENCE_CONFIG = InferenceProcessorConstants.INFERENCE_CONFIG;
     public static final String IGNORE_MISSING = "ignore_missing";
 
     // target field style mappings
-    public static final String TARGET_FIELD = "target_field";
+    public static final String TARGET_FIELD = InferenceProcessorConstants.TARGET_FIELD;
     public static final String FIELD_MAPPINGS = "field_mappings";
-    public static final String FIELD_MAP = "field_map";
+    public static final String FIELD_MAP = InferenceProcessorConstants.FIELD_MAP;
     private static final String DEFAULT_TARGET_FIELD = "ml.inference";
 
     // input field config
@@ -194,6 +197,10 @@ public class InferenceProcessor extends AbstractProcessor {
         CoordinatedInferenceAction.Request request;
         try {
             request = buildRequest(ingestDocument);
+            if (request == null) {
+                handler.accept(ingestDocument, null);
+                return;
+            }
         } catch (ElasticsearchStatusException e) {
             handler.accept(ingestDocument, e);
             return;
@@ -223,14 +230,24 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Create the inference request.
+     * If the processor is configured with input/output fields and none
+     * are present in the ingest document null is returned.
+     *
+     * @param ingestDocument Ingest doc
+     * @return null or a new request
+     */
     CoordinatedInferenceAction.Request buildRequest(IngestDocument ingestDocument) {
         if (configuredWithInputsFields) {
             // ignore missing only applies when using an input field list
             List<String> requestInputs = new ArrayList<>();
+            boolean anyFieldsPresent = false;
             for (var inputFields : inputs) {
                 try {
                     var inputText = ingestDocument.getFieldValue(inputFields.inputField, String.class, ignoreMissing);
                     // field is missing and ignoreMissing == true then a null value is returned.
+                    anyFieldsPresent = anyFieldsPresent || inputText != null;
                     if (inputText == null) {
                         inputText = "";  // need to send a non-null request to the same number of results back
                     }
@@ -244,6 +261,10 @@ public class InferenceProcessor extends AbstractProcessor {
                     } else {
                         throw e;
                     }
+                }
+
+                if (anyFieldsPresent == false) {
+                    return null;
                 }
             }
             var request = CoordinatedInferenceAction.Request.forTextInput(
@@ -367,23 +388,23 @@ public class InferenceProcessor extends AbstractProcessor {
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private final Client client;
-        private final InferenceAuditor auditor;
-        private volatile int currentInferenceProcessors;
+        private final SetOnce<InferenceAuditor> auditor;
+        private volatile ClusterState clusterState = ClusterState.EMPTY_STATE;
         private volatile int maxIngestProcessors;
         private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
+        public Factory(Client client, ClusterService clusterService, Settings settings, SetOnce<InferenceAuditor> auditor) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService, includeNodeInfo);
+            this.auditor = auditor;
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
         @Override
         public void accept(ClusterState state) {
             try {
-                minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
-                currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
+                this.clusterState = state;
+                this.minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             } catch (Exception ex) {
                 // We cannot throw any exception here. It might break other pipelines.
                 logger.debug("failed gathering processors for pipelines", ex);
@@ -395,8 +416,10 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
+            final var currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(clusterState);
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException(
                     "Max number of inference processors reached, total inference processors [{}]. "
@@ -461,7 +484,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
                 return fromInputFieldConfiguration(
                     client,
-                    auditor,
+                    auditor.get(),
                     tag,
                     description,
                     modelId,
@@ -489,7 +512,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 }
                 return fromTargetFieldConfiguration(
                     client,
-                    auditor,
+                    auditor.get(),
                     tag,
                     description,
                     targetField,

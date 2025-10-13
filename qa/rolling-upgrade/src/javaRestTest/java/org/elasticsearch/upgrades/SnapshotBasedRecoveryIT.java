@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -23,7 +24,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,27 +42,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase {
+public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
 
     public SnapshotBasedRecoveryIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     public void testSnapshotBasedRecovery() throws Exception {
-        assumeTrue(
-            "Cancel shard allocation command is broken for initial versions of the desired_balance allocator",
-            oldClusterHasFeature(RestTestLegacyFeatures.DESIRED_BALANCED_ALLOCATOR_SUPPORTED) == false
-                || oldClusterHasFeature(RestTestLegacyFeatures.DESIRED_BALANCED_ALLOCATOR_FIXED)
-        );
-
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
         final int numDocs = 200;
         if (isOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+            Settings.Builder settings = indexSettings(1, 0).put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             createIndex(indexName, settings.build());
             ensureGreen(indexName);
@@ -97,7 +88,7 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
                 }
 
                 String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
-                String primaryNodeVersion = getNodeVersion(primaryNodeId);
+                var primaryNodeVersion = getNodeVersion(primaryNodeId);
 
                 // Sometimes the primary shard ends on the upgraded node (i.e. after a rebalance)
                 // This causes issues when removing and adding replicas, since then we cannot allocate to any of the old nodes.
@@ -105,13 +96,14 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
                 // In that case we exclude the upgraded node from the shard allocation and cancel the shard to force moving
                 // the primary to a node in the old version, this allows adding replicas in the first mixed round.
                 logger.info("--> Primary node in first mixed round {} / {}", primaryNodeId, primaryNodeVersion);
-                if (isOldClusterVersion(primaryNodeVersion) == false) {
+                if (isOldClusterVersion(primaryNodeVersion.version(), primaryNodeVersion.buildHash()) == false) {
                     logger.info("--> cancelling primary shard on node [{}]", primaryNodeId);
                     cancelShard(indexName, 0, primaryNodeId);
                     logger.info("--> done cancelling primary shard on node [{}]", primaryNodeId);
 
                     String currentPrimaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
-                    assertTrue(isOldClusterVersion(getNodeVersion(currentPrimaryNodeId)));
+                    var currentPrimaryNodeVersion = getNodeVersion(currentPrimaryNodeId);
+                    assertTrue(isOldClusterVersion(currentPrimaryNodeVersion.version(), currentPrimaryNodeVersion.buildHash()));
                 }
             } else {
                 logger.info("--> not in first upgrade round, removing exclusions for [{}]", indexName);
@@ -146,17 +138,24 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
         List<String> upgradedNodes = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> nodeInfoEntry : nodes.entrySet()) {
             String nodeVersion = extractValue(nodeInfoEntry.getValue(), "version");
-            if (isOldClusterVersion(nodeVersion) == false) {
+            String nodeBuildHash = extractValue(nodeInfoEntry.getValue(), "build_hash");
+            if (isOldClusterVersion(nodeVersion, nodeBuildHash) == false) {
                 upgradedNodes.add(nodeInfoEntry.getKey());
             }
         }
         return upgradedNodes;
     }
 
-    private String getNodeVersion(String primaryNodeId) throws IOException {
+    private record NodeVersion(String version, String buildHash) {}
+
+    private NodeVersion getNodeVersion(String primaryNodeId) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "_nodes/" + primaryNodeId);
         Response response = client().performRequest(request);
-        return extractValue(responseAsMap(response), "nodes." + primaryNodeId + ".version");
+        Map<String, Object> responseAsMap = responseAsMap(response);
+        return new NodeVersion(
+            extractValue(responseAsMap, "nodes." + primaryNodeId + ".version"),
+            extractValue(responseAsMap, "nodes." + primaryNodeId + ".build_hash")
+        );
     }
 
     private String getPrimaryNodeIdOfShard(String indexName, int shard) throws Exception {
@@ -205,7 +204,7 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
             }
             builder.endObject();
 
-            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty&metric=none");
+            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty");
             request.setJsonEntity(Strings.toString(builder));
             Response response = client().performRequest(request);
             logger.info("--> Relocated primary to an older version {}", EntityUtils.toString(response.getEntity()));
@@ -242,7 +241,7 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
         return responseAsMap;
     }
 
-    private void indexDocs(String indexName, int numDocs) throws IOException {
+    static void indexDocs(String indexName, int numDocs) throws IOException {
         final StringBuilder bulkBody = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             bulkBody.append("{\"index\":{\"_id\":\"").append(i).append("\"}}\n");

@@ -55,7 +55,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         String modelId = randomAlphaOfLength(10);
         Request request = new Request(modelId, deploymemtIdSameAsModelId ? modelId : randomAlphaOfLength(10));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
+            request.setTimeout(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             request.setWaitForState(randomFrom(AllocationStatus.State.values()));
@@ -67,11 +67,12 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
             request.setNumberOfAllocations(randomIntBetween(1, 8));
         }
         if (randomBoolean()) {
-            request.setQueueCapacity(randomIntBetween(1, 1000000));
+            request.setQueueCapacity(randomIntBetween(1, 100_000));
         }
         if (randomBoolean()) {
             request.setPriority(randomFrom(Priority.values()).toString());
-            if (request.getNumberOfAllocations() > 1 || request.getThreadsPerAllocation() > 1) {
+            if ((request.getNumberOfAllocations() != null && request.getNumberOfAllocations() > 1)
+                || request.getThreadsPerAllocation() > 1) {
                 request.setPriority(Priority.NORMAL.toString());
             }
         }
@@ -167,7 +168,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     public void testValidate_GivenQueueCapacityIsAtLimit() {
         Request request = createRandom();
-        request.setQueueCapacity(1_000_000);
+        request.setQueueCapacity(100_000);
 
         ActionRequestValidationException e = request.validate();
 
@@ -176,12 +177,12 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     public void testValidate_GivenQueueCapacityIsOverLimit() {
         Request request = createRandom();
-        request.setQueueCapacity(1_000_001);
+        request.setQueueCapacity(100_001);
 
         ActionRequestValidationException e = request.validate();
 
         assertThat(e, is(not(nullValue())));
-        assertThat(e.getMessage(), containsString("[queue_capacity] must be less than 1000000"));
+        assertThat(e.getMessage(), containsString("[queue_capacity] must be less than 100000"));
     }
 
     public void testValidate_GivenTimeoutIsNegative() {
@@ -230,8 +231,9 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
-        assertThat(request.getNumberOfAllocations(), equalTo(1));
+        assertThat(request.getNumberOfAllocations(), nullValue());
+        assertThat(request.computeNumberOfAllocations(), equalTo(1));
         assertThat(request.getThreadsPerAllocation(), equalTo(1));
-        assertThat(request.getQueueCapacity(), equalTo(1024));
+        assertThat(request.getQueueCapacity(), equalTo(10_000));
     }
 }

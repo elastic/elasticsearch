@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.dissect;
@@ -211,6 +212,18 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a->}࿏%{b}", "⟳༒࿏࿏࿏࿏࿏༒⟲", Arrays.asList("a", "b"), Arrays.asList("⟳༒", "༒⟲"));
         assertMatch("%{*a}࿏%{&a}", "⟳༒࿏༒⟲", Arrays.asList("⟳༒"), Arrays.asList("༒⟲"));
         assertMatch("%{}࿏%{a}", "⟳༒࿏༒⟲", Arrays.asList("a"), Arrays.asList("༒⟲"));
+        assertMatch(
+            "Zürich, the %{adjective} city in Switzerland",
+            "Zürich, the largest city in Switzerland",
+            Arrays.asList("adjective"),
+            Arrays.asList("largest")
+        );
+        assertMatch(
+            "Zürich, the %{one} city in Switzerland; Zürich, the %{two} city in Switzerland",
+            "Zürich, the largest city in Switzerland; Zürich, the LARGEST city in Switzerland",
+            Arrays.asList("one", "two"),
+            Arrays.asList("largest", "LARGEST")
+        );
     }
 
     public void testMatchRemainder() {

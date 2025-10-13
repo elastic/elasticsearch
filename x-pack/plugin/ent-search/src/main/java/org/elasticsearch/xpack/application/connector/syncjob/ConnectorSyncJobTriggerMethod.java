@@ -20,7 +20,9 @@ public enum ConnectorSyncJobTriggerMethod {
             }
         }
 
-        throw new IllegalArgumentException("Unknown trigger method '" + triggerMethodString + "'.");
+        throw new IllegalArgumentException(
+            "Unknown " + ConnectorSyncJobTriggerMethod.class.getSimpleName() + " [" + triggerMethodString + "]."
+        );
     }
 
     @Override

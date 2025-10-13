@@ -15,24 +15,28 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BlockBuilderTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
-            params.add(new Object[] { elementType });
+            params.add(new Object[] { e });
         }
         return params;
     }
@@ -58,6 +62,10 @@ public class BlockBuilderTests extends ESTestCase {
         for (int i = 0; i < numEntries; i++) {
             builder.appendNull();
         }
+        assertThat(
+            builder.estimatedBytes(),
+            both(greaterThan(blockFactory.breaker().getUsed() - 1024)).and(lessThan(blockFactory.breaker().getUsed() + 1024))
+        );
         try (Block block = builder.build()) {
             assertThat(block.getPositionCount(), is(numEntries));
             for (int p = 0; p < numEntries; p++) {
@@ -90,18 +98,22 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     public void testBuildSmallMultiValued() {
+        assumeMultiValued();
         testBuild(between(1, 100), false, 3);
     }
 
     public void testBuildHugeMultiValued() {
+        assumeMultiValued();
         testBuild(between(1_000, 50_000), false, 3);
     }
 
     public void testBuildSmallMultiValuedNullable() {
+        assumeMultiValued();
         testBuild(between(1, 100), true, 3);
     }
 
     public void testBuildHugeMultiValuedNullable() {
+        assumeMultiValued();
         testBuild(between(1_000, 50_000), true, 3);
     }
 
@@ -111,8 +123,12 @@ public class BlockBuilderTests extends ESTestCase {
 
     private void testBuild(int size, boolean nullable, int maxValueCount) {
         try (Block.Builder builder = elementType.newBlockBuilder(randomBoolean() ? size : 1, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
+            RandomBlock random = RandomBlock.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
+            assertThat(
+                builder.estimatedBytes(),
+                both(greaterThan(blockFactory.breaker().getUsed() - 1024)).and(lessThan(blockFactory.breaker().getUsed() + 1024))
+            );
             try (Block built = builder.build()) {
                 assertThat(built, equalTo(random.block()));
                 assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
@@ -124,7 +140,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     public void testDoubleBuild() {
         try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+            RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
             try (Block built = builder.build()) {
                 assertThat(built, equalTo(random.block()));
@@ -143,7 +159,7 @@ public class BlockBuilderTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             try {
                 try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
-                    BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                    RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
                         assertThat(built, equalTo(random.block()));
@@ -164,10 +180,12 @@ public class BlockBuilderTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             try {
                 try (Block.Builder builder = elementType.newBlockBuilder(randomInt(10), blockFactory)) {
-                    BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 1, false, 1, 1, 0, 0);
+                    RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
-                        assertThat(built.asVector().isConstant(), is(true));
+                        if (built instanceof AggregateMetricDoubleArrayBlock == false) {
+                            assertThat(built.asVector().isConstant(), is(true));
+                        }
                         assertThat(built, equalTo(random.block()));
                     }
                 }
@@ -178,5 +196,9 @@ public class BlockBuilderTests extends ESTestCase {
             }
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
+    }
+
+    private void assumeMultiValued() {
+        assumeTrue("Type must support multi-values", elementType != ElementType.AGGREGATE_METRIC_DOUBLE);
     }
 }

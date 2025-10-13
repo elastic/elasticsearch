@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -59,6 +60,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NO_REPOS_CONFIGURED = "No snapshot repositories configured.";
     public static final String ALL_REPOS_HEALTHY = "All repositories are healthy.";
     public static final String NO_REPO_HEALTH_INFO = "No repository health info.";
+    public static final String MIXED_VERSIONS =
+        "No repository health info. The cluster currently has mixed versions (an upgrade may be in progress).";
 
     public static final List<HealthIndicatorImpact> IMPACTS = List.of(
         new HealthIndicatorImpact(
@@ -121,14 +124,14 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             repositoryHealthAnalyzer.getSymptom(),
             repositoryHealthAnalyzer.getDetails(verbose),
             repositoryHealthAnalyzer.getImpacts(),
-            repositoryHealthAnalyzer.getDiagnoses(maxAffectedResourcesCount)
+            repositoryHealthAnalyzer.getDiagnoses(verbose, maxAffectedResourcesCount)
         );
     }
 
     /**
      * Analyzer for the cluster's repositories health; aids in constructing a {@link HealthIndicatorResult}.
      */
-    static class RepositoryHealthAnalyzer {
+    class RepositoryHealthAnalyzer {
         private final ClusterState clusterState;
         private final int totalRepositories;
         private final List<String> corruptedRepositories;
@@ -137,6 +140,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         private final Set<String> invalidRepositories = new HashSet<>();
         private final Set<String> nodesWithInvalidRepos = new HashSet<>();
         private final HealthStatus healthStatus;
+        private boolean clusterHasFeature = true;
 
         private RepositoryHealthAnalyzer(
             ClusterState clusterState,
@@ -167,6 +171,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 || invalidRepositories.isEmpty() == false) {
                 healthStatus = YELLOW;
             } else if (repositoriesHealthByNode.isEmpty()) {
+                clusterHasFeature = false;
                 healthStatus = UNKNOWN;
             } else {
                 healthStatus = GREEN;
@@ -179,7 +184,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
         public String getSymptom() {
             if (healthStatus == GREEN) {
-                return ALL_REPOS_HEALTHY;
+                return clusterHasFeature ? ALL_REPOS_HEALTHY : MIXED_VERSIONS;
             } else if (healthStatus == UNKNOWN) {
                 return NO_REPO_HEALTH_INFO;
             }
@@ -228,7 +233,10 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             return IMPACTS;
         }
 
-        public List<Diagnosis> getDiagnoses(int maxAffectedResourcesCount) {
+        public List<Diagnosis> getDiagnoses(boolean verbose, int maxAffectedResourcesCount) {
+            if (verbose == false) {
+                return List.of();
+            }
             var diagnoses = new ArrayList<Diagnosis>();
             if (corruptedRepositories.isEmpty() == false) {
                 diagnoses.add(
@@ -238,10 +246,10 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     )
                 );
             }
-            if (unknownRepositories.size() > 0) {
+            if (unknownRepositories.isEmpty() == false) {
                 diagnoses.add(createDiagnosis(UNKNOWN_DEFINITION, unknownRepositories, nodesWithUnknownRepos, maxAffectedResourcesCount));
             }
-            if (invalidRepositories.size() > 0) {
+            if (invalidRepositories.isEmpty() == false) {
                 diagnoses.add(createDiagnosis(INVALID_DEFINITION, invalidRepositories, nodesWithInvalidRepos, maxAffectedResourcesCount));
             }
             return diagnoses;

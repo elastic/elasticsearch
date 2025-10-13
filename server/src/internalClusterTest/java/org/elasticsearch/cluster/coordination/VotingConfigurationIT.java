@@ -1,29 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,15 +40,39 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
-    public void testAbdicateAfterVotingConfigExclusionAdded() throws ExecutionException, InterruptedException {
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP
+    }
+
+    public void testAbdicateAfterVotingConfigExclusionAdded() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
         final String originalMaster = internalCluster().getMasterName();
+        final var restClient = getRestClient();
 
         logger.info("--> excluding master node {}", originalMaster);
-        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        final var excludeRequest = new Request("POST", "/_cluster/voting_config_exclusions");
+        excludeRequest.addParameter("node_names", originalMaster);
+        assertEmptyResponse(restClient.performRequest(excludeRequest));
+
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
+
+        final var clearRequest = new Request("DELETE", "/_cluster/voting_config_exclusions");
+        clearRequest.addParameter("wait_for_removal", "false");
+        assertEmptyResponse(restClient.performRequest(clearRequest));
+
+        assertThat(
+            internalCluster().getInstance(ClusterService.class).state().metadata().coordinationMetadata().getVotingConfigExclusions(),
+            empty()
+        );
+    }
+
+    private void assertEmptyResponse(Response response) throws IOException {
+        assertEquals("text/plain; charset=UTF-8", response.getHeader("content-type"));
+        assertEquals(0, response.getEntity().getContentLength());
+        assertEquals(0, response.getEntity().getContent().readAllBytes().length);
     }
 
     public void testElectsNodeNotInVotingConfiguration() throws Exception {
@@ -60,7 +87,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes("4")
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -71,7 +98,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final ClusterState clusterState = internalCluster().client()
             .admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
             .setMetadata(true)
@@ -111,7 +138,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes("3")
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -121,7 +148,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final ClusterState newClusterState = internalCluster().client()
             .admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
             .setMetadata(true)

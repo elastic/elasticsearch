@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -32,10 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertLeafs;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertMultiField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
@@ -53,12 +54,14 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     public void testGetMappings() {
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings().get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT).get();
         assertExpectedMappings(getMappingsResponse.mappings());
     }
 
     public void testGetIndex() {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setFeatures(GetIndexRequest.Feature.MAPPINGS).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setFeatures(GetIndexRequest.Feature.MAPPINGS)
+            .get();
         assertExpectedMappings(getIndexResponse.mappings());
     }
 
@@ -70,7 +73,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
         // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
         // as the one coming from a filtered index with same mappings
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("filtered").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "filtered").get();
         MappingMetadata filtered = getMappingsResponse.getMappings().get("filtered");
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
         GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings("test").setFields("*").get();
@@ -97,7 +100,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertFieldCaps(filtered, filteredFields);
         // double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         // as the one coming from a filtered index with same mappings
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("filtered").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "filtered").get();
         MappingMetadata filteredMapping = getMappingsResponse.getMappings().get("filtered");
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
@@ -121,8 +124,9 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     private static Set<String> builtInMetadataFields() {
         Set<String> builtInMetadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
-        // Index is not a time-series index, and it will not contain a _tsid field
+        // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
+        builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
         return builtInMetadataFields;
     }
 
@@ -153,7 +157,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
         // check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(sourceAsMap));
-        GetMappingsResponse testMappingsResponse = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse testMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
         // the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
         assertFiltered(testMappingsResponse.getMappings().get("test"));
@@ -245,8 +249,23 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> index.equals("filtered") ? field -> field.endsWith("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> false == index.equals("filtered") ? FieldPredicate.ACCEPT_ALL : new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.endsWith("visible");
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "only-visible:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -26,7 +27,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -48,7 +48,9 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
@@ -82,14 +84,14 @@ public class EvilLoggerTests extends ESTestCase {
             + System.getProperty("es.logs.cluster_name")
             + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(5));
+        assertThat(events, hasSize(5));
         final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.ERROR, location, "This is an error message");
-        assertLogLine(events.get(1), Level.WARN, location, "This is a warning message");
-        assertLogLine(events.get(2), Level.INFO, location, "This is an info message");
-        assertLogLine(events.get(3), Level.DEBUG, location, "This is a debug message");
-        assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
+        assertLogLine(events.get(0), Level.ERROR, location, ".*This is an error message");
+        assertLogLine(events.get(1), Level.WARN, location, ".*This is a warning message");
+        assertLogLine(events.get(2), Level.INFO, location, ".*This is an info message");
+        assertLogLine(events.get(3), Level.DEBUG, location, ".*This is a debug message");
+        assertLogLine(events.get(4), Level.TRACE, location, ".*This is a trace message");
     }
 
     public void testConcurrentDeprecationLogger() throws IOException, BrokenBarrierException, InterruptedException {
@@ -166,14 +168,14 @@ public class EvilLoggerTests extends ESTestCase {
             matcher.matches();
             return Integer.parseInt(matcher.group(1));
         }));
-        assertThat(deprecationEvents.size(), equalTo(128));
+        assertThat(deprecationEvents, hasSize(128));
 
         for (int i = 0; i < 128; i++) {
             assertLogLine(
                 deprecationEvents.get(i),
                 DeprecationLogger.CRITICAL,
-                "org.elasticsearch.common.logging.DeprecationLogger.lambda\\$doPrivilegedLog\\$0",
-                "This is a maybe logged deprecation message" + i
+                "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
+                ".*This is a maybe logged deprecation message" + i + ".*"
             );
         }
 
@@ -201,12 +203,12 @@ public class EvilLoggerTests extends ESTestCase {
             + "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         if (iterations > 0) {
-            assertThat(deprecationEvents.size(), equalTo(1));
+            assertThat(deprecationEvents, hasSize(1));
             assertLogLine(
                 deprecationEvents.get(0),
                 DeprecationLogger.CRITICAL,
-                "org.elasticsearch.common.logging.DeprecationLogger.lambda\\$doPrivilegedLog\\$0",
-                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
+                ".*\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release..*"
             );
         }
     }
@@ -246,7 +248,7 @@ public class EvilLoggerTests extends ESTestCase {
         e.printStackTrace(pw);
         final int stackTraceLength = sw.toString().split(System.getProperty("line.separator")).length;
         final int expectedLogLines = 3;
-        assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
+        assertThat(events, hasSize(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
             assertThat("Contents of [" + path + "] are wrong", events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
         }
@@ -287,8 +289,8 @@ public class EvilLoggerTests extends ESTestCase {
             + System.getProperty("es.logs.cluster_name")
             + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(2));
-        final String location = "org.elasticsearch.common.logging.LogConfigurator";
+        assertThat(events, hasSize(2));
+        final String location = "org.elasticsearch.common.logging.LogConfigurator.*";
         // the first message is a warning for unsupported configuration files
         assertLogLine(
             events.get(0),
@@ -324,12 +326,14 @@ public class EvilLoggerTests extends ESTestCase {
         LogConfigurator.configure(environment, true);
     }
 
+    private static final Pattern LOG_LINE = Pattern.compile("\\[(.*)]\\[(.*)\\(.*\\)] (.*)");
+
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {
-        final Matcher matcher = Pattern.compile("\\[(.*)\\]\\[(.*)\\(.*\\)\\] (.*)").matcher(logLine);
+        Matcher matcher = LOG_LINE.matcher(logLine);
         assertTrue(logLine, matcher.matches());
         assertThat(matcher.group(1), equalTo(level.toString()));
-        assertThat(matcher.group(2), RegexMatcher.matches(location));
-        assertThat(matcher.group(3), RegexMatcher.matches(message));
+        assertThat(matcher.group(2), matchesRegex(location));
+        assertThat(matcher.group(3), matchesRegex(message));
     }
 
 }

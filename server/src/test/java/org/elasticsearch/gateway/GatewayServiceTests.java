@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -152,7 +153,12 @@ public class GatewayServiceTests extends ESTestCase {
     public void testRecoveryWillAbortIfExpectedTermDoesNotMatch() throws Exception {
         final long expectedTerm = randomLongBetween(1, 42);
         final ClusterState stateWithBlock = buildClusterState(1, randomLongBetween(43, 99));
-        final GatewayService service = createGatewayService(Settings.builder(), stateWithBlock);
+        final GatewayService service = createGatewayService(
+            Settings.builder()
+                // disable thread watchdog to avoid infinitely repeating task
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO),
+            stateWithBlock
+        );
         final ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm);
 
         final ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
@@ -177,7 +183,12 @@ public class GatewayServiceTests extends ESTestCase {
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         when(clusterChangedEvent.state()).thenReturn(initialState);
 
-        final GatewayService gatewayService = createGatewayService(Settings.builder(), initialState);
+        final GatewayService gatewayService = createGatewayService(
+            Settings.builder()
+                // disable thread watchdog to avoid infinitely repeating task
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO),
+            initialState
+        );
         gatewayService.clusterChanged(clusterChangedEvent);
         assertThat(deterministicTaskQueue.hasAnyTasks(), is(false));
         assertThat(gatewayService.currentPendingStateRecovery, nullValue());
@@ -188,7 +199,9 @@ public class GatewayServiceTests extends ESTestCase {
             Settings.builder()
                 .put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2)
                 .put(GatewayService.EXPECTED_DATA_NODES_SETTING.getKey(), 4)
-                .put(GatewayService.RECOVER_AFTER_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(10)),
+                .put(GatewayService.RECOVER_AFTER_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(10))
+                // disable thread watchdog to avoid infinitely repeating task
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO),
             ClusterState.builder(buildClusterState(2, randomIntBetween(1, 42))).blocks(ClusterBlocks.builder()).build()
         );
         final GatewayService gatewayService = createGatewayService(clusterService);
@@ -207,7 +220,10 @@ public class GatewayServiceTests extends ESTestCase {
     }
 
     public void testImmediateRecovery() {
-        final Settings.Builder settingsBuilder = Settings.builder();
+        final Settings.Builder settingsBuilder = Settings.builder()
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO);
+
         final int expectedNumberOfDataNodes = randomIntBetween(1, 3);
         // The cluster recover immediately because it either has the required expectedDataNodes
         // or both expectedDataNodes and recoverAfterTime are not configured
@@ -325,8 +341,10 @@ public class GatewayServiceTests extends ESTestCase {
         int expectedNumberOfDataNodes,
         boolean hasRecoverAfterTime
     ) {
-        final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(EXPECTED_DATA_NODES_SETTING.getKey(), expectedNumberOfDataNodes);
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(EXPECTED_DATA_NODES_SETTING.getKey(), expectedNumberOfDataNodes)
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO);
         if (hasRecoverAfterTime) {
             settingsBuilder.put(RECOVER_AFTER_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(10));
         }
@@ -349,7 +367,9 @@ public class GatewayServiceTests extends ESTestCase {
     }
 
     public void testScheduledRecoveryWithRecoverAfterNodes() {
-        final Settings.Builder settingsBuilder = Settings.builder();
+        final Settings.Builder settingsBuilder = Settings.builder()
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO);
         final int expectedNumberOfDataNodes = randomIntBetween(4, 6);
         final boolean hasRecoverAfterTime = randomBoolean();
         if (hasRecoverAfterTime) {
@@ -494,12 +514,17 @@ public class GatewayServiceTests extends ESTestCase {
 
     private MasterServiceTaskQueue<SetClusterStateTask> createSetClusterStateTaskQueue(ClusterService clusterService) {
         return clusterService.createTaskQueue("set-cluster-state", Priority.NORMAL, batchExecutionContext -> {
-            ClusterState targetState = batchExecutionContext.initialState();
+            final var initialState = batchExecutionContext.initialState();
+            var targetState = initialState;
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 targetState = taskContext.getTask().clusterState();
                 taskContext.success(() -> {});
             }
-            return targetState;
+            // fix up the version numbers
+            return ClusterState.builder(targetState)
+                .version(initialState.version())
+                .metadata(Metadata.builder(targetState.metadata()).version(initialState.metadata().version()))
+                .build();
         });
     }
 }

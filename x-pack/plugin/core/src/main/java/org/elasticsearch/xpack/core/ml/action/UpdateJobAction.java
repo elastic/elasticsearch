@@ -31,7 +31,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
 
         public static UpdateJobAction.Request parseRequest(String jobId, XContentParser parser) {
-            JobUpdate update = JobUpdate.EXTERNAL_PARSER.apply(parser, null).setJobId(jobId).build();
+            JobUpdate update = JobUpdate.PARSER.apply(parser, null).setJobId(jobId).build();
             return new UpdateJobAction.Request(jobId, update);
         }
 
@@ -46,6 +46,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
         }
 
         private Request(String jobId, JobUpdate update, boolean isInternal) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = jobId;
             this.update = update;
             this.isInternal = isInternal;

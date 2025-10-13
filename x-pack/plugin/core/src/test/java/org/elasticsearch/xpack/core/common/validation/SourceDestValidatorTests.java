@@ -164,7 +164,11 @@ public class SourceDestValidatorTests extends ESTestCase {
         }
 
         @Override
-        public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+        public RemoteClusterClient getRemoteClusterClient(
+            String clusterAlias,
+            Executor responseExecutor,
+            RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+        ) {
             return new RedirectToLocalClusterRemoteClusterClient(this);
         }
 
@@ -595,7 +599,8 @@ public class SourceDestValidatorTests extends ESTestCase {
             Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1))
         );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
-        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null);
+        var projectId = randomProjectIdOrDefault();
+        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null, projectId, nodeFeature -> true);
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
 
         assertValidation(

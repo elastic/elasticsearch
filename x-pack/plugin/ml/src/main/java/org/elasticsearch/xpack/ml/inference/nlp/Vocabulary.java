@@ -47,7 +47,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
         return parser;
     }
 
-    public static ConstructingObjectParser<Vocabulary, Void> PARSER = createParser(true);
+    public static final ConstructingObjectParser<Vocabulary, Void> PARSER = createParser(true);
 
     private final List<String> vocab;
     private final List<String> merges;
@@ -64,11 +64,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public Vocabulary(StreamInput in) throws IOException {
         vocab = in.readStringCollectionAsList();
         modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            merges = in.readStringCollectionAsList();
-        } else {
-            merges = List.of();
-        }
+        merges = in.readStringCollectionAsList();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             scores = in.readCollectionAsList(StreamInput::readDouble);
         } else {
@@ -92,9 +88,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(vocab);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeStringCollection(merges);
-        }
+        out.writeStringCollection(merges);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeCollection(scores, StreamOutput::writeDouble);
         }

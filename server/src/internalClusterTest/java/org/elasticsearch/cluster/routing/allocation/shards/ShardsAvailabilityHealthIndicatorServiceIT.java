@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.shards;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +23,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -70,11 +73,14 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         var repositoryName = "repository";
         var snapshotName = randomIdentifier();
         assertAcked(
-            clusterAdmin().preparePutRepository(repositoryName)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
-        clusterAdmin().prepareCreateSnapshot(repositoryName, snapshotName).setIndices(index).setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            .setIndices(index)
+            .setWaitForCompletion(true)
+            .get();
         if (randomBoolean()) {
             assertAcked(indicesAdmin().prepareDelete(index));
         } else {
@@ -83,7 +89,10 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         ensureGreen();
 
         assertHealthDuring(equalTo(GREEN), () -> {
-            clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName).setIndices(index).setWaitForCompletion(true).get();
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+                .setIndices(index)
+                .setWaitForCompletion(true)
+                .get();
             ensureGreen(index);
         });
     }
@@ -126,8 +135,9 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         var allocationService = internalCluster().getCurrentMasterNodeInstance(AllocationService.class);
         var systemIndices = internalCluster().getCurrentMasterNodeInstance(SystemIndices.class);
+        var projectResolver = internalCluster().getCurrentMasterNodeInstance(ProjectResolver.class);
 
-        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
+        var service = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
         var states = new ArrayList<RoutingNodesAndHealth>();
         var listener = new ClusterStateListener() {
             @Override
@@ -135,7 +145,16 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
                 states.add(
                     new RoutingNodesAndHealth(
                         event.state().getRoutingNodes(),
-                        service.calculate(false, 1, new HealthInfo(Map.of(), DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of()))
+                        service.calculate(
+                            false,
+                            1,
+                            new HealthInfo(
+                                Map.of(),
+                                DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+                                Map.of(),
+                                FileSettingsHealthInfo.INDETERMINATE
+                            )
+                        )
                     )
                 );
             }

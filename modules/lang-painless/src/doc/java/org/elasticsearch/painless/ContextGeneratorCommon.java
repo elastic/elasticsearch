@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -100,22 +101,26 @@ public class ContextGeneratorCommon {
     }
 
     public static List<PainlessContextClassInfo> sortClassInfos(Collection<PainlessContextClassInfo> unsortedClassInfos) {
-
         List<PainlessContextClassInfo> classInfos = new ArrayList<>(unsortedClassInfos);
-        classInfos.removeIf(
-            v -> "void".equals(v.getName())
-                || "boolean".equals(v.getName())
-                || "byte".equals(v.getName())
-                || "short".equals(v.getName())
-                || "char".equals(v.getName())
-                || "int".equals(v.getName())
-                || "long".equals(v.getName())
-                || "float".equals(v.getName())
-                || "double".equals(v.getName())
-                || "org.elasticsearch.painless.lookup.def".equals(v.getName())
-                || isInternalClass(v.getName())
-        );
+        classInfos.removeIf(ContextGeneratorCommon::isExcludedClassInfo);
+        return sortFilteredClassInfos(classInfos);
+    }
 
+    static boolean isExcludedClassInfo(PainlessContextClassInfo v) {
+        return "void".equals(v.getName())
+            || "boolean".equals(v.getName())
+            || "byte".equals(v.getName())
+            || "short".equals(v.getName())
+            || "char".equals(v.getName())
+            || "int".equals(v.getName())
+            || "long".equals(v.getName())
+            || "float".equals(v.getName())
+            || "double".equals(v.getName())
+            || "org.elasticsearch.painless.lookup.def".equals(v.getName())
+            || isInternalClass(v.getName());
+    }
+
+    static List<PainlessContextClassInfo> sortFilteredClassInfos(List<PainlessContextClassInfo> classInfos) {
         classInfos.sort((c1, c2) -> {
             String n1 = c1.getName();
             String n2 = c2.getName();

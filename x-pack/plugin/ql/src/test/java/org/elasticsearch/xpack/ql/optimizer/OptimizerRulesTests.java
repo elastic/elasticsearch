@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -60,16 +61,16 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
@@ -106,6 +107,9 @@ public class OptimizerRulesTests extends ESTestCase {
     private static final Literal FOUR = L(4);
     private static final Literal FIVE = L(5);
     private static final Literal SIX = L(6);
+    private static final Literal TEXT_A = L("A");
+    private static final Literal TEXT_B = L("B");
+    private static final Literal TEXT_C = L("C");
 
     public static class DummyBooleanExpression extends Expression {
 
@@ -157,15 +161,7 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute() {
-        return getFieldAttribute("a");
-    }
-
-    private static FieldAttribute getFieldAttribute(String name) {
-        return getFieldAttribute(name, INTEGER);
-    }
-
-    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return TestUtils.getFieldAttribute("a");
     }
 
     //
@@ -548,9 +544,9 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // 1 < a AND a < 3 AND 2 < b AND b < 4 AND c < 4 -> (1 < a < 3) AND (2 < b < 4) AND c < 4
     public void testCombineMultipleComparisonsIntoRange() {
-        FieldAttribute fa = getFieldAttribute("a");
-        FieldAttribute fb = getFieldAttribute("b");
-        FieldAttribute fc = getFieldAttribute("c");
+        FieldAttribute fa = TestUtils.getFieldAttribute("a");
+        FieldAttribute fb = TestUtils.getFieldAttribute("b");
+        FieldAttribute fc = TestUtils.getFieldAttribute("c");
 
         ZoneId zoneId = randomZone();
         GreaterThan agt1 = new GreaterThan(EMPTY, fa, ONE, zoneId);
@@ -1040,9 +1036,9 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // (a = 1 AND b = 3 AND c = 4) OR (a = 2 AND b = 3 AND c = 4) -> (b = 3 AND c = 4) AND (a = 1 OR a = 2)
     public void testBooleanSimplificationCommonExpressionSubstraction() {
-        FieldAttribute fa = getFieldAttribute("a");
-        FieldAttribute fb = getFieldAttribute("b");
-        FieldAttribute fc = getFieldAttribute("c");
+        FieldAttribute fa = TestUtils.getFieldAttribute("a");
+        FieldAttribute fb = TestUtils.getFieldAttribute("b");
+        FieldAttribute fc = TestUtils.getFieldAttribute("c");
 
         Expression a1 = equalsOf(fa, ONE);
         Expression a2 = equalsOf(fa, TWO);
@@ -1414,7 +1410,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = getFieldAttribute("a", DataTypes.DATETIME);
+        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataTypes.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
@@ -1500,48 +1496,71 @@ public class OptimizerRulesTests extends ESTestCase {
     //
     // CombineDisjunction in Equals
     //
+
+    // CombineDisjunctionsToIn with shouldValidateIn as true
+    private final class ValidateableCombineDisjunctionsToIn extends CombineDisjunctionsToIn {
+        @Override
+        protected boolean shouldValidateIn() {
+            return true;
+        }
+    };
+
+    private void assertCombineDisjunctionsToIn(Consumer<CombineDisjunctionsToIn> tester) {
+        for (CombineDisjunctionsToIn rule : Set.of(new CombineDisjunctionsToIn(), new ValidateableCombineDisjunctionsToIn())) {
+            tester.accept(rule);
+        }
+    }
+
     public void testTwoEqualsWithOr() throws Exception {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
-        Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(In.class, e.getClass());
-        In in = (In) e;
-        assertEquals(fa, in.value());
-        assertThat(in.list(), contains(ONE, TWO));
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(or);
+            assertEquals(In.class, e.getClass());
+            In in = (In) e;
+            assertEquals(fa, in.value());
+            assertThat(in.list(), contains(ONE, TWO));
+        });
     }
 
     public void testTwoEqualsWithSameValue() throws Exception {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, ONE));
-        Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(Equals.class, e.getClass());
-        Equals eq = (Equals) e;
-        assertEquals(fa, eq.left());
-        assertEquals(ONE, eq.right());
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(or);
+            assertEquals(Equals.class, e.getClass());
+            Equals eq = (Equals) e;
+            assertEquals(fa, eq.left());
+            assertEquals(ONE, eq.right());
+        });
     }
 
     public void testOneEqualsOneIn() throws Exception {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, singletonList(TWO)));
-        Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(In.class, e.getClass());
-        In in = (In) e;
-        assertEquals(fa, in.value());
-        assertThat(in.list(), contains(ONE, TWO));
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(or);
+            assertEquals(In.class, e.getClass());
+            In in = (In) e;
+            assertEquals(fa, in.value());
+            assertThat(in.list(), contains(ONE, TWO));
+        });
     }
 
     public void testOneEqualsOneInWithSameValue() throws Exception {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, asList(ONE, TWO)));
-        Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(In.class, e.getClass());
-        In in = (In) e;
-        assertEquals(fa, in.value());
-        assertThat(in.list(), contains(ONE, TWO));
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(or);
+            assertEquals(In.class, e.getClass());
+            In in = (In) e;
+            assertEquals(fa, in.value());
+            assertThat(in.list(), contains(ONE, TWO));
+        });
     }
 
     public void testSingleValueInToEquals() throws Exception {
@@ -1549,8 +1568,10 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Equals equals = equalsOf(fa, ONE);
         Or or = new Or(EMPTY, equals, new In(EMPTY, fa, singletonList(ONE)));
-        Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(equals, e);
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(or);
+            assertEquals(equals, e);
+        });
     }
 
     public void testEqualsBehindAnd() throws Exception {
@@ -1558,18 +1579,22 @@ public class OptimizerRulesTests extends ESTestCase {
 
         And and = new And(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
         Filter dummy = new Filter(EMPTY, relation(), and);
-        LogicalPlan transformed = new CombineDisjunctionsToIn().apply(dummy);
-        assertSame(dummy, transformed);
-        assertEquals(and, ((Filter) transformed).condition());
+        assertCombineDisjunctionsToIn((rule) -> {
+            LogicalPlan transformed = rule.apply(dummy);
+            assertSame(dummy, transformed);
+            assertEquals(and, ((Filter) transformed).condition());
+        });
     }
 
     public void testTwoEqualsDifferentFields() throws Exception {
-        FieldAttribute fieldOne = getFieldAttribute("ONE");
-        FieldAttribute fieldTwo = getFieldAttribute("TWO");
+        FieldAttribute fieldOne = TestUtils.getFieldAttribute("ONE");
+        FieldAttribute fieldTwo = TestUtils.getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
-        Expression e = new CombineDisjunctionsToIn().rule(or);
-        assertEquals(or, e);
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(or);
+            assertEquals(or, e);
+        });
     }
 
     public void testMultipleIn() throws Exception {
@@ -1577,11 +1602,13 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, singletonList(ONE)), new In(EMPTY, fa, singletonList(TWO)));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, singletonList(THREE)));
-        Expression e = new CombineDisjunctionsToIn().rule(secondOr);
-        assertEquals(In.class, e.getClass());
-        In in = (In) e;
-        assertEquals(fa, in.value());
-        assertThat(in.list(), contains(ONE, TWO, THREE));
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(secondOr);
+            assertEquals(In.class, e.getClass());
+            In in = (In) e;
+            assertEquals(fa, in.value());
+            assertThat(in.list(), contains(ONE, TWO, THREE));
+        });
     }
 
     public void testOrWithNonCombinableExpressions() throws Exception {
@@ -1589,14 +1616,159 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, singletonList(ONE)), lessThanOf(fa, TWO));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, singletonList(THREE)));
-        Expression e = new CombineDisjunctionsToIn().rule(secondOr);
+        assertCombineDisjunctionsToIn((rule) -> {
+            Expression e = rule.rule(secondOr);
+            assertEquals(Or.class, e.getClass());
+            Or or = (Or) e;
+            assertEquals(or.left(), firstOr.right());
+            assertEquals(In.class, or.right().getClass());
+            In in = (In) or.right();
+            assertEquals(fa, in.value());
+            assertThat(in.list(), contains(ONE, THREE));
+        });
+    }
+
+    public void testDontCombineSimpleDifferentTypes() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or or = new Or(EMPTY, new Equals(EMPTY, fa, ONE), new Equals(EMPTY, fa, TEXT_A));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineDifferentTypes() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or or = new Or(EMPTY, new Equals(EMPTY, fa, ONE), new Equals(EMPTY, fa, TEXT_A));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    // See https://github.com/elastic/elasticsearch/issues/118621
+    public void testDontCombineStringTypesForIPField() throws Exception {
+        FieldAttribute fa = TestUtils.getFieldAttribute("ip", DataTypes.IP);
+
+        Or or = new Or(EMPTY, new Equals(EMPTY, fa, TEXT_A), new Equals(EMPTY, fa, TEXT_B));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineForIncompatibleFieldType() throws Exception {
+        FieldAttribute fa = TestUtils.getFieldAttribute("boolean", BOOLEAN);
+
+        Or or = new Or(EMPTY, new Equals(EMPTY, fa, ONE), new Equals(EMPTY, fa, TWO));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineTwoCompatibleAndOneIncompatible() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or firstOr = new Or(EMPTY, new Equals(EMPTY, fa, ONE), new Equals(EMPTY, fa, TWO));
+        Or secondOr = new Or(EMPTY, firstOr, new Equals(EMPTY, fa, TEXT_A));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(secondOr);
+        assertEquals(secondOr, e);
+    }
+
+    public void testDontCombineOneIncompatibleEqualsWithCompatibleIn() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or or = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE, TWO)), new Equals(EMPTY, fa, TEXT_A));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineTwoIncompatibleIns1() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or or = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE, TWO)), new In(EMPTY, fa, List.of(TEXT_A, TEXT_B, TEXT_C)));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineTwoIncompatibleIns2() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or or = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), new In(EMPTY, fa, List.of(TEXT_A)));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineTwoIncompatibleIns3() throws Exception {
+        FieldAttribute fa1 = TestUtils.getFieldAttribute("field1");
+        FieldAttribute fa2 = TestUtils.getFieldAttribute("field2");
+
+        Or or = new Or(EMPTY, new In(EMPTY, fa1, List.of(ONE, TWO)), new In(EMPTY, fa2, List.of(THREE, FOUR)));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(or);
+        assertEquals(or, e);
+    }
+
+    public void testDontCombineIncompatibleInWithTwoCompatibleEquals() throws Exception {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(TEXT_A, TEXT_B)), new Equals(EMPTY, fa, THREE));
+        Or secondOr = new Or(EMPTY, firstOr, new Equals(EMPTY, fa, FOUR));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(secondOr);
+        assertEquals(secondOr, e);
+    }
+
+    public void testCombineOnlyEqualsExpressions() throws Exception {
+        FieldAttribute faIn = TestUtils.getFieldAttribute("field_for_in");
+        FieldAttribute faEquals = TestUtils.getFieldAttribute("field_for_equals");
+
+        Or firstOr = new Or(EMPTY, new In(EMPTY, faIn, List.of(ONE, TWO)), new Equals(EMPTY, faEquals, THREE));
+        Or secondOr = new Or(EMPTY, firstOr, new Equals(EMPTY, faEquals, FOUR));
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(secondOr);
         assertEquals(Or.class, e.getClass());
         Or or = (Or) e;
-        assertEquals(or.left(), firstOr.right());
+        assertEquals(or.left(), firstOr.left());
         assertEquals(In.class, or.right().getClass());
         In in = (In) or.right();
-        assertEquals(fa, in.value());
-        assertThat(in.list(), contains(ONE, THREE));
+        assertEquals(faEquals, in.value());
+        assertThat(in.list(), contains(THREE, FOUR));
+    }
+
+    public void testCombineOnlyCompatibleEqualsExpressions() throws Exception {
+        FieldAttribute faEquals1 = TestUtils.getFieldAttribute("field_for_equals1");
+        FieldAttribute faEquals2 = TestUtils.getFieldAttribute("field_for_equals2");
+
+        Equals equalsA = new Equals(EMPTY, faEquals2, TEXT_A);
+        Equals equalsB = new Equals(EMPTY, faEquals2, TEXT_B);
+        Or firstOr = new Or(EMPTY, new Equals(EMPTY, faEquals1, ONE), equalsA);
+        Or secondOr = new Or(EMPTY, firstOr, new Equals(EMPTY, faEquals1, TWO));
+        Or thirdOr = new Or(EMPTY, secondOr, equalsB);
+
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(thirdOr);
+        assertEquals(Or.class, e.getClass());
+        Or or = (Or) e;
+        assertEquals(In.class, or.left().getClass());
+        In in = (In) or.left();
+        assertThat(in.list(), contains(ONE, TWO));
+
+        assertEquals(Or.class, or.right().getClass());
+        or = (Or) or.right();
+        assertEquals(or.left(), equalsA);
+        assertEquals(or.right(), equalsB);
+    }
+
+    public void testCombineTwoCompatiblePairsOrEqualsExpressions() throws Exception {
+        FieldAttribute faEquals1 = TestUtils.getFieldAttribute("field_for_equals1");
+        FieldAttribute faEquals2 = TestUtils.getFieldAttribute("field_for_equals2");
+
+        Or firstOr = new Or(EMPTY, new Equals(EMPTY, faEquals1, ONE), new Equals(EMPTY, faEquals2, THREE));
+        Or secondOr = new Or(EMPTY, firstOr, new Equals(EMPTY, faEquals1, TWO));
+        Or thirdOr = new Or(EMPTY, secondOr, new Equals(EMPTY, faEquals2, FOUR));
+
+        Expression e = new ValidateableCombineDisjunctionsToIn().rule(thirdOr);
+        assertEquals(Or.class, e.getClass());
+        Or or = (Or) e;
+        assertEquals(In.class, or.left().getClass());
+        In in = (In) or.left();
+        assertThat(in.list(), contains(ONE, TWO));
+
+        assertEquals(In.class, or.right().getClass());
+        in = (In) or.right();
+        assertThat(in.list(), contains(THREE, FOUR));
     }
 
     // Null folding
@@ -1670,7 +1842,11 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
-        And nestedAnd = new And(EMPTY, lessThanOf(getFieldAttribute("b"), ONE), lessThanOf(getFieldAttribute("c"), ONE));
+        And nestedAnd = new And(
+            EMPTY,
+            lessThanOf(TestUtils.getFieldAttribute("b"), ONE),
+            lessThanOf(TestUtils.getFieldAttribute("c"), ONE)
+        );
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
@@ -1689,7 +1865,7 @@ public class OptimizerRulesTests extends ESTestCase {
             greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
             greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
         );
-        Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
+        Expression kept = new And(EMPTY, isNull, lessThanOf(TestUtils.getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
         Expression optimized = new PropagateNullable().rule(and);
@@ -1729,8 +1905,8 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testCombineFilters() throws Exception {
         EsRelation relation = relation();
-        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
-        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        GreaterThan conditionA = greaterThanOf(TestUtils.getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(TestUtils.getFieldAttribute("b"), TWO);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         Filter fb = new Filter(EMPTY, fa, conditionB);
@@ -1740,11 +1916,11 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testPushDownFilter() throws Exception {
         EsRelation relation = relation();
-        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
-        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        GreaterThan conditionA = greaterThanOf(TestUtils.getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(TestUtils.getFieldAttribute("b"), TWO);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
-        List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
+        List<FieldAttribute> projections = singletonList(TestUtils.getFieldAttribute("b"));
         Project project = new Project(EMPTY, fa, projections);
         Filter fb = new Filter(EMPTY, project, conditionB);
 
@@ -1754,12 +1930,12 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testPushDownFilterThroughAgg() throws Exception {
         EsRelation relation = relation();
-        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
-        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        GreaterThan conditionA = greaterThanOf(TestUtils.getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(TestUtils.getFieldAttribute("b"), TWO);
         GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE, false), THREE);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
-        List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
+        List<FieldAttribute> projections = singletonList(TestUtils.getFieldAttribute("b"));
         // invalid aggregate but that's fine cause its properties are not used by this rule
         Aggregate aggregate = new Aggregate(EMPTY, fa, emptyList(), emptyList());
         Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
@@ -1773,7 +1949,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testIsNotNullOnIsNullField() {
         EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
+        var fieldA = TestUtils.getFieldAttribute("a");
         Expression inn = isNotNull(fieldA);
         Filter f = new Filter(EMPTY, relation, inn);
 
@@ -1782,7 +1958,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testIsNotNullOnOperatorWithOneField() {
         EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
+        var fieldA = TestUtils.getFieldAttribute("a");
         Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE));
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
@@ -1792,8 +1968,8 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testIsNotNullOnOperatorWithTwoFields() {
         EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        var fieldB = getFieldAttribute("b");
+        var fieldA = TestUtils.getFieldAttribute("a");
+        var fieldB = TestUtils.getFieldAttribute("b");
         Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB));
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
@@ -1803,7 +1979,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testIsNotNullOnFunctionWithOneField() {
         EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
+        var fieldA = TestUtils.getFieldAttribute("a");
         var pattern = L("abc");
         Expression inn = isNotNull(
             new And(EMPTY, new TestStartsWith(EMPTY, fieldA, pattern, false), greaterThanOf(new Add(EMPTY, ONE, TWO), THREE))
@@ -1817,8 +1993,8 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testIsNotNullOnFunctionWithTwoFields() {
         EsRelation relation = relation();
-        var fieldA = getFieldAttribute("a");
-        var fieldB = getFieldAttribute("b");
+        var fieldA = TestUtils.getFieldAttribute("a");
+        var fieldB = TestUtils.getFieldAttribute("b");
         var pattern = L("abc");
         Expression inn = isNotNull(new TestStartsWith(EMPTY, fieldA, fieldB, false));
 

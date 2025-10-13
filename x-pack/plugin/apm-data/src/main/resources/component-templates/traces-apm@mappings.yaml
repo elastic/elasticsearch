@@ -20,8 +20,16 @@ template:
         index: false
 
       # http.*
-      http.request.body:
+      http.request.headers:
         type: flattened
+      http.response.headers:
+        type: flattened
+      http.request.cookies:
+        type: object
+        dynamic: false
+      http.request.body:
+        type: object
+        dynamic: false
       http.response.transfer_size:
         type: long
         index: false
@@ -35,18 +43,24 @@ template:
       # span.*
       span.duration.us:
         type: long
+        meta:
+          unit: micros
       span.representative_count:
         type: scaled_float
         scaling_factor: 1000
         index: false
       span.stacktrace:
-        type: flattened
+        type: object
+        dynamic: false
 
       # transaction.*
       transaction.custom:
-        type: flattened
+        type: object
+        dynamic: false
       transaction.duration.us:
         type: long
+        meta:
+          unit: micros
       transaction.representative_count:
         type: scaled_float
         scaling_factor: 1000

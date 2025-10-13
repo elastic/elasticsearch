@@ -1,6 +1,0 @@
-pr: 105061
-summary: "ESQL: Push CIDR_MATCH to Lucene if possible"
-area: ES|QL
-type: bug
-issues:
- - 105042

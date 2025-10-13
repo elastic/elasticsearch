@@ -25,11 +25,11 @@ public class ConnectorStateMachine {
         ConnectorStatus.NEEDS_CONFIGURATION,
         EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.CONFIGURED,
-        EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
+        EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONFIGURED, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
         ConnectorStatus.CONNECTED,
-        EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
+        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.ERROR,
-        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED)
+        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR)
     );
 
     /**
@@ -42,6 +42,13 @@ public class ConnectorStateMachine {
         return validNextStates(current).contains(next);
     }
 
+    /**
+     * Throws {@link ConnectorInvalidStatusTransitionException} if a
+     * transition from one {@link ConnectorStatus} to another is invalid.
+     *
+     * @param current The current {@link ConnectorStatus} of the {@link Connector}.
+     * @param next The proposed next {@link ConnectorStatus} of the {@link Connector}.
+     */
     public static void assertValidStateTransition(ConnectorStatus current, ConnectorStatus next)
         throws ConnectorInvalidStatusTransitionException {
         if (isValidTransition(current, next)) return;

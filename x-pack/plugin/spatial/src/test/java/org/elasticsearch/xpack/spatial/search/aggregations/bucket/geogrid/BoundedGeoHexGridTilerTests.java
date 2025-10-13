@@ -17,8 +17,8 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 import static org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridTiler.BoundedGeoHexGridTiler.height;
@@ -205,7 +205,7 @@ public class BoundedGeoHexGridTilerTests extends ESTestCase {
         return new TestCompareBounds(other, -1);
     }
 
-    private static class TestCompareBounds extends BaseMatcher<GeoBoundingBox> {
+    private static class TestCompareBounds extends TypeSafeMatcher<GeoBoundingBox> {
 
         private final GeoBoundingBox other;
         private final int comparison;
@@ -225,25 +225,22 @@ public class BoundedGeoHexGridTilerTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object actual) {
-            if (actual instanceof GeoBoundingBox bbox) {
-                if (comparison == 0) {
-                    matchedTop = closeTo(bbox.top(), 1e-10).matches(other.top());
-                    matchedBottom = closeTo(bbox.bottom(), 1e-10).matches(other.bottom());
-                    matchedLeft = closeTo(posLon(bbox.left()), 1e-10).matches(posLon(other.left()));
-                    matchedRight = closeTo(posLon(bbox.right()), 1e-10).matches(posLon(other.right()));
+        public boolean matchesSafely(GeoBoundingBox bbox) {
+            if (comparison == 0) {
+                matchedTop = closeTo(bbox.top(), 1e-10).matches(other.top());
+                matchedBottom = closeTo(bbox.bottom(), 1e-10).matches(other.bottom());
+                matchedLeft = closeTo(posLon(bbox.left()), 1e-10).matches(posLon(other.left()));
+                matchedRight = closeTo(posLon(bbox.right()), 1e-10).matches(posLon(other.right()));
+            } else {
+                if (comparison > 0) {
+                    // assert that 'bbox' is larger than and entirely contains 'other'
+                    setBoxWithinBox(other, bbox);
                 } else {
-                    if (comparison > 0) {
-                        // assert that 'bbox' is larger than and entirely contains 'other'
-                        setBoxWithinBox(other, bbox);
-                    } else {
-                        // assert that 'bbox' is smaller than and entirely contained within 'other'
-                        setBoxWithinBox(bbox, other);
-                    }
+                    // assert that 'bbox' is smaller than and entirely contained within 'other'
+                    setBoxWithinBox(bbox, other);
                 }
-                return matchedTop && matchedBottom && matchedLeft && matchedRight;
             }
-            return false;
+            return matchedTop && matchedBottom && matchedLeft && matchedRight;
         }
 
         private void setBoxWithinBox(GeoBoundingBox smaller, GeoBoundingBox larger) {
@@ -295,22 +292,22 @@ public class BoundedGeoHexGridTilerTests extends ESTestCase {
         }
 
         @Override
-        public void describeMismatch(Object item, Description description) {
-            super.describeMismatch(item, description);
-            if (item instanceof GeoBoundingBox bbox) {
-                if (matchedTop == false) {
-                    describeMismatchOf(description, "top", other.top(), bbox.top(), true);
-                }
-                if (matchedBottom == false) {
-                    describeMismatchOf(description, "bottom", other.bottom(), bbox.bottom(), false);
-                }
-                if (matchedLeft == false) {
-                    describeMismatchOf(description, "left", other.left(), bbox.left(), false);
-                }
-                if (matchedRight == false) {
-                    describeMismatchOf(description, "right", other.right(), bbox.right(), true);
-                }
+        public void describeMismatchSafely(GeoBoundingBox bbox, Description description) {
+            super.describeMismatchSafely(bbox, description);
+
+            if (matchedTop == false) {
+                describeMismatchOf(description, "top", other.top(), bbox.top(), true);
             }
+            if (matchedBottom == false) {
+                describeMismatchOf(description, "bottom", other.bottom(), bbox.bottom(), false);
+            }
+            if (matchedLeft == false) {
+                describeMismatchOf(description, "left", other.left(), bbox.left(), false);
+            }
+            if (matchedRight == false) {
+                describeMismatchOf(description, "right", other.right(), bbox.right(), true);
+            }
+
         }
 
         private void describeMismatchOf(Description description, String field, double thisValue, double thatValue, boolean max) {

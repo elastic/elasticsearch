@@ -126,14 +126,13 @@ public class DataFrameAnalyticsDeleter {
     }
 
     private void deleteState(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
-        ActionListener<Boolean> deleteModelStateListener = ActionListener.wrap(
-            r -> executeDeleteByQuery(
+        ActionListener<Boolean> deleteModelStateListener = listener.delegateFailureAndWrap(
+            (l, r) -> executeDeleteByQuery(
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 QueryBuilders.idsQuery().addIds(StoredProgress.documentId(config.getId())),
                 timeout,
-                listener
-            ),
-            listener::onFailure
+                l
+            )
         );
 
         deleteModelState(config, timeout, 1, deleteModelStateListener);
@@ -146,13 +145,18 @@ public class DataFrameAnalyticsDeleter {
         }
 
         IdsQueryBuilder query = QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + docNum);
-        executeDeleteByQuery(AnomalyDetectorsIndex.jobStateIndexPattern(), query, timeout, ActionListener.wrap(response -> {
-            if (response.getDeleted() > 0) {
-                deleteModelState(config, timeout, docNum + 1, listener);
-                return;
-            }
-            listener.onResponse(true);
-        }, listener::onFailure));
+        executeDeleteByQuery(
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            query,
+            timeout,
+            listener.delegateFailureAndWrap((l, response) -> {
+                if (response.getDeleted() > 0) {
+                    deleteModelState(config, timeout, docNum + 1, l);
+                    return;
+                }
+                l.onResponse(true);
+            })
+        );
     }
 
     private void deleteStats(String jobId, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {

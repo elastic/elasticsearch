@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -142,18 +143,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 continue;
             }
             keys.add(key);
-            InternalComposite.InternalBucket bucket = new InternalComposite.InternalBucket(
-                sourceNames,
-                formats,
-                key,
-                reverseMuls,
-                missingOrders,
-                1L,
-                aggregations
-            );
+            InternalComposite.InternalBucket bucket = new InternalComposite.InternalBucket(sourceNames, formats, key, 1L, aggregations);
             buckets.add(bucket);
         }
-        Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
+        Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2, reverseMuls, missingOrders));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size() - 1).getRawKey() : null;
         return new InternalComposite(
             name,
@@ -190,8 +183,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                         sourceNames,
                         formats,
                         createCompositeKey(),
-                        reverseMuls,
-                        missingOrders,
                         randomLongBetween(1, 100),
                         InternalAggregations.EMPTY
                     )

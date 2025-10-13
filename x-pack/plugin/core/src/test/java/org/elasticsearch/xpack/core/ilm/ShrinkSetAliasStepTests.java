@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
@@ -42,12 +40,12 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new ShrinkSetAliasStep(key, nextKey, instance.getClient());
+        return new ShrinkSetAliasStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
     public ShrinkSetAliasStep copyInstance(ShrinkSetAliasStep instance) {
-        return new ShrinkSetAliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new ShrinkSetAliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     public void testPerformAction() throws Exception {
@@ -74,7 +72,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
         String sourceIndex = indexMetadata.getIndex().getName();
         String shrunkenIndex = SHRUNKEN_INDEX_PREFIX + sourceIndex;
-        List<AliasActions> expectedAliasActions = Arrays.asList(
+        List<AliasActions> expectedAliasActions = List.of(
             IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndex),
             IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex),
             IndicesAliasesRequest.AliasActions.add()
@@ -90,14 +88,17 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
             assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
+            listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        final var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).aliases(Mockito.any(), Mockito.any());
     }
@@ -113,20 +114,17 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
         Mockito.doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-            )
-        );
+        final var state = projectStateWithEmptyProject();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).aliases(Mockito.any(), Mockito.any());
     }

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.profiling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -35,6 +33,25 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.profiling.action.GetFlamegraphAction;
+import org.elasticsearch.xpack.profiling.action.GetStackTracesAction;
+import org.elasticsearch.xpack.profiling.action.GetStatusAction;
+import org.elasticsearch.xpack.profiling.action.GetTopNFunctionsAction;
+import org.elasticsearch.xpack.profiling.action.ProfilingInfoTransportAction;
+import org.elasticsearch.xpack.profiling.action.ProfilingLicenseChecker;
+import org.elasticsearch.xpack.profiling.action.ProfilingUsageTransportAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetFlamegraphAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetStackTracesAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetStatusAction;
+import org.elasticsearch.xpack.profiling.action.TransportGetTopNFunctionsAction;
+import org.elasticsearch.xpack.profiling.persistence.IndexStateResolver;
+import org.elasticsearch.xpack.profiling.persistence.ProfilingDataStreamManager;
+import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexManager;
+import org.elasticsearch.xpack.profiling.persistence.ProfilingIndexTemplateRegistry;
+import org.elasticsearch.xpack.profiling.rest.RestGetFlamegraphAction;
+import org.elasticsearch.xpack.profiling.rest.RestGetStackTracesAction;
+import org.elasticsearch.xpack.profiling.rest.RestGetStatusAction;
+import org.elasticsearch.xpack.profiling.rest.RestGetTopNFunctionsAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -134,6 +151,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
             handlers.add(new RestGetFlamegraphAction());
+            handlers.add(new RestGetTopNFunctionsAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -164,13 +182,14 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
-            new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
+            new ActionHandler(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
+            new ActionHandler(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
+            new ActionHandler(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
         );
     }
 

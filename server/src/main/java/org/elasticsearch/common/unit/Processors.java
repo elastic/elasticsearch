@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,8 +29,6 @@ public class Processors implements Writeable, Comparable<Processors>, ToXContent
     public static final Processors ZERO = new Processors(0.0);
     public static final Processors MAX_PROCESSORS = new Processors(Double.MAX_VALUE);
 
-    public static final TransportVersion FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
-    public static final TransportVersion DOUBLE_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_5_0;
     static final int NUMBER_OF_DECIMAL_PLACES = 5;
     private static final double MIN_REPRESENTABLE_PROCESSORS = 1E-5;
 
@@ -64,26 +61,13 @@ public class Processors implements Writeable, Comparable<Processors>, ToXContent
 
     public static Processors readFrom(StreamInput in) throws IOException {
         final double processorCount;
-        if (in.getTransportVersion().before(FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            processorCount = in.readInt();
-        } else if (in.getTransportVersion().before(DOUBLE_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            processorCount = in.readFloat();
-        } else {
-            processorCount = in.readDouble();
-        }
+        processorCount = in.readDouble();
         return new Processors(processorCount);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            assert hasDecimals() == false;
-            out.writeInt((int) count);
-        } else if (out.getTransportVersion().before(DOUBLE_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            out.writeFloat((float) count);
-        } else {
-            out.writeDouble(count);
-        }
+        out.writeDouble(count);
     }
 
     @Nullable

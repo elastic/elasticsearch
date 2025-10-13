@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -28,6 +26,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -35,7 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -46,7 +45,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -55,6 +53,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -70,15 +69,38 @@ public class SamlServiceProviderIndex implements Closeable {
     private final ClusterService clusterService;
     private final ClusterStateListener clusterStateListener;
     private volatile boolean aliasExists;
-    private volatile boolean templateInstalled;
 
     public static final String ALIAS_NAME = "saml-service-provider";
     public static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
-    private static final String TEMPLATE_RESOURCE = "/idp/saml-service-provider-template.json";
-    private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
-    private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
+    static final String TEMPLATE_RESOURCE = "/idp/saml-service-provider-template.json";
+    static final String TEMPLATE_VERSION_VARIABLE = "idp.template.version";
+
+    // This field is only populated with an old-school version string for BWC purposes
+    static final String TEMPLATE_VERSION_STRING_DEPRECATED = "idp.template.version_deprecated";
+    static final String FINAL_TEMPLATE_VERSION_STRING_DEPRECATED = "8.14.0";
+
+    /**
+     * The object in the index mapping metadata that contains a version field
+     */
+    private static final String INDEX_META_FIELD = "_meta";
+    /**
+     * The field in the {@link #INDEX_META_FIELD} metadata that contains the version number
+     */
+    private static final String TEMPLATE_VERSION_META_FIELD = "idp-template-version";
+
+    /**
+     * The first version of this template (since it was moved to use {@link org.elasticsearch.xpack.core.template.IndexTemplateRegistry}
+     */
+    private static final int VERSION_ORIGINAL = 1;
+    /**
+     * The version that added the {@code attributes.extensions} field to the SAML SP document
+     */
+    private static final int VERSION_EXTENSION_ATTRIBUTES = 2;
+    static final int CURRENT_TEMPLATE_VERSION = VERSION_EXTENSION_ATTRIBUTES;
+
+    private volatile boolean indexUpToDate = false;
 
     public static final class DocumentVersion {
         public final String id;
@@ -140,40 +162,30 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private void clusterChanged(ClusterChangedEvent clusterChangedEvent) {
         final ClusterState state = clusterChangedEvent.state();
-        installTemplateIfRequired(state);
         checkForAliasStateChange(state);
     }
 
-    private void installTemplateIfRequired(ClusterState state) {
-        if (templateInstalled) {
-            return;
-        }
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
-        if (isTemplateUpToDate(state)) {
-            templateInstalled = true;
-            return;
-        }
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
-            return;
-        }
-        installIndexTemplate(ActionListener.wrap(installed -> {
-            templateInstalled = true;
-            if (installed) {
-                logger.debug("Template [{}] has been updated", TEMPLATE_NAME);
-            } else {
-                logger.debug("Template [{}] appears to be up to date", TEMPLATE_NAME);
-            }
-        }, e -> logger.warn(() -> "Failed to install template [" + TEMPLATE_NAME + "]", e)));
-    }
-
     private void checkForAliasStateChange(ClusterState state) {
-        final IndexAbstraction aliasInfo = state.getMetadata().getIndicesLookup().get(ALIAS_NAME);
+        final IndexAbstraction aliasInfo = state.getMetadata().getProject().getIndicesLookup().get(ALIAS_NAME);
         final boolean previousState = aliasExists;
         this.aliasExists = aliasInfo != null;
         if (aliasExists != previousState) {
             logChangedAliasState(aliasInfo);
+        }
+    }
+
+    Index getIndex(ClusterState state) {
+        final ProjectMetadata project = state.getMetadata().getProject();
+        final SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
+
+        IndexAbstraction indexAbstraction = indicesLookup.get(ALIAS_NAME);
+        if (indexAbstraction == null) {
+            indexAbstraction = indicesLookup.get(INDEX_NAME);
+        }
+        if (indexAbstraction == null) {
+            return null;
+        } else {
+            return indexAbstraction.getWriteIndex();
         }
     }
 
@@ -199,24 +211,6 @@ public class SamlServiceProviderIndex implements Closeable {
         }
     }
 
-    public void installIndexTemplate(ActionListener<Boolean> listener) {
-        final ClusterState state = clusterService.state();
-        if (isTemplateUpToDate(state)) {
-            listener.onResponse(false);
-            return;
-        }
-        final String template = TemplateUtils.loadTemplate(TEMPLATE_RESOURCE, Version.CURRENT.toString(), TEMPLATE_VERSION_SUBSTITUTE);
-        final PutIndexTemplateRequest request = new PutIndexTemplateRequest(TEMPLATE_NAME).source(template, XContentType.JSON);
-        client.admin().indices().putTemplate(request, listener.delegateFailureAndWrap((l, response) -> {
-            logger.info("Installed template [{}]", TEMPLATE_NAME);
-            l.onResponse(true);
-        }));
-    }
-
-    private boolean isTemplateUpToDate(ClusterState state) {
-        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
-    }
-
     public void deleteDocument(DocumentVersion version, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DeleteResponse> listener) {
         final DeleteRequest request = new DeleteRequest(aliasExists ? ALIAS_NAME : INDEX_NAME).id(version.id)
             .setIfSeqNo(version.seqNo)
@@ -240,19 +234,6 @@ public class SamlServiceProviderIndex implements Closeable {
             return;
         }
 
-        if (templateInstalled) {
-            _writeDocument(document, opType, refreshPolicy, listener);
-        } else {
-            installIndexTemplate(listener.delegateFailureAndWrap((l, installed) -> _writeDocument(document, opType, refreshPolicy, l)));
-        }
-    }
-
-    private void _writeDocument(
-        SamlServiceProviderDocument document,
-        DocWriteRequest.OpType opType,
-        WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<DocWriteResponse> listener
-    ) {
         try (
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             XContentBuilder xContentBuilder = new XContentBuilder(XContentType.JSON.xContent(), out)
@@ -311,7 +292,12 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private void findDocuments(QueryBuilder query, ActionListener<Set<DocumentSupplier>> listener) {
         logger.trace("Searching [{}] for [{}]", ALIAS_NAME, query);
-        final SearchRequest request = client.prepareSearch(ALIAS_NAME).setQuery(query).setSize(1000).setFetchSource(true).request();
+        final SearchRequest request = client.prepareSearch(ALIAS_NAME)
+            .setQuery(query)
+            .setSize(1000)
+            .setFetchSource(true)
+            .seqNoAndPrimaryTerm(true)
+            .request();
         client.search(request, ActionListener.wrap(response -> {
             if (logger.isTraceEnabled()) {
                 logger.trace("Search hits: [{}] [{}]", response.getHits().getTotalHits(), Arrays.toString(response.getHits().getHits()));

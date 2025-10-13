@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -72,11 +73,11 @@ public class MasterHistoryServiceTests extends ESTestCase {
         assertNull(remoteHistory);
     }
 
-    private static MasterHistoryService createMasterHistoryService() throws Exception {
+    private static MasterHistoryService createMasterHistoryService() {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         TransportService transportService = mock(TransportService.class);
         return new MasterHistoryService(transportService, threadPool, clusterService);
     }

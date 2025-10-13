@@ -7,17 +7,15 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public final class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
+public class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
 
     public static BulkUpdateApiKeyRequest usingApiKeyIds(String... ids) {
         return new BulkUpdateApiKeyRequest(Arrays.stream(ids).toList(), null, null, null);
@@ -38,15 +36,12 @@ public final class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration
     ) {
-        super(ids, roleDescriptors, metadata, expiration);
-    }
-
-    public BulkUpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
+        super(ids, roleDescriptors, metadata, expiration, null);
     }
 
     @Override
     public ApiKey.Type getType() {
         return ApiKey.Type.REST;
     }
+
 }

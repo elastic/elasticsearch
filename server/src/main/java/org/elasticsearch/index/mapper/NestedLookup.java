@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -82,20 +83,20 @@ public interface NestedLookup {
         if (mappers == null || mappers.isEmpty()) {
             return NestedLookup.EMPTY;
         }
-        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).toList();
+        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::fullPath)).toList();
         Map<String, Query> parentFilters = new HashMap<>();
         Map<String, NestedObjectMapper> mappersByName = new HashMap<>();
         NestedObjectMapper previous = null;
         for (NestedObjectMapper mapper : mappers) {
-            mappersByName.put(mapper.name(), mapper);
+            mappersByName.put(mapper.fullPath(), mapper);
             if (previous != null) {
-                if (mapper.name().startsWith(previous.name() + ".")) {
-                    parentFilters.put(previous.name(), previous.nestedTypeFilter());
+                if (mapper.fullPath().startsWith(previous.fullPath() + ".")) {
+                    parentFilters.put(previous.fullPath(), previous.nestedTypeFilter());
                 }
             }
             previous = mapper;
         }
-        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
+        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::fullPath).toList();
 
         return new NestedLookup() {
 

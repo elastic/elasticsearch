@@ -14,9 +14,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,7 +40,6 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         AutoFollowCoordinator autoFollowCoordinator,
         CcrLicenseChecker ccrLicenseChecker,
         Client client
@@ -53,7 +51,6 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             threadPool,
             actionFilters,
             CcrStatsAction.Request::new,
-            indexNameExpressionResolver,
             CcrStatsAction.Response::new,
             threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)
         );
@@ -80,6 +77,9 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
     ) throws Exception {
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        if (request.getTimeout() != null) {
+            statsRequest.setTimeout(request.getTimeout());
+        }
         client.execute(FollowStatsAction.INSTANCE, statsRequest, listener.delegateFailureAndWrap((l, statsResponse) -> {
             AutoFollowStats stats = autoFollowCoordinator.getStats();
             l.onResponse(new CcrStatsAction.Response(stats, statsResponse));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
@@ -30,7 +31,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -125,8 +125,6 @@ public class FunctionScoreTests extends ESTestCase {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
-                @Override
-                public void close() {}
             };
         }
 
@@ -228,8 +226,6 @@ public class FunctionScoreTests extends ESTestCase {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
-                @Override
-                public void close() {}
             };
         }
 
@@ -240,6 +236,11 @@ public class FunctionScoreTests extends ESTestCase {
 
         @Override
         protected boolean sortRequiresCustomComparator() {
+            return false;
+        }
+
+        @Override
+        protected boolean isIndexed() {
             return false;
         }
     }
@@ -942,7 +943,7 @@ public class FunctionScoreTests extends ESTestCase {
             null,
             Float.POSITIVE_INFINITY
         );
-        ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query1, 1));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(query1, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NaN));
         FunctionScoreQuery query2 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
@@ -951,7 +952,7 @@ public class FunctionScoreTests extends ESTestCase {
             null,
             Float.POSITIVE_INFINITY
         );
-        exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query2, 1));
+        exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(query2, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 

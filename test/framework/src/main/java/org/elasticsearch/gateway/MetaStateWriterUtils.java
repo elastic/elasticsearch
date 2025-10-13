@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -12,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Manifest;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
@@ -26,22 +25,6 @@ public class MetaStateWriterUtils {
 
     private MetaStateWriterUtils() {
         throw new AssertionError("static methods only");
-    }
-
-    /**
-     * Writes manifest file (represented by {@link Manifest}) to disk and performs cleanup of old manifest state file if
-     * the write succeeds or newly created manifest state if the write fails.
-     *
-     * @throws WriteStateException if exception when writing state occurs. See also {@link WriteStateException#isDirty()}
-     */
-    public static void writeManifestAndCleanup(NodeEnvironment nodeEnv, String reason, Manifest manifest) throws WriteStateException {
-        logger.trace("[_meta] writing state, reason [{}]", reason);
-        try {
-            long generation = Manifest.FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
-            logger.trace("[_meta] state written (generation: {})", generation);
-        } catch (WriteStateException ex) {
-            throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
-        }
     }
 
     /**
@@ -61,23 +44,6 @@ public class MetaStateWriterUtils {
             return generation;
         } catch (WriteStateException ex) {
             throw new WriteStateException(false, "[" + index + "]: failed to write index state", ex);
-        }
-    }
-
-    /**
-     * Writes the global state, *without* the indices states.
-     *
-     * @throws WriteStateException if exception when writing state occurs. {@link WriteStateException#isDirty()} will always return
-     *                             false, because new global state file is not yet referenced by manifest file.
-     */
-    static long writeGlobalState(NodeEnvironment nodeEnv, String reason, Metadata metadata) throws WriteStateException {
-        logger.trace("[_global] writing state, reason [{}]", reason);
-        try {
-            long generation = Metadata.FORMAT.write(metadata, nodeEnv.nodeDataPaths());
-            logger.trace("[_global] state written");
-            return generation;
-        } catch (WriteStateException ex) {
-            throw new WriteStateException(false, "[_global]: failed to write global state", ex);
         }
     }
 

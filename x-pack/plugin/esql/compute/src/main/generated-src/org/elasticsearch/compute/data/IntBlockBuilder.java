@@ -7,15 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+// end generated imports
 
 /**
  * Block build of IntBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Builder {
 
@@ -71,55 +76,6 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         return this;
     }
 
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public IntBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((IntBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public IntBlockBuilder appendAllValuesToCurrentPosition(IntBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        final IntVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendInt(vector.getInt(p));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendInt(block.getInt(i++));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
-    }
-
     @Override
     public IntBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
@@ -134,7 +90,11 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(IntBlock, int)}.
+     * </p>
      */
+    @Override
     public IntBlockBuilder copyFrom(IntBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -150,21 +110,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     private void copyFromBlock(IntBlock block, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendInt(block.getInt(i++));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p);
         }
     }
 
@@ -172,6 +118,37 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         for (int p = beginInclusive; p < endExclusive; p++) {
             appendInt(vector.getInt(p));
         }
+    }
+
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public IntBlockBuilder copyFrom(IntBlock block, int position) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendInt(block.getInt(i++));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendInt(block.getInt(i++));
+        }
+        endPositionEntry();
+        return this;
     }
 
     @Override
@@ -210,28 +187,19 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             IntBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
-                    theBlock = buildBigArraysBlock();
-                } else {
-                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                        adjustBreaker(valueCount * elementSize());
-                        values = Arrays.copyOf(values, valueCount);
-                        adjustBreaker(-values.length * elementSize());
-                    }
-                    if (isDense() && singleValued()) {
-                        theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
-                    } else {
-                        theBlock = blockFactory.newIntArrayBlock(
-                            values,
-                            positionCount,
-                            firstValueIndexes,
-                            nullsMask,
-                            mvOrdering,
-                            estimatedBytes
-                        );
-                    }
-                }
+                theBlock = blockFactory.newIntArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
             built();
             return theBlock;

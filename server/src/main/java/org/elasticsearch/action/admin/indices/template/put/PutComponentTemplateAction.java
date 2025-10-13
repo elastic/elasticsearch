@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
@@ -56,6 +57,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
          * Constructs a new put component template request with the provided name.
          */
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
         }
 
@@ -76,6 +78,18 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             }
             if (componentTemplate == null) {
                 validationException = addValidationError("a component template is required", validationException);
+            }
+            if (componentTemplate.createdDateMillis().isPresent()) {
+                validationException = addValidationError(
+                    "Provided a template property which is managed by the system: created_date_millis",
+                    validationException
+                );
+            }
+            if (componentTemplate.modifiedDateMillis().isPresent()) {
+                validationException = addValidationError(
+                    "Provided a template property which is managed by the system: modified_date_millis",
+                    validationException
+                );
             }
             return validationException;
         }

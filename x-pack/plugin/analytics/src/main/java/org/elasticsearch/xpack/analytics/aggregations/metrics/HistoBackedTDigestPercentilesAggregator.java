@@ -58,7 +58,7 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        TDigestState state = TDigestState.create(compression, executionHint);
+        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
         return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, metadata());
     }
 }

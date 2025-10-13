@@ -121,6 +121,7 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(singletonList(one), list);
     }
 
+    // TODO: duplicate of testForEachWithExpressionTopLevel, let's remove it.
     public void testForEachWithExpressionTreeInCollection() throws Exception {
         Alias one = new Alias(EMPTY, "one", of(42));
         FieldAttribute two = fieldAttribute();

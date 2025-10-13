@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.hdfs;
@@ -18,12 +19,22 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.CoreMatchers;
 import org.mockito.AdditionalMatchers;
 import org.mockito.Mockito;
@@ -47,6 +58,8 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends ESTestCase {
@@ -103,6 +116,21 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public void testRepositoryProjectId() {
+        final var projectId = randomProjectIdOrDefault();
+        final var repository = new HdfsRepository(
+            projectId,
+            new RepositoryMetadata(randomIdentifier(), "hdfs", Settings.builder().put("uri", "hdfs:///").put("path", "foo").build()),
+            mock(Environment.class),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            MockBigArrays.NON_RECYCLING_INSTANCE,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            SnapshotMetrics.NOOP
+        );
+        assertThat(repository.getProjectId(), equalTo(projectId));
     }
 
     public void testReadOnly() throws Exception {

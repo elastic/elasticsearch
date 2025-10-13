@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,7 +48,6 @@ import java.util.UUID;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104838")
 public class AsyncSearchResponseTests extends ESTestCase {
     private final SearchResponse searchResponse = randomSearchResponse(randomBoolean());
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -59,6 +58,11 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+    }
+
+    @After
+    public void releaseResponse() {
+        searchResponse.decRef();
     }
 
     protected Writeable.Reader<AsyncSearchResponse> instanceReader() {
@@ -77,7 +81,11 @@ public class AsyncSearchResponseTests extends ESTestCase {
     public final void testSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
             AsyncSearchResponse testInstance = createTestInstance();
-            assertSerialization(testInstance);
+            try {
+                assertSerialization(testInstance).decRef();
+            } finally {
+                testInstance.decRef();
+            }
         }
     }
 
@@ -160,44 +168,47 @@ public class AsyncSearchResponseTests extends ESTestCase {
     public void testToXContentWithoutSearchResponse() throws IOException {
         Date date = new Date();
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse("id", true, true, date.getTime(), date.getTime());
+        try {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertEquals(Strings.format("""
+                    {
+                      "id" : "id",
+                      "is_partial" : true,
+                      "is_running" : true,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s
+                    }""", date.getTime(), date.getTime()), Strings.toString(builder));
+            }
 
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(Strings.format("""
-                {
-                  "id" : "id",
-                  "is_partial" : true,
-                  "is_running" : true,
-                  "start_time_in_millis" : %s,
-                  "expiration_time_in_millis" : %s
-                }""", date.getTime(), date.getTime()), Strings.toString(builder));
-        }
-
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
-                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
-            assertEquals(
-                Strings.format(
-                    """
-                        {
-                          "id" : "id",
-                          "is_partial" : true,
-                          "is_running" : true,
-                          "start_time" : "%s",
-                          "start_time_in_millis" : %s,
-                          "expiration_time" : "%s",
-                          "expiration_time_in_millis" : %s
-                        }""",
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
-                    date.getTime(),
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
-                    date.getTime()
-                ),
-                Strings.toString(builder)
-            );
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                builder.humanReadable(true);
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+                assertEquals(
+                    Strings.format(
+                        """
+                            {
+                              "id" : "id",
+                              "is_partial" : true,
+                              "is_running" : true,
+                              "start_time" : "%s",
+                              "start_time_in_millis" : %s,
+                              "expiration_time" : "%s",
+                              "expiration_time_in_millis" : %s
+                            }""",
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
+                        date.getTime(),
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
+                        date.getTime()
+                    ),
+                    Strings.toString(builder)
+                );
+            }
+        } finally {
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -227,89 +238,98 @@ public class AsyncSearchResponseTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
 
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
-            "id",
-            searchResponse,
-            null,
-            false,
-            isRunning,
-            startTimeMillis,
-            expirationTimeMillis
-        );
-
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(Strings.format("""
-                {
-                  "id" : "id",
-                  "is_partial" : false,
-                  "is_running" : false,
-                  "start_time_in_millis" : %s,
-                  "expiration_time_in_millis" : %s,
-                  "completion_time_in_millis" : %s,
-                  "response" : {
-                    "took" : %s,
-                    "timed_out" : false,
-                    "num_reduce_phases" : 2,
-                    "_shards" : {
-                      "total" : 10,
-                      "successful" : 9,
-                      "skipped" : 1,
-                      "failed" : 0
-                    },
-                    "hits" : {
-                      "max_score" : 0.0,
-                      "hits" : [ ]
-                    }
-                  }
-                }""", startTimeMillis, expirationTimeMillis, expectedCompletionTime, took), Strings.toString(builder));
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(
+                "id",
+                searchResponse,
+                null,
+                false,
+                isRunning,
+                startTimeMillis,
+                expirationTimeMillis
+            );
+        } finally {
+            searchResponse.decRef();
         }
 
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
-                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
-            assertEquals(
-                Strings.format(
-                    """
-                        {
-                          "id" : "id",
-                          "is_partial" : false,
-                          "is_running" : false,
-                          "start_time" : "%s",
-                          "start_time_in_millis" : %s,
-                          "expiration_time" : "%s",
-                          "expiration_time_in_millis" : %s,
-                          "completion_time" : "%s",
-                          "completion_time_in_millis" : %s,
-                          "response" : {
-                            "took" : %s,
-                            "timed_out" : false,
-                            "num_reduce_phases" : 2,
-                            "_shards" : {
-                              "total" : 10,
-                              "successful" : 9,
-                              "skipped" : 1,
-                              "failed" : 0
-                            },
-                            "hits" : {
-                              "max_score" : 0.0,
-                              "hits" : [ ]
-                            }
-                          }
-                        }""",
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
-                    startTimeMillis,
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
-                    expirationTimeMillis,
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expectedCompletionTime)),
-                    expectedCompletionTime,
-                    took
-                ),
-                Strings.toString(builder)
-            );
+        try {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertEquals(Strings.format("""
+                    {
+                      "id" : "id",
+                      "is_partial" : false,
+                      "is_running" : false,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "completion_time_in_millis" : %s,
+                      "response" : {
+                        "took" : %s,
+                        "timed_out" : false,
+                        "num_reduce_phases" : 2,
+                        "_shards" : {
+                          "total" : 10,
+                          "successful" : 9,
+                          "skipped" : 1,
+                          "failed" : 0
+                        },
+                        "hits" : {
+                          "max_score" : 0.0,
+                          "hits" : [ ]
+                        }
+                      }
+                    }""", startTimeMillis, expirationTimeMillis, expectedCompletionTime, took), Strings.toString(builder));
+            }
+
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                builder.humanReadable(true);
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+                assertEquals(
+                    Strings.format(
+                        """
+                            {
+                              "id" : "id",
+                              "is_partial" : false,
+                              "is_running" : false,
+                              "start_time" : "%s",
+                              "start_time_in_millis" : %s,
+                              "expiration_time" : "%s",
+                              "expiration_time_in_millis" : %s,
+                              "completion_time" : "%s",
+                              "completion_time_in_millis" : %s,
+                              "response" : {
+                                "took" : %s,
+                                "timed_out" : false,
+                                "num_reduce_phases" : 2,
+                                "_shards" : {
+                                  "total" : 10,
+                                  "successful" : 9,
+                                  "skipped" : 1,
+                                  "failed" : 0
+                                },
+                                "hits" : {
+                                  "max_score" : 0.0,
+                                  "hits" : [ ]
+                                }
+                              }
+                            }""",
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
+                        startTimeMillis,
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
+                        expirationTimeMillis,
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expectedCompletionTime)),
+                        expectedCompletionTime,
+                        took
+                    ),
+                    Strings.toString(builder)
+                );
+            }
+        } finally {
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -339,135 +359,143 @@ public class AsyncSearchResponseTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
-            "id",
-            searchResponse,
-            null,
-            true,
-            isRunning,
-            startTimeMillis,
-            expirationTimeMillis
-        );
-
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(Strings.format("""
-                {
-                  "id" : "id",
-                  "is_partial" : true,
-                  "is_running" : true,
-                  "start_time_in_millis" : %s,
-                  "expiration_time_in_millis" : %s,
-                  "response" : {
-                    "took" : %s,
-                    "timed_out" : false,
-                    "num_reduce_phases" : 2,
-                    "_shards" : {
-                      "total" : 10,
-                      "successful" : 9,
-                      "skipped" : 1,
-                      "failed" : 0
-                    },
-                    "_clusters" : {
-                      "total" : 3,
-                      "successful" : 0,
-                      "skipped" : 0,
-                      "running" : 3,
-                      "partial" : 0,
-                      "failed" : 0,
-                      "details" : {
-                        "cluster_1" : {
-                          "status" : "running",
-                          "indices" : "foo,bar*",
-                          "timed_out" : false
-                        },
-                        "cluster_2" : {
-                          "status" : "running",
-                          "indices" : "foo,bar*",
-                          "timed_out" : false
-                        },
-                        "cluster_0" : {
-                          "status" : "running",
-                          "indices" : "foo,bar*",
-                          "timed_out" : false
-                        }
-                      }
-                    },
-                    "hits" : {
-                      "max_score" : 0.0,
-                      "hits" : [ ]
-                    }
-                  }
-                }""", startTimeMillis, expirationTimeMillis, took), Strings.toString(builder));
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(
+                "id",
+                searchResponse,
+                null,
+                true,
+                isRunning,
+                startTimeMillis,
+                expirationTimeMillis
+            );
+        } finally {
+            searchResponse.decRef();
         }
 
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
-                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
-            assertEquals(
-                Strings.format(
-                    """
-                        {
-                          "id" : "id",
-                          "is_partial" : true,
-                          "is_running" : true,
-                          "start_time" : "%s",
-                          "start_time_in_millis" : %s,
-                          "expiration_time" : "%s",
-                          "expiration_time_in_millis" : %s,
-                          "response" : {
-                            "took" : %s,
-                            "timed_out" : false,
-                            "num_reduce_phases" : 2,
-                            "_shards" : {
-                              "total" : 10,
-                              "successful" : 9,
-                              "skipped" : 1,
-                              "failed" : 0
+        try {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertEquals(Strings.format("""
+                    {
+                      "id" : "id",
+                      "is_partial" : true,
+                      "is_running" : true,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "response" : {
+                        "took" : %s,
+                        "timed_out" : false,
+                        "num_reduce_phases" : 2,
+                        "_shards" : {
+                          "total" : 10,
+                          "successful" : 9,
+                          "skipped" : 1,
+                          "failed" : 0
+                        },
+                        "_clusters" : {
+                          "total" : 3,
+                          "successful" : 0,
+                          "skipped" : 0,
+                          "running" : 3,
+                          "partial" : 0,
+                          "failed" : 0,
+                          "details" : {
+                            "cluster_1" : {
+                              "status" : "running",
+                              "indices" : "foo,bar*",
+                              "timed_out" : false
                             },
-                            "_clusters" : {
-                              "total" : 3,
-                              "successful" : 0,
-                              "skipped" : 0,
-                              "running" : 3,
-                              "partial" : 0,
-                              "failed" : 0,
-                              "details" : {
-                                "cluster_1" : {
-                                  "status" : "running",
-                                  "indices" : "foo,bar*",
-                                  "timed_out" : false
-                                },
-                                "cluster_2" : {
-                                  "status" : "running",
-                                  "indices" : "foo,bar*",
-                                  "timed_out" : false
-                                },
-                                "cluster_0" : {
-                                  "status" : "running",
-                                  "indices" : "foo,bar*",
-                                  "timed_out" : false
-                                }
-                              }
+                            "cluster_2" : {
+                              "status" : "running",
+                              "indices" : "foo,bar*",
+                              "timed_out" : false
                             },
-                            "hits" : {
-                              "max_score" : 0.0,
-                              "hits" : [ ]
+                            "cluster_0" : {
+                              "status" : "running",
+                              "indices" : "foo,bar*",
+                              "timed_out" : false
                             }
                           }
-                        }""",
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
-                    startTimeMillis,
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
-                    expirationTimeMillis,
-                    took
-                ),
-                Strings.toString(builder)
-            );
+                        },
+                        "hits" : {
+                          "max_score" : 0.0,
+                          "hits" : [ ]
+                        }
+                      }
+                    }""", startTimeMillis, expirationTimeMillis, took), Strings.toString(builder));
+            }
+
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                builder.humanReadable(true);
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+                assertEquals(
+                    Strings.format(
+                        """
+                            {
+                              "id" : "id",
+                              "is_partial" : true,
+                              "is_running" : true,
+                              "start_time" : "%s",
+                              "start_time_in_millis" : %s,
+                              "expiration_time" : "%s",
+                              "expiration_time_in_millis" : %s,
+                              "response" : {
+                                "took" : %s,
+                                "timed_out" : false,
+                                "num_reduce_phases" : 2,
+                                "_shards" : {
+                                  "total" : 10,
+                                  "successful" : 9,
+                                  "skipped" : 1,
+                                  "failed" : 0
+                                },
+                                "_clusters" : {
+                                  "total" : 3,
+                                  "successful" : 0,
+                                  "skipped" : 0,
+                                  "running" : 3,
+                                  "partial" : 0,
+                                  "failed" : 0,
+                                  "details" : {
+                                    "cluster_1" : {
+                                      "status" : "running",
+                                      "indices" : "foo,bar*",
+                                      "timed_out" : false
+                                    },
+                                    "cluster_2" : {
+                                      "status" : "running",
+                                      "indices" : "foo,bar*",
+                                      "timed_out" : false
+                                    },
+                                    "cluster_0" : {
+                                      "status" : "running",
+                                      "indices" : "foo,bar*",
+                                      "timed_out" : false
+                                    }
+                                  }
+                                },
+                                "hits" : {
+                                  "max_score" : 0.0,
+                                  "hits" : [ ]
+                                }
+                              }
+                            }""",
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
+                        startTimeMillis,
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
+                        expirationTimeMillis,
+                        took
+                    ),
+                    Strings.toString(builder)
+                );
+            }
+        } finally {
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -566,15 +594,20 @@ public class AsyncSearchResponseTests extends ESTestCase {
             clusters
         );
 
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
-            "id",
-            searchResponse,
-            null,
-            false,
-            isRunning,
-            startTimeMillis,
-            expirationTimeMillis
-        );
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(
+                "id",
+                searchResponse,
+                null,
+                false,
+                isRunning,
+                startTimeMillis,
+                expirationTimeMillis
+            );
+        } finally {
+            searchResponse.decRef();
+        }
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
@@ -680,6 +713,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
                     }
                   }
                 }""", startTimeMillis, expirationTimeMillis, expectedCompletionTime, took), Strings.toString(builder));
+        } finally {
+            asyncSearchResponse.decRef();
         }
     }
 
@@ -707,85 +742,92 @@ public class AsyncSearchResponseTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-
-        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse(
-            "id",
-            searchResponse,
-            null,
-            true,
-            isRunning,
-            startTimeMillis,
-            expirationTimeMillis
-        );
-
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(Strings.format("""
-                {
-                  "id" : "id",
-                  "is_partial" : true,
-                  "is_running" : true,
-                  "start_time_in_millis" : %s,
-                  "expiration_time_in_millis" : %s,
-                  "response" : {
-                    "took" : %s,
-                    "timed_out" : false,
-                    "num_reduce_phases" : 2,
-                    "_shards" : {
-                      "total" : 10,
-                      "successful" : 9,
-                      "skipped" : 1,
-                      "failed" : 0
-                    },
-                    "hits" : {
-                      "max_score" : 0.0,
-                      "hits" : [ ]
-                    }
-                  }
-                }""", startTimeMillis, expirationTimeMillis, took), Strings.toString(builder));
-        }
-
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
-                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
-            assertEquals(
-                Strings.format(
-                    """
-                        {
-                          "id" : "id",
-                          "is_partial" : true,
-                          "is_running" : true,
-                          "start_time" : "%s",
-                          "start_time_in_millis" : %s,
-                          "expiration_time" : "%s",
-                          "expiration_time_in_millis" : %s,
-                          "response" : {
-                            "took" : %s,
-                            "timed_out" : false,
-                            "num_reduce_phases" : 2,
-                            "_shards" : {
-                              "total" : 10,
-                              "successful" : 9,
-                              "skipped" : 1,
-                              "failed" : 0
-                            },
-                            "hits" : {
-                              "max_score" : 0.0,
-                              "hits" : [ ]
-                            }
-                          }
-                        }""",
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
-                    startTimeMillis,
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
-                    expirationTimeMillis,
-                    took
-                ),
-                Strings.toString(builder)
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = new AsyncSearchResponse(
+                "id",
+                searchResponse,
+                null,
+                true,
+                isRunning,
+                startTimeMillis,
+                expirationTimeMillis
             );
+        } finally {
+            searchResponse.decRef();
+        }
+        try {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertEquals(Strings.format("""
+                    {
+                      "id" : "id",
+                      "is_partial" : true,
+                      "is_running" : true,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "response" : {
+                        "took" : %s,
+                        "timed_out" : false,
+                        "num_reduce_phases" : 2,
+                        "_shards" : {
+                          "total" : 10,
+                          "successful" : 9,
+                          "skipped" : 1,
+                          "failed" : 0
+                        },
+                        "hits" : {
+                          "max_score" : 0.0,
+                          "hits" : [ ]
+                        }
+                      }
+                    }""", startTimeMillis, expirationTimeMillis, took), Strings.toString(builder));
+            }
+
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.prettyPrint();
+                builder.humanReadable(true);
+                ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+                assertEquals(
+                    Strings.format(
+                        """
+                            {
+                              "id" : "id",
+                              "is_partial" : true,
+                              "is_running" : true,
+                              "start_time" : "%s",
+                              "start_time_in_millis" : %s,
+                              "expiration_time" : "%s",
+                              "expiration_time_in_millis" : %s,
+                              "response" : {
+                                "took" : %s,
+                                "timed_out" : false,
+                                "num_reduce_phases" : 2,
+                                "_shards" : {
+                                  "total" : 10,
+                                  "successful" : 9,
+                                  "skipped" : 1,
+                                  "failed" : 0
+                                },
+                                "hits" : {
+                                  "max_score" : 0.0,
+                                  "hits" : [ ]
+                                }
+                              }
+                            }""",
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTimeMillis)),
+                        startTimeMillis,
+                        XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(expirationTimeMillis)),
+                        expirationTimeMillis,
+                        took
+                    ),
+                    Strings.toString(builder)
+                );
+            }
+        } finally {
+            asyncSearchResponse.decRef();
         }
     }
 

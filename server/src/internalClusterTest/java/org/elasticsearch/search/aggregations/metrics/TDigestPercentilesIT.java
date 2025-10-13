@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -16,8 +16,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
@@ -111,7 +110,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                         .subAggregation(randomCompression(percentiles("percentiles").field("value")).percentiles(10, 15))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -132,7 +131,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
             prepareSearch("idx_unmapped").setQuery(matchAllQuery())
                 .addAggregation(randomCompression(percentiles("percentiles")).field("value").percentiles(0, 10, 15, 100)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
 
                 Percentiles percentiles = response.getAggregations().get("percentiles");
                 assertThat(percentiles, notNullValue());
@@ -171,12 +170,12 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
             response -> {
                 assertHitCount(response, 10);
 
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(10L));
                 assertThat(global.getAggregations(), notNullValue());
-                assertThat(global.getAggregations().asMap().size(), equalTo(1));
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 Percentiles percentiles = global.getAggregations().get("percentiles");
                 assertThat(percentiles, notNullValue());
@@ -440,7 +439,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                     assertThat(bucket, notNullValue());
                     assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
                     assertThat(bucket.getDocCount(), equalTo(1L));
-                    Filter filter = bucket.getAggregations().get("filter");
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                     assertThat(filter, notNullValue());
                     assertThat(filter.getDocCount(), equalTo(0L));
                     Percentiles percentiles = filter.getAggregations().get("percentiles");
@@ -457,8 +456,7 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+            prepareCreate("cache_test_idx").setMapping("d", "type=long").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

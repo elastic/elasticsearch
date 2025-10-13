@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
@@ -13,7 +14,11 @@ import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.network.InetAddresses;
@@ -27,6 +32,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,17 +66,22 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @SuppressForbidden(reason = "use a http server")
 public abstract class AbstractAzureServerTestCase extends ESTestCase {
     protected static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1L;
+    protected static final String ACCOUNT = "account";
+    protected static final String CONTAINER = "container";
 
     protected HttpServer httpServer;
     protected HttpServer secondaryHttpServer;
+    protected boolean serverlessMode;
     private ThreadPool threadPool;
     private AzureClientProvider clientProvider;
+    private ClusterService clusterService;
 
     @Before
     public void setUp() throws Exception {
+        serverlessMode = false;
         threadPool = new TestThreadPool(
             getTestClass().getName(),
-            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -78,6 +90,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         secondaryHttpServer.start();
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
         super.setUp();
     }
 
@@ -97,7 +110,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     protected BlobContainer createBlobContainer(final int maxRetries, String secondaryHost, final LocationMode locationMode) {
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
+        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
         final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
         secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
 
@@ -113,17 +126,23 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     ) {
         final Settings.Builder clientSettings = Settings.builder();
 
-        String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, "account");
+        String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, ACCOUNT);
         if (secondaryHost != null) {
-            endpoint += ";BlobSecondaryEndpoint=" + getEndpointForServer(secondaryHttpServer, "account");
+            endpoint += ";BlobSecondaryEndpoint=" + getEndpointForServer(secondaryHttpServer, ACCOUNT);
         }
         clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueMillis(500));
 
         clientSettings.setSecureSettings(secureSettings);
+        clientSettings.put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, serverlessMode);
 
-        final AzureStorageService service = new AzureStorageService(clientSettings.build(), clientProvider) {
+        final AzureStorageService service = new AzureStorageService(
+            clientSettings.build(),
+            clientProvider,
+            clusterService,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        ) {
             @Override
             RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                 return new RequestRetryOptions(
@@ -135,7 +154,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                     // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain
                     // a path causes the sdk to rewrite the endpoint with an invalid path, that's the reason why we provide just the host +
                     // port.
-                    secondaryHost != null ? secondaryHost.replaceFirst("/account", "") : null
+                    secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
                 );
             }
 
@@ -145,7 +164,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             }
 
             @Override
-            int getMaxReadRetries(String clientName) {
+            int getMaxReadRetries(ProjectId projectId, String clientName) {
                 return maxRetries;
             }
         };
@@ -154,14 +173,17 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             "repository",
             AzureRepository.TYPE,
             Settings.builder()
-                .put(CONTAINER_SETTING.getKey(), "container")
+                .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
-                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 
-        return new AzureBlobContainer(BlobPath.EMPTY, new AzureBlobStore(repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE));
+        return new AzureBlobContainer(
+            BlobPath.EMPTY,
+            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+        );
     }
 
     protected static byte[] randomBlobContent() {

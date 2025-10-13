@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -289,17 +288,17 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                     privRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
                     privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
 
-                    ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(r -> {
+                    ActionListener<HasPrivilegesResponse> privResponseListener = listener.delegateFailureAndWrap((l, r) -> {
                         if (r.isCompleteMatch()) {
-                            modelLoadAction.accept(client, listener);
+                            modelLoadAction.accept(client, l);
                         } else {
-                            listener.onFailure(
+                            l.onFailure(
                                 Exceptions.authorizationError(
                                     "user [" + username + "] does not have the privilege to get trained models so cannot use ml inference"
                                 )
                             );
                         }
-                    }, listener::onFailure);
+                    });
 
                     client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                 });
@@ -381,6 +380,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_9_0;
+        return TransportVersion.zero();
     }
 }

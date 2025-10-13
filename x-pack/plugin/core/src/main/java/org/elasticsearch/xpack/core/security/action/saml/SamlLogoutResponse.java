@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -19,12 +18,6 @@ public final class SamlLogoutResponse extends ActionResponse {
 
     private final String requestId;
     private final String redirectUrl;
-
-    public SamlLogoutResponse(StreamInput in) throws IOException {
-        super(in);
-        requestId = in.readString();
-        redirectUrl = in.readString();
-    }
 
     public SamlLogoutResponse(String requestId, String redirectUrl) {
         this.requestId = requestId;

@@ -7,158 +7,159 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import org.elasticsearch.common.Rounding;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateEsField;
-import org.elasticsearch.xpack.ql.type.EsField;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
-import java.util.Collections;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.createRounding;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.process;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
-public class DateTruncTests extends ESTestCase {
+/**
+ * Parameterized testing for {@link DateTrunc}.  See also {@link DateTruncRoundingTests} for non-parametrized tests.
+ */
+public class DateTruncTests extends AbstractScalarFunctionTestCase {
 
-    public void testCreateRoundingDuration() {
-        Rounding.Prepared rounding;
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createRounding(Duration.ofHours(0)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Duration.ofHours(-10)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        rounding = createRounding(Duration.ofHours(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), 0d);
-
-        rounding = createRounding(Duration.ofHours(10));
-        assertEquals(10, rounding.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), 0d);
-
-        rounding = createRounding(Duration.ofMinutes(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
-
-        rounding = createRounding(Duration.ofMinutes(100));
-        assertEquals(100, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
-
-        rounding = createRounding(Duration.ofSeconds(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), 0d);
-
-        rounding = createRounding(Duration.ofSeconds(120));
-        assertEquals(120, rounding.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), 0d);
-
-        rounding = createRounding(Duration.ofSeconds(60).plusMinutes(5).plusHours(1));
-        assertEquals(1 + 5 + 60, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
+    public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
-    public void testCreateRoundingPeriod() {
-        Rounding.Prepared rounding;
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofMonths(0)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofYears(-10)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.of(0, 1, 1)));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
-
-        rounding = createRounding(Period.ofDays(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH), 0d);
-
-        rounding = createRounding(Period.ofDays(4));
-        assertEquals(4, rounding.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH), 0d);
-
-        rounding = createRounding(Period.ofDays(7));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR), 0d);
-
-        rounding = createRounding(Period.ofMonths(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), 0d);
-
-        rounding = createRounding(Period.ofMonths(3));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), 0d);
-
-        rounding = createRounding(Period.ofYears(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 0d);
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofYears(3)));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
-    }
-
-    public void testCreateRoundingNullInterval() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createRounding(null));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
-    }
-
-    public void testDateTruncFunction() {
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
         long ts = toMillis("2023-02-17T10:25:33.38Z");
-
-        assertEquals(toMillis("2023-02-17T00:00:00.00Z"), process(ts, createRounding(Period.ofDays(1))));
-        assertEquals(toMillis("2023-02-01T00:00:00.00Z"), process(ts, createRounding(Period.ofMonths(1))));
-        assertEquals(toMillis("2023-01-01T00:00:00.00Z"), process(ts, createRounding(Period.ofYears(1))));
-
-        assertEquals(toMillis("2023-02-12T00:00:00.00Z"), process(ts, createRounding(Period.ofDays(10))));
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(ofDatePeriod(Period.ofDays(1), ts, "2023-02-17T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(1), ts, "2023-02-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofYears(1), ts, "2023-01-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofDays(10), ts, "2023-02-12T00:00:00.00Z"));
         // 7 days period should return weekly rounding
-        assertEquals(toMillis("2023-02-13T00:00:00.00Z"), process(ts, createRounding(Period.ofDays(7))));
+        suppliers.addAll(ofDatePeriod(Period.ofDays(7), ts, "2023-02-13T00:00:00.00Z"));
         // 3 months period should return quarterly
-        assertEquals(toMillis("2023-01-01T00:00:00.00Z"), process(ts, createRounding(Period.ofMonths(3))));
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(3), ts, "2023-01-01T00:00:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofHours(1), ts, "2023-02-17T10:00:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofMinutes(1), ts, "2023-02-17T10:25:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofSeconds(1), ts, "2023-02-17T10:25:33.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofHours(3), ts, "2023-02-17T09:00:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofMinutes(15), ts, "2023-02-17T10:15:00.00Z"));
+        suppliers.addAll(ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"));
+        suppliers.add(randomSecond());
 
-        assertEquals(toMillis("2023-02-17T10:00:00.00Z"), process(ts, createRounding(Duration.ofHours(1))));
-        assertEquals(toMillis("2023-02-17T10:25:00.00Z"), process(ts, createRounding(Duration.ofMinutes(1))));
-        assertEquals(toMillis("2023-02-17T10:25:33.00Z"), process(ts, createRounding(Duration.ofSeconds(1))));
+        // arbitrary period of months and years
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(7), ts, "2022-11-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofYears(5), ts, "2021-01-01T00:00:00.00Z"));
 
-        assertEquals(toMillis("2023-02-17T09:00:00.00Z"), process(ts, createRounding(Duration.ofHours(3))));
-        assertEquals(toMillis("2023-02-17T10:15:00.00Z"), process(ts, createRounding(Duration.ofMinutes(15))));
-        assertEquals(toMillis("2023-02-17T10:25:30.00Z"), process(ts, createRounding(Duration.ofSeconds(30))));
-        assertEquals(toMillis("2023-02-17T10:25:30.00Z"), process(ts, createRounding(Duration.ofSeconds(30))));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(ts, createRounding(Period.ofDays(-1))));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
+    private static List<TestCaseSupplier> ofDatePeriod(Period period, long value, String expectedDate) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(DataType.DATE_PERIOD, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
+                        new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
+                    ),
+                    Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                    DataType.DATETIME,
+                    equalTo(toMillis(expectedDate))
+                )
+            ),
+            new TestCaseSupplier(
+                List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
+                    ),
+                    Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                    DataType.DATE_NANOS,
+                    equalTo(toNanos(expectedDate))
+                )
+            )
+        );
+    }
 
-        e = expectThrows(IllegalArgumentException.class, () -> process(ts, createRounding(Duration.ofHours(-1))));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
+    private static List<TestCaseSupplier> ofDuration(Duration duration, long value, String expectedDate) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(DataType.TIME_DURATION, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
+                        new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
+                    ),
+                    Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                    DataType.DATETIME,
+                    equalTo(toMillis(expectedDate))
+                )
+            ),
+            new TestCaseSupplier(
+                List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
+                    ),
+                    Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                    DataType.DATE_NANOS,
+                    equalTo(toNanos(expectedDate))
+                )
+            )
+        );
+    }
+
+    private static TestCaseSupplier randomSecond() {
+        return new TestCaseSupplier("random second", List.of(DataType.TIME_DURATION, DataType.DATETIME), () -> {
+            String dateFragment = randomIntBetween(2000, 2050)
+                + "-"
+                + pad(randomIntBetween(1, 12))
+                + "-"
+                + pad(randomIntBetween(1, 28))
+                + "T"
+                + pad(randomIntBetween(0, 23))
+                + ":"
+                + pad(randomIntBetween(0, 59))
+                + ":"
+                + pad(randomIntBetween(0, 59));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval").forceLiteral(),
+                    new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataType.DATETIME, "date")
+                ),
+                Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                DataType.DATETIME,
+                equalTo(toMillis(dateFragment + ".00Z"))
+            );
+        });
+    }
+
+    private static String pad(int i) {
+        return i > 9 ? "" + i : "0" + i;
     }
 
     private static long toMillis(String timestamp) {
         return Instant.parse(timestamp).toEpochMilli();
     }
 
-    public void testSerialization() {
-        var dateTrunc = new DateTrunc(Source.EMPTY, randomDateIntervalLiteral(), randomDateField());
-        SerializationTestUtils.assertSerialization(dateTrunc);
+    private static long toNanos(String timestamp) {
+        return DateUtils.toLong(Instant.parse(timestamp));
     }
 
-    private static FieldAttribute randomDateField() {
-        String fieldName = randomAlphaOfLength(randomIntBetween(1, 25));
-        String dateName = randomAlphaOfLength(randomIntBetween(1, 25));
-        boolean hasDocValues = randomBoolean();
-        if (randomBoolean()) {
-            return new FieldAttribute(Source.EMPTY, fieldName, new EsField(dateName, DataTypes.DATETIME, Map.of(), hasDocValues));
-        } else {
-            return new FieldAttribute(Source.EMPTY, fieldName, DateEsField.dateEsField(dateName, Collections.emptyMap(), hasDocValues));
-        }
-    }
-
-    private static Literal randomDateIntervalLiteral() {
-        Duration duration = switch (randomInt(5)) {
-            case 0 -> Duration.ofNanos(randomIntBetween(1, 100000));
-            case 1 -> Duration.ofMillis(randomIntBetween(1, 1000));
-            case 2 -> Duration.ofSeconds(randomIntBetween(1, 1000));
-            case 3 -> Duration.ofMinutes(randomIntBetween(1, 1000));
-            case 4 -> Duration.ofHours(randomIntBetween(1, 100));
-            case 5 -> Duration.ofDays(randomIntBetween(1, 60));
-            default -> throw new AssertionError();
-        };
-        return new Literal(Source.EMPTY, duration, EsqlDataTypes.TIME_DURATION);
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new DateTrunc(source, args.get(0), args.get(1));
     }
 }

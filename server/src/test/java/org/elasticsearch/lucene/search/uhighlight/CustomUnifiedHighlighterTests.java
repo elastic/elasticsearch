@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -140,12 +141,12 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 iw.close();
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value, equalTo(1L));
+                assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
                 UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
                 builder.withBreakIterator(() -> breakIterator);
                 builder.withFieldMatcher(name -> "text".equals(name));
-                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()));
+                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     builder,
                     offsetSource,
@@ -156,7 +157,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     noMatchSize,
                     expectedPassages.length,
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset,
+                    QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffset, maxAnalyzedOffset),
                     true,
                     true
                 );

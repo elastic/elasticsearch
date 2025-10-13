@@ -10,13 +10,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.client.NoOpClient;
@@ -44,7 +45,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             instance.getKey(),
             instance.getNextKeyOnComplete(),
             instance.getNextKeyOnIncomplete(),
-            instance.getClient()
+            instance.getClientWithoutProject()
         );
     }
 
@@ -59,7 +60,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             case 2 -> nextKeyOnIncompleteResponse = randomStepKey();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClient());
+        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClientWithoutProject());
     }
 
     public void testPerformActionFailure() {
@@ -78,14 +79,12 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(createSnapshotStep, indexMetadata, state, null)
             );
             assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
@@ -97,14 +96,12 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 .numberOfReplicas(randomIntBetween(0, 5));
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, true).build())
-                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
             Exception e = expectThrows(
                 IllegalStateException.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+                () -> performActionAndWait(createSnapshotStep, indexMetadata, state, null)
             );
             assertThat(
                 e.getMessage(),
@@ -129,14 +126,12 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
         try (var threadPool = createThreadPool()) {
             final var client = getCreateSnapshotRequestAssertingClient(threadPool, repository, snapshotName, indexName);
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
+            step.performAction(indexMetadata, state, null, ActionListener.noop());
         }
     }
 
@@ -156,28 +151,26 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client) {
                     @Override
-                    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+                    void createSnapshot(ProjectId projectId, IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
                         listener.onResponse(true);
                     }
                 };
-                completeStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
+                completeStep.performAction(indexMetadata, state, null, ActionListener.noop());
                 assertThat(completeStep.getNextStepKey(), is(nextKeyOnComplete));
             }
         }
 
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep incompleteStep = new CreateSnapshotStep(
@@ -187,18 +180,18 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                     client
                 ) {
                     @Override
-                    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+                    void createSnapshot(ProjectId projectId, IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
                         listener.onResponse(false);
                     }
                 };
-                incompleteStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
+                incompleteStep.performAction(indexMetadata, state, null, ActionListener.noop());
                 assertThat(incompleteStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }
 
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(
@@ -208,11 +201,11 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                     client
                 ) {
                     @Override
-                    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+                    void createSnapshot(ProjectId projectId, IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
                         listener.onFailure(new SnapshotNameAlreadyInUseException(repository, snapshotName, "simulated"));
                     }
                 };
-                doubleInvocationStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
+                doubleInvocationStep.performAction(indexMetadata, state, null, ActionListener.noop());
                 assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }
@@ -224,14 +217,14 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         String expectedSnapshotName,
         String indexName
     ) {
-        return new NoOpClient(threadPool) {
+        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(CreateSnapshotAction.NAME));
+                assertThat(action.name(), is(TransportCreateSnapshotAction.TYPE.name()));
                 assertTrue(request instanceof CreateSnapshotRequest);
                 CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
                 assertThat(createSnapshotRequest.indices().length, is(1));

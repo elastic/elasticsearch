@@ -9,37 +9,29 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportGetConnectorAction extends HandledTransportAction<GetConnectorAction.Request, GetConnectorAction.Response> {
+public class TransportGetConnectorAction extends TransportAction<GetConnectorAction.Request, GetConnectorAction.Response> {
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportGetConnectorAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ActionFilters actionFilters,
-        Client client
-    ) {
-        super(
-            GetConnectorAction.NAME,
-            transportService,
-            actionFilters,
-            GetConnectorAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+    public TransportGetConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(GetConnectorAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.connectorIndexService = new ConnectorIndexService(client);
     }
 
     @Override
     protected void doExecute(Task task, GetConnectorAction.Request request, ActionListener<GetConnectorAction.Response> listener) {
-        connectorIndexService.getConnector(request.getConnectorId(), listener.map(GetConnectorAction.Response::new));
+        connectorIndexService.getConnector(
+            request.getConnectorId(),
+            request.getIncludeDeleted(),
+            listener.map(GetConnectorAction.Response::new)
+        );
     }
 }

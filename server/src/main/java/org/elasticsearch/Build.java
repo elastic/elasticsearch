@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -204,11 +205,7 @@ public record Build(
 
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
-        if (in.getTransportVersion().before(TransportVersions.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            flavor = in.readString();
-        } else {
-            flavor = "default";
-        }
+        flavor = in.readString();
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
         final Type type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
@@ -250,10 +247,7 @@ public record Build(
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeString(build.flavor());
-        }
+        out.writeString(build.flavor());
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());

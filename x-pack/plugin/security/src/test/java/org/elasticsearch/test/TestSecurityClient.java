@@ -212,7 +212,7 @@ public class TestSecurityClient {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 final String roleName = parser.currentName();
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                final RoleDescriptor role = RoleDescriptor.parse(roleName, parser, false);
+                final RoleDescriptor role = RoleDescriptor.parserBuilder().allowDescription(true).build().parse(roleName, parser);
                 roles.put(roleName, role);
             }
         }

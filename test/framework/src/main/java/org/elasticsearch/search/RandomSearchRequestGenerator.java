@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -11,8 +12,8 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -21,13 +22,11 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -36,7 +35,9 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,7 +45,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -59,6 +62,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
+import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -118,7 +122,6 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
         Supplier<HighlightBuilder> randomHighlightBuilder,
         Supplier<SuggestBuilder> randomSuggestBuilder,
-        Supplier<RankBuilder> rankContextBuilderSupplier,
         Supplier<RescorerBuilder<?>> randomRescoreBuilder,
         Supplier<List<SearchExtBuilder>> randomExtBuilders,
         Supplier<CollapseBuilder> randomCollapseBuilder,
@@ -147,7 +150,7 @@ public class RandomSearchRequestGenerator {
             builder.minScore(randomFloat() * 1000);
         }
         if (randomBoolean()) {
-            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
+            builder.timeout(randomTimeValue());
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
@@ -246,17 +249,6 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
-        } else if (randomBoolean()) {
-            builder.subSearches(
-                List.of(
-                    new SubSearchSourceBuilder(
-                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
-                    ),
-                    new SubSearchSourceBuilder(
-                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
-                    )
-                )
-            );
         }
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
@@ -274,7 +266,21 @@ public class RandomSearchRequestGenerator {
                 }
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
-                knnSearchBuilders.add(new KnnSearchBuilder(field, vector, k, numCands, randomBoolean() ? null : randomFloat()));
+                Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
+                RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
+                    ? null
+                    : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
+                knnSearchBuilders.add(
+                    new KnnSearchBuilder(
+                        field,
+                        vector,
+                        k,
+                        numCands,
+                        visitPercentage,
+                        rescoreVectorBuilder,
+                        randomBoolean() ? null : randomFloat()
+                    )
+                );
             }
             builder.knnSearch(knnSearchBuilders);
         }
@@ -351,9 +357,6 @@ public class RandomSearchRequestGenerator {
             builder.suggest(randomSuggestBuilder.get());
         }
         if (randomBoolean()) {
-            builder.rankBuilder(rankContextBuilderSupplier.get());
-        }
-        if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
                 builder.addRescorer(randomRescoreBuilder.get());
@@ -379,7 +382,9 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            PointInTimeBuilder pit = new PointInTimeBuilder(
+                new BytesArray(Base64.getUrlEncoder().encode(randomAlphaOfLengthBetween(3, 10).getBytes(StandardCharsets.UTF_8)))
+            );
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
             }

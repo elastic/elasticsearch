@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.tracker;
@@ -116,25 +117,25 @@ public class DiskHealthTrackerTests extends ESTestCase {
                 eq(false)
             )
         ).thenReturn(nodeStats());
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.UNKNOWN, DiskHealthInfo.Cause.NODE_HAS_NO_DISK_STATS), diskHealth);
     }
 
     public void testGreenDiskStatus() {
         simulateHealthDiskSpace();
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(GREEN, diskHealth);
     }
 
     public void testYellowDiskStatus() {
         initializeIncreasedDiskSpaceUsage();
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD), diskHealth);
     }
 
     public void testRedDiskStatus() {
         simulateDiskOutOfSpace();
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD), diskHealth);
     }
 
@@ -144,7 +145,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(frozenNode).localNodeId(frozenNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateFrozenLocalNode);
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(GREEN, diskHealth);
     }
 
@@ -154,7 +155,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(frozenNode).localNodeId(frozenNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateFrozenLocalNode);
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD), diskHealth);
     }
 
@@ -165,7 +166,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateSearchLocalNode);
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(GREEN, diskHealth);
     }
 
@@ -176,7 +177,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateSearchLocalNode);
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD), diskHealth);
     }
 
@@ -187,7 +188,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchAndIndexNode).localNodeId(searchAndIndexNode.getId()).build())
         );
         when(clusterService.state()).thenReturn(clusterStateSearchLocalNode);
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD), diskHealth);
     }
 
@@ -204,7 +205,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
         ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         initializeIncreasedDiskSpaceUsage();
-        DiskHealthInfo diskHealth = diskHealthTracker.checkCurrentHealth();
+        DiskHealthInfo diskHealth = diskHealthTracker.determineCurrentHealth();
         assertEquals(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD), diskHealth);
     }
 
@@ -316,6 +317,7 @@ public class DiskHealthTrackerTests extends ESTestCase {
             null,
             null,
             fs,
+            null,
             null,
             null,
             null,

@@ -76,16 +76,6 @@ public final class CrossClusterAccessSubjectInfo {
         ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encode());
     }
 
-    public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
-        if (header == null) {
-            throw new IllegalArgumentException(
-                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"
-            );
-        }
-        return decode(header);
-    }
-
     public Authentication getAuthentication() {
         return authentication;
     }
@@ -223,6 +213,12 @@ public final class CrossClusterAccessSubjectInfo {
     public static final class RoleDescriptorsBytes implements Writeable {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
+
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+            .allowRestriction(true)
+            .allowDescription(true)
+            .build();
+
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {
@@ -263,7 +259,7 @@ public final class CrossClusterAccessSubjectInfo {
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     parser.nextToken();
                     final String roleName = parser.currentName();
-                    roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+                    roleDescriptors.add(ROLE_DESCRIPTOR_PARSER.parse(roleName, parser));
                 }
                 return Set.copyOf(roleDescriptors);
             } catch (IOException e) {

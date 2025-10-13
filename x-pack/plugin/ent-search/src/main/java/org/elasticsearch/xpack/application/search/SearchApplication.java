@@ -12,11 +12,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -282,15 +281,13 @@ public class SearchApplication implements Writeable, ToXContentObject {
      * Returns the merged {@link SearchApplication} from the current state and the provided {@param update}.
      * This function returns the current instance if the update is a noop.
      *
-     * @param update The source of the update represented in bytes.
+     * @param update       The source of the update represented in bytes.
      * @param xContentType The format of the bytes.
-     * @param bigArrays The {@link BigArrays} to use to recycle bytes array.
-     *
      * @return The merged {@link SearchApplication}.
      */
-    SearchApplication merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) throws IOException {
+    SearchApplication merge(BytesReference update, XContentType xContentType) throws IOException {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent;
-        try (ReleasableBytesStreamOutput sourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+        try (BytesStreamOutput sourceBuffer = new BytesStreamOutput()) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder(sourceBuffer)) {
                 toXContent(builder, EMPTY_PARAMS);
             }
@@ -305,7 +302,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
             return this;
         }
 
-        try (ReleasableBytesStreamOutput newSourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+        try (BytesStreamOutput newSourceBuffer = new BytesStreamOutput()) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder(newSourceBuffer)) {
                 builder.value(newSourceAsMap);
             }

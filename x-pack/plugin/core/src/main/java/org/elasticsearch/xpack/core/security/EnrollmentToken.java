@@ -24,6 +24,10 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class EnrollmentToken {
+    // This was previously a version string, e.g. 8.12.0, but treated exclusively as a string everywhere, never parsed into a version.
+    // Arbitrarily set to 9 when decoupling this from node version.
+    public static final String CURRENT_TOKEN_VERSION = "8.14.0";
+
     private final String apiKey;
     private final String fingerprint;
     private final String version;
@@ -64,19 +68,22 @@ public class EnrollmentToken {
         PARSER.declareStringArray(constructorArg(), ADDRESS);
     }
 
+    EnrollmentToken(String apiKey, String fingerprint, String version, List<String> boundAddress) {
+        this.apiKey = Objects.requireNonNull(apiKey);
+        this.fingerprint = Objects.requireNonNull(fingerprint);
+        this.version = Objects.requireNonNull(version);
+        this.boundAddress = Objects.requireNonNull(boundAddress);
+    }
+
     /**
      * Create an EnrollmentToken
      *
      * @param apiKey         API Key credential in the form apiKeyId:ApiKeySecret to be used for enroll calls
      * @param fingerprint    hex encoded SHA256 fingerprint of the HTTP CA cert
-     * @param version        node version number
      * @param boundAddress   IP Addresses and port numbers for the interfaces where the Elasticsearch node is listening on
      */
-    public EnrollmentToken(String apiKey, String fingerprint, String version, List<String> boundAddress) {
-        this.apiKey = Objects.requireNonNull(apiKey);
-        this.fingerprint = Objects.requireNonNull(fingerprint);
-        this.version = Objects.requireNonNull(version);
-        this.boundAddress = Objects.requireNonNull(boundAddress);
+    public EnrollmentToken(String apiKey, String fingerprint, List<String> boundAddress) {
+        this(apiKey, fingerprint, EnrollmentToken.CURRENT_TOKEN_VERSION, boundAddress);
     }
 
     public String getRaw() throws Exception {

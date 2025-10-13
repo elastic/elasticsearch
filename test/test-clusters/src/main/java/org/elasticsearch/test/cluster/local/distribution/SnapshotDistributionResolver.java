@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local.distribution;
@@ -37,7 +38,8 @@ public class SnapshotDistributionResolver implements DistributionResolver {
             }
 
             // Snapshot distributions are never release builds and always use the default distribution
-            return new DefaultDistributionDescriptor(version, true, distributionDir, DistributionType.DEFAULT);
+            boolean isSnapshot = System.getProperty("tests.bwc.snapshot", "true").equals("false") == false;
+            return new DefaultDistributionDescriptor(version, isSnapshot, distributionDir, DistributionType.DEFAULT);
         }
 
         return delegate.resolve(version, type);

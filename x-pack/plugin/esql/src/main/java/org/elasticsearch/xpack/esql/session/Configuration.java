@@ -1,0 +1,357 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.session;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
+
+public class Configuration implements Writeable {
+
+    public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
+    public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
+
+    private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
+
+    private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
+
+    private final String clusterName;
+    private final String username;
+    private final ZonedDateTime now;
+    private final ZoneId zoneId;
+
+    private final QueryPragmas pragmas;
+
+    private final int resultTruncationMaxSizeRegular;
+    private final int resultTruncationDefaultSizeRegular;
+    private final int resultTruncationMaxSizeTimeseries;
+    private final int resultTruncationDefaultSizeTimeseries;
+
+    private final Locale locale;
+
+    private final String query;
+
+    private final boolean profile;
+    private final boolean allowPartialResults;
+
+    private final Map<String, Map<String, Column>> tables;
+    private final long queryStartTimeNanos;
+
+    public Configuration(
+        ZoneId zi,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries
+    ) {
+        this.zoneId = zi.normalized();
+        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
+        this.username = username;
+        this.clusterName = clusterName;
+        this.locale = locale;
+        this.pragmas = pragmas;
+        this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
+        this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
+        this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
+        this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
+        this.query = query;
+        this.profile = profile;
+        this.tables = tables;
+        assert tables != null;
+        this.queryStartTimeNanos = queryStartTimeNanos;
+        this.allowPartialResults = allowPartialResults;
+    }
+
+    public Configuration(BlockStreamInput in) throws IOException {
+        this.zoneId = in.readZoneId();
+        this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt()).atZone(zoneId);
+        this.username = in.readOptionalString();
+        this.clusterName = in.readOptionalString();
+        locale = Locale.forLanguageTag(in.readString());
+        this.pragmas = new QueryPragmas(in);
+        this.resultTruncationMaxSizeRegular = in.readVInt();
+        this.resultTruncationDefaultSizeRegular = in.readVInt();
+        this.query = readQuery(in);
+        this.profile = in.readBoolean();
+        this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
+        this.queryStartTimeNanos = in.readLong();
+        if (in.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
+            this.allowPartialResults = in.readBoolean();
+        } else {
+            this.allowPartialResults = false;
+        }
+        if (in.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
+            this.resultTruncationMaxSizeTimeseries = in.readVInt();
+            this.resultTruncationDefaultSizeTimeseries = in.readVInt();
+        } else {
+            this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
+            this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeZoneId(zoneId);
+        var instant = now.toInstant();
+        out.writeVLong(instant.getEpochSecond());
+        out.writeVInt(instant.getNano());
+        out.writeOptionalString(username);    // TODO this one is always null
+        out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
+        out.writeString(locale.toLanguageTag());
+        pragmas.writeTo(out);
+        out.writeVInt(resultTruncationMaxSizeRegular);
+        out.writeVInt(resultTruncationDefaultSizeRegular);
+        writeQuery(out, query);
+        out.writeBoolean(profile);
+        out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
+        out.writeLong(queryStartTimeNanos);
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
+            out.writeBoolean(allowPartialResults);
+        }
+        if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
+            out.writeVInt(resultTruncationMaxSizeTimeseries);
+            out.writeVInt(resultTruncationDefaultSizeTimeseries);
+        }
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
+    public ZonedDateTime now() {
+        return now;
+    }
+
+    public String clusterName() {
+        return clusterName;
+    }
+
+    public String username() {
+        return username;
+    }
+
+    public QueryPragmas pragmas() {
+        return pragmas;
+    }
+
+    public int resultTruncationMaxSize(boolean isTimeseries) {
+        if (isTimeseries) {
+            return resultTruncationMaxSizeTimeseries;
+        }
+        return resultTruncationMaxSizeRegular;
+    }
+
+    public int resultTruncationDefaultSize(boolean isTimeseries) {
+        if (isTimeseries) {
+            return resultTruncationDefaultSizeTimeseries;
+        }
+        return resultTruncationDefaultSizeRegular;
+    }
+
+    public Locale locale() {
+        return locale;
+    }
+
+    public String query() {
+        return query;
+    }
+
+    /**
+     * Returns the current time in milliseconds from the time epoch for the execution of this request.
+     * It ensures consistency by using the same value on all nodes involved in the search request.
+     */
+    public long absoluteStartedTimeInMillis() {
+        return now.toInstant().toEpochMilli();
+    }
+
+    /**
+     * @return Start time of the ESQL query in nanos
+     */
+    public long getQueryStartTimeNanos() {
+        return queryStartTimeNanos;
+    }
+
+    /**
+     * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}.
+     */
+    public FoldContext newFoldContext() {
+        return new FoldContext(pragmas.foldLimit().getBytes());
+    }
+
+    /**
+     * Tables specified in the request.
+     */
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
+    }
+
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries
+        );
+    }
+
+    /**
+     * Enable profiling, sacrificing performance to return information about
+     * what operations are taking the most time.
+     */
+    public boolean profile() {
+        return profile;
+    }
+
+    /**
+     * Whether this request can return partial results instead of failing fast on failures
+     */
+    public boolean allowPartialResults() {
+        return allowPartialResults;
+    }
+
+    private static void writeQuery(StreamOutput out, String query) throws IOException {
+        if (query.length() > QUERY_COMPRESS_THRESHOLD_CHARS) { // compare on chars to avoid UTF-8 encoding unless actually required
+            out.writeBoolean(true);
+            var bytesArray = new BytesArray(query.getBytes(StandardCharsets.UTF_8));
+            var bytesRef = CompressorFactory.COMPRESSOR.compress(bytesArray);
+            out.writeByteArray(bytesRef.array());
+        } else {
+            out.writeBoolean(false);
+            out.writeString(query);
+        }
+    }
+
+    private static String readQuery(StreamInput in) throws IOException {
+        boolean compressed = in.readBoolean();
+        if (compressed) {
+            byte[] bytes = in.readByteArray();
+            var bytesRef = CompressorFactory.uncompress(new BytesArray(bytes));
+            return new String(bytesRef.array(), StandardCharsets.UTF_8);
+        } else {
+            return in.readString();
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Configuration that = (Configuration) o;
+        return Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(now, that.now)
+            && Objects.equals(username, that.username)
+            && Objects.equals(clusterName, that.clusterName)
+            && resultTruncationMaxSizeRegular == that.resultTruncationMaxSizeRegular
+            && resultTruncationDefaultSizeRegular == that.resultTruncationDefaultSizeRegular
+            && Objects.equals(pragmas, that.pragmas)
+            && Objects.equals(locale, that.locale)
+            && Objects.equals(that.query, query)
+            && profile == that.profile
+            && tables.equals(that.tables)
+            && allowPartialResults == that.allowPartialResults;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            zoneId,
+            now,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            locale,
+            query,
+            profile,
+            tables,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries
+        );
+    }
+
+    @Override
+    public String toString() {
+        return "EsqlConfiguration{"
+            + "pragmas="
+            + pragmas
+            + ", resultTruncationMaxSize="
+            + "[regular="
+            + resultTruncationMaxSize(false)
+            + ",timeseries="
+            + resultTruncationMaxSize(true)
+            + "]"
+            + ", resultTruncationDefaultSize="
+            + "[regular="
+            + resultTruncationDefaultSize(false)
+            + ",timeseries="
+            + resultTruncationDefaultSize(true)
+            + "]"
+            + ", locale="
+            + locale
+            + ", query='"
+            + query
+            + '\''
+            + ", profile="
+            + profile
+            + ", tables="
+            + tables
+            + "allow_partial_result="
+            + allowPartialResults
+            + '}';
+    }
+
+    /**
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
+     */
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
+        return new Configuration(blockStreamInput);
+    }
+}

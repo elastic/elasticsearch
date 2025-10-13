@@ -6,16 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,19 +53,17 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     public void testConditionMet() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
 
         WaitForIndexingCompleteStep step = createRandomInstance();
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testConditionMetNotAFollowerIndex() {
@@ -76,14 +73,12 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
             .numberOfReplicas(0)
             .build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
 
         WaitForIndexingCompleteStep step = createRandomInstance();
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testConditionNotMet() {
@@ -93,21 +88,19 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         }
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(indexSettings)
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
 
         WaitForIndexingCompleteStep step = createRandomInstance();
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), notNullValue());
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
+        assertThat(result.complete(), is(false));
+        assertThat(result.informationContext(), notNullValue());
         WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-            .getInfomationContext();
+            .informationContext();
         assertThat(
             info.getMessage(),
             equalTo(
@@ -118,11 +111,11 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testIndexDeleted() {
-        ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metadata(Metadata.builder().build()).build();
+        ProjectState state = projectStateWithEmptyProject();
 
         WaitForIndexingCompleteStep step = createRandomInstance();
-        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), clusterState);
-        assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), nullValue());
+        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("this-index-doesnt-exist", "uuid"), state);
+        assertThat(result.complete(), is(false));
+        assertThat(result.informationContext(), nullValue());
     }
 }

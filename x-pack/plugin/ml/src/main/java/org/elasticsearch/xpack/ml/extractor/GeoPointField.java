@@ -23,8 +23,8 @@ public class GeoPointField extends DocValueField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
-        Object[] value = super.value(hit);
+    public Object[] value(SearchHit hit, SourceSupplier source) {
+        Object[] value = super.value(hit, source);
         if (value.length == 0) {
             return value;
         }

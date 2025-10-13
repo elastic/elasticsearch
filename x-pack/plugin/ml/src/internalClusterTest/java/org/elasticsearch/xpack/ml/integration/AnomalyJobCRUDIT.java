@@ -68,7 +68,10 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -194,7 +197,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[open-job-with-old-model-snapshot] job model snapshot [snap_1] has min version before [7.0.0], "
+                "[open-job-with-old-model-snapshot] job model snapshot [snap_1] has min version before [8.3.0], "
                     + "please revert to a newer model snapshot or reset the job"
             )
         );

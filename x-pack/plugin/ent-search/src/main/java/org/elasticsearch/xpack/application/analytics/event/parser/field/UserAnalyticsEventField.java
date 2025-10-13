@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,10 +20,15 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class UserAnalyticsEventField {
-    public static ParseField USER_FIELD = new ParseField("user");
+    public static final ParseField USER_FIELD = new ParseField("user");
 
-    public static ParseField USER_ID_FIELD = new ParseField("id");
+    public static final ParseField USER_ID_FIELD = new ParseField("id");
 
     private static final ObjectParser<Map<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         USER_FIELD.getPreferredName(),

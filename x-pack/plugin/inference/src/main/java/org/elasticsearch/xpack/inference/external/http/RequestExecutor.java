@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 
 import java.util.concurrent.TimeUnit;
 
@@ -25,5 +27,10 @@ public interface RequestExecutor {
 
     boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
-    void execute(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener);
+    void execute(
+        RequestManager requestCreator,
+        InferenceInputs inferenceInputs,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -210,9 +211,9 @@ public class CoordinationState {
     }
 
     /**
-     * May be called on receipt of a Join.
+     * May be called on receipt of a {@link Join}, which is effectively a vote for the receiving node to be the elected master.
      *
-     * @param join The Join received.
+     * @param join The {@link Join} received.
      * @return true iff this instance does not already have a join vote from the given source node for this term
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
@@ -233,6 +234,9 @@ public class CoordinationState {
 
         final long lastAcceptedTerm = getLastAcceptedTerm();
         if (join.lastAcceptedTerm() > lastAcceptedTerm) {
+            // Note that this is running on the receiving node, so it must reject joins from nodes with fresher state. This is unlike a
+            // real-world election where candidates will accept every vote they receive and it's the voter's responsibility to be selective
+            // about the votes they cast.
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted term (expected: <=[{}], actual: [{}])",
                 lastAcceptedTerm,
@@ -247,6 +251,9 @@ public class CoordinationState {
         }
 
         if (join.lastAcceptedTerm() == lastAcceptedTerm && join.lastAcceptedVersion() > getLastAcceptedVersion()) {
+            // Note that this is running on the receiving node, so it must reject joins from nodes with fresher state. This is unlike a
+            // real-world election where candidates will accept every vote they receive and it's the voter's responsibility to be selective
+            // about the votes they cast.
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
                 getLastAcceptedVersion(),
@@ -466,7 +473,7 @@ public class CoordinationState {
             logger.debug(
                 "handleCommit: ignored commit request due to term mismatch "
                     + "(expected: [term {} version {}], actual: [term {} version {}])",
-                getLastAcceptedTerm(),
+                getCurrentTerm(),
                 getLastAcceptedVersion(),
                 applyCommit.getTerm(),
                 applyCommit.getVersion()

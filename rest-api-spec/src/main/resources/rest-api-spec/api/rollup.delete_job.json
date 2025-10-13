@@ -1,25 +1,27 @@
 {
-  "rollup.delete_job":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-delete-job.html",
-      "description":"Deletes an existing rollup job."
+  "rollup.delete_job": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rollup-delete-job",
+      "description": "Delete a rollup job"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_rollup/job/{id}",
-          "methods":[
+          "path": "/_rollup/job/{id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the job to delete"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the job to delete"
             }
           }
         }

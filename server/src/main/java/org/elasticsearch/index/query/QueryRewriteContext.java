@@ -1,28 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -37,6 +50,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -46,6 +60,8 @@ public class QueryRewriteContext {
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
     protected final IndexSettings indexSettings;
+    private final TransportVersion minTransportVersion;
+    private final String localClusterAlias;
     protected final Index fullyQualifiedIndex;
     protected final Predicate<String> indexNameMatcher;
     protected final NamedWriteableRegistry writeableRegistry;
@@ -59,6 +75,13 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    private final ResolvedIndices resolvedIndices;
+    private final PointInTimeBuilder pit;
+    private QueryRewriteInterceptor queryRewriteInterceptor;
+    private final Boolean ccsMinimizeRoundTrips;
+    private final boolean isExplain;
+    private Long timeRangeFilterFromMillis;
+    private boolean trackTimeRangeFilterFrom = true;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -67,14 +90,20 @@ public class QueryRewriteContext {
         final MapperService mapperService,
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
-        final Predicate<String> allowedFields,
         final IndexSettings indexSettings,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptCompiler scriptService
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -84,14 +113,20 @@ public class QueryRewriteContext {
         this.mappingLookup = Objects.requireNonNull(mappingLookup);
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
-        this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
+        this.minTransportVersion = minTransportVersion;
+        this.localClusterAlias = localClusterAlias;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
         this.writeableRegistry = namedWriteableRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.resolvedIndices = resolvedIndices;
+        this.pit = pit;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+        this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
+        this.isExplain = isExplain;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -109,7 +144,74 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            minTransportVersion,
+            localClusterAlias,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            false
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            minTransportVersion,
+            localClusterAlias,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            isExplain
         );
     }
 
@@ -211,6 +313,17 @@ public class QueryRewriteContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
+    /**
+     * Returns the CCS minimize round-trips setting. Returns null if the value of the setting is unknown.
+     */
+    public Boolean isCcsMinimizeRoundTrips() {
+        return ccsMinimizeRoundTrips;
+    }
+
+    public boolean isExplain() {
+        return this.isExplain;
+    }
+
     public NamedWriteableRegistry getWriteableRegistry() {
         return writeableRegistry;
     }
@@ -244,13 +357,12 @@ public class QueryRewriteContext {
      * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
             CountDown countDown = new CountDown(asyncActions.size());
-            ActionListener<?> internalListener = new ActionListener() {
+            ActionListener<?> internalListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Object o) {
                     if (countDown.countDown()) {
@@ -272,6 +384,20 @@ public class QueryRewriteContext {
                 action.accept(client, internalListener);
             }
         }
+    }
+
+    /**
+     * Returns the local cluster alias.
+     */
+    public String getLocalClusterAlias() {
+        return localClusterAlias != null ? localClusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+    }
+
+    /**
+     * Returns the minimum {@link TransportVersion} for intra-cluster node-to-node communications. Returns null if it is unknown.
+     */
+    public TransportVersion getMinTransportVersion() {
+        return minTransportVersion;
     }
 
     /**
@@ -314,35 +440,128 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        Set<String> matches;
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.getMatchingFieldNames(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if ("*".equals(pattern)) {
-            matches.addAll(runtimeMappings.keySet());
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern)) {
-                matches.add(pattern);
-            }
+            matches = mappingLookup.getMatchingFieldNames(pattern);
         } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    matches.add(name);
+            matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+            if ("*".equals(pattern)) {
+                matches.addAll(runtimeMappings.keySet());
+            } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // no wildcard
+                if (runtimeMappings.containsKey(pattern)) {
+                    matches.add(pattern);
+                }
+            } else {
+                for (String name : runtimeMappings.keySet()) {
+                    if (Regex.simpleMatch(pattern, name)) {
+                        matches.add(name);
+                    }
                 }
             }
         }
-        return matches;
+        // If the field is not allowed, behave as if it is not mapped
+        return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
 
     /**
-     * Same as {@link #getMatchingFieldNames(String)} with pattern {@code *} but returns an {@link Iterable} instead of a set.
+     * @return An {@link Iterable} with key the field name and value the MappedFieldType
      */
-    public Iterable<String> getAllFieldNames() {
-        var allFromMapping = mappingLookup.getMatchingFieldNames("*");
+    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
+        Map<String, MappedFieldType> allFromMapping = mappingLookup.getFullNameToFieldType();
+        Set<Map.Entry<String, MappedFieldType>> allEntrySet = allowedFields == null
+            ? allFromMapping.entrySet()
+            : allFromMapping.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
+        if (runtimeMappings.isEmpty()) {
+            return allEntrySet;
+        }
+        Set<Map.Entry<String, MappedFieldType>> runtimeEntrySet = allowedFields == null
+            ? runtimeMappings.entrySet()
+            : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
-        return runtimeMappings.isEmpty()
-            ? allFromMapping
-            : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+        return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
+    }
+
+    public ResolvedIndices getResolvedIndices() {
+        return resolvedIndices;
+    }
+
+    /**
+     * Returns the {@link PointInTimeBuilder} used by the search request, or null if not specified.
+     */
+    @Nullable
+    public PointInTimeBuilder getPointInTimeBuilder() {
+        return pit;
+    }
+
+    /**
+     * Retrieve the first tier preference from the index setting. If the setting is not
+     * present, then return null.
+     */
+    @Nullable
+    public String getTierPreference() {
+        Settings settings = getIndexSettings().getSettings();
+        String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
+
+        if (Strings.hasText(value) == false) {
+            return null;
+        }
+
+        // Tier preference can be a comma-delimited list of tiers, ordered by preference
+        // It was decided we should only test the first of these potentially multiple preferences.
+        return value.split(",")[0].trim();
+    }
+
+    public QueryRewriteInterceptor getQueryRewriteInterceptor() {
+        return queryRewriteInterceptor;
+    }
+
+    public void setQueryRewriteInterceptor(QueryRewriteInterceptor queryRewriteInterceptor) {
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+    }
+
+    /**
+     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
+     */
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
+    /**
+     * Optionally records the lower bound of a time range filter included in the query. For telemetry purposes.
+     */
+    public void setTimeRangeFilterFromMillis(String fieldName, long timeRangeFilterFromMillis, DateFieldMapper.Resolution resolution) {
+        if (trackTimeRangeFilterFrom) {
+            if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName) || IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+                // if we got a timestamp with nanoseconds precision, round it down to millis
+                if (resolution == DateFieldMapper.Resolution.NANOSECONDS) {
+                    timeRangeFilterFromMillis = timeRangeFilterFromMillis / 1_000_000;
+                }
+                if (this.timeRangeFilterFromMillis == null) {
+                    this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+                } else {
+                    // if there's more range filters on timestamp, we'll take the lowest of the lower bounds
+                    this.timeRangeFilterFromMillis = Math.min(timeRangeFilterFromMillis, this.timeRangeFilterFromMillis);
+                }
+            }
+        }
+    }
+
+    /**
+     * Records the lower bound of a time range filter included in the query. For telemetry purposes.
+     * Similar to {@link #setTimeRangeFilterFromMillis(String, long, DateFieldMapper.Resolution)} but used to copy the value from
+     * another instance of the context, that had its value previously set.
+     */
+    public void setTimeRangeFilterFromMillis(long timeRangeFilterFromMillis) {
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+    }
+
+    /**
+     * Enables or disables the tracking of the lower bound for time range filters against the @timestamp field,
+     * done via {@link #setTimeRangeFilterFromMillis(String, long, DateFieldMapper.Resolution)}. Tracking is enabled by default,
+     * and explicitly disabled to ensure we don't record the bound for range queries within should and must_not clauses.
+     */
+    public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
+        this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
     }
 }

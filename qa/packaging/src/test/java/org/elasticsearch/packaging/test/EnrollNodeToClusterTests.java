@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -93,7 +93,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         EnrollmentToken enrollmentToken = new EnrollmentToken(
             "some-api-key",
             "e8864fa9cb5a8053ea84a48581a6c9bef619f8f6aaa58a632aac3e0a25d43ea9",
-            Version.CURRENT.toString(),
             List.of("localhost:9200")
         );
         return enrollmentToken.getEncoded();

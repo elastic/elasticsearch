@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -11,13 +12,11 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.ShardCoreKeyMap;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -78,7 +78,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
             // Use the default skip_caching_factor (i.e., 10f) in Lucene
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 10f);
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), Predicates.always(), 10f);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
@@ -89,16 +89,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
-    private long getShareOfAdditionalRamBytesUsed(long cacheSize) {
+    private long getShareOfAdditionalRamBytesUsed(long itemsInCacheForShard) {
         if (sharedRamBytesUsed == 0L) {
             return 0L;
         }
 
-        // We also have some shared ram usage that we try to distribute proportionally to the cache footprint of each shard.
+        /*
+         * We have some shared ram usage that we try to distribute proportionally to the number of segment-requests in the cache for each
+         * shard.
+         */
         // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
-        long totalSize = 0L;
+        long totalItemsInCache = 0L;
         int shardCount = 0;
-        if (cacheSize == 0L) {
+        if (itemsInCacheForShard == 0L) {
             for (final var stats : shardStats.values()) {
                 shardCount += 1;
                 if (stats.cacheSize > 0L) {
@@ -110,7 +113,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             // branchless loop for the common case
             for (final var stats : shardStats.values()) {
                 shardCount += 1;
-                totalSize += stats.cacheSize;
+                totalItemsInCache += stats.cacheSize;
             }
         }
 
@@ -121,12 +124,20 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         final long additionalRamBytesUsed;
-        if (totalSize == 0) {
+        if (totalItemsInCache == 0) {
             // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
         } else {
-            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
-            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+            /*
+             * Some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to the number of
+             * segment-requests in the cache for this shard (the number and size of documents associated with those requests is irrelevant
+             * for this calculation).
+             * Note that this was a somewhat arbitrary decision. Calculating it by number of documents might have been better. Calculating
+             * it by number of documents weighted by size would also be good, but possibly more expensive. But the decision to attribute
+             * memory proportionally to the number of segment-requests was made a long time ago, and we're sticking with that here for the
+             * sake of consistency and backwards compatibility.
+             */
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * itemsInCacheForShard / totalItemsInCache);
         }
         assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
         return additionalRamBytesUsed;
@@ -172,21 +183,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.scorer(context);
-        }
-
-        @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             shardKeyMap.add(context.reader());
             return in.scorerSupplier(context);
-        }
-
-        @Override
-        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            shardKeyMap.add(context.reader());
-            return in.bulkScorer(context);
         }
 
         @Override

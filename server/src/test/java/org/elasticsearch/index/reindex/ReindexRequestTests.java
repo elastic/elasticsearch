@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -30,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
@@ -115,7 +116,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
-        return ReindexRequest.fromXContent(parser, nf -> false);
+        return ReindexRequest.fromXContent(parser, Predicates.never());
     }
 
     @Override
@@ -209,8 +210,8 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                     null,
                     null,
                     emptyMap(),
-                    parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
-                    parseTimeValue(randomPositiveTimeValue(), "connect_timeout")
+                    randomPositiveTimeValue(),
+                    randomPositiveTimeValue()
                 )
             );
         }
@@ -324,6 +325,45 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]", exception.getMessage());
     }
 
+    public void testBuildRemoteInfoWithApiKey() throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(remoteInfo.getHeaders(), Map.of("Authorization", "ApiKey l3t-m3-1n"));
+    }
+
+    public void testBuildRemoteInfoWithApiKeyAndOtherHeaders() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("X-Routing-Magic", "Abracadabra");
+        originalHeaders.put("X-Tracing-Magic", "12345");
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(
+            remoteInfo.getHeaders(),
+            Map.of("X-Routing-Magic", "Abracadabra", "X-Tracing-Magic", "12345", "Authorization", "ApiKey l3t-m3-1n")
+        );
+    }
+
+    public void testBuildRemoteInfoWithConflictingApiKeyAndAuthorizationHeader() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("aUtHoRiZaTiOn", "op3n-s3s4m3"); // non-standard capitalization, but HTTP headers are not case-sensitive
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        assertThrows(IllegalArgumentException.class, () -> ReindexRequest.buildRemoteInfo(source));
+    }
+
     public void testReindexFromRemoteRequestParsing() throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {
@@ -403,7 +443,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            return ReindexRequest.fromXContent(p, nf -> false);
+            return ReindexRequest.fromXContent(p, Predicates.never());
         }
     }
 }

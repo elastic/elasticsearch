@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -34,19 +34,20 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
-import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.VERSION_FIELD_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.proto.SqlVersions.SERVER_COMPAT_VERSION;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
-    private Tuple<Command, SqlSession> sql(String sql, Mode mode, SqlVersion version) {
+    private Tuple<Command, SqlSession> sql(String sql, Mode mode, @Nullable SqlVersion version) {
         SqlConfiguration configuration = new SqlConfiguration(
             DateUtils.UTC,
             null,
@@ -76,7 +77,7 @@ public class SysTypesTests extends ESTestCase {
     }
 
     private Tuple<Command, SqlSession> sql(String sql) {
-        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
+        return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SERVER_COMPAT_VERSION);
     }
 
     public void testSysTypes() {
@@ -154,7 +155,7 @@ public class SysTypesTests extends ESTestCase {
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
                     assertEquals(
-                        isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(cmd.v2().configuration().version().id)),
+                        isTypeSupportedInVersion(UNSIGNED_LONG, cmd.v2().configuration().version()),
                         types.contains(UNSIGNED_LONG.toString())
                     );
                 }));
@@ -173,10 +174,7 @@ public class SysTypesTests extends ESTestCase {
                     SchemaRowSet r = (SchemaRowSet) p.rowSet();
                     List<String> types = new ArrayList<>();
                     r.forEachRow(rv -> types.add((String) rv.column(0)));
-                    assertEquals(
-                        isTypeSupportedInVersion(VERSION, Version.fromId(cmd.v2().configuration().version().id)),
-                        types.contains(VERSION.toString())
-                    );
+                    assertEquals(isTypeSupportedInVersion(VERSION, cmd.v2().configuration().version()), types.contains(VERSION.toString()));
                 }));
             }
         }

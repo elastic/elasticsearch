@@ -35,7 +35,6 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
     }
 
     public GetServiceAccountCredentialsResponse(StreamInput in) throws IOException {
-        super(in);
         this.principal = in.readString();
         this.indexTokenInfos = in.readCollectionAsList(TokenInfo::new);
         this.nodesResponse = new GetServiceAccountCredentialsNodesResponse(in);

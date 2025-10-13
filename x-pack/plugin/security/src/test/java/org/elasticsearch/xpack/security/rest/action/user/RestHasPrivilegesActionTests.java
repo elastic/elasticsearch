@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilderFactory;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +42,12 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
      */
     public void testBodyConsumed() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final RestHasPrivilegesAction action = new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
+        final RestHasPrivilegesAction action = new RestHasPrivilegesAction(
+            Settings.EMPTY,
+            mock(SecurityContext.class),
+            licenseState,
+            new HasPrivilegesRequestBuilderFactory.Default()
+        );
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject(); var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_security/user/_has_privileges/")
@@ -63,7 +69,8 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
         final RestHasPrivilegesAction action = new RestHasPrivilegesAction(
             securityDisabledSettings,
             mock(SecurityContext.class),
-            licenseState
+            licenseState,
+            new HasPrivilegesRequestBuilderFactory.Default()
         );
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject(); var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);

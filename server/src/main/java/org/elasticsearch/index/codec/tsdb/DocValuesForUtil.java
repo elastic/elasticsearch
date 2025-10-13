@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -11,25 +12,20 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 
-public class DocValuesForUtil {
+public final class DocValuesForUtil {
     private static final int BITS_IN_FOUR_BYTES = 4 * Byte.SIZE;
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
-    private final ForUtil forUtil = new ForUtil();
     private final int blockSize;
-    private final byte[] encoded;
+    private final byte[] encoded = new byte[1024];
 
-    public DocValuesForUtil() {
-        this(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-    }
-
-    private DocValuesForUtil(int blockSize) {
-        this.blockSize = blockSize;
-        this.encoded = new byte[1024];
+    public DocValuesForUtil(int numericBlockSize) {
+        this.blockSize = numericBlockSize;
     }
 
     public static int roundBits(int bitsPerValue) {
@@ -49,7 +45,7 @@ public class DocValuesForUtil {
 
     public void encode(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
-            forUtil.encode(in, bitsPerValue, out);
+            ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
             collapse32(in);
             for (int i = 0; i < blockSize / 2; ++i) {
@@ -75,7 +71,7 @@ public class DocValuesForUtil {
 
     public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
-            forUtil.decode(bitsPerValue, in, out);
+            ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
             in.readLongs(out, 0, blockSize / 2);
             expand32(out);

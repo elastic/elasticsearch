@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin;
@@ -26,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.InputStream;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private static final String VALID_SECURE_SETTING_NAME = "some.setting.that.exists";
@@ -65,9 +68,8 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         SecureString password,
         ActionListener<NodesReloadSecureSettingsResponse> listener
     ) {
-        final var request = new NodesReloadSecureSettingsRequest();
+        final var request = new NodesReloadSecureSettingsRequest(nodeIds);
         try {
-            request.nodesIds(nodeIds);
             request.setSecureStorePassword(password);
             client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, listener);
         } finally {
@@ -85,7 +87,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         // keystore file should be missing for this test case
-        Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configFile()));
+        Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configDir()));
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
         executeReloadSecureSettings(Strings.EMPTY_ARRAY, emptyPassword(), new ActionListener<>() {
@@ -129,10 +131,10 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // invalid "keystore" file should be present in the config dir
         try (InputStream keystore = ReloadSecureSettingsIT.class.getResourceAsStream("invalid.txt.keystore")) {
-            if (Files.exists(environment.configFile()) == false) {
-                Files.createDirectory(environment.configFile());
+            if (Files.exists(environment.configDir()) == false) {
+                Files.createDirectory(environment.configDir());
             }
-            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configDir()), StandardCopyOption.REPLACE_EXISTING);
         }
         final CountDownLatch latch = new CountDownLatch(1);
         executeReloadSecureSettings(Strings.EMPTY_ARRAY, emptyPassword(), new ActionListener<>() {
@@ -363,7 +365,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             keyStoreWrapper.setString(VALID_SECURE_SETTING_NAME, new char[0]);
-            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+            keyStoreWrapper.save(environment.configDir(), new char[0], false);
         }
 
         PlainActionFuture<NodesReloadSecureSettingsResponse> actionFuture = new PlainActionFuture<>();
@@ -374,7 +376,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             assertThat(keyStoreWrapper, notNullValue());
             keyStoreWrapper.setString("some.setting.that.does.not.exist", new char[0]);
-            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+            keyStoreWrapper.save(environment.configDir(), new char[0], false);
         }
 
         actionFuture = new PlainActionFuture<>();
@@ -432,7 +434,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-        keyStoreWrapper.save(environment.configFile(), password, false);
+        keyStoreWrapper.save(environment.configDir(), password, false);
         return keyStoreWrapper;
     }
 

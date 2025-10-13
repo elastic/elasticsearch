@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Assert;
@@ -81,7 +83,7 @@ public class ListenableFutureTests extends ESTestCase {
             "testConcurrentListenerRegistrationAndCompletion",
             numberOfThreads,
             1000,
-            EsExecutors.daemonThreadFactory("listener"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("listener"),
             threadContext,
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
@@ -156,7 +158,7 @@ public class ListenableFutureTests extends ESTestCase {
             "testRejection",
             1,
             1,
-            EsExecutors.daemonThreadFactory("testRejection"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("testRejection"),
             threadContext,
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
@@ -189,10 +191,10 @@ public class ListenableFutureTests extends ESTestCase {
             safeAwait(barrier); // release blocked executor
 
             if (success) {
-                expectThrows(EsRejectedExecutionException.class, future2::result);
+                expectThrows(ExecutionException.class, EsRejectedExecutionException.class, future2::result);
                 assertNull(future1.actionGet(10, TimeUnit.SECONDS));
             } else {
-                var exception = expectThrows(EsRejectedExecutionException.class, future2::result);
+                var exception = expectThrows(ExecutionException.class, EsRejectedExecutionException.class, future2::result);
                 assertEquals(1, exception.getSuppressed().length);
                 assertThat(exception.getSuppressed()[0], instanceOf(ElasticsearchException.class));
                 assertEquals(

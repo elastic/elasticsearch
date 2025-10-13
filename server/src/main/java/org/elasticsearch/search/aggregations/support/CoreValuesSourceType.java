@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -299,7 +300,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     long[] range = new long[] { Long.MIN_VALUE, Long.MAX_VALUE };
 
                     // Check the search index for bounds
-                    if (fieldContext.fieldType().isIndexed()) {
+                    if (fieldContext.fieldType().indexType().hasPoints()) {
                         log.trace("Attempting to apply index bound date rounding");
                         /*
                          * We can't look up the min and max date without both the
@@ -318,7 +319,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().isIndexed()) {
+                        if (fieldContext.fieldType().indexType().hasPoints()) {
                             PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
                             if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
                                 isMultiValue = true;

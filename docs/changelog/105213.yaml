@@ -1,5 +1,0 @@
-pr: 105213
-summary: Inference service should reject tasks during shutdown
-area: Machine Learning
-type: bug
-issues: []

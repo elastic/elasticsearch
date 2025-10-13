@@ -48,6 +48,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
         private final boolean reassign;
 
         public Request(String modelAlias, String modelId, boolean reassign) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelAlias = ExceptionsHelper.requireNonNull(modelAlias, MODEL_ALIAS);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.reassign = reassign;

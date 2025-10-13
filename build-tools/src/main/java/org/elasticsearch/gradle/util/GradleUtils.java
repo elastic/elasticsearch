@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.util;
 
@@ -13,8 +14,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ModuleDependency;
-import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -192,16 +191,6 @@ public abstract class GradleUtils {
 
     public static boolean isModuleProject(String projectPath) {
         return projectPath.contains("modules:") || projectPath.startsWith(":x-pack:plugin");
-    }
-
-    public static void disableTransitiveDependencies(Configuration config) {
-        config.getDependencies().all(dep -> {
-            if (dep instanceof ModuleDependency
-                && dep instanceof ProjectDependency == false
-                && dep.getGroup().startsWith("org.elasticsearch") == false) {
-                ((ModuleDependency) dep).setTransitive(false);
-            }
-        });
     }
 
     public static String projectPath(String taskPath) {

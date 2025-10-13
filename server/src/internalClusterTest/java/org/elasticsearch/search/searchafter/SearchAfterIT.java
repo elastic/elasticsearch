@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.searchafter;
@@ -26,6 +27,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -45,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -73,7 +76,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 prepareSearch("test").addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 0 })
-                    .setScroll("1m")
+                    .setScroll(TimeValue.timeValueMinutes(1))
             );
             assertThat(e.getMessage(), containsString("[search_after] cannot be used in a scroll context"));
         }
@@ -148,10 +151,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .searchAfter(new Object[] { 0, null }),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(2L));
                 assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
-                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
-                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
+                Map<String, Object> source = searchResponse.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), Matchers.equalTo(100));
+                assertThat(source.get("field2"), Matchers.equalTo("toto"));
             }
         );
     }
@@ -382,11 +386,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
             if (from instanceof Integer integer) {
-                converted.add(integer.longValue());
+                converted.add(integer.intValue());
             } else if (from instanceof Short s) {
-                converted.add(s.longValue());
+                converted.add(s.intValue());
             } else if (from instanceof Byte b) {
-                converted.add(b.longValue());
+                converted.add(b.intValue());
             } else if (from instanceof Boolean b) {
                 if (b) {
                     converted.add(1L);
@@ -436,8 +440,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 int foundHits = 0;
                 do {
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         foundHits++;
@@ -452,7 +457,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             }
         }
         // search_after with sort with point in time
-        String pitID;
+        BytesReference pitID;
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
             pitID = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
@@ -467,8 +472,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 do {
                     Object[] after = null;
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         after = hit.getSortValues();
@@ -503,8 +509,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 do {
                     Object[] after = null;
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         foundSeqNos.add(((Number) timestamp).longValue());
                         after = hit.getSortValues();

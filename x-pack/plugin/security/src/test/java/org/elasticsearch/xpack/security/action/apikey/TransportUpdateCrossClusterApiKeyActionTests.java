@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
+import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -78,7 +78,8 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             id,
             roleDescriptorBuilder,
             metadata,
-            ApiKeyTests.randomFutureExpirationTime()
+            ApiKeyTests.randomFutureExpirationTime(),
+            null
         );
         final int updateStatus = randomIntBetween(0, 2); // 0 - success, 1 - noop, 2 - error
 
@@ -138,7 +139,8 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             randomAlphaOfLength(10),
             null,
             Map.of(),
-            ApiKeyTests.randomFutureExpirationTime()
+            ApiKeyTests.randomFutureExpirationTime(),
+            null
         );
 
         // null authentication error

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -87,21 +87,16 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     public void testExtractFieldMappings() {
-        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(new String[] { "some-index" }, new HashMap<>() {
-            {
-                put("field-1", new HashMap<>() {
-                    {
-                        put("keyword", createFieldCapabilities("field-1", "keyword"));
-                    }
-                });
-                put("field-2", new HashMap<>() {
-                    {
-                        put("long", createFieldCapabilities("field-2", "long"));
-                        put("keyword", createFieldCapabilities("field-2", "keyword"));
-                    }
-                });
-            }
-        });
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "some-index" },
+            Map.ofEntries(
+                entry("field-1", Map.of("keyword", createFieldCapabilities("field-1", "keyword"))),
+                entry(
+                    "field-2",
+                    Map.of("long", createFieldCapabilities("field-2", "long"), "keyword", createFieldCapabilities("field-2", "keyword"))
+                )
+            )
+        );
 
         assertThat(
             DocumentConversionUtils.extractFieldMappings(response),
@@ -110,16 +105,9 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     private static FieldCapabilities createFieldCapabilities(String name, String type) {
-        return new FieldCapabilities(
-            name,
-            type,
-            false,
-            true,
-            true,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Collections.emptyMap()
-        );
+        return new FieldCapabilitiesBuilder(name, type).indices(Strings.EMPTY_ARRAY)
+            .nonSearchableIndices(Strings.EMPTY_ARRAY)
+            .nonAggregatableIndices(Strings.EMPTY_ARRAY)
+            .build();
     }
 }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -18,6 +19,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -405,14 +407,13 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 }
 
                 @Override
-                public void authorizeIndexAction(
+                public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                    Map<String, IndexAbstraction> aliasOrIndexLookup,
-                    ActionListener<IndexAuthorizationResult> listener
+                    ProjectMetadata metadata
                 ) {
-                    listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
+                    return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
 
                 @Override

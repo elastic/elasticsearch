@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -112,11 +113,6 @@ public class ExtractedFieldsDetectorFactory {
             return;
         }
 
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-            searchResponse -> buildFieldCardinalitiesMap(config, searchResponse, listener),
-            listener::onFailure
-        );
-
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(config.getSource().getParsedQuery())
             .runtimeMappings(config.getSource().getRuntimeMappings());
@@ -147,7 +143,7 @@ public class ExtractedFieldsDetectorFactory {
             client,
             TransportSearchAction.TYPE,
             searchRequest,
-            searchListener
+            listener.delegateFailureAndWrap((l, searchResponse) -> buildFieldCardinalitiesMap(config, searchResponse, l))
         );
     }
 
@@ -213,7 +209,7 @@ public class ExtractedFieldsDetectorFactory {
             }
         });
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT);
         getSettingsRequest.indices(index);
         getSettingsRequest.includeDefaults(true);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());

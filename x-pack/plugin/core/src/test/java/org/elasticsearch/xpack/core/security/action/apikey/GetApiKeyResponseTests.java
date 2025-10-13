@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetApiKeyResponseTests extends ESTestCase {
@@ -61,7 +63,9 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-x",
             null,
             null,
-            List.of() // empty limited-by role descriptor to simulate derived keys
+            null,
+            List.of(), // empty limited-by role descriptor to simulate derived keys
+            null
         );
         ApiKey apiKeyInfo2 = createApiKeyInfo(
             "name2",
@@ -73,9 +77,11 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000000L),
             "user-b",
             "realm-y",
+            "realm-type-y",
             Map.of(),
             List.of(),
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
         ApiKey apiKeyInfo3 = createApiKeyInfo(
             null,
@@ -87,9 +93,11 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000000L),
             "user-c",
             "realm-z",
+            "realm-type-z",
             Map.of("foo", "bar"),
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
         final List<RoleDescriptor> crossClusterAccessRoleDescriptors = List.of(
             new RoleDescriptor(
@@ -111,11 +119,20 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000000L),
             "user-c",
             "realm-z",
+            "realm-type-z",
             Map.of("foo", "bar"),
             crossClusterAccessRoleDescriptors,
-            null
+            null,
+            "CN=test,O=TestOrg"
         );
-        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4));
+        String profileUid2 = "profileUid2";
+        String profileUid4 = "profileUid4";
+        List<String> profileUids = new ArrayList<>(4);
+        profileUids.add(null);
+        profileUids.add(profileUid2);
+        profileUids.add(null);
+        profileUids.add(profileUid4);
+        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4), profileUids);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(Strings.format("""
@@ -145,6 +162,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "invalidation": 100000000,
                   "username": "user-b",
                   "realm": "realm-y",
+                  "realm_type": "realm-type-y",
                   "metadata": {},
                   "role_descriptors": {},
                   "limited_by": [
@@ -174,7 +192,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
                         }
                       }
                     }
-                  ]
+                  ],
+                  "profile_uid": "profileUid2"
                 },
                 {
                   "id": "id-3",
@@ -185,6 +204,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
+                  "realm_type": "realm-type-z",
                   "metadata": {
                     "foo": "bar"
                   },
@@ -252,13 +272,14 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
+                  "realm_type": "realm-type-z",
                   "metadata": {
                     "foo": "bar"
                   },
                   "role_descriptors": {
                     "cross_cluster": {
                       "cluster": [
-                        "cross_cluster_search", "cross_cluster_replication"
+                        "cross_cluster_search", "monitor_enrich", "cross_cluster_replication"
                       ],
                       "indices": [
                         {
@@ -305,10 +326,40 @@ public class GetApiKeyResponseTests extends ESTestCase {
                         "allow_restricted_indices": false
                       }
                     ]
-                  }
+                  },
+                  "certificate_identity": "CN=test,O=TestOrg",
+                  "profile_uid": "profileUid4"
                 }
               ]
             }""", getType("rest"), getType("rest"), getType("rest"), getType("cross_cluster")))));
+    }
+
+    public void testMismatchApiKeyInfoAndProfileData() {
+        List<ApiKey> apiKeys = randomList(
+            0,
+            3,
+            () -> new ApiKey(
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomFrom(ApiKey.Type.values()),
+                Instant.now(),
+                Instant.now(),
+                randomBoolean(),
+                null,
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        List<String> profileUids = randomList(0, 5, () -> randomFrom(randomAlphaOfLength(4), null));
+        if (apiKeys.size() != profileUids.size()) {
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> new GetApiKeyResponse(apiKeys, profileUids));
+            assertThat(ise.getMessage(), containsString("Each api key info must be associated to a (nullable) owner profile uid"));
+        }
     }
 
     private ApiKey createApiKeyInfo(
@@ -321,9 +372,11 @@ public class GetApiKeyResponseTests extends ESTestCase {
         Instant invalidation,
         String username,
         String realm,
+        String realmType,
         Map<String, Object> metadata,
         List<RoleDescriptor> roleDescriptors,
-        List<RoleDescriptor> limitedByRoleDescriptors
+        List<RoleDescriptor> limitedByRoleDescriptors,
+        String certificate_identity
     ) {
         return new ApiKey(
             name,
@@ -335,9 +388,11 @@ public class GetApiKeyResponseTests extends ESTestCase {
             invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            certificate_identity
         );
     }
 

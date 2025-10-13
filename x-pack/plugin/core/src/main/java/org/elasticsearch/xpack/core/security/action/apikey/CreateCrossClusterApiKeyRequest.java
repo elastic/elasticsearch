@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -24,31 +21,21 @@ import java.util.Objects;
 
 public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyRequest {
 
+    private final CertificateIdentity certificateIdentity;
+
     public CreateCrossClusterApiKeyRequest(
         String name,
         CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable TimeValue expiration,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        @Nullable CertificateIdentity certificateIdentity
     ) {
         super();
         this.name = Objects.requireNonNull(name);
         this.roleDescriptors = List.of(roleDescriptorBuilder.build());
         this.expiration = expiration;
         this.metadata = metadata;
-    }
-
-    public CreateCrossClusterApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.name = in.readString();
-        this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readCollectionAsImmutableList(RoleDescriptor::new);
-        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
-        this.metadata = in.readGenericMap();
-    }
-
-    @Override
-    protected String doReadId(StreamInput in) throws IOException {
-        return in.readString();
+        this.certificateIdentity = certificateIdentity;
     }
 
     @Override
@@ -68,17 +55,6 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
-        out.writeString(name);
-        out.writeOptionalTimeValue(expiration);
-        out.writeCollection(roleDescriptors);
-        refreshPolicy.writeTo(out);
-        out.writeGenericMap(metadata);
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -88,15 +64,21 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
             && Objects.equals(expiration, that.expiration)
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(roleDescriptors, that.roleDescriptors)
-            && refreshPolicy == that.refreshPolicy;
+            && refreshPolicy == that.refreshPolicy
+            && Objects.equals(certificateIdentity, that.certificateIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, expiration, metadata, roleDescriptors, refreshPolicy);
+        return Objects.hash(id, name, expiration, metadata, roleDescriptors, refreshPolicy, certificateIdentity);
     }
 
     public static CreateCrossClusterApiKeyRequest withNameAndAccess(String name, String access) throws IOException {
-        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null);
+        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null, null);
     }
+
+    public CertificateIdentity getCertificateIdentity() {
+        return certificateIdentity;
+    }
+
 }

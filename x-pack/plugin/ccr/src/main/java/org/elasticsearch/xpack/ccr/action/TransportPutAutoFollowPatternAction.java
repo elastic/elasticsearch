@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -20,16 +20,16 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -60,7 +60,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final Client client,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final CcrLicenseChecker ccrLicenseChecker
     ) {
         super(
@@ -70,7 +69,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
@@ -100,7 +98,11 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
-        final var remoteClient = client.getRemoteClusterClient(request.getRemoteCluster(), remoteClientResponseExecutor);
+        final var remoteClient = client.getRemoteClusterClient(
+            request.getRemoteCluster(),
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
             threadPool.getThreadContext(),
             clusterService.state()
@@ -128,7 +130,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
-            new ClusterStateRequest().clear().metadata(true),
+            new RemoteClusterStateRequest(request.masterNodeTimeout()).clear().metadata(true),
             listener::onFailure,
             consumer
         );
@@ -149,7 +151,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
-        AutoFollowMetadata currentAutoFollowMetadata = localState.metadata().custom(AutoFollowMetadata.TYPE);
+        final var localProject = localState.metadata().getProject();
+        AutoFollowMetadata currentAutoFollowMetadata = localProject.custom(AutoFollowMetadata.TYPE);
         Map<String, List<String>> followedLeaderIndices;
         Map<String, AutoFollowPattern> patterns;
         Map<String, Map<String, String>> headers;
@@ -213,8 +216,9 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         );
         patterns.put(request.getName(), autoFollowPattern);
 
-        return localState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
+        return localState.copyAndUpdateProject(
+            localProject.id(),
+            builder -> builder.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
         );
     }
 
@@ -239,8 +243,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         List<String> followedIndexUUIDS
     ) {
 
-        for (final IndexMetadata indexMetadata : leaderMetadata) {
-            IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
+        for (final IndexMetadata indexMetadata : leaderMetadata.getProject()) {
+            IndexAbstraction indexAbstraction = leaderMetadata.getProject().getIndicesLookup().get(indexMetadata.getIndex().getName());
             if (AutoFollowPattern.match(patterns, exclusionPatterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }

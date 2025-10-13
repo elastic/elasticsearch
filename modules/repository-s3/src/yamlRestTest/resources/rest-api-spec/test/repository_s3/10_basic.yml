@@ -1,16 +1,46 @@
 # Integration tests for repository-s3
 #
 "Module repository-s3 is loaded":
-    - skip:
-        reason: "contains is a newly added assertion"
-        features: contains
-    - do:
-        cluster.state: {}
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+  - do:
+      cluster.state: { }
 
-    # Get master node id
-    - set: { master_node: master }
+  # Get master node id
+  - set: { master_node: master }
 
-    - do:
-        nodes.info: {}
+  - do:
+      nodes.info: { }
 
-    - contains:  { nodes.$master.modules: { name: repository-s3 } }
+  - contains: { nodes.$master.modules: { name: repository-s3 } }
+
+---
+"Create S3 snapshot repository":
+  - do:
+      snapshot.create_repository:
+        repository: test-snapshot-repo
+        verify: false
+        body:
+          type: s3
+          settings:
+            bucket: test-bucket
+
+---
+"Create S3 snapshot repository without bucket":
+  - do:
+      catch: /illegal_argument_exception/
+      snapshot.create_repository:
+        repository: test-snapshot-repo-without-bucket
+        verify: false
+        body:
+          type: s3
+  - do:
+      catch: /illegal_argument_exception/
+      snapshot.create_repository:
+        repository: test-snapshot-repo-without-bucket
+        verify: false
+        body:
+          type: s3
+          settings:
+            bucket: ""

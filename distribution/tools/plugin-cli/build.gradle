@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.OS
@@ -20,14 +21,16 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  implementation project(":libs:elasticsearch-plugin-api")
-  implementation project(":libs:elasticsearch-plugin-scanner")
-  implementation 'org.ow2.asm:asm:9.6'
-  implementation 'org.ow2.asm:asm-tree:9.6'
+  compileOnly project(":libs:cli")
+  implementation project(":libs:plugin-api")
+  implementation project(":libs:plugin-scanner")
+  implementation project(":libs:entitlement")
+  // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
+  implementation 'org.ow2.asm:asm:9.8'
+  implementation 'org.ow2.asm:asm-tree:9.8'
 
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
-  api "org.bouncycastle:bc-fips:1.0.2.4"
+  api "org.bouncycastle:bc-fips:1.0.2.6"
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"

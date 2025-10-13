@@ -16,6 +16,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.plain.FormattedSortedNumericDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -97,23 +98,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
-        SortedNumericDocValues values = getLongValues();
-        return new FormattedDocValues() {
-            @Override
-            public boolean advanceExact(int docId) throws IOException {
-                return values.advanceExact(docId);
-            }
-
-            @Override
-            public int docValueCount() {
-                return values.docValueCount();
-            }
-
-            @Override
-            public Object nextValue() throws IOException {
-                return format.format(values.nextValue());
-            }
-        };
+        return new FormattedSortedNumericDocValues(getLongValues(), format);
     }
 
     static double convertUnsignedLongToDouble(long value) {

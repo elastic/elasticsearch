@@ -69,9 +69,25 @@ public class RollupIT extends ESRestTestCase {
     }
 
     public void testBigRollup() throws Exception {
+        // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+        {
+            Request req = new Request("PUT", "dummy-rollup-index");
+            req.setJsonEntity("""
+                {
+                    "mappings":{
+                        "_meta": {
+                            "_rollup":{
+                                "my-id": {}
+                            }
+                        }
+                    }
+                }
+                """);
+            client().performRequest(req);
+        }
+
         final int numDocs = 200;
         String dateFormat = "strict_date_optional_time";
-
         // create the test-index index
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -112,6 +128,7 @@ public class RollupIT extends ESRestTestCase {
 
         // create the rollup job
         final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
+        createRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         int pageSize = randomIntBetween(2, 50);
         // fast cron so test runs quickly
         createRollupJobRequest.setJsonEntity(Strings.format("""
@@ -138,11 +155,13 @@ public class RollupIT extends ESRestTestCase {
                 ]
             }""", pageSize));
 
+        assertWarnings();
         var createRollupJobResponse = responseAsMap(client().performRequest(createRollupJobRequest));
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // start the rollup job
         final Request startRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_start");
+        startRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         var startRollupJobResponse = responseAsMap(client().performRequest(startRollupJobRequest));
         assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -151,6 +170,7 @@ public class RollupIT extends ESRestTestCase {
         // Wait for the job to finish, by watching how many rollup docs we've indexed
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "_rollup/job/rollup-job-test");
+            getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
@@ -195,6 +215,7 @@ public class RollupIT extends ESRestTestCase {
         var liveBody = responseAsMap(liveResponse);
 
         request = new Request("GET", "results-rollup/_rollup_search");
+        request.setOptions(ROLLUP_REQUESTS_OPTIONS);
         request.setJsonEntity(jsonRequestBody);
         Response rollupResponse = client().performRequest(request);
         var rollupBody = responseAsMap(rollupResponse);
@@ -207,6 +228,7 @@ public class RollupIT extends ESRestTestCase {
 
         request = new Request("GET", "rollup-docs/_rollup_search");
         request.setJsonEntity(jsonRequestBody);
+        request.setOptions(ROLLUP_REQUESTS_OPTIONS);
         Response liveRollupResponse = client().performRequest(request);
         var liveRollupBody = responseAsMap(liveRollupResponse);
 
@@ -225,6 +247,7 @@ public class RollupIT extends ESRestTestCase {
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
+        getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         var getRollupJobResponse = responseAsMap(client().performRequest(getRollupJobRequest));
         Map<?, ?> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
@@ -270,6 +293,7 @@ public class RollupIT extends ESRestTestCase {
     private void waitForRollUpJob(final String rollupJob, String[] expectedStates) throws Exception {
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
+            getRollupJobRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 

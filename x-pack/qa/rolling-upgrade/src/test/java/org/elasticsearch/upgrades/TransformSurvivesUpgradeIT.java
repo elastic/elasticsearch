@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -69,7 +70,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a transform is running through a rolling upgrade it
      * keeps working and does not fail
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84283")
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""
@@ -131,11 +131,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+            assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(ENTITIES.size()));
             assertThat(
-                ((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats)).longValue(),
-                equalTo(ENTITIES.size())
+                ((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats)).longValue(),
+                equalTo(totalDocsWritten)
             );
-            assertThat((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats), equalTo(totalDocsWritten));
             // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
             // Though short lived due to no changes on the source indices, it could result in flaky test behavior
             assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));
@@ -237,10 +237,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         if (isOriginalClusterCurrent()) {
             return;
         }
-        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
-
-        Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
-        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
+        var oldestVersion = Version.fromString(UPGRADE_FROM_VERSION);
+        if (oldestVersion.onOrAfter(Version.V_9_3_0)) {
+            final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
+            Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
+            assertThat(ex.getMessage(), containsString("Cannot upgrade transforms while cluster upgrade is in progress"));
+        }
     }
 
     private void verifyUpgrade() throws IOException {

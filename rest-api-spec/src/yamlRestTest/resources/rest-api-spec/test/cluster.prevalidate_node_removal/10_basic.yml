@@ -1,8 +1,8 @@
 ---
 "Prevalidation basic test":
-  - skip:
-      features: contains
-      version: "- 8.6.99"
+  - requires:
+      test_runner_features: ["contains"]
+      cluster_features: ["gte_v8.7.0"]
       reason: "The reason field was introduced in 8.7.0"
 
   # Fetch a node ID and stash it in node_id
@@ -19,8 +19,8 @@
   - contains: {nodes: {id: "$node_id", result: {is_safe: true, reason: no_problems, message: ""}}}
 ---
 "Prevalidation with no node specified":
-  - skip:
-      version: "- 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in 8.6.0"
   - do:
       catch: bad_request
@@ -31,8 +31,8 @@
   - match: { error.reason: "Validation Failed: 1: request must contain one of the parameters 'names', 'ids', or 'external_ids';" }
 ---
 "Prevalidation with more than one query parameter":
-  - skip:
-      version: "- 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in 8.6.0"
   - do:
       catch: bad_request
@@ -45,8 +45,8 @@
   - match: { error.reason: "Validation Failed: 1: request must contain only one of the parameters 'names', 'ids', or 'external_ids';" }
 ---
 "Prevalidation with non-existing node":
-  - skip:
-      version: "- 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in 8.6.0"
   - do:
       catch: missing

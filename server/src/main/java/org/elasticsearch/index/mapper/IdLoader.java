@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -16,6 +17,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 
 import java.io.IOException;
@@ -36,7 +38,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths) {
         return new TsIdLoader(indexRouting, routingPaths);
     }
 
@@ -57,30 +59,34 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     final class TsIdLoader implements IdLoader {
 
-        private final IndexRouting.ExtractFromSource indexRouting;
+        private final IndexRouting.ExtractFromSource.ForRoutingPath indexRouting;
         private final List<String> routingPaths;
 
-        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+        TsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            IndexRouting.ExtractFromSource.Builder[] builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
-            for (int i = 0; i < builders.length; i++) {
-                builders[i] = indexRouting.builder();
-            }
+            RoutingHashBuilder[] builders = null;
+            if (indexRouting != null) {
+                // this branch is for legacy indices before IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID
+                builders = new RoutingHashBuilder[docIdsInLeaf.length];
+                for (int i = 0; i < builders.length; i++) {
+                    builders[i] = indexRouting.builder();
+                }
 
-            for (String routingField : routingPaths) {
-                // Routing field must always be keyword fields, so it is ok to use SortedSetDocValues directly here.
-                SortedSetDocValues dv = DocValues.getSortedSet(reader, routingField);
-                for (int i = 0; i < docIdsInLeaf.length; i++) {
-                    int docId = docIdsInLeaf[i];
-                    var builder = builders[i];
-                    if (dv.advanceExact(docId)) {
-                        for (int j = 0; j < dv.docValueCount(); j++) {
-                            BytesRef routingValue = dv.lookupOrd(dv.nextOrd());
-                            builder.addMatching(routingField, routingValue);
+                for (String routingField : routingPaths) {
+                    // Routing field must always be keyword fields, so it is ok to use SortedSetDocValues directly here.
+                    SortedSetDocValues dv = DocValues.getSortedSet(reader, routingField);
+                    for (int i = 0; i < docIdsInLeaf.length; i++) {
+                        int docId = docIdsInLeaf[i];
+                        var builder = builders[i];
+                        if (dv.advanceExact(docId)) {
+                            for (int j = 0; j < dv.docValueCount(); j++) {
+                                BytesRef routingValue = dv.lookupOrd(dv.nextOrd());
+                                builder.addMatching(routingField, routingValue);
+                            }
                         }
                     }
                 }
@@ -90,6 +96,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             // Each document always has exactly one tsid and one timestamp:
             SortedDocValues tsIdDocValues = DocValues.getSorted(reader, TimeSeriesIdFieldMapper.NAME);
             SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
+            SortedDocValues routingHashDocValues = builders == null
+                ? DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME)
+                : null;
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
 
@@ -100,9 +109,18 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 assert found;
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();
-
-                var routingBuilder = builders[i];
-                ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
+                if (builders != null) {
+                    var routingBuilder = builders[i];
+                    ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
+                } else {
+                    found = routingHashDocValues.advanceExact(docId);
+                    assert found;
+                    BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
+                    int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
+                        Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
+                    );
+                    ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                }
             }
             return new TsIdLeaf(docIdsInLeaf, ids);
         }

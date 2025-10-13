@@ -19,15 +19,17 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -75,7 +77,6 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final ClusterService clusterService;
     private final AnomalyDetectionAuditor auditor;
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
@@ -101,12 +102,10 @@ public class TransportCloseJobAction extends TransportTasksAction<
             actionFilters,
             CloseJobAction.Request::new,
             CloseJobAction.Response::new,
-            CloseJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;
@@ -152,7 +151,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             final boolean isForce = request.isForce();
             final TimeValue timeout = request.getCloseTimeout();
 
-            PersistentTasksCustomMetadata tasksMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             jobConfigProvider.expandJobsIds(
                 request.getJobId(),
                 request.allowNoMatch(),
@@ -184,11 +183,10 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                         forceCloseJob(state, request, jobIdsToForceClose, delegate3);
                                     } else {
                                         Set<String> executorNodes = new HashSet<>();
-                                        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
                                         for (String resolvedJobId : request.getOpenJobIds()) {
                                             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(
                                                 resolvedJobId,
-                                                tasks
+                                                tasksMetadata
                                             );
                                             if (jobTask == null) {
                                                 // This should not happen, because openJobIds was
@@ -209,6 +207,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                 // these persistent tasks to disappear.
                                                 persistentTasksService.sendRemoveRequest(
                                                     jobTask.getId(),
+                                                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                                                     ActionListener.wrap(
                                                         r -> logger.trace(
                                                             () -> format("[%s] removed task to close unassigned job", resolvedJobId)
@@ -509,7 +508,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> jobIdsToForceClose,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         final int numberOfJobs = jobIdsToForceClose.size();
         final AtomicInteger counter = new AtomicInteger();
@@ -519,48 +518,52 @@ public class TransportCloseJobAction extends TransportTasksAction<
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                persistentTasksService.sendRemoveRequest(jobTask.getId(), new ActionListener<>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                        if (counter.incrementAndGet() == numberOfJobs) {
-                            sendResponseOrFailure(request.getJobId(), listener, failures);
+                persistentTasksService.sendRemoveRequest(
+                    jobTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                            if (counter.incrementAndGet() == numberOfJobs) {
+                                sendResponseOrFailure(request.getJobId(), listener, failures);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            final int slot = counter.incrementAndGet();
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                                failures.set(slot - 1, e);
+                            }
+                            if (slot == numberOfJobs) {
+                                sendResponseOrFailure(request.getJobId(), listener, failures);
+                            }
+                        }
+
+                        private static void sendResponseOrFailure(
+                            String jobId,
+                            ActionListener<CloseJobAction.Response> listener,
+                            AtomicArray<Exception> failures
+                        ) {
+                            List<Exception> caughtExceptions = failures.asList();
+                            if (caughtExceptions.isEmpty()) {
+                                listener.onResponse(new CloseJobAction.Response(true));
+                                return;
+                            }
+
+                            String msg = "Failed to force close job ["
+                                + jobId
+                                + "] with ["
+                                + caughtExceptions.size()
+                                + "] failures, rethrowing first. All Exceptions: ["
+                                + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
+                                + "]";
+
+                            ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
+                            listener.onFailure(e);
                         }
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        final int slot = counter.incrementAndGet();
-                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                            failures.set(slot - 1, e);
-                        }
-                        if (slot == numberOfJobs) {
-                            sendResponseOrFailure(request.getJobId(), listener, failures);
-                        }
-                    }
-
-                    private static void sendResponseOrFailure(
-                        String jobId,
-                        ActionListener<CloseJobAction.Response> listener,
-                        AtomicArray<Exception> failures
-                    ) {
-                        List<Exception> caughtExceptions = failures.asList();
-                        if (caughtExceptions.isEmpty()) {
-                            listener.onResponse(new CloseJobAction.Response(true));
-                            return;
-                        }
-
-                        String msg = "Failed to force close job ["
-                            + jobId
-                            + "] with ["
-                            + caughtExceptions.size()
-                            + "] failures, rethrowing first. All Exceptions: ["
-                            + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
-                            + "]";
-
-                        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
-                        listener.onFailure(e);
-                    }
-                });
+                );
             }
         }
     }
@@ -573,7 +576,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> closingJobIds,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         WaitForCloseRequest waitForCloseRequest = buildWaitForCloseRequest(openJobIds, closingJobIds, tasks, auditor);
 
@@ -590,6 +593,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 persistentTasksService.sendRemoveRequest(
                     jobTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(r -> logger.trace("[{}] removed persistent task for relocated job", jobId), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                             logger.debug("[{}] relocated job task already removed", jobId);
@@ -640,7 +644,12 @@ public class TransportCloseJobAction extends TransportTasksAction<
         ActionListener<CloseJobAction.Response> listener,
         Set<String> movedJobs
     ) {
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
             for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : waitForCloseRequest.persistentTasks) {
                 String originalPersistentTaskId = originalPersistentTask.getId();
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(

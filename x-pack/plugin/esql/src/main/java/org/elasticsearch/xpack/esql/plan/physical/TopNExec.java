@@ -7,15 +7,28 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class TopNExec extends UnaryExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "TopNExec",
+        TopNExec::new
+    );
+
     private final Expression limit;
     private final List<Order> order;
 
@@ -30,6 +43,30 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         this.order = order;
         this.limit = limit;
         this.estimatedRowSize = estimatedRowSize;
+    }
+
+    private TopNExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(PhysicalPlan.class),
+            in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalVInt()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeCollection(order());
+        out.writeNamedWriteable(limit());
+        out.writeOptionalVInt(estimatedRowSize());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -60,7 +97,11 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
+        final List<Attribute> output = output();
+        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE);
+        state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
+        size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size) ? this : new TopNExec(source(), child(), order, limit, size);
     }
 

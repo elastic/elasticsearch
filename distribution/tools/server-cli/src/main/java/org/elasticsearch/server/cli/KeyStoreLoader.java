@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -23,7 +24,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     @Override
     public LoadedSecrets load(Environment environment, Terminal terminal) throws Exception {
         // See if we have a keystore already present
-        KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile());
+        KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configDir());
         // If there's no keystore or the keystore has no password, set an empty password
         var password = (secureSettings == null || secureSettings.hasPassword() == false)
             ? new SecureString(new char[0])
@@ -34,7 +35,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
 
     @Override
     public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
-        return KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
+        return KeyStoreWrapper.bootstrap(environment.configDir(), () -> password);
     }
 
     @Override

@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -78,21 +78,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String candidateNode;
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        final String node1Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node1))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
-        final String node2Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node2))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
+        final String node1Id = getNodeId(node1);
+        final String node2Id = getNodeId(node2);
 
         if (randomBoolean()) {
             shutdownNode = node1Id;
@@ -106,13 +93,22 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         // Tell the persistent task executor it can start allocating the task
         startTask.set(true);
         // Issue a new cluster state update to force task assignment
-        clusterAdmin().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         // Wait until the task has been assigned to a node
         assertBusy(() -> assertNotNull("expected to have candidate nodes chosen for task", candidates.get()));
         // Check that the node that is not shut down is the only candidate
@@ -171,13 +167,14 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TestTaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            ProjectId projectId
         ) {
             candidates.set(candidateNodes);
-            return super.getAssignment(params, candidateNodes, clusterState);
+            return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
         }
 
         @Override
@@ -188,12 +185,18 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), ActionListener.wrap(r -> {}, e -> {
-                if (e instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create task", e);
-                    fail("failed to create task");
-                }
-            }));
+            persistentTasksService.sendStartRequest(
+                "task_id",
+                "task_name",
+                new TestTaskParams(),
+                TEST_REQUEST_TIMEOUT,
+                ActionListener.wrap(r -> {}, e -> {
+                    if (e instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("failed to create task", e);
+                        fail("failed to create task");
+                    }
+                })
+            );
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -46,7 +47,12 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
+        // sets the plain (geoip.elastic.co) downloader endpoint, which is used in these tests
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        // also sets the enterprise downloader maxmind endpoint, to make sure we do not accidentally hit the real endpoint from tests
+        // note: it's not important that the downloading actually work at this point -- the rest tests (so far) don't exercise
+        // the downloading code because of license reasons -- but if they did, then it would be important that we're hitting a fixture
+        .systemProperty("ingest.geoip.downloader.maxmind.endpoint.default", () -> fixture.getAddress(), s -> useFixture)
         .build();
 
     @ClassRule
@@ -68,32 +74,15 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     @Before
     public void waitForDatabases() throws Exception {
-        putGeoipPipeline();
-        assertBusy(() -> {
-            Request request = new Request("GET", "/_ingest/geoip/stats");
-            Map<String, Object> response = entityAsMap(client().performRequest(request));
-
-            Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
-            assertThat(downloadStats.get("databases_count"), equalTo(4));
-
-            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-            assertThat(nodes.size(), equalTo(1));
-            Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
-            List<?> databases = ((List<?>) node.get("databases"));
-            assertThat(databases, notNullValue());
-            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
-            assertThat(
-                databaseNames,
-                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
-            );
-        });
+        putGeoipPipeline("pipeline-with-geoip");
+        assertDatabasesLoaded();
     }
 
     /**
      * This creates a pipeline with a geoip processor so that the GeoipDownloader will download its databases.
      * @throws IOException
      */
-    private void putGeoipPipeline() throws IOException {
+    static void putGeoipPipeline(String pipelineName) throws Exception {
         final BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -117,9 +106,30 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/pipeline-with-geoip");
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineName);
         putPipelineRequest.setEntity(new ByteArrayEntity(bytes.array(), ContentType.APPLICATION_JSON));
         client().performRequest(putPipelineRequest);
     }
 
+    static void assertDatabasesLoaded() throws Exception {
+        // assert that the databases are downloaded and loaded
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_ingest/geoip/stats");
+            Map<String, Object> response = entityAsMap(client().performRequest(request));
+
+            Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
+            assertThat(downloadStats.get("databases_count"), equalTo(4));
+
+            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+            assertThat(nodes.size(), equalTo(1));
+            Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
+            List<?> databases = ((List<?>) node.get("databases"));
+            assertThat(databases, notNullValue());
+            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
+            assertThat(
+                databaseNames,
+                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
+        });
+    }
 }

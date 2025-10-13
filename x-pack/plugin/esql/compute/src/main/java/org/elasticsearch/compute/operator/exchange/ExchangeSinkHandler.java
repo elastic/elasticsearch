@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -21,10 +22,10 @@ import java.util.function.LongSupplier;
 
 /**
  * An {@link ExchangeSinkHandler} receives pages and status from its {@link ExchangeSink}s, which are created using
- * {@link #createExchangeSink()}} method. Pages and status can then be retrieved asynchronously by {@link ExchangeSourceHandler}s
+ * {@link #createExchangeSink(Runnable)}} method. Pages and status can then be retrieved asynchronously by {@link ExchangeSourceHandler}s
  * using the {@link #fetchPageAsync(boolean, ActionListener)} method.
  *
- * @see #createExchangeSink()
+ * @see #createExchangeSink(Runnable)
  * @see #fetchPageAsync(boolean, ActionListener)
  * @see ExchangeSourceHandler
  */
@@ -49,16 +50,21 @@ public final class ExchangeSinkHandler {
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
     }
 
-    private class LocalExchangeSink implements ExchangeSink {
+    private class ExchangeSinkImpl implements ExchangeSink {
         boolean finished;
+        private final Runnable onPageFetched;
+        private final SubscribableListener<Void> onFinished = new SubscribableListener<>();
 
-        LocalExchangeSink() {
+        ExchangeSinkImpl(Runnable onPageFetched) {
+            this.onPageFetched = onPageFetched;
             onChanged();
+            buffer.addCompletionListener(onFinished);
             outstandingSinks.incrementAndGet();
         }
 
         @Override
         public void addPage(Page page) {
+            onPageFetched.run();
             buffer.addPage(page);
             notifyListeners();
         }
@@ -67,6 +73,7 @@ public final class ExchangeSinkHandler {
         public void finish() {
             if (finished == false) {
                 finished = true;
+                onFinished.onResponse(null);
                 onChanged();
                 if (outstandingSinks.decrementAndGet() == 0) {
                     buffer.finish(false);
@@ -77,11 +84,16 @@ public final class ExchangeSinkHandler {
 
         @Override
         public boolean isFinished() {
-            return finished || buffer.isFinished();
+            return onFinished.isDone();
         }
 
         @Override
-        public SubscribableListener<Void> waitForWriting() {
+        public void addCompletionListener(ActionListener<Void> listener) {
+            onFinished.addListener(listener);
+        }
+
+        @Override
+        public IsBlockedResult waitForWriting() {
             return buffer.waitForWriting();
         }
     }
@@ -92,7 +104,7 @@ public final class ExchangeSinkHandler {
      * @param sourceFinished if true, then this handler can finish as sources have enough pages.
      * @param listener       the listener that will be notified when pages are ready or this handler is finished
      * @see RemoteSink
-     * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, int)
+     * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
      */
     public void fetchPageAsync(boolean sourceFinished, ActionListener<ExchangeResponse> listener) {
         if (sourceFinished) {
@@ -152,10 +164,11 @@ public final class ExchangeSinkHandler {
     /**
      * Create a new exchange sink for exchanging data
      *
+     * @param onPageFetched a {@link Runnable} that will be called when a page is fetched.
      * @see ExchangeSinkOperator
      */
-    public ExchangeSink createExchangeSink() {
-        return new LocalExchangeSink();
+    public ExchangeSink createExchangeSink(Runnable onPageFetched) {
+        return new ExchangeSinkImpl(onPageFetched);
     }
 
     /**
@@ -183,5 +196,13 @@ public final class ExchangeSinkHandler {
      */
     long lastUpdatedTimeInMillis() {
         return lastUpdatedInMillis.get();
+    }
+
+    /**
+     * Returns the number of pages available in the buffer.
+     * This method should be used for testing only.
+     */
+    public int bufferSize() {
+        return buffer.size();
     }
 }

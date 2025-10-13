@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -59,11 +58,9 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase {
@@ -75,7 +72,6 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         return Arrays.asList(
             MockTransportService.TestPlugin.class,
             MockFSIndexStore.TestPlugin.class,
-            RecoverySettingsChunkSizePlugin.class,
             InternalSettingsPlugin.class,
             MockEngineFactoryPlugin.class
         );
@@ -104,16 +100,11 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue"))
             .get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -134,8 +125,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
+        final String blueNodeId = getNodeId(blueNodeName);
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
@@ -161,11 +152,11 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         Runnable connectionBreaker = () -> {
             // Always break connection from source to remote to ensure that actions are retried
             logger.info("--> closing connections from source node to target node");
-            blueTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+            blueTransportService.disconnectFromNode(redTransportService.getLocalNode());
             if (randomBoolean()) {
                 // Sometimes break connection from remote to source to ensure that recovery is re-established
                 logger.info("--> closing connections from target node to source node");
-                redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
+                redTransportService.disconnectFromNode(blueTransportService.getLocalNode());
             }
         };
         TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
@@ -210,16 +201,11 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue"))
             .get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -230,8 +216,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
-        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
+        final String blueNodeId = getNodeId(blueNodeName);
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
@@ -268,13 +254,13 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
+                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
             redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
+                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
         }
@@ -315,12 +301,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
         indicesAdmin().prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue"))
             .get();
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -355,21 +336,9 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
-                        assertBusy(
-                            () -> assertThat(
-                                "Expected there to be some initializing shards",
-                                client(blueNodeName).admin()
-                                    .cluster()
-                                    .prepareState()
-                                    .setLocal(true)
-                                    .get()
-                                    .getState()
-                                    .getRoutingTable()
-                                    .index("test")
-                                    .shard(0)
-                                    .getAllInitializingShards(),
-                                not(empty())
-                            )
+                        awaitClusterState(
+                            blueNodeName,
+                            state -> state.getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false
                         );
                     } catch (Exception e) {
                         throw new RuntimeException(e);
@@ -471,7 +440,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         // create repo
         assertAcked(
-            clusterAdmin().preparePutRepository(REPO_NAME)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME)
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -482,7 +451,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
 
         // create snapshot
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, SNAP_NAME)
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, SNAP_NAME)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -493,7 +462,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
 
         assertThat(
-            clusterAdmin().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get().getSnapshots().get(0).state(),
+            clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME).setSnapshots(SNAP_NAME).get().getSnapshots().get(0).state(),
             equalTo(SnapshotState.SUCCESS)
         );
     }

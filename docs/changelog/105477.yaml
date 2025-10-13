@@ -1,6 +1,0 @@
-pr: 105477
-summary: "ESQL: Introduce expression validation phase"
-area: ES|QL
-type: enhancement
-issues:
- - 105425

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.remote;
@@ -149,7 +150,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         TimeValue scroll = null;
         if (randomBoolean()) {
-            scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+            scroll = randomPositiveTimeValue();
             searchRequest.scroll(scroll);
         }
         int size = between(0, Integer.MAX_VALUE);
@@ -210,14 +211,29 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder());
+        // always set by AbstractAsyncBulkByScrollAction#prepareSearchRequest
+        searchRequest.source().excludeVectors(false);
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
-            assertEquals(
-                "{\"query\":" + query + ",\"_source\":true}",
-                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
-            );
+            if (remoteVersion.onOrAfter(Version.V_9_1_0)) {
+                // vectors are automatically included on recent versions
+                assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                    {
+                      "query": %s,
+                      "_source": {
+                        "exclude_vectors":false,
+                        "includes": [],
+                        "excludes": []
+                      }
+                    }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+            } else {
+                assertEquals(
+                    "{\"query\":" + query + ",\"_source\":true}",
+                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
+                );
+            }
         } else {
             assertEquals(
                 "{\"query\":" + query + "}",
@@ -229,14 +245,27 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" });
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "query": %s,
-              "_source": {
-                "includes": [ "in1", "in2" ],
-                "excludes": [ "out" ]
-              }
-            }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        if (remoteVersion.onOrAfter(Version.V_9_1_0)) {
+            // vectors are automatically included on recent versions
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "query": %s,
+                  "_source": {
+                    "exclude_vectors":false,
+                    "includes": [ "in1", "in2" ],
+                    "excludes": [ "out" ]
+                  }
+                }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        } else {
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "query": %s,
+                  "_source": {
+                    "includes": [ "in1", "in2" ],
+                    "excludes": [ "out" ]
+                  }
+                }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        }
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(
@@ -251,7 +280,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     public void testScrollParams() {
         String scroll = randomAlphaOfLength(30);
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
-        TimeValue keepAlive = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+        TimeValue keepAlive = randomPositiveTimeValue();
         assertScroll(remoteVersion, scroll(scroll, keepAlive, remoteVersion).getParameters(), keepAlive);
     }
 

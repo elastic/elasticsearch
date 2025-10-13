@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
@@ -11,7 +12,6 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -54,13 +54,17 @@ import org.elasticsearch.cluster.coordination.NodeLeftExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -80,6 +84,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -88,6 +93,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -97,7 +103,6 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -131,7 +136,6 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
-    private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final FeatureService featureService;
@@ -219,7 +223,7 @@ public class ClusterStateChanges {
         // services
         featureService = new FeatureService(List.of());
 
-        transportService = new TransportService(
+        TransportService transportService = new TransportService(
             SETTINGS,
             transport,
             threadPool,
@@ -229,8 +233,7 @@ public class ClusterStateChanges {
                 .address(boundAddress.publishAddress())
                 .build(),
             clusterSettings,
-            Collections.emptySet(),
-            Tracer.NOOP
+            Collections.emptySet()
         ) {
             @Override
             public Transport.Connection getConnection(DiscoveryNode node) {
@@ -245,17 +248,21 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null
+            null,
+            MapperMetrics.NOOP
         ) {
             // metadata upgrader should do nothing
             @Override
-            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+            public IndexMetadata verifyIndexMetadata(
+                IndexMetadata indexMetadata,
+                IndexVersion minimumIndexCompatibilityVersion,
+                IndexVersion minimumReadOnlyIndexCompatibilityVersion
+            ) {
                 return indexMetadata;
             }
         };
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
+        Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(
             TransportVerifyShardBeforeCloseAction.TYPE,
             new TransportVerifyShardBeforeCloseAction(
@@ -310,6 +317,7 @@ public class ClusterStateChanges {
             threadPool,
             indexStateService,
             actionFilters,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
             destructiveOperations
         );
@@ -319,6 +327,7 @@ public class ClusterStateChanges {
             threadPool,
             deleteIndexService,
             actionFilters,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
             destructiveOperations
         );
@@ -328,6 +337,7 @@ public class ClusterStateChanges {
             threadPool,
             metadataUpdateSettingsService,
             actionFilters,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             indexNameExpressionResolver,
             EmptySystemIndices.INSTANCE
         );
@@ -337,7 +347,7 @@ public class ClusterStateChanges {
             threadPool,
             allocationService,
             actionFilters,
-            indexNameExpressionResolver
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         transportCreateIndexAction = new TransportCreateIndexAction(
             transportService,
@@ -345,8 +355,8 @@ public class ClusterStateChanges {
             threadPool,
             createIndexService,
             actionFilters,
-            indexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            DefaultProjectResolver.INSTANCE
         );
 
         nodeLeftExecutor = new NodeLeftExecutor(allocationService);
@@ -366,15 +376,18 @@ public class ClusterStateChanges {
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
+        @FixForMultiProject(description = "consider randomizing project-id")
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         final Index[] concreteIndices = Arrays.stream(request.indices())
-            .map(index -> state.metadata().index(index).getIndex())
+            .map(index -> state.metadata().getProject(projectId).index(index).getIndex())
             .toArray(Index[]::new);
 
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-        ClusterState newState = MetadataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, blockedIndices, state);
+        ClusterState newState = MetadataIndexStateServiceUtils.addIndexClosedBlocks(projectId, concreteIndices, blockedIndices, state);
 
         newState = MetadataIndexStateServiceUtils.closeRoutingTable(
             newState,
+            projectId,
             blockedIndices,
             blockedIndices.keySet().stream().collect(toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
         );
@@ -468,7 +481,7 @@ public class ClusterStateChanges {
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
         final Map<ShardRouting, Long> entries = startedShards.stream().collect(toMap(Function.identity(), startedShard -> {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(startedShard.shardId().getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(startedShard.shardId().getIndex());
             return indexMetadata != null ? indexMetadata.primaryTerm(startedShard.shardId().id()) : 0L;
         }));
         return applyStartedShards(clusterState, entries);
@@ -487,6 +500,7 @@ public class ClusterStateChanges {
                             e.getKey().allocationId().getId(),
                             e.getValue(),
                             "shard started",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()

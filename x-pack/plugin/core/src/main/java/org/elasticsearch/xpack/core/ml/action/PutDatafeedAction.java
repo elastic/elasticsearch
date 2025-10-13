@@ -40,9 +40,10 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
             return new Request(datafeed.build());
         }
 
-        private DatafeedConfig datafeed;
+        private final DatafeedConfig datafeed;
 
         public Request(DatafeedConfig datafeed) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.datafeed = datafeed;
         }
 
@@ -83,14 +84,13 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private DatafeedConfig datafeed;
+        private final DatafeedConfig datafeed;
 
         public Response(DatafeedConfig datafeed) {
             this.datafeed = datafeed;
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             datafeed = new DatafeedConfig(in);
         }
 

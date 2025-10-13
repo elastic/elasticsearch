@@ -9,9 +9,9 @@ package org.elasticsearch.index.engine.frozen;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -23,10 +23,10 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -215,6 +215,11 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -225,12 +230,12 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -258,11 +263,6 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docId) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -280,11 +280,6 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         @Override
         public int maxDoc() {
             return maxDoc;
-        }
-
-        @Override
-        public void document(int docID, StoredFieldVisitor visitor) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -25,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
+public abstract class AbstractCreateApiKeyRequest extends LegacyActionRequest {
     protected final String id;
     protected String name;
     protected TimeValue expiration;
@@ -38,14 +39,6 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
         // we generate the API key id soonest so it's part of the request body so it is audited
         this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
     }
-
-    @SuppressWarnings("this-escape")
-    public AbstractCreateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.id = doReadId(in);
-    }
-
-    protected abstract String doReadId(StreamInput in) throws IOException;
 
     public String getId() {
         return id;
@@ -101,5 +94,10 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
         }
         assert refreshPolicy != null : "refresh policy is required";
         return validationException;
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

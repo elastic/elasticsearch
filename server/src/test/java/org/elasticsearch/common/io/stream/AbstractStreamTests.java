@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,9 +25,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -48,6 +53,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.time.Instant.ofEpochSecond;
+import static java.time.ZonedDateTime.ofInstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -668,22 +675,63 @@ public abstract class AbstractStreamTests extends ESTestCase {
         assertNotWriteable(new Object[] { new Unwriteable() }, Unwriteable.class);
     }
 
-    public void assertImmutableMapSerialization(Map<String, Integer> expected) throws IOException {
+    public void testImmutableMapSerialization() throws IOException {
+        CheckedBiConsumer<BytesStreamOutput, Map<String, Integer>, IOException> writer = (out, map) -> out.writeMap(
+            map,
+            StreamOutput::writeString,
+            StreamOutput::writeVInt
+        );
+        CheckedFunction<StreamInput, Map<String, Integer>, IOException> reader = in -> in.readImmutableMap(
+            StreamInput::readString,
+            StreamInput::readVInt
+        );
+
+        assertOptionalImmutableMapSerialization(Map.of(), writer, reader);
+        assertOptionalImmutableMapSerialization(Map.of("a", 1), writer, reader);
+        assertOptionalImmutableMapSerialization(Map.of("a", 1, "b", 2), writer, reader);
+    }
+
+    public void testOptionalImmutableMapSerialization() throws IOException {
+        CheckedBiConsumer<BytesStreamOutput, Map<String, Integer>, IOException> writer = (out, map) -> out.writeOptionalMap(
+            map,
+            StreamOutput::writeString,
+            StreamOutput::writeVInt
+        );
+        CheckedFunction<StreamInput, Map<String, Integer>, IOException> reader = in -> in.readOptionalImmutableMap(
+            StreamInput::readString,
+            StreamInput::readVInt
+        );
+
+        assertOptionalImmutableMapSerialization(null, writer, reader);
+        assertOptionalImmutableMapSerialization(Map.of(), writer, reader);
+        assertOptionalImmutableMapSerialization(Map.of("a", 1), writer, reader);
+        assertOptionalImmutableMapSerialization(Map.of("a", 1, "b", 2), writer, reader);
+    }
+
+    public void assertOptionalImmutableMapSerialization(
+        @Nullable Map<String, Integer> expected,
+        CheckedBiConsumer<BytesStreamOutput, Map<String, Integer>, IOException> writer,
+        CheckedFunction<StreamInput, Map<String, Integer>, IOException> reader
+    ) throws IOException {
+        var got = writeThenReadImmutableMap(expected, writer, reader);
+        assertThat(got, equalTo(expected));
+
+        if (got != null) {
+            expectThrows(UnsupportedOperationException.class, () -> got.put("blah", 1));
+        }
+    }
+
+    private <K, V, E extends IOException> Map<K, V> writeThenReadImmutableMap(
+        @Nullable Map<K, V> expected,
+        CheckedBiConsumer<BytesStreamOutput, Map<K, V>, E> writer,
+        CheckedFunction<StreamInput, Map<K, V>, E> reader
+    ) throws IOException {
         final BytesStreamOutput output = new BytesStreamOutput();
-        output.writeMap(expected, StreamOutput::writeString, StreamOutput::writeVInt);
+        writer.accept(output, expected);
         final BytesReference bytesReference = output.bytes();
 
         final StreamInput input = getStreamInput(bytesReference);
-        Map<String, Integer> got = input.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
-        assertThat(got, equalTo(expected));
-
-        expectThrows(UnsupportedOperationException.class, () -> got.put("blah", 1));
-    }
-
-    public void testImmutableMapSerialization() throws IOException {
-        assertImmutableMapSerialization(Map.of());
-        assertImmutableMapSerialization(Map.of("a", 1));
-        assertImmutableMapSerialization(Map.of("a", 1, "b", 2));
+        return reader.apply(input);
     }
 
     public <T> void assertImmutableListSerialization(List<T> expected, Writeable.Reader<T> reader, Writeable.Writer<T> writer)
@@ -717,24 +765,73 @@ public abstract class AbstractStreamTests extends ESTestCase {
             input.readBytes(new byte[len], 0, len);
 
             assertEquals(-1, input.read());
+            assertEquals(-1, input.read(new byte[2], 0, 2));
+        }
+    }
+
+    public void testZonedDateTimeSerialization() throws IOException {
+        checkZonedDateTimeSerialization(TransportVersions.V_8_16_0);
+    }
+
+    public void testZonedDateTimeMillisBwcSerialization() throws IOException {
+        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_16_0));
+    }
+
+    public void checkZonedDateTimeSerialization(TransportVersion tv) throws IOException {
+        assertGenericRoundtrip(ofInstant(Instant.EPOCH, randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(1), randomZone()), tv);
+        // just want to test a large number that will use 5+ bytes
+        long maxEpochSecond = Integer.MAX_VALUE;
+        long minEpochSecond = Integer.MIN_VALUE;
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(maxEpochSecond), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond)), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 1_000_000), randomZone()), tv);
+        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_000_000), randomZone()), tv);
+        if (tv.onOrAfter(TransportVersions.V_8_16_0)) {
+            assertGenericRoundtrip(
+                ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_999_999), randomZone()),
+                tv
+            );
+            assertGenericRoundtrip(
+                ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), randomIntBetween(0, 999_999_999)), randomZone()),
+                tv
+            );
+        }
+    }
+
+    public void testOptional() throws IOException {
+        try (var output = new BytesStreamOutput()) {
+            output.writeOptional(StreamOutput::writeString, "not-null");
+            output.writeOptional(StreamOutput::writeString, null);
+
+            final var input = getStreamInput(output.bytes());
+            assertEquals("not-null", input.readOptional(StreamInput::readString));
+            assertNull(input.readOptional(StreamInput::readString));
         }
     }
 
     private void assertSerialization(
         CheckedConsumer<StreamOutput, IOException> outputAssertions,
-        CheckedConsumer<StreamInput, IOException> inputAssertions
+        CheckedConsumer<StreamInput, IOException> inputAssertions,
+        TransportVersion transportVersion
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(transportVersion);
             outputAssertions.accept(output);
             final StreamInput input = getStreamInput(output.bytes());
+            input.setTransportVersion(transportVersion);
             inputAssertions.accept(input);
         }
     }
 
     private void assertGenericRoundtrip(Object original) throws IOException {
+        assertGenericRoundtrip(original, TransportVersion.current());
+    }
+
+    private void assertGenericRoundtrip(Object original, TransportVersion transportVersion) throws IOException {
         assertSerialization(output -> { output.writeGenericValue(original); }, input -> {
             Object read = input.readGenericValue();
             assertThat(read, equalTo(original));
-        });
+        }, transportVersion);
     }
 }

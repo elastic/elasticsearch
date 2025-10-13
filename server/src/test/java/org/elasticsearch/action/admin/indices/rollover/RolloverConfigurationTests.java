@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -59,7 +60,7 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         RolloverConditions.Builder concreteConditionsBuilder = RolloverConditions.newBuilder()
@@ -267,7 +268,11 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(91)), equalTo(TimeValue.timeValueDays(30)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(90)), equalTo(TimeValue.timeValueDays(7)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(14)), equalTo(TimeValue.timeValueDays(1)));
-        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueDays(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(23)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(12)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(1)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(0)), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testToXContent() throws IOException {
@@ -346,12 +351,12 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
     private static final List<Consumer<RolloverConfiguration.ValueParser>> conditionsGenerator = Arrays.asList(
         (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMaxIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );

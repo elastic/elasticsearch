@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.connector.secrets.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,15 +21,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostConnectorSecretRequest extends ActionRequest {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-    public static final ParseField VALUE_FIELD = new ParseField("value");
+public class PostConnectorSecretRequest extends LegacyActionRequest {
+
+    private static final ParseField VALUE_FIELD = new ParseField("value");
 
     public static final ConstructingObjectParser<PostConnectorSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
-        args -> {
-            return new PostConnectorSecretRequest((String) args[0]);
-        }
+        args -> new PostConnectorSecretRequest((String) args[0])
     );
 
     static {
@@ -75,13 +75,13 @@ public class PostConnectorSecretRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+
         if (Strings.isNullOrEmpty(this.value)) {
-            ActionRequestValidationException exception = new ActionRequestValidationException();
-            exception.addValidationError("value is missing");
-            return exception;
+            validationException = addValidationError("[value] of the connector secret cannot be [null] or [\"\"]", validationException);
         }
 
-        return null;
+        return validationException;
     }
 
     @Override

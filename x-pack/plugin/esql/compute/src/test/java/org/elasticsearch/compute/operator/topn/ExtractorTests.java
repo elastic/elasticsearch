@@ -13,14 +13,17 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -39,6 +42,29 @@ public class ExtractorTests extends ESTestCase {
         for (ElementType e : ElementType.values()) {
             switch (e) {
                 case UNKNOWN -> {
+                }
+                case COMPOSITE -> {
+                    // TODO: add later
+                }
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    cases.add(
+                        valueTestCase(
+                            "regular aggregate_metric_double",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            () -> randomAggregateMetricDouble(true)
+                        )
+                    );
+                    cases.add(
+                        valueTestCase(
+                            "aggregate_metric_double with nulls",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            () -> randomAggregateMetricDouble(false)
+                        )
+                    );
+                }
+                case FLOAT -> {
                 }
                 case BYTES_REF -> {
                     cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, () -> randomAlphaOfLength(5)));
@@ -89,14 +115,17 @@ public class ExtractorTests extends ESTestCase {
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
                             () -> new DocVector(
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                ShardRefCounted.ALWAYS_REFERENCED,
+                                // Shard ID should be small and non-negative.
+                                blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 randomBoolean() ? null : randomBoolean()
                             ).asBlock()
                         ) }
                 );
-                case NULL -> cases.add(valueTestCase("null", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
+                case NULL -> {
+                }
                 default -> {
                     cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> BlockTestUtils.randomValue(e)));
                     cases.add(
@@ -108,6 +137,9 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
+            }
+            if (e != ElementType.UNKNOWN && e != ElementType.COMPOSITE && e != ElementType.FLOAT && e != ElementType.DOC) {
+                cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> null));
             }
         }
         return cases;
@@ -167,6 +199,9 @@ public class ExtractorTests extends ESTestCase {
             1
         );
         BytesRef values = valuesBuilder.bytesRefView();
+        if (result instanceof ResultBuilderForDoc fd) {
+            fd.setNextRefCounted(RefCounted.ALWAYS_REFERENCED);
+        }
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
@@ -208,5 +243,17 @@ public class ExtractorTests extends ESTestCase {
         assertThat(values.length, equalTo(0));
 
         assertThat(result.build(), equalTo(value));
+    }
+
+    public static AggregateMetricDoubleLiteral randomAggregateMetricDouble(boolean allMetrics) {
+        if (allMetrics) {
+            return new AggregateMetricDoubleLiteral(randomDouble(), randomDouble(), randomDouble(), randomInt());
+        }
+        return new AggregateMetricDoubleLiteral(
+            randomBoolean() ? randomDouble() : null,
+            randomBoolean() ? randomDouble() : null,
+            randomBoolean() ? randomDouble() : null,
+            randomBoolean() ? randomInt() : null
+        );
     }
 }

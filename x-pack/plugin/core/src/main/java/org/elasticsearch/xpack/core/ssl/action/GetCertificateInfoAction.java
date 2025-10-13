@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ssl.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -35,7 +34,7 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         Request() {}
 
@@ -52,16 +51,7 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Collection<CertificateInfo> certificates;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.certificates = new ArrayList<>();
-            int count = in.readVInt();
-            for (int i = 0; i < count; i++) {
-                certificates.add(new CertificateInfo(in));
-            }
-        }
+        private final Collection<CertificateInfo> certificates;
 
         public Response(Collection<CertificateInfo> certificates) {
             this.certificates = certificates;

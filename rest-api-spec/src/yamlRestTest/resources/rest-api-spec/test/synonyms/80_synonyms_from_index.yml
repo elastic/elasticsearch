@@ -1,8 +1,7 @@
 setup:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Loading synonyms from index is introduced in 8.10.0
-
   # Create a new synonyms set
   - do:
       synonyms.put_synonym:
@@ -161,20 +160,27 @@ setup:
   - match: { hits.total.value: 1 }
 
 ---
-"Fail loading synonyms from index if synonyms_set doesn't exist":
+"Load empty synonyms set from index for an analyzer":
+  - do:
+      synonyms.put_synonym:
+        id: empty_set
+        body:
+          synonyms_set: []
+
   - do:
       indices.create:
-        index: another_index
+        index: empty_set_index
         body:
           settings:
             index:
               number_of_shards: 1
+              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
                   type: synonym
-                  synonyms_set: set_missing
-                  updateable: true
+                  synonyms_set: empty_set
+                  updateable : true
               analyzer:
                 my_analyzer:
                   type: custom
@@ -185,5 +191,11 @@ setup:
               my_field:
                 type: text
                 search_analyzer: my_analyzer
+
   - match: { acknowledged: true }
-  - match: { shards_acknowledged: false }
+  - match: { shards_acknowledged: true }
+
+  - do:
+      indices.stats: { index: empty_set_index }
+
+  - match: { indices.empty_set_index.health: "green" }

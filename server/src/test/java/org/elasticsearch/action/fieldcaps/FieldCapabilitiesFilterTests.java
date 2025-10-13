@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.plugins.FieldPredicate;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -46,7 +48,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY,
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );
@@ -74,7 +76,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true,
+                FieldPredicate.ACCEPT_ALL,
                 getMockIndexShard(),
                 true
             );
@@ -87,12 +89,60 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true,
+                FieldPredicate.ACCEPT_ALL,
                 getMockIndexShard(),
                 true
             );
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
+        }
+    }
+
+    public void testDimensionFilters() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mode", "time_series").put("index.routing_path", "dim.*").build(),
+            """
+                { "_doc" : {
+                  "properties" : {
+                    "metric" : { "type" : "long" },
+                    "dimension_1" : { "type" : "keyword", "time_series_dimension" : "true" },
+                    "dimension_2" : { "type" : "long", "time_series_dimension" : "true" }
+                  }
+                } }
+                """
+        );
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        {
+            // First, test without the filter
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> s.equals("metric"),
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            );
+            assertNotNull(response.get("metric"));
+            assertNull(response.get("dimension_1"));
+            assertNull(response.get("dimension_2"));
+        }
+
+        {
+            // then, test with the filter
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> s.equals("metric"),
+                new String[] { "+dimension" },
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            );
+            assertNotNull(response.get("dimension_1"));
+            assertNotNull(response.get("dimension_2"));
+            assertNotNull(response.get("metric"));
         }
     }
 
@@ -120,7 +170,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );
@@ -151,7 +201,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );
@@ -171,7 +221,22 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             } }
             """);
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
-        Predicate<String> securityFilter = f -> f.startsWith("permitted");
+        FieldPredicate securityFilter = new FieldPredicate() {
+            @Override
+            public boolean test(String field) {
+                return field.startsWith("permitted");
+            }
+
+            @Override
+            public String modifyHash(String hash) {
+                return "only-permitted:" + hash;
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
+            }
+        };
 
         {
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
@@ -223,7 +288,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );

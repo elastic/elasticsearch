@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.shards;
 
@@ -40,10 +41,13 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
      * Create a request for shard stores info for <code>indices</code>
      */
     public IndicesShardStoresRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.indices = indices;
     }
 
-    public IndicesShardStoresRequest() {}
+    public IndicesShardStoresRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public IndicesShardStoresRequest(StreamInput in) throws IOException {
         super(in);
@@ -75,7 +79,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
                 "support for maxConcurrentShardRequests=["
                     + maxConcurrentShardRequests
                     + "] was added in version [8.8.0], cannot send this request using transport version ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         } // else just drop the value and use the default behaviour

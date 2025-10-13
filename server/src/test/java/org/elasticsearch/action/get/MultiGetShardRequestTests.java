@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -97,14 +95,6 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
             }
             default -> throw new IllegalStateException("Unexpected mutation branch value: " + mutationBranch);
         }
-    }
-
-    public void testForceSyntheticUnsupported() {
-        MultiGetShardRequest request = createTestInstance(true);
-        StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_3_0);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
-        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 
     static MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {

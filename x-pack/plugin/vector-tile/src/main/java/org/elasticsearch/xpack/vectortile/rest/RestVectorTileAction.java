@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 
 import java.io.IOException;
@@ -87,7 +89,13 @@ public class RestVectorTileAction extends BaseRestHandler {
     // internal label position runtime field name
     static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
-    public RestVectorTileAction() {}
+    private final SearchUsageHolder searchUsageHolder;
+    private final Settings settings;
+
+    public RestVectorTileAction(SearchUsageHolder searchUsageHolder, Settings settings) {
+        this.searchUsageHolder = searchUsageHolder;
+        this.settings = settings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -101,9 +109,14 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            restRequest.param("project_routing");
+        }
+
         // This will allow to cancel the search request if the http channel is closed
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest);
+        final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder::updateUsage);
         final SearchRequestBuilder searchRequestBuilder = searchRequestBuilder(cancellableNodeClient, request);
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {
 
@@ -162,10 +175,14 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getShardFailures(),
                         searchResponse.getClusters()
                     );
-                    tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
-                    ensureOpen();
-                    tileBuilder.build().writeTo(bytesOut);
-                    return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    try {
+                        tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, featureFactory));
+                        ensureOpen();
+                        tileBuilder.build().writeTo(bytesOut);
+                        return new RestResponse(RestStatus.OK, MIME_TYPE, bytesOut.bytes());
+                    } finally {
+                        meta.decRef();
+                    }
                 }
             }
         });

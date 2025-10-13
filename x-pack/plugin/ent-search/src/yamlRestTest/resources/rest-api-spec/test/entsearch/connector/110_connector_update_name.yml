@@ -1,0 +1,98 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Name":
+  - do:
+      connector.update_name:
+        connector_id: test-connector
+        body:
+          name: test-name
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { name: test-name }
+
+---
+"Update Connector Description":
+  - do:
+      connector.update_name:
+        connector_id: test-connector
+        body:
+          description: test-description
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { description: test-description }
+
+---
+"Update Connector Name and Description":
+  - do:
+      connector.update_name:
+        connector_id: test-connector
+        body:
+          name: test-name
+          description: test-description
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { name: test-name }
+  - match: { description: test-description }
+
+---
+"Update Connector Scheduling - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_name:
+        connector_id: test-non-existent-connector
+        body:
+          name: test-name
+          description: test-description
+
+---
+"Update Connector Scheduling - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_name:
+        connector_id: ""
+        body:
+          name: test-name
+          description: test-description
+
+---
+"Update Connector Scheduling - 400 status code when payload is not string":
+  - do:
+      catch: "bad_request"
+      connector.update_name:
+        connector_id: test-connector
+        body:
+          name:
+            field_1: test
+            field_2: something
+          description: test-description

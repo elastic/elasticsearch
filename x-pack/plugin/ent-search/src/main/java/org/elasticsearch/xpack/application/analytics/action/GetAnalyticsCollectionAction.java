@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
@@ -26,8 +26,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class GetAnalyticsCollectionAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/get";
@@ -38,9 +41,10 @@ public class GetAnalyticsCollectionAction {
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
         private final String[] names;
 
-        public static ParseField NAMES_FIELD = new ParseField("names");
+        public static final ParseField NAMES_FIELD = new ParseField("names");
 
-        public Request(String[] names) {
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
             this.names = Objects.requireNonNull(names, "Collection names cannot be null");
         }
 
@@ -77,19 +81,6 @@ public class GetAnalyticsCollectionAction {
             return Arrays.equals(this.names, request.names);
         }
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "get_analytics_collection_request",
-            p -> new Request(((List<String>) p[0]).toArray(String[]::new))
-        );
-        static {
-            PARSER.declareStringArray(constructorArg(), NAMES_FIELD);
-        }
-
-        public static Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -106,7 +97,6 @@ public class GetAnalyticsCollectionAction {
         public static final ParseField EVENT_DATA_STREAM_NAME_FIELD = new ParseField("name");
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.collections = in.readCollectionAsList(AnalyticsCollection::new);
         }
 

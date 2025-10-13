@@ -7,23 +7,19 @@ steps:
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
-              - debian-11
+              - debian-12
               - opensuse-leap-15
-              - oraclelinux-7
               - oraclelinux-8
-              - sles-12
+              - oraclelinux-9
               - sles-15
-              - ubuntu-1804
-              - ubuntu-2004
               - ubuntu-2204
+              - ubuntu-2404
               - rocky-8
               - rocky-9
-              - rhel-7
               - rhel-8
               - rhel-9
               - almalinux-8
+              - almalinux-9
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -40,18 +36,20 @@ steps:
         matrix:
           setup:
             image:
-              - windows-2016
-              - windows-2019
               - windows-2022
+              - windows-2025
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n1-standard-32
+          machineType: n1-standard-16
           diskType: pd-ssd
           diskSizeGb: 350
         env:
@@ -65,11 +63,14 @@ steps:
           setup:
             image:
               - almalinux-8-aarch64
-              - ubuntu-2004-aarch64
+              - ubuntu-2404-aarch64
             GRADLE_TASK:
               - checkPart1
               - checkPart2
               - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: aws
@@ -89,7 +90,6 @@ steps:
           setup:
             image:
               - amazonlinux-2023
-              - amazonlinux-2
         agents:
           provider: aws
           imagePrefix: elasticsearch-{{matrix.image}}

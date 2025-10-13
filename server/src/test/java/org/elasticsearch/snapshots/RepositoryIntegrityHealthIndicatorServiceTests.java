@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -25,8 +27,10 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +51,7 @@ import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorServ
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.UNKNOWN_DEFINITION;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +60,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode node1;
     private DiscoveryNode node2;
     private HealthInfo healthInfo;
+    private FeatureService featureService;
 
     @Before
     public void setUp() throws Exception {
@@ -72,8 +78,12 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     node2.getId(),
                     new RepositoriesHealthInfo(List.of(), List.of())
                 )
-            )
+            ),
+            FileSettingsHealthInfo.INDETERMINATE
         );
+
+        featureService = Mockito.mock(FeatureService.class);
+        Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     public void testIsGreenWhenAllRepositoriesAreHealthy() {
@@ -247,7 +257,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true, new HealthInfo(Map.of(), null, Map.of())),
+            service.calculate(true, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE)),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -282,7 +292,12 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             invalidRepos.add("invalid-repo-" + i);
             repoHealthInfo.put("node-" + i, new RepositoriesHealthInfo(List.of("unknown-repo-" + i), List.of("invalid-repo-" + i)));
         });
-        healthInfo = new HealthInfo(healthInfo.diskInfoByNode(), healthInfo.dslHealthInfo(), repoHealthInfo);
+        healthInfo = new HealthInfo(
+            healthInfo.diskInfoByNode(),
+            healthInfo.dslHealthInfo(),
+            repoHealthInfo,
+            FileSettingsHealthInfo.INDETERMINATE
+        );
 
         assertThat(
             service.calculate(true, 10, healthInfo).diagnosisList(),
@@ -292,6 +307,29 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(true, 0, healthInfo).diagnosisList(),
             equalTo(createDiagnoses(repos, nodes, unknownRepos, invalidRepos, 0))
+        );
+    }
+
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        var repos = appendToCopy(
+            randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
+            createRepositoryMetadata("corrupted-repo", true)
+        );
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(false, healthInfo),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Detected [1] corrupted snapshot repository.",
+                    HealthIndicatorDetails.EMPTY,
+                    RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                    List.of()
+                )
+            )
         );
     }
 
@@ -349,11 +387,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(RepositoriesMetadata metadata) {
-        var builder = ClusterState.builder(new ClusterName("test-cluster"));
+        var builder = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().add(node1).add(node2).build());
         if (metadata != null) {
             builder.metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, metadata));
         }
-        builder.nodes(DiscoveryNodes.builder().add(node1).add(node2).build());
         return builder.build();
     }
 
@@ -361,7 +398,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         return new RepositoryMetadata(name, "uuid", "s3", Settings.EMPTY, corrupted ? CORRUPTED_REPO_GEN : EMPTY_REPO_GEN, EMPTY_REPO_GEN);
     }
 
-    private static RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
+    private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         return new RepositoryIntegrityHealthIndicatorService(clusterService);

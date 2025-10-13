@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -28,6 +30,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -36,9 +39,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -81,6 +87,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -98,7 +105,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -113,6 +124,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private boolean allowExpensiveQueries;
+    private SecurityIndexManager.IndexState projectIndex;
 
     @Before
     public void setup() {
@@ -137,22 +149,23 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             }
         };
         securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -191,6 +204,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
         assertResult(sourcePrivileges, future);
+        verify(projectIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetMissingPrivilege() throws InterruptedException, ExecutionException, TimeoutException {
@@ -200,6 +214,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = future.get(1, TimeUnit.SECONDS);
         assertThat(applicationPrivilegeDescriptors, empty());
+        verify(projectIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesByApplicationName() throws Exception {
@@ -226,6 +241,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
 
         assertResult(sourcePrivileges, future);
+        verify(projectIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesByWildcardApplicationName() throws Exception {
@@ -284,6 +300,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
         // The first and last privilege should not be retrieved
         assertResult(sourcePrivileges.subList(1, 4), future);
+        verify(projectIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetPrivilegesByStarApplicationName() throws Exception {
@@ -298,6 +315,97 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(SearchHits.EMPTY));
+        verify(projectIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
+    }
+
+    public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndex() throws Exception {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
+        );
+
+        // first call fails, second (after "wait" complete) succeeds
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Void>) invocation.getArguments()[0];
+            listener.onResponse(null);
+            return null;
+        }).when(projectIndex).onIndexAvailableForSearch(anyActionListener(), any());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
+
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
+
+        assertResult(sourcePrivileges, future);
+        verify(projectIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
+    }
+
+    public void testGetPrivilegesWillOnlyWaitOnUnavailableShardException() {
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
+            new IndexClosedException(new Index("potato", randomUUID()))
+        );
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Void>) invocation.getArguments()[0];
+            listener.onResponse(null);
+            return null;
+        }).when(projectIndex).onIndexAvailableForSearch(anyActionListener(), any());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
+        expectThrows(IndexClosedException.class, future::actionGet);
+
+        verify(projectIndex, never()).onIndexAvailableForSearch(anyActionListener(), any());
+    }
+
+    public void testGetPrivilegesFailsAfterWaitOnUnavailableShardException() {
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(false);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Void>) invocation.getArguments()[0];
+            listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
+            return null;
+        }).when(projectIndex).onIndexAvailableForSearch(anyActionListener(), any());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
+        expectThrows(UnavailableShardsException.class, future::actionGet);
+
+        verify(projectIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
+    }
+
+    public void testGetPrivilegesSucceedsWithWaitOnAvailableSecurityIndexAfterWaitFailure() throws Exception {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
+        );
+
+        // first call fails, second (after "wait" fail) succeeds
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(true);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Void>) invocation.getArguments()[0];
+            // we fail here, but since the final check for availability succeeds, the overall request will succeed
+            listener.onFailure(new ElasticsearchTimeoutException("slow potato"));
+            return null;
+        }).when(projectIndex).onIndexAvailableForSearch(anyActionListener(), any());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
+
+        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
+
+        assertResult(sourcePrivileges, future);
+        verify(projectIndex, times(1)).onIndexAvailableForSearch(anyActionListener(), any());
     }
 
     public void testGetAllPrivileges() throws Exception {
@@ -722,6 +830,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // Cache should be cleared when security is back to green
         cacheInvalidatorRegistry.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
             dummyState(securityIndexName, true, randomFrom((ClusterHealthStatus) null, ClusterHealthStatus.RED)),
             dummyState(securityIndexName, true, randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW))
         );
@@ -729,6 +838,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // Cache should be cleared when security is deleted
         cacheInvalidatorRegistry.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
             dummyState(securityIndexName, true, randomFrom(ClusterHealthStatus.values())),
             dummyState(securityIndexName, true, null)
         );
@@ -741,6 +851,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             null
         );
         cacheInvalidatorRegistry.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
             dummyState(securityIndexName, isIndexUpToDate, randomFrom(allPossibleHealthStatus)),
             dummyState(securityIndexName, isIndexUpToDate == false, randomFrom(allPossibleHealthStatus))
         );
@@ -781,23 +892,15 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertResult(sourcePrivileges, future);
     }
 
-    private SecurityIndexManager.State dummyState(
+    private SecurityIndexManager.IndexState dummyState(
         String concreteSecurityIndexName,
         boolean isIndexUpToDate,
         ClusterHealthStatus healthStatus
     ) {
-        return new SecurityIndexManager.State(
-            Instant.now(),
-            isIndexUpToDate,
-            true,
-            true,
-            true,
-            null,
-            concreteSecurityIndexName,
-            healthStatus,
-            IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+
+        return securityIndex.new IndexState(
+            Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isIndexUpToDate, true, true,
+            true, true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 
@@ -820,7 +923,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     private static SearchResponse buildSearchResponse(SearchHit[] hits) {
         var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
         try {
-            return new SearchResponse(searchHits.asUnpooled(), null, null, false, false, null, 1, "_scrollId1", 1, 1, 0, 1, null, null);
+            return SearchResponseUtils.successfulResponse(searchHits.asUnpooled());
         } finally {
             searchHits.decRef();
         }
@@ -873,5 +976,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     private Settings setAllowExpensiveQueries(Settings settings) {
         return Settings.builder().put(settings).put(ALLOW_EXPENSIVE_QUERIES.getKey(), allowExpensiveQueries).build();
+    }
+
+    private static UnavailableShardsException unavailableShardsException() {
+        return new UnavailableShardsException("index", 1, "bad shard");
     }
 }

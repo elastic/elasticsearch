@@ -11,7 +11,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -36,7 +36,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
     @Before
     public void ensureNativeStoresStarted() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
         if (shouldSetReservedUserPasswords()) {
             setupReservedPasswords();
         }
@@ -63,7 +63,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         // we are randomly running a large number of nodes in these tests so we limit the number of worker threads
         // since the default of 2 * CPU count might use up too much direct memory for thread-local direct buffers for each node's
         // transport threads
-        builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+        builder.put(Netty4Plugin.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
         return builder.build();
     }
 

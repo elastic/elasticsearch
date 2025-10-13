@@ -1,0 +1,5 @@
+pr: 132651
+summary: Use java8 variant of apm-agent
+area: Infra/Core
+type: upgrade
+issues: []

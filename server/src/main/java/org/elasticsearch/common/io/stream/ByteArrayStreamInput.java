@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -29,6 +30,16 @@ public final class ByteArrayStreamInput extends StreamInput {
 
     public ByteArrayStreamInput(byte[] bytes) {
         reset(bytes);
+    }
+
+    @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        String string = tryReadStringFromBytes(bytes, pos, limit, chars);
+        if (string != null) {
+            return string;
+        }
+        return doReadString(chars);
     }
 
     @Override
@@ -66,6 +77,20 @@ public final class ByteArrayStreamInput extends StreamInput {
     }
 
     @Override
+    public long skip(long n) throws IOException {
+        if (n <= 0L) {
+            return 0L;
+        }
+        int available = available();
+        if (n < available) {
+            pos += (int) n;
+            return n;
+        }
+        pos = limit;
+        return available;
+    }
+
+    @Override
     public void close() {
         // No-op
     }
@@ -92,5 +117,16 @@ public final class ByteArrayStreamInput extends StreamInput {
     public void readBytes(byte[] b, int offset, int len) {
         System.arraycopy(bytes, pos, b, offset, len);
         pos += len;
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        final int available = limit - pos;
+        if (available <= 0) {
+            return -1;
+        }
+        int toRead = Math.min(len, available);
+        readBytes(b, off, toRead);
+        return toRead;
     }
 }

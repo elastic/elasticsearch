@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -14,6 +15,8 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
@@ -38,11 +41,13 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse implements Releasable {
-    private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
-    private final int totalShards;
-    private final int skippedShards;
-    private final Clusters clusters;
-    private final AtomicArray<ShardSearchFailure> queryFailures;
+
+    private final Logger logger = Loggers.getLogger(getClass(), "async");
+
+    private int totalShards;
+    private int skippedShards;
+    private Clusters clusters;
+    private AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
     private boolean isPartial;
@@ -82,21 +87,29 @@ class MutableSearchResponse implements Releasable {
     /**
      * Creates a new mutable search response.
      *
-     * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
-     * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
-     * @param clusters The remote clusters statistics.
      * @param threadContext The thread context to retrieve the final response headers.
      */
-    MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
-        this.totalShards = totalShards;
-        this.skippedShards = skippedShards;
-
-        this.clusters = clusters;
-        this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
+    MutableSearchResponse(ThreadContext threadContext) {
         this.isPartial = true;
         this.threadContext = threadContext;
-        this.totalHits = EMPTY_TOTAL_HITS;
+        this.totalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
         this.localClusterComplete = false;
+    }
+
+    /**
+     * Updates the response with the number of total and skipped shards.
+     *
+     * @param totalShards The number of shards that participate in the request.
+     * @param skippedShards The number of shards skipped.
+     * <p>
+     * Shards in this context depend on the value of minimize round trips (MRT):
+     * They are the shards being searched by this coordinator (local only for MRT=true, local + remote otherwise).
+     */
+    synchronized void updateShardsAndClusters(int totalShards, int skippedShards, Clusters clusters) {
+        this.totalShards = totalShards;
+        this.skippedShards = skippedShards;
+        this.queryFailures = new AtomicArray<>(totalShards - skippedShards);
+        this.clusters = clusters;
     }
 
     /**
@@ -306,12 +319,10 @@ class MutableSearchResponse implements Releasable {
      *         (for local-only/CCS minimize_roundtrips=false)
      */
     private SearchResponseMerger createSearchResponseMerger(AsyncSearchTask task) {
-        return null;
-        // TODO uncomment this code once Kibana moves to polling the _async_search/status endpoint to determine if a search is done
-        // if (task.getSearchResponseMergerSupplier() == null) {
-        // return null; // local search and CCS minimize_roundtrips=false
-        // }
-        // return task.getSearchResponseMergerSupplier().get();
+        if (task.getSearchResponseMergerSupplier() == null) {
+            return null; // local search and CCS minimize_roundtrips=false
+        }
+        return task.getSearchResponseMergerSupplier().get();
     }
 
     private SearchResponse getMergedResponse(SearchResponseMerger merger) {
@@ -482,6 +493,16 @@ class MutableSearchResponse implements Releasable {
 
     @Override
     public synchronized void close() {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "MutableSearchResponse.close(): byThread={}, finalResponsePresent={}, clusterResponsesCount={}, stack={}",
+                Thread.currentThread().getName(),
+                finalResponse != null,
+                clusterResponses != null ? clusterResponses.size() : 0,
+                new Exception().getStackTrace()
+            );
+        }
+
         if (finalResponse != null) {
             finalResponse.decRef();
         }

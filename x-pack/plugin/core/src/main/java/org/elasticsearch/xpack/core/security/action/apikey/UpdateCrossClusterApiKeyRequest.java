@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -24,13 +22,10 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
         final String id,
         @Nullable CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable final Map<String, Object> metadata,
-        @Nullable TimeValue expiration
+        @Nullable TimeValue expiration,
+        @Nullable CertificateIdentity certificateIdentity
     ) {
-        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id);
-    }
-
-    public UpdateCrossClusterApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
+        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id, certificateIdentity);
     }
 
     @Override
@@ -41,9 +36,9 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (roleDescriptors == null && metadata == null) {
+        if (roleDescriptors == null && metadata == null && certificateIdentity == null) {
             validationException = addValidationError(
-                "must update either [access] or [metadata] for cross-cluster API keys",
+                "must update [access], [metadata], or [certificate_identity] for cross-cluster API keys",
                 validationException
             );
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -18,6 +19,7 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -51,7 +53,8 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        channel = new EmbeddedChannel();
+        channel = new EmbeddedChannel(new FlowControlHandler());
+        channel.config().setAutoRead(false);
         threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
     }
 
@@ -148,11 +151,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
     private HttpValidator getValidator(ExecutorService executorService, AtomicBoolean success, Semaphore validationDone) {
         return (httpRequest, channel, listener) -> {
             executorService.submit(() -> {
-                if (randomBoolean()) {
-                    threadPool.getThreadContext().putHeader(randomAlphaOfLength(16), "tampered thread context");
-                } else {
-                    threadPool.getThreadContext().putTransient(randomAlphaOfLength(16), "tampered thread context");
-                }
+                tamperThreadContext();
                 if (success.get()) {
                     listener.onResponse(null);
                 } else {
@@ -165,10 +164,26 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
         };
     };
 
+    private void tamperThreadContext() {
+        boolean tampered = false;
+        if (randomBoolean()) {
+            threadPool.getThreadContext().putHeader(randomAlphaOfLength(16), "tampered with request header");
+            tampered = true;
+        }
+        if (randomBoolean()) {
+            threadPool.getThreadContext().putTransient(randomAlphaOfLength(16), "tampered with transient request header");
+            tampered = true;
+        }
+        if (randomBoolean() || tampered == false) {
+            threadPool.getThreadContext().addResponseHeader(randomAlphaOfLength(8), "tampered with response header");
+        }
+    }
+
     private void sendRequestThrough(boolean success, Semaphore validationDone) throws Exception {
         threadPool.generic().submit(() -> {
             DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
             channel.writeInbound(request1);
+            channel.read();
             DefaultHttpContent content1 = randomBoolean() ? new DefaultHttpContent(Unpooled.buffer(4)) : null;
             if (content1 != null) {
                 channel.writeInbound(content1);
@@ -184,9 +199,11 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
             }
             channel.runPendingTasks();
             assertThat(channel.readInbound(), sameInstance(request1));
+            channel.read();
             if (content1 != null && success) {
                 assertThat(channel.readInbound(), sameInstance(content1));
             }
+            channel.read();
             if (success) {
                 assertThat(channel.readInbound(), sameInstance(lastContent1));
             }

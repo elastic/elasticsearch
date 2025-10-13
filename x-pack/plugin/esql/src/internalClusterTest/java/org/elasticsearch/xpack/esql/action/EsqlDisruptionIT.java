@@ -8,18 +8,22 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,7 +31,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 4)
 public class EsqlDisruptionIT extends EsqlActionIT {
@@ -50,7 +53,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
         logger.info("settings {}", settings);
         return settings;
@@ -65,7 +68,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
         boolean singleIndex = request.query().startsWith("from test |");
         if (singleIndex && randomIntBetween(0, 100) <= 20) {
@@ -80,22 +83,58 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
         logger.info("--> executing esql query with disruption {} ", request.query());
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        EsqlQueryResponse resp = null;
         try {
-            return future.actionGet(2, TimeUnit.MINUTES);
+            resp = future.actionGet(2, TimeUnit.MINUTES);
+            if (resp.isPartial() == false) {
+                return resp;
+            }
         } catch (Exception ignored) {
 
         } finally {
             clearDisruption();
         }
-        try {
-            return future.actionGet(2, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            assertTrue("request must be failed or completed after clearing disruption", future.isDone());
-            ensureBlocksReleased();
-            logger.info("--> failed to execute esql query with disruption; retrying...", e);
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
+        // wait for the response after clear disruption
+        if (resp == null) {
+            try {
+                resp = future.actionGet(2, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                logger.info(
+                    "running tasks: {}",
+                    client().admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .get()
+                        .getTasks()
+                        .stream()
+                        .filter(
+                            // Skip the tasks we that'd get in the way while debugging
+                            t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                                && false == t.action().contains(HealthNode.TASK_NAME)
+                        )
+                        .toList()
+                );
+                assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+                ensureBlocksReleased();
+                logger.info("--> failed to execute esql query with disruption; retrying...", e);
+                EsqlTestUtils.assertEsqlFailure(e);
+            }
         }
+        // use the response if it's not partial
+        if (resp != null) {
+            if (resp.isPartial() == false) {
+                return resp;
+            }
+            try (var ignored = resp) {
+                assertTrue(request.allowPartialResults());
+            }
+        }
+        // re-run the query
+        return super.run(request);
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
@@ -123,7 +162,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         try {
             internalCluster().clearDisruptionScheme(false);
             ensureFullyConnectedCluster();
-            assertBusy(() -> assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true)), 1, TimeUnit.MINUTES);
+            assertBusy(() -> ClusterRerouteUtils.rerouteRetryFailed(client()), 1, TimeUnit.MINUTES);
             ensureYellow();
         } catch (Exception e) {
             throw new AssertionError(e);

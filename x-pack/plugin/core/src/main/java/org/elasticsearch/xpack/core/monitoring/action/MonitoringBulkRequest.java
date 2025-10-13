@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +30,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Every monitoring document added to the request is associated to a {@link MonitoredSystem}. The monitored system is used
  * to resolve the index name in which the document will be indexed into.
  */
-public class MonitoringBulkRequest extends ActionRequest {
+public class MonitoringBulkRequest extends LegacyActionRequest {
 
     private final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
@@ -83,7 +83,7 @@ public class MonitoringBulkRequest extends ActionRequest {
     ) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false, RestApiVersion.current()).parse(
+        new BulkRequestParser(false, true, RestApiVersion.current()).parse(
             content,
             null,
             null,

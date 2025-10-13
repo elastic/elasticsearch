@@ -1,8 +1,8 @@
 ---
 "cluster stats with voting only node stats":
 
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason:  "voting only nodes are added in v7.3"
 
   - do:

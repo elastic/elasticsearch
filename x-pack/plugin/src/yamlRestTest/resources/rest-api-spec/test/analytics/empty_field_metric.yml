@@ -1,0 +1,135 @@
+setup:
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          mappings:
+            properties:
+              terms_field:
+                type: keyword
+              date_field:
+                type: date
+              int_field:
+                type : integer
+              double_field:
+                type : double
+              string_field:
+                type: keyword
+              histogram_field:
+                type: histogram
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+              _id:    "1"
+          - terms_field: foo
+            date_field: 2024-01-02
+          - index:
+              _index: test_1
+              _id:    "2"
+          - terms_field: foo
+            date_field: 2024-01-02
+          - index:
+              _index: test_1
+              _id:    "3"
+          - terms_field: bar
+            date_field: 2024-01-01
+
+---
+"Basic test":
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: terms_field
+                "order":
+                  "_key": "asc"
+              aggs:
+                boxplot_agg:
+                  boxplot:
+                    field: double_field
+                t_test_agg:
+                  t_test:
+                    a:
+                      field: double_field
+                    b:
+                      field: int_field
+                    type: paired
+                string_stats_agg:
+                  string_stats:
+                    field: string_field
+
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.the_terms.buckets.0.key: bar}
+  - match: { aggregations.the_terms.buckets.0.doc_count: 1}
+  - exists: aggregations.the_terms.buckets.0.boxplot_agg.min
+  - exists: aggregations.the_terms.buckets.0.boxplot_agg.max
+  - exists: aggregations.the_terms.buckets.0.boxplot_agg.q3
+  - exists: aggregations.the_terms.buckets.0.boxplot_agg.q1
+  - exists: aggregations.the_terms.buckets.0.boxplot_agg.q2
+  - exists: aggregations.the_terms.buckets.0.boxplot_agg.q3
+  - match: { aggregations.the_terms.buckets.0.t_test_agg.value: null }
+  - match: { aggregations.the_terms.buckets.0.string_stats_agg.count: 0 }
+  - match: { aggregations.the_terms.buckets.0.string_stats_agg.min_length: null }
+  - match: { aggregations.the_terms.buckets.0.string_stats_agg.max_length: null }
+  - match: { aggregations.the_terms.buckets.0.string_stats_agg.avg_length: null }
+  - match: { aggregations.the_terms.buckets.0.string_stats_agg.entropy: 0 }
+  - match: { aggregations.the_terms.buckets.1.key: foo}
+  - match: { aggregations.the_terms.buckets.1.doc_count: 2}
+  - exists: aggregations.the_terms.buckets.1.boxplot_agg.min
+  - exists: aggregations.the_terms.buckets.1.boxplot_agg.max
+  - exists: aggregations.the_terms.buckets.1.boxplot_agg.q3
+  - exists: aggregations.the_terms.buckets.1.boxplot_agg.q1
+  - exists: aggregations.the_terms.buckets.1.boxplot_agg.q2
+  - exists: aggregations.the_terms.buckets.1.boxplot_agg.q3
+  - match: { aggregations.the_terms.buckets.1.t_test_agg.value: null }
+  - match: { aggregations.the_terms.buckets.1.string_stats_agg.count: 0 }
+  - match: { aggregations.the_terms.buckets.1.string_stats_agg.min_length: null }
+  - match: { aggregations.the_terms.buckets.1.string_stats_agg.max_length: null }
+  - match: { aggregations.the_terms.buckets.1.string_stats_agg.avg_length: null }
+  - match: { aggregations.the_terms.buckets.1.string_stats_agg.entropy: 0 }
+
+---
+"Rate test":
+
+  - do:
+      search:
+        index: test_1
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_date_hist:
+              date_histogram:
+                field: date_field
+                calendar_interval: day
+                format: yyyy-MM-dd
+              aggs:
+                rate_agg:
+                  rate:
+                    field: double_field
+                rate_hist_agg:
+                  rate:
+                    field: histogram_field
+
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.the_date_hist.buckets.0.key_as_string: 2024-01-01 }
+  - match: { aggregations.the_date_hist.buckets.0.doc_count: 1 }
+  - match: { aggregations.the_date_hist.buckets.0.rate_agg.value: 0.0 }
+  - match: { aggregations.the_date_hist.buckets.0.rate_hist_agg.value: 0.0 }
+  - match: { aggregations.the_date_hist.buckets.1.key_as_string: 2024-01-02 }
+  - match: { aggregations.the_date_hist.buckets.1.doc_count: 2 }
+  - match: { aggregations.the_date_hist.buckets.1.rate_agg.value: 0.0 }
+  - match: { aggregations.the_date_hist.buckets.1.rate_hist_agg.value: 0.0 }
+

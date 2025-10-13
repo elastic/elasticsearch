@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -27,116 +28,27 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentLocation;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ExceptionRootCauseFinderTests extends ESTestCase {
 
     public void testGetFirstIrrecoverableExceptionFromBulkResponses() {
-        Map<Integer, BulkItemResponse> bulkItemResponses = new HashMap<>();
-
-        int id = 1;
-        // 1
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new DocumentParsingException(XContentLocation.UNKNOWN, "document parsing error")
-                )
-            )
-        );
-        // 2
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new ResourceNotFoundException("resource not found error"))
-            )
-        );
-        // 3
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new IllegalArgumentException("illegal argument error"))
-            )
-        );
-        // 4 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new EsRejectedExecutionException("es rejected execution"))
-            )
-        );
-        // 5 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new TranslogException(new ShardId("the_index", "uid", 0), "translog error"))
-            )
-        );
-        // 6
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED)
-                )
-            )
-        );
-        // 7
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("current license is non-compliant for [transform]", RestStatus.FORBIDDEN)
-                )
-            )
-        );
-        // 8 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("overloaded, to many requests", RestStatus.TOO_MANY_REQUESTS)
-                )
-            )
-        );
-        // 9 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("internal error", RestStatus.INTERNAL_SERVER_ERROR)
-                )
-            )
+        Map<Integer, BulkItemResponse> bulkItemResponses = bulkItemResponses(
+            new DocumentParsingException(XContentLocation.UNKNOWN, "document parsing error"),
+            new ResourceNotFoundException("resource not found error"),
+            new IllegalArgumentException("illegal argument error"),
+            new EsRejectedExecutionException("es rejected execution"),
+            new TranslogException(new ShardId("the_index", "uid", 0), "translog error"),
+            new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED),
+            new ElasticsearchSecurityException("current license is non-compliant for [transform]", RestStatus.FORBIDDEN),
+            new ElasticsearchSecurityException("overloaded, to many requests", RestStatus.TOO_MANY_REQUESTS),
+            new ElasticsearchSecurityException("internal error", RestStatus.INTERNAL_SERVER_ERROR),
+            new IndexNotFoundException("some missing index")
         );
 
         assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "document parsing error");
@@ -157,6 +69,14 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
+    private static Map<Integer, BulkItemResponse> bulkItemResponses(Exception... exceptions) {
+        var id = new AtomicInteger(1);
+        return Arrays.stream(exceptions)
+            .map(exception -> new BulkItemResponse.Failure("the_index", "id", exception))
+            .map(failure -> BulkItemResponse.failure(id.get(), OpType.INDEX, failure))
+            .collect(Collectors.toMap(response -> id.getAndIncrement(), Function.identity()));
+    }
+
     public void testIsIrrecoverable() {
         assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new MapperException("mappings problem")));
         assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new TaskCancelledException("cancelled task")));
@@ -174,6 +94,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertTrue(
             ExceptionRootCauseFinder.isExceptionIrrecoverable(new DocumentParsingException(new XContentLocation(1, 2), "parse error"))
         );
+        assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexNotFoundException("some missing index")));
     }
 
     private static void assertFirstException(Collection<BulkItemResponse> bulkItemResponses, Class<?> expectedClass, String message) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -12,8 +13,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -32,9 +33,9 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TestTransportChannels;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CancellableTasksTests extends TaskManagerTestCase {
 
-    public static class CancellableNodeRequest extends TransportRequest {
+    public static class CancellableNodeRequest extends AbstractTransportRequest {
         protected String requestName;
 
         public CancellableNodeRequest() {
@@ -99,23 +100,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
     }
 
-    public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
-        private String requestName;
-
-        private CancellableNodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
+    public static class CancellableNodesRequest extends BaseNodesRequest {
+        private final String requestName;
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
         }
 
         @Override
@@ -147,7 +137,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             boolean shouldBlock,
             CountDownLatch actionStartedLatch
         ) {
-            super(actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new, CancellableNodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, CancellableNodeRequest::new);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }
@@ -169,15 +159,11 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             if (shouldBlock) {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
-                try {
-                    waitUntil(() -> {
-                        ((CancellableTask) task).ensureNotCancelled();
-                        return false;
-                    });
-                    fail("It should have thrown an exception");
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
+                waitUntil(() -> {
+                    ((CancellableTask) task).ensureNotCancelled();
+                    return false;
+                });
+                fail("It should have thrown an exception");
             }
             debugDelay("op4");
 
@@ -555,7 +541,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that main task is no longer running
             ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
                 testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-                new ListTasksRequest().setActions(CancelTasksAction.NAME + "*")
+                new ListTasksRequest().setActions(TransportCancelTasksAction.NAME + "*")
             );
             assertEquals(0, listTasksResponse.getTasks().size());
         });

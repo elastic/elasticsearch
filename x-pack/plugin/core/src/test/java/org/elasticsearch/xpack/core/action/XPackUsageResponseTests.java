@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ public class XPackUsageResponseTests extends ESTestCase {
         );
     }
 
-    public static class OldUsage extends XPackFeatureSet.Usage {
+    public static class OldUsage extends XPackFeatureUsage {
 
         public OldUsage() {
             super("old", randomBoolean(), randomBoolean());
@@ -59,7 +59,7 @@ public class XPackUsageResponseTests extends ESTestCase {
 
     }
 
-    public static class NewUsage extends XPackFeatureSet.Usage {
+    public static class NewUsage extends XPackFeatureUsage {
 
         public NewUsage() {
             super("new", randomBoolean(), randomBoolean());
@@ -84,8 +84,8 @@ public class XPackUsageResponseTests extends ESTestCase {
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(
             List.of(
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "old", OldUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "new", NewUsage::new)
             )
         );
 
@@ -103,8 +103,8 @@ public class XPackUsageResponseTests extends ESTestCase {
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(
             List.of(
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "old", OldUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, "new", NewUsage::new)
             )
         );
 

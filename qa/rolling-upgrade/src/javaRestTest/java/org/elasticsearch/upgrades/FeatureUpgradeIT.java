@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.XContentTestUtils;
+import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,10 +26,15 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public FeatureUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @BeforeClass
+    public static void ensureNotForwardCompatTest() {
+        assumeFalse("Only supported by bwc tests", Booleans.parseBoolean(System.getProperty("tests.fwc", "false")));
     }
 
     public void testGetFeatureUpgradeStatus() throws Exception {
@@ -99,13 +107,13 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     .orElse(Collections.emptyMap());
 
                 assertThat(feature, aMapWithSize(4));
-                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
+                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toReleaseVersion()));
 
                 // Feature migration happens only across major versions; also, we usually begin to require migrations once we start testing
                 // for the next major version upgrade (see e.g. #93666). Trying to express this with features may be problematic, so we
                 // want to keep using versions here. We also assume that for non-semantic version migrations are not required.
                 boolean migrationNeeded = parseLegacyVersion(getOldClusterVersion()).map(
-                    v -> v.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)
+                    v -> v.before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION)
                 ).orElse(false);
                 if (migrationNeeded) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));

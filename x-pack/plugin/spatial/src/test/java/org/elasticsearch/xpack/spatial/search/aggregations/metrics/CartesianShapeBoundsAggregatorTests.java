@@ -71,6 +71,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 true,
                 Orientation.RIGHT,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -100,6 +101,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 true,
                 Orientation.RIGHT,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -125,6 +127,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 true,
                 Orientation.RIGHT,
                 null,
+                false,
                 Collections.emptyMap()
             );
 
@@ -158,6 +161,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 true,
                 Orientation.RIGHT,
                 null,
+                false,
                 Collections.emptyMap()
             );
 
@@ -248,6 +252,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
             true,
             Orientation.RIGHT,
             null,
+            false,
             Collections.emptyMap()
         );
         try (IndexReader reader = w.getReader()) {

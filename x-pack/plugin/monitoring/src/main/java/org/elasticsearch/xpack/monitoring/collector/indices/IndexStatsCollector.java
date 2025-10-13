@@ -11,10 +11,12 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -79,8 +81,10 @@ public class IndexStatsCollector extends Collector {
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUuid(clusterState);
-        final Metadata metadata = clusterState.metadata();
-        final RoutingTable routingTable = clusterState.routingTable();
+        @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+        final var projectId = ProjectId.DEFAULT;
+        final ProjectMetadata metadata = clusterState.metadata().getProject(projectId);
+        final RoutingTable routingTable = clusterState.routingTable(projectId);
 
         // Filters the indices stats to only return the statistics for the indices known by the collector's
         // local cluster state. This way indices/index/shards stats all share a common view of indices state.

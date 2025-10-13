@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -12,8 +13,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ConditionTests extends ESTestCase {
 
@@ -347,6 +353,36 @@ public class ConditionTests extends ESTestCase {
             condition -> new MinPrimaryShardDocsCondition(condition.value),
             condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
+        OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(3);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            optimalShardCountCondition,
+            condition -> new OptimalShardCountCondition(3),
+            condition -> new OptimalShardCountCondition(2)
+        );
+    }
+
+    public void testAutoShardCondition() {
+        OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(randomNonNegativeInt());
+        assertThat(
+            optimalShardCountCondition.evaluate(
+                new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1)
+            ).matched(),
+            is(true)
+        );
+    }
+
+    public void testParseAutoShardConditionFromRolloverInfo() throws IOException {
+        long time = System.currentTimeMillis();
+        RolloverInfo info = new RolloverInfo("logs-nginx", List.of(new OptimalShardCountCondition(3)), time);
+
+        RolloverInfo parsedInfo = RolloverInfo.parse(
+            createParser(
+                JsonXContent.jsonXContent,
+                "{\n" + " \"met_conditions\": {\n" + " \"optimal_shard_count\": 3" + "\n},\n" + " \"time\": " + time + "\n" + "        }"
+            ),
+            "logs-nginx"
+        );
+        assertThat(parsedInfo, is(info));
     }
 
     private static ByteSizeValue randomByteSize() {

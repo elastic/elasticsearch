@@ -1,9 +1,9 @@
 ---
 "node_info test aggregations":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "aggregation info only supported in 7.9.10+"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
 
   - do:

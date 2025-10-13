@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,7 +77,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs, b -> {});
             }
 
             @Override
@@ -95,7 +95,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg, b -> {});
             }
 
             @Override
@@ -244,7 +244,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 bigArrays,
                 mockScriptService,
                 () -> false,
-                inputs.builder()
+                inputs.builder(),
+                b -> {}
             );
             @SuppressWarnings("unchecked")
             T reduced = (T) reduce(toPartialReduce, context);
@@ -283,7 +284,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs.toReduce());
         if (supportsSampling()) {
-            SamplingContext randomContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+            SamplingContext randomContext = new SamplingContext(
+                randomDoubleBetween(1e-8, 0.1, false),
+                randomInt(),
+                randomBoolean() ? null : randomInt()
+            );
             @SuppressWarnings("unchecked")
             T sampled = (T) reduced.finalizeSampling(randomContext);
             assertSampled(sampled, reduced, randomContext);
@@ -419,7 +424,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 }

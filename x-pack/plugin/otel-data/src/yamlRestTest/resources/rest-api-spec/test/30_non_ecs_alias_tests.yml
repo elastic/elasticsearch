@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      cluster.put_component_template:
+        name: metrics-otel@custom
+        body:
+          template:
+            settings:
+              index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+---
+"Test alias from service.language.name non-ecs field to telemetry.sdk.language":
+  - do:
+      indices.get_index_template:
+        name: metrics-otel@template
+  - length: {index_templates: 1}
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"metrics"}, "attributes": {"processor.event":"metric"}, "resource":{"attributes":{"service.name":"OtelSample","telemetry.sdk.language":"dotnet","telemetry.sdk.name":"opentelemetry"},"dropped_attributes_count":0}}'
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["service.language.name"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.service\.language\.name: [ "dotnet" ] }

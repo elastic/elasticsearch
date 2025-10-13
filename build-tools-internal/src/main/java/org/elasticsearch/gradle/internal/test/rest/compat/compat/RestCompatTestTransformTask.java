@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
@@ -25,6 +26,8 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
+import org.elasticsearch.gradle.internal.test.rest.transform.close_to.ReplaceValueInCloseTo;
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
@@ -56,7 +59,7 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
+import org.gradle.api.tasks.util.internal.PatternSetFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -97,23 +100,21 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Inject
     public RestCompatTestTransformTask(FileSystemOperations fileSystemOperations, ObjectFactory objectFactory) {
         this.fileSystemOperations = fileSystemOperations;
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
-        this.testPatternSet = getPatternSetFactory().create();
+        this.testPatternSet = getPatternSetFactory().createPatternSet();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
         headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         getTransformations().add(new InjectHeaders(headers, Sets.newHashSet(RestCompatTestTransformTask::doesNotHaveCatOperation)));
     }
+
+    @Inject
+    protected abstract PatternSetFactory getPatternSetFactory();
 
     private static boolean doesNotHaveCatOperation(ObjectNode doNodeValue) {
         final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();
@@ -135,14 +136,14 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
         // However, the folder can be arbitrarily nest so, a == a1/a2/a3, and the test name can include forward slashes, so c == c1/c2/c3
         // So we also need to support a1/a2/a3/b/c1/c2/c3
 
-        String[] testParts = fullTestName.split("/");
+        String[] testParts = fullTestName.split("/", 3);
         if (testParts.length < 3) {
             throw new IllegalArgumentException(
                 "To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]"
             );
         }
 
-        PatternSet skippedPatternSet = getPatternSetFactory().create();
+        PatternSet skippedPatternSet = getPatternSetFactory().createPatternSet();
         // create file patterns for all a1/a2/a3/b.yml possibilities.
         for (int i = testParts.length - 1; i > 1; i--) {
             final String lastPart = testParts[i];
@@ -156,7 +157,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void skipTestsByFilePattern(String filePattern, String reason) {
-        PatternSet skippedPatternSet = getPatternSetFactory().create();
+        PatternSet skippedPatternSet = getPatternSetFactory().createPatternSet();
         skippedPatternSet.include(filePattern);
         skippedTestByFilePatternTransformations.put(skippedPatternSet, reason);
     }
@@ -169,7 +170,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param value  the value used in the replacement. For example "bar"
      */
     public void replaceValueInMatch(String subKey, Object value) {
-        getTransformations().add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
+        getTransformations().add(new ReplaceValueInMatch(subKey, SerializableJsonNode.of(value, JsonNode.class)));
     }
 
     /**
@@ -180,7 +181,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceValueInMatch(String subKey, Object value, String testName) {
-        getTransformations().add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+        getTransformations().add(new ReplaceValueInMatch(subKey, SerializableJsonNode.of(value, JsonNode.class), testName));
     }
 
     /**
@@ -225,7 +226,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param value  the value used in the replacement. For example 99
      */
     public void replaceValueInLength(String subKey, int value) {
-        getTransformations().add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class)));
+        getTransformations().add(new ReplaceValueInLength(subKey, SerializableJsonNode.of(value, NumericNode.class)));
     }
 
     /**
@@ -237,7 +238,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceValueInLength(String subKey, int value, String testName) {
-        getTransformations().add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class), testName));
+        getTransformations().add(new ReplaceValueInLength(subKey, SerializableJsonNode.of(value, NumericNode.class), testName));
     }
 
     /**
@@ -252,14 +253,49 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a is_true assertion for all project REST tests.
+     * Replaces the value of the `value` of a close_to assertion for a given REST tests.
+     * For example: close_to:   { get.fields._routing: { value: 5.1, error: 0.00001 } }
+     * to           close_to:   { get.fields._routing: { value: 9.5, error: 0.00001 } }
+     * @param subKey the key name directly under close_to to replace. For example "get.fields._routing"
+     * @param newValue the value used in the replacement. For example 9.5
+     * @param testName the testName to apply replacement
+     */
+    public void replaceValueInCloseTo(String subKey, double newValue, String testName) {
+        getTransformations().add(new ReplaceValueInCloseTo(subKey, SerializableJsonNode.of(newValue, NumericNode.class), testName));
+    }
+
+    /**
+     * Replaces the value of the `value` of a close_to assertion for all project REST tests.
+     * For example: close_to:   { get.fields._routing: { value: 5.1, error: 0.00001 } }
+     * to           close_to:   { get.fields._routing: { value: 9.5, error: 0.00001 } }
+     * @param subKey the key name directly under close_to to replace. For example "get.fields._routing"
+     * @param newValue the value used in the replacement. For example 9.5
+     */
+    public void replaceValueInCloseTo(String subKey, double newValue) {
+        getTransformations().add(new ReplaceValueInCloseTo(subKey, SerializableJsonNode.of(newValue, NumericNode.class)));
+    }
+
+    /**
+     * Replaces all the values of is_true assertion for all project REST tests.
      * For example "is_true": "value_to_replace" to "is_true": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
      * @param newValue the value used in the replacement
      */
     public void replaceIsTrue(String oldValue, Object newValue) {
-        getTransformations().add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        getTransformations().add(new ReplaceIsTrue(oldValue, SerializableJsonNode.of(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of is_true assertion for given REST test.
+     * For example "is_true": "value_to_replace" to "is_true": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue the value used in the replacement
+     * @param testName the testName to apply replacement
+     */
+    public void replaceIsTrue(String oldValue, Object newValue, String testName) {
+        getTransformations().add(new ReplaceIsTrue(oldValue, SerializableJsonNode.of(newValue, TextNode.class), testName));
     }
 
     /**
@@ -270,7 +306,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue the value used in the replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue) {
-        getTransformations().add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        getTransformations().add(new ReplaceIsFalse(oldValue, SerializableJsonNode.of(newValue, TextNode.class)));
     }
 
     /**
@@ -282,7 +318,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue, String testName) {
-        getTransformations().add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+        getTransformations().add(new ReplaceIsFalse(oldValue, SerializableJsonNode.of(newValue, TextNode.class), testName));
     }
 
     /**
@@ -294,7 +330,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue the value used in the replacement
      */
     public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue) {
-        getTransformations().add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        getTransformations().add(new ReplaceTextual(key, oldValue, SerializableJsonNode.of(newValue, TextNode.class)));
     }
 
     /**
@@ -307,7 +343,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply replacement
      */
     public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue, String testName) {
-        getTransformations().add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+        getTransformations().add(new ReplaceTextual(key, oldValue, SerializableJsonNode.of(newValue, TextNode.class), testName));
     }
 
     /**
@@ -341,7 +377,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the testName to apply addition
      */
     public void addMatch(String subKey, Object value, String testName) {
-        getTransformations().add(new AddMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+        getTransformations().add(new AddMatch(subKey, SerializableJsonNode.of(value, JsonNode.class), testName));
     }
 
     /**

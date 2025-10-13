@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -14,6 +15,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,9 +42,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -197,7 +201,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -206,14 +210,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -268,7 +268,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
             fakeRequest,
-            false,
+            randomBoolean(),
             RestStatus.BAD_REQUEST
         );
 
@@ -281,7 +281,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -290,14 +290,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -336,7 +332,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 assertThat(threadContext.getHeader(Task.TRACE_ID), equalTo("0af7651916cd43dd8448eb211c80319c"));
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-                assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParentValue));
+                assertThat(threadContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER), equalTo(traceParentValue));
                 // request trace start time is also set
                 assertTrue(traceStartTimeRef.compareAndSet(null, threadContext.getTransient(Task.TRACE_START_TIME)));
                 assertNotNull(traceStartTimeRef.get());
@@ -347,18 +343,20 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 // but they're not copied in for bad requests
                 assertThat(threadContext.getHeader(Task.TRACE_ID), nullValue());
                 assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-                assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+                assertThat(threadContext.getTransient(Task.PARENT_TRACE_PARENT_HEADER), nullValue());
                 assertThat(threadContext.getTransient(Task.TRACE_START_TIME), nullValue());
             }
 
         };
-        // the set of headers to copy
-        Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
         // sample request headers to test with
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
+            fakeRequest,
+            randomBoolean(),
+            RestStatus.BAD_REQUEST
+        );
 
         try (
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
@@ -369,7 +367,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -378,7 +376,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {}
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {}
@@ -390,7 +388,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
+                    getFakeActionModule(Set.of()).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
                 }
             }
         ) {
@@ -400,7 +398,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-            assertThat(threadPool.getThreadContext().getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+            assertThat(threadPool.getThreadContext().getTransient(Task.PARENT_TRACE_PARENT_HEADER), nullValue());
 
             // system clock is not _technically_ monotonic but in practice it's very unlikely to see a discontinuity here
             assertThat(
@@ -412,20 +410,20 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-            assertThat(threadPool.getThreadContext().getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+            assertThat(threadPool.getThreadContext().getTransient(Task.PARENT_TRACE_PARENT_HEADER), nullValue());
         }
     }
 
     public void testHandlingCompatibleVersionParsingErrors() {
-        // a compatible version exception (v7 on accept and v8 on content-type) should be handled gracefully
+        // a compatible version exception (v8 on accept and v9 on content-type) should be handled gracefully
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (
             AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept", "Content-Type"))
         ) {
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=7"));
-            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=8"));
+            headers.put("Accept", Collections.singletonList("aaa/bbb;compatible-with=8"));
+            headers.put("Content-Type", Collections.singletonList("aaa/bbb;compatible-with=9"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
@@ -501,7 +499,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             },
             clusterSettings,
-            Tracer.NOOP
+            TelemetryProvider.NOOP
         ) {
             @Override
             protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -509,7 +507,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            protected void doStart() {}
+            protected void startInternal() {}
 
             @Override
             protected void stopInternal() {}
@@ -552,7 +550,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -560,9 +558,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {
@@ -581,12 +577,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing(HttpTracer.class)) {
+            try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
-                appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
                         "received request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -596,8 +591,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 final boolean badRequest = randomBoolean();
 
-                appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
                         "sent response",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -611,8 +606,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     )
                 );
 
-                appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "received other request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -658,32 +653,21 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 try (var httpChannel = fakeRestRequestExcludedPath.getHttpChannel()) {
                     transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), httpChannel);
                 }
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         final String opaqueId = UUIDs.randomBase64UUID(random());
         final String path = "/internal/test";
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                AbstractHttpServerTransport.class.getCanonicalName(),
-                Level.WARN,
-                "handling request [" + opaqueId + "][" + method + "][" + path + "]"
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
+            var mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -707,7 +691,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -715,14 +699,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -730,6 +710,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "expected message",
+                    AbstractHttpServerTransport.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling request [" + opaqueId + "][" + method + "][" + path + "]"
+                )
+            );
 
             final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(method)
                 .withPath(path)
@@ -737,10 +725,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -765,7 +750,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -774,7 +759,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {}
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {}
@@ -847,7 +832,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -856,7 +841,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {}
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {}
@@ -918,8 +903,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopDoesntWaitIfGraceIsZero() {
-        try (var noWait = LogExpectation.unexpectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
+    public void testStopWaitsIndefinitelyIfGraceIsZero() {
+        try (var wait = LogExpectation.expectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(testHttpRequest(), httpChannel);
@@ -927,20 +912,45 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.doStop();
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(httpChannel.isOpen());
-            noWait.assertExpectationsMatched();
+            wait.assertExpectationsMatched();
+        }
+    }
+
+    public void testStopLogsProgress() throws Exception {
+        TestHttpChannel httpChannel = new TestHttpChannel();
+        var doneWithRequest = new CountDownLatch(1);
+        try (var wait = LogExpectation.expectUpdate(1); var transport = new TestHttpServerTransport(gracePeriod(SHORT_GRACE_PERIOD_MS))) {
+
+            httpChannel.blockSendResponse();
+            var inResponse = httpChannel.notifyInSendResponse();
+
+            transport.serverAcceptedChannel(httpChannel);
+            new Thread(() -> {
+                transport.incomingRequest(testHttpRequest(), httpChannel);
+                doneWithRequest.countDown();
+            }, "testStopLogsProgress -> incomingRequest").start();
+
+            inResponse.await();
+
+            transport.doStop();
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+            wait.assertExpectationsMatched();
+        } finally {
+            httpChannel.allowSendResponse();
+            doneWithRequest.await();
         }
     }
 
     public void testStopWorksWithNoOpenRequests() {
         var grace = SHORT_GRACE_PERIOD_MS;
         try (var noWait = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
-            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
-                @Override
-                public Map<String, List<String>> getHeaders() {
-                    // close connection before shutting down
-                    return Map.of(CONNECTION, List.of(CLOSE));
-                }
-            };
+            final TestHttpRequest httpRequest = new TestHttpRequest(
+                HttpRequest.HttpVersion.HTTP_1_1,
+                RestRequest.Method.GET,
+                "/",
+                Map.of(CONNECTION, List.of(CLOSE))
+            );
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(httpRequest, httpChannel);
@@ -1152,11 +1162,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             new UsageService(),
             null,
-            null,
+            TelemetryProvider.NOOP,
             mock(ClusterService.class),
             null,
             List.of(),
-            RestExtension.allowAll()
+            List.of(),
+            RestExtension.allowAll(),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            TestProjectResolvers.alwaysThrow()
         );
     }
 
@@ -1172,7 +1185,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             );
             bindServer();
         }
@@ -1198,7 +1211,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
 
         @Override
-        protected void doStart() {
+        protected void startInternal() {
             bindServer();
         }
 
@@ -1331,69 +1344,74 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
-        private final MockLogAppender appender;
-        private boolean checked = false;
+        private final MockLog mockLog;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
-            appender = new MockLogAppender();
-            Loggers.addAppender(mockLogger, appender);
-            appender.start();
+            mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
         public static LogExpectation expectTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(true).wait(true);
+            return new LogExpectation(grace).timedOut(true).wait(false);
         }
 
         public static LogExpectation unexpectedTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(false).wait(true);
+            return new LogExpectation(grace).timedOut(false).wait(false);
         }
 
-        public static LogExpectation unexpectWait() {
-            return new LogExpectation(0).wait(false);
+        public static LogExpectation expectWait() {
+            return new LogExpectation(0).wait(true);
+        }
+
+        public static LogExpectation expectUpdate(int connections) {
+            return new LogExpectation(0).update(connections);
         }
 
         private LogExpectation timedOut(boolean expected) {
             var message = "timed out while waiting [" + grace + "]ms for clients to close connections";
-            var name = "message";
+            var name = "timed out message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.WARN;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
 
         private LogExpectation wait(boolean expected) {
-            var message = "closing all client connections immediately";
-            var name = "message";
+            var message = "waiting indefinitely for clients to close connections";
+            var name = "wait message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
 
+        private LogExpectation update(int connections) {
+            var message = "still waiting on " + connections + " client connections to close";
+            var name = "update message";
+            var logger = AbstractHttpServerTransport.class.getName();
+            var level = Level.INFO;
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
+            return this;
+        }
+
         public void assertExpectationsMatched() {
-            appender.assertAllExpectationsMatched();
-            checked = true;
+            mockLog.assertAllExpectationsMatched();
         }
 
         @Override
         public void close() {
-            Loggers.removeAppender(mockLogger, appender);
-            appender.stop();
-            if (checked == false) {
-                fail("did not check expectations matched in TimedOutLogExpectation");
-            }
+            mockLog.close();
         }
     }
 

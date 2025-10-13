@@ -12,11 +12,14 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,8 +28,12 @@ import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsa
 
 import java.util.Collection;
 import java.util.LongSummaryStatistics;
+import java.util.Map;
 
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
+
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataStreamLifecycleUsageTransportAction(
@@ -34,62 +41,82 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        ProjectResolver projectResolver
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
+        this.globalRetentionSettings = globalRetentionSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
-        Tuple<Long, LongSummaryStatistics> stats = calculateStats(dataStreams);
-
-        long minRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMin();
-        long maxRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMax();
-        double averageRetention = stats.v2().getAverage();
-        RolloverConfiguration rolloverConfiguration = clusterService.getClusterSettings()
-            .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);
-        String rolloverConfigString = rolloverConfiguration.toString();
-        final DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-            stats.v1(),
-            minRetention,
-            maxRetention,
-            averageRetention,
-            DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).toString().equals(rolloverConfigString)
+        final Collection<DataStream> dataStreams = projectResolver.getProjectMetadata(state).dataStreams().values();
+        DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
+            dataStreams,
+            clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
+            globalRetentionSettings.get()
         );
-
-        final DataStreamLifecycleFeatureSetUsage usage = new DataStreamLifecycleFeatureSetUsage(lifecycleStats);
-        listener.onResponse(new XPackUsageFeatureResponse(usage));
+        listener.onResponse(new XPackUsageFeatureResponse(new DataStreamLifecycleFeatureSetUsage(lifecycleStats)));
     }
 
     /**
-     * Counts the number of data streams that have a lifecycle configured (and enabled) and for
-     * the data streams that have a lifecycle it computes the min/max/average summary of the effective
-     * configured retention.
+     * Counts the number of data streams that have a lifecycle configured (and enabled),
+     * computes the min/max/average summary of the data and effective retention and tracks the usage of global retention.
      */
-    public static Tuple<Long, LongSummaryStatistics> calculateStats(Collection<DataStream> dataStreams) {
+    public static DataStreamLifecycleFeatureSetUsage.LifecycleStats calculateStats(
+        Collection<DataStream> dataStreams,
+        RolloverConfiguration rolloverConfiguration,
+        DataStreamGlobalRetention globalRetention
+    ) {
+        // Initialise counters of associated data streams
         long dataStreamsWithLifecycles = 0;
-        LongSummaryStatistics retentionStats = new LongSummaryStatistics();
+        long dataStreamsWithDefaultRetention = 0;
+        long dataStreamsWithMaxRetention = 0;
+
+        LongSummaryStatistics dataRetentionStats = new LongSummaryStatistics();
+        LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
+
         for (DataStream dataStream : dataStreams) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 dataStreamsWithLifecycles++;
-                if (dataStream.getLifecycle().getEffectiveDataRetention() != null) {
-                    retentionStats.accept(dataStream.getLifecycle().getEffectiveDataRetention().getMillis());
+                // Track data retention
+                if (dataStream.getDataLifecycle().dataRetention() != null) {
+                    dataRetentionStats.accept(dataStream.getDataLifecycle().dataRetention().getMillis());
+                }
+                // Track effective retention
+                Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataStream.getDataLifecycle()
+                    .getEffectiveDataRetentionWithSource(globalRetention, dataStream.isInternal());
+
+                // Track global retention usage
+                if (effectiveDataRetentionWithSource.v1() != null) {
+                    effectiveRetentionStats.accept(effectiveDataRetentionWithSource.v1().getMillis());
+                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION)) {
+                        dataStreamsWithDefaultRetention++;
+                    }
+                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
+                        dataStreamsWithMaxRetention++;
+                    }
                 }
             }
         }
-        return new Tuple<>(dataStreamsWithLifecycles, retentionStats);
+        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats =
+            DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
+                globalRetention,
+                dataStreamsWithDefaultRetention,
+                dataStreamsWithMaxRetention
+            );
+        return new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
+            dataStreamsWithLifecycles,
+            DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).equals(rolloverConfiguration),
+            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(dataRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
+            globalRetentionStats
+        );
     }
 }

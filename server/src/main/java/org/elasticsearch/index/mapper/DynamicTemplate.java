@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +30,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 
 public class DynamicTemplate implements ToXContentObject {
 
@@ -351,15 +355,9 @@ public class DynamicTemplate implements ToXContentObject {
             .toArray(XContentFieldType[]::new);
 
         final MatchType matchType = MatchType.fromString(matchPattern);
-        List<String> allPatterns = Stream.of(match.stream(), unmatch.stream(), pathMatch.stream(), pathUnmatch.stream())
-            .flatMap(s -> s)
-            .toList();
-        for (String pattern : allPatterns) {
-            // no need to check return value - the method impls either have side effects (set header warnings)
-            // or throw an exception that should be sent back to the user
-            matchType.validate(pattern, name);
-        }
-
+        // no need to check return value - the method impls either have side effects (set header warnings)
+        // or throw an exception that should be sent back to the user
+        Stream.of(match, unmatch, pathMatch, pathUnmatch).flatMap(Collection::stream).forEach(pattern -> matchType.validate(pattern, name));
         return new DynamicTemplate(
             name,
             pathMatch,
@@ -427,13 +425,13 @@ public class DynamicTemplate implements ToXContentObject {
         boolean runtimeMapping
     ) {
         this.name = name;
-        this.pathMatch = pathMatch;
-        this.pathUnmatch = pathUnmatch;
-        this.match = match;
-        this.unmatch = unmatch;
+        this.pathMatch = List.copyOf(pathMatch);
+        this.pathUnmatch = List.copyOf(pathUnmatch);
+        this.match = List.copyOf(match);
+        this.unmatch = List.copyOf(unmatch);
         this.matchType = matchType;
-        this.matchMappingType = matchMappingType;
-        this.unmatchMappingType = unmatchMappingType;
+        this.matchMappingType = List.copyOf(matchMappingType);
+        this.unmatchMappingType = List.copyOf(unmatchMappingType);
         this.xContentFieldTypes = xContentFieldTypes;
         this.mapping = mapping;
         this.runtimeMapping = runtimeMapping;
@@ -449,6 +447,24 @@ public class DynamicTemplate implements ToXContentObject {
 
     public List<String> match() {
         return match;
+    }
+
+    public boolean isTimeSeriesDimension() {
+        if (mapping != null) {
+            Object value = mapping.get(TIME_SERIES_DIMENSION_PARAM);
+            if (value instanceof Boolean bool) return bool;
+        }
+        return false;
+    }
+
+    public boolean isSimplePathMatch() {
+        return pathMatch.isEmpty() == false
+            && pathUnmatch.isEmpty()
+            && match.isEmpty()
+            && unmatch.isEmpty()
+            && matchMappingType.isEmpty()
+            && unmatchMappingType.isEmpty()
+            && matchType != MatchType.REGEX;
     }
 
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {

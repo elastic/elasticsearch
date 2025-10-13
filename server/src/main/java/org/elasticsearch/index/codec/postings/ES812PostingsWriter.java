@@ -109,7 +109,7 @@ final class ES812PostingsWriter extends PushPostingsWriterBase {
         boolean success = false;
         try {
             CodecUtil.writeIndexHeader(docOut, DOC_CODEC, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
-            pforUtil = new PForUtil(new ForUtil());
+            pforUtil = new PForUtil();
             if (state.fieldInfos.hasProx()) {
                 posDeltaBuffer = new long[BLOCK_SIZE];
                 String posFileName = IndexFileNames.segmentFileName(

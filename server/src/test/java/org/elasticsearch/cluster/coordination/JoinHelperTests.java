@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
@@ -26,9 +28,8 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -37,7 +38,6 @@ import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
@@ -73,8 +73,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            taskManger,
-            Tracer.NOOP
+            taskManger
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
@@ -184,7 +183,7 @@ public class JoinHelperTests extends ESTestCase {
 
     private void completeJoinRequest(CapturingTransport capturingTransport, CapturedRequest request, boolean mightSucceed) {
         if (mightSucceed && randomBoolean()) {
-            capturingTransport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
+            capturingTransport.handleResponse(request.requestId(), ActionResponse.Empty.INSTANCE);
         } else {
             capturingTransport.handleRemoteError(request.requestId(), new CoordinationStateRejectedException("dummy"));
         }
@@ -240,8 +239,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            taskManger,
-            Tracer.NOOP
+            taskManger
         );
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
@@ -318,8 +316,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            taskManger,
-            Tracer.NOOP
+            taskManger
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
@@ -346,18 +343,17 @@ public class JoinHelperTests extends ESTestCase {
         joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "warning log",
-                JoinHelper.class.getCanonicalName(),
-                Level.WARN,
-                "failed to retrieve latest stored state after winning election in term [1]"
-            )
-        );
-        try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+        try (var mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning log",
+                    JoinHelper.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to retrieve latest stored state after winning election in term [1]"
+                )
+            );
             joinAccumulator.close(Coordinator.Mode.LEADER);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertEquals("simulated", expectThrows(ElasticsearchException.class, () -> FutureUtils.get(joinListener)).getMessage());

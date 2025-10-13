@@ -1,36 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -41,6 +49,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -57,11 +66,13 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -103,12 +114,20 @@ public class TransportRolloverActionTests extends ESTestCase {
     final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
     final Client mockClient = mock(Client.class);
     final AllocationService mockAllocationService = mock(AllocationService.class);
+    final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
     final MetadataRolloverService rolloverService = new MetadataRolloverService(
         mockThreadPool,
         mockCreateIndexService,
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
-        WriteLoadForecaster.DEFAULT
+        WriteLoadForecaster.DEFAULT,
+        mockClusterService,
+        telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
+    );
+    final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
+        Settings.EMPTY,
+        mockClusterService,
+        System::currentTimeMillis
     );
 
     @Before
@@ -358,8 +377,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(indexMetadata2))
             .build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
@@ -370,11 +390,13 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
         );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
@@ -416,54 +438,71 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
-            assert args.length == 5;
+            assert args.length == 7;
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[4];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[6];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(mockMetadataDataStreamService).setRolloverOnWrite(eq(dataStream.getName()), eq(true), any(), any(), anyActionListener());
+        }).when(mockMetadataDataStreamService)
+            .setRolloverOnWrite(eq(projectId), eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
         );
-        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
-        RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
-        rolloverRequest.lazy(true);
-        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
-        RolloverResponse rolloverResponse = future.actionGet();
-        assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
-        assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
-        assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
-        assertThat(rolloverResponse.isLazy(), equalTo(true));
-        assertThat(rolloverResponse.isDryRun(), equalTo(false));
-        assertThat(rolloverResponse.isRolledOver(), equalTo(false));
-        assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
-        assertThat(rolloverResponse.isAcknowledged(), is(true));
+        {
+            // Regular lazy rollover
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            RolloverResponse rolloverResponse = future.actionGet();
+            assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
+            assertThat(rolloverResponse.isLazy(), equalTo(true));
+            assertThat(rolloverResponse.isDryRun(), equalTo(false));
+            assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+            assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+            assertThat(rolloverResponse.isAcknowledged(), is(true));
+        }
+        {
+            // Dry-run lazy rollover
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+            rolloverRequest.lazy(true);
+            rolloverRequest.dryRun(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            RolloverResponse rolloverResponse = future.actionGet();
+            assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
+            assertThat(rolloverResponse.isLazy(), equalTo(true));
+            assertThat(rolloverResponse.isDryRun(), equalTo(true));
+            assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+            assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+            assertThat(rolloverResponse.isAcknowledged(), is(false));
+        }
     }
 
     public void testLazyRolloverFails() throws Exception {
@@ -477,19 +516,14 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        final DataStream dataStream = new DataStream(
-            "logs-ds",
-            List.of(backingIndexMetadata.getIndex()),
-            randomIntBetween(1, 10),
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(randomIntBetween(1, 10))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
@@ -497,11 +531,13 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
         );
 
         // Lazy rollover fails on a concrete index
@@ -538,6 +574,280 @@ public class TransportRolloverActionTests extends ESTestCase {
                 containsString("Lazy rollover can be applied only on a data stream with no conditions.")
             );
         }
+    }
+
+    public void testRolloverAliasToDataStreamFails() throws Exception {
+        final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-000001")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(1)
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId).put(backingIndexMetadata, false).put(dataStream);
+        metadataBuilder.put("ds-alias", dataStream.getName(), true, null);
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(metadataBuilder).build();
+
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+
+        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+        RolloverRequest rolloverRequest = new RolloverRequest("ds-alias", null);
+        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(illegalStateException.getMessage(), containsString("Aliases to data streams cannot be rolled over."));
+    }
+
+    public void testCheckBlockForIndices() {
+        final var projectId = randomProjectIdOrDefault();
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+        final IndexMetadata.Builder indexMetadata1 = IndexMetadata.builder("my-index-1")
+            .putAlias(AliasMetadata.builder("my-alias").writeIndex(true).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final IndexMetadata indexMetadata2 = IndexMetadata.builder("my-index-2")
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata1).put(indexMetadata2, false))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata2))
+            .build();
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("my-alias", "my-new-index");
+            when(mockIndexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any(), (IndicesRequest) any())).thenReturn(
+                new String[] { "my-index-1" }
+            );
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, stateBefore));
+        }
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("my-index-2", "my-new-index");
+            when(mockIndexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any(), (IndicesRequest) any())).thenReturn(
+                new String[] { "my-index-2" }
+            );
+            assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, stateBefore));
+        }
+    }
+
+    public void testCheckBlockForDataStreams() {
+        final var projectId = randomProjectIdOrDefault();
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+        String dataStreamName = randomAlphaOfLength(20);
+        {
+            // First, make sure checkBlock returns null when there are no blocks
+            final ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                false,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns null when indices other than the write index have blocks
+            final ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                false,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns null when indices other than the write index have blocks and we use "::data"
+            final ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                false,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::data", null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns an exception when the write index has a block
+            ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
+            if (randomBoolean()) {
+                rolloverRequest.setIndicesOptions(IndicesOptions.lenientExpandOpenNoSelectors());
+            }
+            ClusterBlockException e = transportRolloverAction.checkBlock(rolloverRequest, clusterState);
+            assertNotNull(e);
+        }
+        {
+            // Make sure checkBlock returns an exception when the write index has a block and we use "::data"
+            ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::data", null);
+            ClusterBlockException e = transportRolloverAction.checkBlock(rolloverRequest, clusterState);
+            assertNotNull(e);
+        }
+    }
+
+    public void testCheckBlockForDataStreamFailureStores() {
+        final var projectId = randomProjectIdOrDefault();
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+        String dataStreamName = randomAlphaOfLength(20);
+        {
+            // Make sure checkBlock returns no exception when there is no failure store block
+            ClusterState clusterState = createDataStream(projectId, dataStreamName, randomBoolean(), randomBoolean(), true, false, false);
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns an exception when the failure store write index has a block
+            ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                true,
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
+            assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns no exception when failure store non-write indices have a block
+            ClusterState clusterState = createDataStream(projectId, dataStreamName, randomBoolean(), randomBoolean(), true, false, true);
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+    }
+
+    private ClusterState createDataStream(
+        ProjectId projectId,
+        String dataStreamName,
+        boolean blockOnWriteIndex,
+        boolean blocksOnNonWriteIndices,
+        boolean includeFailureStore,
+        boolean blockOnFailureStoreWriteIndex,
+        boolean blockOnFailureStoreNonWriteIndices
+    ) {
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder();
+        List<Index> indices = new ArrayList<>();
+        int totalIndices = randomIntBetween(1, 20);
+        for (int i = 0; i < totalIndices; i++) {
+            Settings.Builder settingsBuilder = settings(IndexVersion.current());
+            if ((blockOnWriteIndex && i == totalIndices - 1) || (blocksOnNonWriteIndices && i != totalIndices - 1)) {
+                settingsBuilder.put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true);
+            }
+            final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-00000" + (i + 1))
+                .settings(settingsBuilder)
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            projectBuilder.put(backingIndexMetadata, false);
+            indices.add(backingIndexMetadata.getIndex());
+            clusterBlocksBuilder.addBlocks(projectId, backingIndexMetadata);
+        }
+
+        DataStream.Builder dataStreamBuilder = DataStream.builder(dataStreamName, indices)
+            .setMetadata(Map.of())
+            .setIndexMode(randomFrom(IndexMode.values()));
+        if (includeFailureStore) {
+            List<Index> failureStoreIndices = new ArrayList<>();
+            int totalFailureStoreIndices = randomIntBetween(1, 20);
+            for (int i = 0; i < totalFailureStoreIndices; i++) {
+                Settings.Builder settingsBuilder = settings(IndexVersion.current());
+                if ((blockOnFailureStoreWriteIndex && i == totalFailureStoreIndices - 1)
+                    || (blockOnFailureStoreNonWriteIndices && i != totalFailureStoreIndices - 1)) {
+                    settingsBuilder.put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true);
+                }
+                final IndexMetadata failureStoreIndexMetadata = IndexMetadata.builder(
+                    DataStream.getDefaultFailureStoreName(dataStreamName, i + 1, randomMillisUpToYear9999())
+                ).settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+                failureStoreIndices.add(failureStoreIndexMetadata.getIndex());
+                clusterBlocksBuilder.addBlocks(projectId, failureStoreIndexMetadata);
+            }
+            dataStreamBuilder.setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices).build());
+        }
+        clusterStateBuilder.blocks(clusterBlocksBuilder);
+        final DataStream dataStream = dataStreamBuilder.build();
+        projectBuilder.put(dataStream);
+        return clusterStateBuilder.putProjectMetadata(projectBuilder).build();
     }
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
@@ -636,6 +946,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
                 stats.denseVectorStats = new DenseVectorStats();
+                stats.sparseVectorStats = new SparseVectorStats();
                 shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
             }
         }

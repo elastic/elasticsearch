@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
@@ -28,8 +30,8 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
     /**
      * Constructs new restore snapshot request builder with specified repository and snapshot names
      */
-    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, String repository, String name) {
-        super(client, RestoreSnapshotAction.INSTANCE, new RestoreSnapshotRequest(repository, name));
+    public RestoreSnapshotRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout, String repository, String name) {
+        super(client, TransportRestoreSnapshotAction.TYPE, new RestoreSnapshotRequest(masterNodeTimeout, repository, name));
     }
 
     /**

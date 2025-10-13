@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -18,7 +19,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
@@ -107,18 +108,17 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
             ? SinglePassGroupingCollector.createNumeric("field", fieldType, sort, expectedNumGroups, after)
             : SinglePassGroupingCollector.createKeyword("field", fieldType, sort, expectedNumGroups, after);
 
-        TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, after, Integer.MAX_VALUE);
+        TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, after, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();
         searcher.search(query, collapsingCollector);
-        searcher.search(query, topFieldCollector);
+        TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
-        TopFieldDocs topDocs = topFieldCollector.topDocs();
         assertEquals(sortField.getField(), collapseTopFieldDocs.field);
-        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);
+        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value());
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
 
-        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation);
-        assertEquals(totalHits, topDocs.totalHits.value);
+        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation());
+        assertEquals(totalHits, topDocs.totalHits.value());
 
         Object currentValue = null;
         int topDocsIndex = 0;

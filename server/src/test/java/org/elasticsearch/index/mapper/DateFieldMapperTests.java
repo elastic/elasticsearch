@@ -1,23 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
@@ -31,10 +45,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
@@ -42,11 +56,13 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DateFieldMapperTests extends MapperTestCase {
 
@@ -152,7 +168,14 @@ public class DateFieldMapperTests extends MapperTestCase {
         return List.of(
             exampleMalformedValue("2016-03-99").mapping(mappingWithFormat("strict_date_optional_time||epoch_millis"))
                 .errorMatches("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"),
-            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow")
+            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("too far in the past"),
+            exampleMalformedValue("522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("too far in the future"),
+            exampleMalformedValue("2020").mapping(mappingWithFormat("strict_date"))
+                .errorMatches("failed to parse date field [2020] with format [strict_date]"),
+            exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
+                .errorMatches("failed to parse date field [hello world]"),
+            exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
+                .errorMatches("failed to parse date field [true]")
         );
     }
 
@@ -177,10 +200,10 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testChangeLocale() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
+            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "fr"))
         );
 
-        mapper.parse(source(b -> b.field("field", "Mi, 06 Dez 2000 02:55:00 -0800")));
+        mapper.parse(source(b -> b.field("field", "mer., 6 déc. 2000 02:55:00 -0800")));
     }
 
     public void testNullValue() throws IOException {
@@ -561,7 +584,16 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source for date and date_millis doesn't support ignore_malformed", ignoreMalformed);
+        return syntheticSourceSupportInternal(ignoreMalformed, true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
+        return syntheticSourceSupportInternal(ignoreMalformed, false);
+    }
+
+    private SyntheticSourceSupport syntheticSourceSupportInternal(boolean ignoreMalformed, boolean allowBigDecimal) {
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()
@@ -577,36 +609,53 @@ public class DateFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
-                    Tuple<Object, String> v = generateValue();
-                    return new SyntheticSourceExample(
-                        v.v1(),
-                        v.v2(),
-                        resolution.convert(Instant.from(formatter.parse(v.v2()))),
-                        this::mapping
-                    );
+                    Value v = generateValue();
+                    if (v.malformedOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
+                    }
+
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
-                List<Tuple<Object, String>> values = randomList(1, maxValues, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<String> outList = values.stream()
+
+                List<Value> values = randomList(1, maxValues, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+
+                List<String> outputFromDocValues = values.stream()
+                    .filter(v -> v.malformedOutput == null)
                     .sorted(
-                        Comparator.comparing(v -> Instant.from(formatter.parse(v.v1() == null ? nullValue.toString() : v.v1().toString())))
+                        Comparator.comparing(
+                            v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))
+                        )
                     )
-                    .map(Tuple::v2)
+                    .map(Value::output)
                     .toList();
+
+                Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+                // Malformed values are always last in the implementation.
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outList.stream().map(v -> resolution.convert(Instant.from(formatter.parse(v)))).toList();
-                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
-            private Tuple<Object, String> generateValue() {
+            private record Value(Object input, String output, Object malformedOutput) {}
+
+            private Value generateValue() {
                 if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, outValue(nullValue));
+                    return new Value(null, outValue(nullValue), null);
                 }
+                // Different malformed values are tested in #exampleMalformedValues().
+                // Here we only verify behavior of arrays that contain malformed
+                // values since there are modifications specific to synthetic source.
+                if (ignoreMalformed && randomBoolean()) {
+                    var malformedInput = randomAlphaOfLengthBetween(1, 10);
+                    return new Value(malformedInput, null, malformedInput);
+                }
+
                 Object in = randomValue();
                 String out = outValue(in);
-                return Tuple.tuple(in, out);
+                return new Value(in, out, null);
             }
 
             private Object randomValue() {
@@ -617,7 +666,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                         }
                         return randomLongBetween(0, MAX_ISO_DATE);
                     case NANOSECONDS:
-                        return switch (randomInt(2)) {
+                        return switch (randomInt(allowBigDecimal ? 2 : 1)) {
                             case 0 -> randomLongBetween(0, MAX_NANOS);
                             case 1 -> randomIs8601Nanos(MAX_NANOS);
                             case 2 -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
@@ -637,34 +686,14 @@ public class DateFieldMapperTests extends MapperTestCase {
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
                 }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
             }
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                List<SyntheticSourceInvalidExample> examples = new ArrayList<>();
-                for (String fieldType : new String[] { "date", "date_nanos" }) {
-                    examples.add(
-                        new SyntheticSourceInvalidExample(
-                            equalTo(
-                                "field [field] of type ["
-                                    + fieldType
-                                    + "] doesn't support synthetic source because it doesn't have doc values"
-                            ),
-                            b -> b.field("type", fieldType).field("doc_values", false)
-                        )
-                    );
-                    examples.add(
-                        new SyntheticSourceInvalidExample(
-                            equalTo(
-                                "field [field] of type ["
-                                    + fieldType
-                                    + "] doesn't support synthetic source because it ignores malformed dates"
-                            ),
-                            b -> b.field("type", fieldType).field("ignore_malformed", true)
-                        )
-                    );
-                }
-                return examples;
+                return List.of();
             }
         };
     }
@@ -703,11 +732,6 @@ public class DateFieldMapperTests extends MapperTestCase {
                 };
             }
         };
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((Number) v).longValue();
     }
 
     public void testLegacyField() throws Exception {
@@ -778,5 +802,108 @@ public class DateFieldMapperTests extends MapperTestCase {
             }).getMessage()
         );
 
+    }
+
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
+    }
+
+    public void testSingletonLongBulkBlockReadingManyValues() throws Exception {
+        final String mappings = """
+                {
+                    "_doc" : {
+                        "properties": {
+                            "@timestamp": {
+                                "type": "date",
+                                "ignore_malformed": false
+                            }
+                        }
+                    }
+                }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();
+        var mapperService = createMapperService(settings, mappings);
+        try (Directory directory = newDirectory()) {
+            int from = 0;
+            int to = 10_000;
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
+            iwc.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+            iwc.setIndexSort(new Sort(new SortField("@timestamp", SortField.Type.LONG, true)));
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+            try (IndexWriter iw = new IndexWriter(directory, iwc)) {
+                for (long i = from; i < to; i++) {
+                    LuceneDocument doc = new LuceneDocument();
+                    doc.add(new NumericDocValuesField("@timestamp", i));
+                    iw.addDocument(doc);
+                }
+                iw.forceMerge(1);
+            }
+            var mockBlockContext = mock(MappedFieldType.BlockLoaderContext.class);
+            IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+            when(mockBlockContext.indexSettings()).thenReturn(indexSettings);
+            var blockLoader = mapperService.fieldType("@timestamp").blockLoader(mockBlockContext);
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                LeafReaderContext context = reader.leaves().get(0);
+                {
+                    // One big doc block
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    assertThat(block.size(), equalTo(to - from));
+                    for (int i = 0; i < block.size(); i++) {
+                        assertThat(block.get(i), equalTo(to - i - 1L));
+                    }
+                }
+                {
+                    // Smaller doc blocks
+                    int docBlockSize = 1000;
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    for (int i = from; i < to; i += docBlockSize) {
+                        var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
+                        var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                        assertThat(block.size(), equalTo(docBlockSize));
+                        for (int j = 0; j < block.size(); j++) {
+                            long expected = to - ((long) docBlockSize * (i / docBlockSize)) - j - 1L;
+                            assertThat(block.get(j), equalTo(expected));
+                        }
+                    }
+                }
+                {
+                    // One smaller doc block:
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    assertThat(block.size(), equalTo(1010));
+                    for (int i = 0; i < block.size(); i++) {
+                        long expected = 8990 - i - 1L;
+                        assertThat(block.get(i), equalTo(expected));
+                    }
+                }
+                {
+                    // Read two tiny blocks:
+                    var columnReader = (BlockDocValuesReader.SingletonLongs) blockLoader.columnAtATimeReader(context);
+                    assertThat(columnReader.numericDocValues, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                    var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    assertThat(block.size(), equalTo(32));
+                    for (int i = 0; i < block.size(); i++) {
+                        long expected = 9968 - i - 1L;
+                        assertThat(block.get(i), equalTo(expected));
+                    }
+
+                    docBlock = TestBlock.docs(IntStream.range(64, 96).toArray());
+                    block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    assertThat(block.size(), equalTo(32));
+                    for (int i = 0; i < block.size(); i++) {
+                        long expected = 9936 - i - 1L;
+                        assertThat(block.get(i), equalTo(expected));
+                    }
+                }
+            }
+        }
     }
 }

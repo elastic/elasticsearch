@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -70,8 +71,7 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .numberOfShards(shrinkNumberOfShards)
             .numberOfReplicas(0)
             .build();
-        Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(IndexVersion.current()).build())
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .put(IndexMetadata.builder(shrunkIndexMetadata))
             .build();
@@ -87,15 +87,16 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         for (int i = 0; i < shrinkNumberOfShards; i++) {
             builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i), nodeId, true, ShardRoutingState.STARTED));
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .routingTable(RoutingTable.builder().add(builder.build()).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(builder.build()).build())
+            .build()
+            .projectState(project.id());
 
-        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertTrue(result.isComplete());
-        assertNull(result.getInfomationContext());
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), state);
+        assertTrue(result.complete());
+        assertNull(result.informationContext());
     }
 
     public void testConditionNotMetBecauseOfActive() {
@@ -113,8 +114,7 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .numberOfShards(shrinkNumberOfShards)
             .numberOfReplicas(0)
             .build();
-        Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(IndexVersion.current()).build())
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .put(IndexMetadata.builder(shrunkIndexMetadata))
             .build();
@@ -130,15 +130,16 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         for (int i = 0; i < shrinkNumberOfShards; i++) {
             builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i), nodeId, true, ShardRoutingState.INITIALIZING));
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .routingTable(RoutingTable.builder().add(builder.build()).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(builder.build()).build())
+            .build()
+            .projectState(project.id());
 
-        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false), result.getInfomationContext());
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), state);
+        assertFalse(result.complete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false), result.informationContext());
     }
 
     public void testConditionNotMetBecauseOfShrunkIndexDoesntExistYet() {
@@ -150,8 +151,7 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .numberOfShards(originalNumberOfShards)
             .numberOfReplicas(0)
             .build();
-        Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(IndexVersion.current()).build())
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .build();
 
@@ -160,13 +160,14 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
             .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .build();
+            .build()
+            .projectState(project.id());
 
-        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, false), result.getInfomationContext());
+        Result result = step.isConditionMet(originalIndexMetadata.getIndex(), state);
+        assertFalse(result.complete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, false), result.informationContext());
     }
 }

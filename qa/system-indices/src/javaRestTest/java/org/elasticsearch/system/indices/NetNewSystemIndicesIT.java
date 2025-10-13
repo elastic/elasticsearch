@@ -1,36 +1,27 @@
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.system.indices;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class NetNewSystemIndicesIT extends ESRestTestCase {
-
-    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
-    }
+public class NetNewSystemIndicesIT extends AbstractSystemIndicesIT {
 
     public void testCreatingSystemIndex() throws Exception {
         ResponseException e = expectThrows(
@@ -39,7 +30,9 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         );
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("system"));
 
-        Response response = client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
+        var request = new Request("PUT", "/_net_new_sys_index/_create");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
+        Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
@@ -55,6 +48,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_net_new_sys_index/" + id);
         request.setJsonEntity("{}");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
@@ -73,6 +67,7 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_net_new_sys_index/" + id);
         request.setJsonEntity("{}");
         request.addParameter("refresh", "true");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 

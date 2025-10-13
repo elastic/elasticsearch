@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -132,6 +133,14 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     }
 
     /**
+     * Set the content of the builder to the given bytes.
+     */
+    public void copyBytes(BytesRef newBytes) {
+        clear();
+        append(newBytes);
+    }
+
+    /**
      * Reset the builder to an empty bytes array. Doesn't deallocate any memory.
      */
     public void clear() {
@@ -141,7 +150,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     /**
      * Returns a view of the data added as a {@link BytesRef}. Importantly, this does not
      * copy the bytes and any further modification to the {@link BreakingBytesRefBuilder}
-     * will modify the returned {@link BytesRef}. The called must copy the bytes
+     * will modify the returned {@link BytesRef}. The caller must copy the bytes
      * if they wish to keep them.
      */
     public BytesRef bytesRefView() {
@@ -154,6 +163,13 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
         return SHALLOW_SIZE + bytesArrayRamBytesUsed(bytes.bytes.length);
     }
 
+    /**
+     * Builds a {@link StreamOutput} view into the {@link BreakingBytesRefBuilder}.
+     */
+    public StreamOutput stream() {
+        return new Stream();
+    }
+
     private static long bytesArrayRamBytesUsed(long capacity) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity);
     }
@@ -162,4 +178,32 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     public void close() {
         breaker.addWithoutBreaking(-ramBytesUsed());
     }
+
+    private class Stream extends StreamOutput {
+        @Override
+        public long position() {
+            return length();
+        }
+
+        @Override
+        public void writeByte(byte b) {
+            append(b);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            append(b, offset, length);
+        }
+
+        @Override
+        public void flush() {}
+
+        /**
+         * Closes this stream to further operations. NOOP because we don't want to
+         * close the builder when we close.
+         */
+        @Override
+        public void close() {}
+    }
+
 }

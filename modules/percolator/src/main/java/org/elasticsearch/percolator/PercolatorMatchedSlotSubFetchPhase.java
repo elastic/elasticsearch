@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.percolator;
 
@@ -85,11 +86,12 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                         // This is not a document with a percolator field.
                         continue;
                     }
-                    query = pc.filterNestedDocs(query, fetchContext.getSearchExecutionContext().indexVersionCreated());
                     IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
+                    query = pc.filterNestedDocs(query, fetchContext.getSearchExecutionContext().indexVersionCreated());
+                    query = percolatorIndexSearcher.rewrite(query);
                     int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
                     TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
-                    if (topDocs.totalHits.value == 0) {
+                    if (topDocs.totalHits.value() == 0) {
                         // This hit didn't match with a percolate query,
                         // likely to happen when percolating multiple documents
                         continue;
@@ -98,7 +100,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     IntStream slots = convertTopDocsToSlots(topDocs, pc.rootDocsBySlot);
                     // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
                     List<Object> docSlots = slots.boxed().collect(Collectors.toList());
-                    hitContext.hit().setDocumentField(fieldName, new DocumentField(fieldName, docSlots));
+                    hitContext.hit().setDocumentField(new DocumentField(fieldName, docSlots));
 
                     // Add info what sub-queries of percolator query matched this each percolated document
                     if (fetchContext.getSearchExecutionContext().hasNamedQueries()) {
@@ -118,7 +120,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                                 matchedQueries.add(match.getName());
                             }
                             String matchedFieldName = fieldName + "_" + docSlots.get(i) + "_matched_queries";
-                            hitContext.hit().setDocumentField(matchedFieldName, new DocumentField(matchedFieldName, matchedQueries));
+                            hitContext.hit().setDocumentField(new DocumentField(matchedFieldName, matchedQueries));
                         }
                     }
                 }

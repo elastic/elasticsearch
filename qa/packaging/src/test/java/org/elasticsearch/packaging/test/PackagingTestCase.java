@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -144,6 +145,10 @@ public abstract class PackagingTestCase extends Assert {
         @Override
         protected void failed(Throwable e, Description description) {
             failed = true;
+            if (installation != null && installation.distribution.isDocker()) {
+                logger.warn("Test {} failed. Printing logs for failed test...", description.getMethodName());
+                FileUtils.logAllLogs(installation.logs, logger);
+            }
         }
     };
 
@@ -244,7 +249,7 @@ public abstract class PackagingTestCase extends Assert {
                 installation = Packages.installPackage(sh, distribution);
                 Packages.verifyPackageInstallation(installation, distribution, sh);
             }
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> {
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> {
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation);
             }
@@ -289,15 +294,15 @@ public abstract class PackagingTestCase extends Assert {
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (Exception e) {
+        } catch (AssertionError | Exception e) {
             dumpDebug();
             throw e;
         }
 
         try {
             assertions.run();
-        } catch (Exception e) {
-            logger.warn("Elasticsearch log:\n" + FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+        } catch (AssertionError | Exception e) {
+            dumpDebug();
             throw e;
         }
         stopElasticsearch();
@@ -332,10 +337,9 @@ public abstract class PackagingTestCase extends Assert {
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
-            case DOCKER_UBI:
             case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
             case DOCKER_CLOUD_ESS:
+            case DOCKER_WOLFI:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -354,10 +358,9 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.stopElasticsearch(sh);
                 break;
             case DOCKER:
-            case DOCKER_UBI:
             case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
             case DOCKER_CLOUD_ESS:
+            case DOCKER_WOLFI:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -370,7 +373,7 @@ public abstract class PackagingTestCase extends Assert {
         switch (distribution.packaging) {
             case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
             case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> Docker.waitForElasticsearchToStart();
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> Docker.waitForElasticsearchToStart();
             default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
@@ -392,15 +395,8 @@ public abstract class PackagingTestCase extends Assert {
     public void startElasticsearch() throws Exception {
         try {
             awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
-        } catch (Exception e) {
-            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
-                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
-                logger.info("elasticsearch process ({}) failed to start", pid);
-                if (sh.run("jps").stdout().contains(pid)) {
-                    logger.info("Dumping jstack of elasticsearch process ({}) ", pid);
-                    sh.runIgnoreExitCode("jstack " + pid);
-                }
-            }
+        } catch (AssertionError | Exception e) {
+            dumpDebug();
             throw e;
         }
     }

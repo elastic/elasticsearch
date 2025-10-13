@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
@@ -54,12 +56,15 @@ public class IndicesAccessControl {
     }
 
     /**
-     * @return The document and field permissions for an index if exist, otherwise <code>null</code> is returned.
+     * @return The document and field permissions for an index if they exist, otherwise <code>null</code> is returned.
      *         If <code>null</code> is being returned this means that there are no field or document level restrictions.
      */
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
-        return this.getAllIndexPermissions().get(index);
+        assert false == IndexNameExpressionResolver.hasSelectorSuffix(index)
+            || IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)
+            : "index name [" + index + "] cannot have explicit selector other than ::failures";
+        return getAllIndexPermissions().get(index);
     }
 
     public boolean hasIndexPermissions(String index) {

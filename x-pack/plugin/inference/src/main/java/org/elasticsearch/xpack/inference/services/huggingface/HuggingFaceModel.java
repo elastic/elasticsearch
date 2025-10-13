@@ -8,24 +8,61 @@
 package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.inference.Model;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionVisitor;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
+import java.util.Objects;
 
-public abstract class HuggingFaceModel extends Model {
-    public HuggingFaceModel(ModelConfigurations configurations, ModelSecrets secrets) {
+public abstract class HuggingFaceModel extends RateLimitGroupingModel {
+    private final HuggingFaceRateLimitServiceSettings rateLimitServiceSettings;
+    private final SecureString apiKey;
+
+    public HuggingFaceModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        HuggingFaceRateLimitServiceSettings rateLimitServiceSettings,
+        @Nullable ApiKeySecrets apiKeySecrets
+    ) {
         super(configurations, secrets);
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        apiKey = ServiceUtils.apiKey(apiKeySecrets);
     }
+
+    protected HuggingFaceModel(HuggingFaceModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        apiKey = model.apiKey();
+    }
+
+    public HuggingFaceRateLimitServiceSettings rateLimitServiceSettings() {
+        return rateLimitServiceSettings;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return Objects.hash(rateLimitServiceSettings.uri(), apiKey);
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
+    }
+
+    public SecureString apiKey() {
+        return apiKey;
+    }
+
+    public abstract Integer getTokenLimit();
 
     public abstract ExecutableAction accept(HuggingFaceActionVisitor creator);
 
-    public abstract URI getUri();
-
-    public abstract SecureString getApiKey();
-
-    public abstract Integer getTokenLimit();
 }

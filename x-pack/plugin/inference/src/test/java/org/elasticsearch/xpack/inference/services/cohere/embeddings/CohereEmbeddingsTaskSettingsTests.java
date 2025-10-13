@@ -15,18 +15,18 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
-import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereService.VALID_INPUT_TYPE_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsTaskSettings> {
@@ -36,6 +36,37 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
 
         return new CohereEmbeddingsTaskSettings(inputType, truncation);
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.getInputType() != null) {
+            newSettingsMap.put(CohereEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
+        }
+        if (newSettings.getTruncation() != null) {
+            newSettingsMap.put(CohereServiceFields.TRUNCATE, newSettings.getTruncation().toString());
+        }
+        CohereEmbeddingsTaskSettings updatedSettings = (CohereEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.getInputType() == null) {
+            assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
+        } else {
+            assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
+        }
+        if (newSettings.getTruncation() == null) {
+            assertEquals(initialSettings.getTruncation(), updatedSettings.getTruncation());
+        } else {
+            assertEquals(newSettings.getTruncation(), updatedSettings.getTruncation());
+        }
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
@@ -76,7 +107,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -95,7 +126,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -110,36 +141,14 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(AssertionError.class, () -> new CohereEmbeddingsTaskSettings(InputType.UNSPECIFIED, null));
-        MatcherAssert.assertThat(thrownException.getMessage(), CoreMatchers.is("received invalid input type value [unspecified]"));
-    }
-
-    public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull_AndRequestInputTypeIsInvalid() {
-        var taskSettings = new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.NONE);
-        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
-            taskSettings,
-            CohereEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            InputType.UNSPECIFIED
-        );
-        MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
     public void testOf_UsesRequestTaskSettings() {
         var taskSettings = new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE);
         var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
             taskSettings,
-            new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END),
-            InputType.UNSPECIFIED
-        );
-
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)));
-    }
-
-    public void testOf_UsesRequestTaskSettings_AndRequestInputType() {
-        var taskSettings = new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE);
-        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
-            taskSettings,
-            new CohereEmbeddingsTaskSettings(null, CohereTruncation.END),
-            InputType.INGEST
+            new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)
         );
 
         MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)));
@@ -157,7 +166,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected CohereEmbeddingsTaskSettings mutateInstance(CohereEmbeddingsTaskSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereEmbeddingsTaskSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

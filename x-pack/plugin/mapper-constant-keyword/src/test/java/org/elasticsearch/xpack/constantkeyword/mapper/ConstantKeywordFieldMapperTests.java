@@ -12,10 +12,10 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -229,7 +228,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
      * contain the field.
      */
     public void testNullValueBlockLoader() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
@@ -237,6 +236,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
                 throw new UnsupportedOperationException();
             }
 
@@ -272,7 +276,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
-                    .read(TestBlock.factory(reader.numDocs()), new BlockLoader.Docs() {
+                    .read(TestBlock.factory(), new BlockLoader.Docs() {
                         @Override
                         public int count() {
                             return 1;
@@ -282,7 +286,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                         public int get(int i) {
                             return 0;
                         }
-                    });
+                    }, 0, false);
                 assertThat(block.get(0), nullValue());
             }
         }
@@ -313,17 +317,23 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((BytesRef) v).utf8ToString();
-    }
-
     public void testNullValueSyntheticSource() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
-        }));
+        })).documentMapper();
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+    }
+
+    public void testNoValueInDocumentSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.field("value", randomAlphaOfLength(5));
+            b.endObject();
+        })).documentMapper();
+
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 

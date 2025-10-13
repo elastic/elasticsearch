@@ -7,17 +7,24 @@
 
 package org.elasticsearch.xpack.core.watcher.transport.actions.put;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsAction.Response> {
 
@@ -28,18 +35,37 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
-        public Request(StreamInput in) throws IOException {}
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        public static Request readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                return new Request(in);
+            } else {
+                return new Request(TimeValue.THIRTY_SECONDS);
+            }
+        }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        private Request(StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
     }
 
@@ -51,10 +77,11 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
             this.settings = settings;
         }
 
-        public Response(StreamInput in) throws IOException {
-            this.settings = Settings.readSettingsFromStream(in);
-        }
-
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             this.settings.writeTo(out);

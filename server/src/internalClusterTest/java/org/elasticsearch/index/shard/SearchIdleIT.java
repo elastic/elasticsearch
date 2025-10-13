@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -224,7 +225,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             .get();
         waitUntil(
             () -> Arrays.stream(indicesAdmin().prepareStats(indexName).get().getShards()).allMatch(ShardStats::isSearchIdle),
-            searchIdleAfter,
+            searchIdleAfter + 1,
             TimeUnit.SECONDS
         );
 
@@ -234,6 +235,15 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     public void testSearchIdleBoolQueryMatchOneIndex() throws InterruptedException {
+        checkSearchIdleBoolQueryMatchOneIndex(IndexSettings.DOC_VALUES_SKIPPER);
+    }
+
+    public void testSearchIdleBoolQueryMatchOneIndexWithDocValuesSkipper() throws InterruptedException {
+        assumeTrue("doc values skipper feature should be enabled", IndexSettings.DOC_VALUES_SKIPPER);
+        checkSearchIdleBoolQueryMatchOneIndex(false);
+    }
+
+    private void checkSearchIdleBoolQueryMatchOneIndex(boolean disableDocValuesSkippers) throws InterruptedException {
         // GIVEN
         final String idleIndex = "test1";
         final String activeIndex = "test2";
@@ -241,16 +251,31 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // are executed only if we have enough shards.
         int idleIndexShardsCount = 3;
         int activeIndexShardsCount = 3;
+
+        var idleIndexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z");
+
+        var activeIndexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z");
+
+        if (disableDocValuesSkippers) {
+            idleIndexSettingsBuilder.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+            activeIndexSettingsBuilder.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
+
         createIndex(
             idleIndex,
-            Settings.builder()
-                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z")
-                .build(),
+            idleIndexSettingsBuilder.build(),
             "doc",
             "keyword",
             "type=keyword",
@@ -261,14 +286,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         );
         createIndex(
             activeIndex,
-            Settings.builder()
-                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z")
-                .build(),
+            activeIndexSettingsBuilder.build(),
             "doc",
             "keyword",
             "type=keyword",

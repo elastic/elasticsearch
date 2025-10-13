@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -45,13 +44,6 @@ public class DeleteSamlServiceProviderResponse extends ActionResponse implements
             deleteResponse == null ? UNASSIGNED_PRIMARY_TERM : deleteResponse.getPrimaryTerm(),
             entityId
         );
-    }
-
-    public DeleteSamlServiceProviderResponse(StreamInput in) throws IOException {
-        docId = in.readString();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        entityId = in.readString();
     }
 
     @Override

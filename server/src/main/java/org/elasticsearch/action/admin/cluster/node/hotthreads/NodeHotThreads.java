@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
@@ -27,7 +28,7 @@ public class NodeHotThreads extends BaseNodeResponse {
 
     NodeHotThreads(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.HOT_THREADS_AS_BYTES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             bytes = in.readReleasableBytesReference();
         } else {
             bytes = ReleasableBytesReference.wrap(new BytesArray(in.readString().getBytes(StandardCharsets.UTF_8)));
@@ -56,7 +57,7 @@ public class NodeHotThreads extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.HOT_THREADS_AS_BYTES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBytesReference(bytes);
         } else {
             out.writeString(bytes.utf8ToString());

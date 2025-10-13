@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -902,6 +903,22 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
+    public void testTimeValueInterning() throws IOException {
+        try (var bytesOut = new BytesStreamOutput()) {
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.MINUS_ONE : new TimeValue(-1, TimeUnit.MILLISECONDS));
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.ZERO : new TimeValue(0, TimeUnit.MILLISECONDS));
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.THIRTY_SECONDS : new TimeValue(30, TimeUnit.SECONDS));
+            bytesOut.writeTimeValue(randomBoolean() ? TimeValue.ONE_MINUTE : new TimeValue(1, TimeUnit.MINUTES));
+
+            try (var in = bytesOut.bytes().streamInput()) {
+                assertSame(TimeValue.MINUS_ONE, in.readTimeValue());
+                assertSame(TimeValue.ZERO, in.readTimeValue());
+                assertSame(TimeValue.THIRTY_SECONDS, in.readTimeValue());
+                assertSame(TimeValue.ONE_MINUTE, in.readTimeValue());
+            }
+        }
+    }
+
     private static class TestStreamOutput extends BytesStream {
 
         private final BytesStreamOutput output = new BytesStreamOutput();
@@ -982,6 +999,11 @@ public class BytesStreamsTests extends ESTestCase {
             BytesReference bytesReference = output.bytes();
             assertThat((long) bytesReference.length(), equalTo(counting.size()));
             return bytesReference;
+        }
+
+        @Override
+        public void seek(long position) {
+            output.seek(position);
         }
 
         public int size() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -11,44 +12,52 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.injection.guice.name.Named;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
+
     private static class TestCase {
         private final String name;
-        private final String expectedId;
-        private final String expectedTsid;
+        private final String expectedIdWithRoutingPath;
+        private final String expectedIdWithIndexDimensions;
+        private final String expectedTsidWithRoutingPath;
+        private final String expectedTsidWithIndexDimensions;
         private final String expectedTimestamp;
         private final CheckedConsumer<XContentBuilder, IOException> source;
         private final List<CheckedConsumer<XContentBuilder, IOException>> equivalentSources = new ArrayList<>();
 
         TestCase(
             String name,
-            String expectedId,
-            String expectedTsid,
+            String expectedIdWithRoutingPath,
+            String expectedIdWithIndexDimensions,
+            String expectedTsidWithRoutingPath,
+            String expectedTsidWithIndexDimensions,
             String expectedTimestamp,
             CheckedConsumer<XContentBuilder, IOException> source
         ) {
             this.name = name;
-            this.expectedId = expectedId;
-            this.expectedTsid = expectedTsid;
+            this.expectedIdWithRoutingPath = expectedIdWithRoutingPath;
+            this.expectedIdWithIndexDimensions = expectedIdWithIndexDimensions;
+            this.expectedTsidWithRoutingPath = expectedTsidWithRoutingPath;
+            this.expectedTsidWithIndexDimensions = expectedTsidWithIndexDimensions;
             this.expectedTimestamp = expectedTimestamp;
             this.source = source;
         }
@@ -82,8 +91,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "2022-01-01T01:00:00Z",
-                "XsFI2ajcFfi45iV3AAABfhMmioA",
+                "BwAAAKjcFfi45iV3AAABfhMmioA",
+                "BwAAAEk383E-IPhiAAABfhMmioA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "0XbnnsE9AoHbGpRryIzXGQ0w",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -94,8 +105,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "2022-01-01T01:00:01Z",
-                "XsFI2ajcFfi45iV3AAABfhMmjmg",
+                "BwAAAKjcFfi45iV3AAABfhMmjmg",
+                "BwAAAEk383E-IPhiAAABfhMmjmg",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "0XbnnsE9AoHbGpRryIzXGQ0w",
                 "2022-01-01T01:00:01.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:01Z");
@@ -106,8 +119,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "1970-01-01T00:00:00Z",
-                "XsFI2ajcFfi45iV3AAAAAAAAAAA",
+                "BwAAAKjcFfi45iV3AAAAAAAAAAA",
+                "BwAAAEk383E-IPhiAAAAAAAAAAA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "0XbnnsE9AoHbGpRryIzXGQ0w",
                 "1970-01-01T00:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "1970-01-01T00:00:00Z");
@@ -118,8 +133,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "-9998-01-01T00:00:00Z",
-                "XsFI2ajcFfi45iV3__6oggRgGAA",
+                "BwAAAKjcFfi45iV3__6oggRgGAA",
+                "BwAAAEk383E-IPhi__6oggRgGAA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "0XbnnsE9AoHbGpRryIzXGQ0w",
                 "-9998-01-01T00:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "-9998-01-01T00:00:00Z");
@@ -130,8 +147,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "9998-01-01T00:00:00Z",
-                "XsFI2ajcFfi45iV3AADmaSK9hAA",
+                "BwAAAKjcFfi45iV3AADmaSK9hAA",
+                "BwAAAEk383E-IPhiAADmaSK9hAA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "0XbnnsE9AoHbGpRryIzXGQ0w",
                 "9998-01-01T00:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "9998-01-01T00:00:00Z");
@@ -144,8 +163,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "r1",
-                "XsFI2ajcFfi45iV3AAABfhMmioA",
+                "BwAAAKjcFfi45iV3AAABfhMmioA",
+                "BwAAAEk383E-IPhiAAABfhMmioA",
                 "JJSLNivCxv3hDTQtWd6qGUwGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "0XbnnsE9AoHbGpRryIzXGQ0w",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -180,8 +201,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "r2",
-                "1y-UzR0iuE1-sOQpAAABfhMmioA",
+                "BwAAAB0iuE1-sOQpAAABfhMmioA",
+                "BwAAAAjKcgBsE3XEAAABfhMmioA",
                 "JNY_frTR9GmCbhXgK4Y8W44GlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "NHaFg-5cCESqVrBaDs6o9DZ4",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -192,8 +215,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.r3",
-                "zh4dcS1h1gf2J5a8AAABfhMmioA",
+                "BwAAAC1h1gf2J5a8AAABfhMmioA",
+                "BwAAANZEz_KPYz9jAAABfhMmioA",
                 "JEyfZsJIp3UNyfWG-4SjKFIGlT_5e6_NYGOZWULpmMG9IAlZlA",
+                "K3bwGazghpbQWy_dEU8UL4Ec",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -209,8 +234,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k1=dog",
-                "XsFI2SrEiVgZlSsYAAABfhMmioA",
+                "BwAAACrEiVgZlSsYAAABfhMmioA",
+                "BwAAACyv9sTdBEWNAAABfhMmioA",
                 "KJQKpjU9U63jhh-eNJ1f8bipyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
+                "f8B2zv4qzO0Eq9YLPLUIlzRL8g",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -222,8 +249,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k1=pumpkin",
-                "XsFI2W8GX8-0QcFxAAABfhMmioA",
+                "BwAAAG8GX8-0QcFxAAABfhMmioA",
+                "BwAAABp_KncX55XzAAABfhMmioA",
                 "KJQKpjU9U63jhh-eNJ1f8bibzw1JBpU_-VsHjSz5HC1yy_swPEM1iGo",
+                "f0F2VfGtg5ltThy1tF7mWC_PGQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -235,8 +264,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k1=empty string",
-                "XsFI2cna58i6D-Q6AAABfhMmioA",
+                "BwAAAMna58i6D-Q6AAABfhMmioA",
+                "BwAAAD-6gB-6kGvDAAABfhMmioA",
                 "KJQKpjU9U63jhh-eNJ1f8bhaCD7uBpU_-SWGG0Uv9tZ1mLO2gi9rC1I",
+                "f8t2FhZTCAA2SSVLPSknT8Nf_A",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -248,8 +279,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "k2",
-                "XsFI2VqlzAuv-06kAAABfhMmioA",
+                "BwAAAFqlzAuv-06kAAABfhMmioA",
+                "BwAAAGEjL8LoBxUJAAABfhMmioA",
                 "KB9H-tGrL_UzqMcqXcgBtzypyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
+                "wMB2LHEQrqbi5fgySxCJAU5NhQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -261,8 +294,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.k3",
-                "XsFI2S_VhridAKDUAAABfhMmioA",
+                "BwAAAC_VhridAKDUAAABfhMmioA",
+                "BwAAALNlofvJns7KAAABfhMmioA",
                 "KGXATwN7ISd1_EycFRJ9h6qpyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
+                "esB2eX4haJwoe0Gz0Hxpr6mIcQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -273,9 +308,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         );
         items.add(
             new TestCase(
-                "o.r3",
-                "zh4dcUwfL7x__2oPAAABfhMmioA",
+                "o.r3,o.k3",
+                "BwAAAEwfL7x__2oPAAABfhMmioA",
+                "BwAAAOPQAwI_cPXTAAABfhMmioA",
                 "KJaYZVZz8plfkEvvPBpi1EWpyU08BpU_-ZJxnTYtoe9Lsg-QvzL-qOY",
+                "S8B2MTOcF1wV1_fEBh3Xpv0JJA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -305,8 +342,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "L1=1",
-                "XsFI2fIe53BtV9PCAAABfhMmioA",
+                "BwAAAPIe53BtV9PCAAABfhMmioA",
+                "BwAAALQa3_B5oSRHAAABfhMmioA",
                 "KI4kVxcCLIMM2_VQGD575d-tm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
+                "C8t2xhEnokpbS-rpcaL9_JYgRQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -318,8 +357,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "L1=min",
-                "XsFI2Qhu7hy1RoXRAAABfhMmioA",
+                "BwAAAAhu7hy1RoXRAAABfhMmioA",
+                "BwAAAHJevaZ42qO0AAABfhMmioA",
                 "KI4kVxcCLIMM2_VQGD575d8caJ3TBpU_-cLpg-VnCBnhYk33HZBle6E",
+                "C-92gIC6326BrsHHzrPq6L6b7w",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -331,8 +372,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "L2=1234",
-                "XsFI2QTrNu7TTpc-AAABfhMmioA",
+                "BwAAAATrNu7TTpc-AAABfhMmioA",
+                "BwAAAAykDD72vvVsAAABfhMmioA",
                 "KI_1WxF60L0IczG5ftUCWdndcGtgBpU_-QfM2BaR0DMagIfw3TDu_mA",
+                "tCp2ar0mjlGW0gXveQToNzewqg",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -344,8 +387,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.L3=max",
-                "zh4dcWBQI6THHqxoAAABfhMmioA",
+                "BwAAAGBQI6THHqxoAAABfhMmioA",
+                "BwAAAMipdDqKd-XPAAABfhMmioA",
                 "KN4a6QzKhzc3nwzNLuZkV51xxTOVBpU_-erUU1qSW4eJ0kP0RmAB9TE",
+                "S5l2EpF1iWUfxVvyegvENonWEw",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00.000Z");
@@ -375,8 +420,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "i1=1",
-                "XsFI2UMS_RWRoHYjAAABfhMmioA",
+                "BwAAAEMS_RWRoHYjAAABfhMmioA",
+                "BwAAABKQqNW1IG5AAAABfhMmioA",
                 "KLGFpvAV8QkWSmX54kXFMgitm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
+                "nct2JZgFouaJFx9FPyphfxTTBw",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -388,8 +435,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "i1=min",
-                "XsFI2adlQM5ILoA1AAABfhMmioA",
+                "BwAAAKdlQM5ILoA1AAABfhMmioA",
+                "BwAAAFVne7eYMxr1AAABfhMmioA",
                 "KLGFpvAV8QkWSmX54kXFMgjV8hFQBpU_-WG2MicRGWwJdBKWq2F4qy4",
+                "ncx27Tdr-Fw8YsGkFZT_X2isdg",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -401,8 +450,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "i2=1234",
-                "XsFI2bhxfB6J0kBFAAABfhMmioA",
+                "BwAAALhxfB6J0kBFAAABfhMmioA",
+                "BwAAAOfBxmKrLd6MAAABfhMmioA",
                 "KJc4-5eN1uAlYuAknQQLUlxavn2sBpU_-UEXBjgaH1uYcbayrOhdgpc",
+                "7RN22sJMTvFnwNcgZkI3oCIBvQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -414,8 +465,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.i3=max",
-                "zh4dcelxKf19CbfdAAABfhMmioA",
+                "BwAAAOlxKf19CbfdAAABfhMmioA",
+                "BwAAAPasG-voJ30IAAABfhMmioA",
                 "KKqnzPNBe8ObksSo8rNaIFPZPCcBBpU_-Rhd_U6Jn2pjQz2zpmBuJb4",
+                "ae1249zvwt9WR5M0TsFbT-_R4A",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -445,8 +498,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "s1=1",
-                "XsFI2Y_y-8kD_BFeAAABfhMmioA",
+                "BwAAAI_y-8kD_BFeAAABfhMmioA",
+                "BwAAAFXFZfzCD9-tAAABfhMmioA",
                 "KFi_JDbvzWyAawmh8IEXedwGlT_5rZuNb-1ruHTTZhtsXRZpZRwWFoc",
+                "E3bLGR5i_E-AjHaQj6NSgLqXqQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -458,8 +513,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "s1=min",
-                "XsFI2WV8VNVnmPVNAAABfhMmioA",
+                "BwAAAGV8VNVnmPVNAAABfhMmioA",
+                "BwAAAHMdz2yGuWQ5AAABfhMmioA",
                 "KFi_JDbvzWyAawmh8IEXedwGlT_5JgBZj9BSCms2_jgeFFhsmDlNFdM",
+                "E3YA0Uj0mUMBIfe85M1eDvKJVg",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -471,8 +528,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "s2=1234",
-                "XsFI2VO8mUr-J5CpAAABfhMmioA",
+                "BwAAAFO8mUr-J5CpAAABfhMmioA",
+                "BwAAAKYKsByk_H1KAAABfhMmioA",
                 "KKEQ2p3CkpMH61hNk_SuvI0GlT_53XBrYP5TPdmCR-vREPnt20e9f9w",
+                "CHYqMfreOGDp369Up7wkbxfD7g",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -483,9 +542,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         );
         items.add(
             new TestCase(
-                "o.s3=max",
-                "zh4dcQKh6K11zWeuAAABfhMmioA",
+                "o.s3=min",
+                "BwAAAAKh6K11zWeuAAABfhMmioA",
+                "BwAAAJ00j5PXlZF8AAABfhMmioA",
                 "KKVMoT_-GS95fvIBtR7XK9oGlT_5Dme9-H3sen0WZ7leJpCj7-vXau4",
+                "BXaV38EUXIsWps32nOam3wdX-g",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -515,8 +576,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "b1=1",
-                "XsFI2dKxqgT5JDQfAAABfhMmioA",
+                "BwAAANKxqgT5JDQfAAABfhMmioA",
+                "BwAAACaAVo28B16ZAAABfhMmioA",
                 "KGPAUhTjWOsRfDmYp3SUELatm41vBpU_-TUExUU_bL3Puq_EBgIaLac",
+                "Uct2hEdPEZMCnGZ0_NM3so6Z3w",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -528,8 +591,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "b1=min",
-                "XsFI2d_PD--DgUvoAAABfhMmioA",
+                "BwAAAN_PD--DgUvoAAABfhMmioA",
+                "BwAAAMkeTGox24cdAAABfhMmioA",
                 "KGPAUhTjWOsRfDmYp3SUELYoK6qHBpU_-d8HkZFJ3aL2ZV1lgHAjT1g",
+                "USF2EOdV0G1EpXE-GDtFWr7jHg",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -541,8 +606,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "b2=12",
-                "XsFI2aqX5QjiuhsEAAABfhMmioA",
+                "BwAAAKqX5QjiuhsEAAABfhMmioA",
+                "BwAAAB3kQls40KoVAAABfhMmioA",
                 "KA58oUMzXeX1V5rh51Ste0K5K9vPBpU_-Wn8JQplO-x3CgoslYO5Vks",
+                "06J2CccOS3823wXT-Ntmaaz8nw",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -554,8 +621,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.s3=max",
-                "zh4dccJ4YtN_21XHAAABfhMmioA",
+                "BwAAAMJ4YtN_21XHAAABfhMmioA",
+                "BwAAAD25hXYPluEiAAABfhMmioA",
                 "KIwZH-StJBobjk9tCV-0OgjKmuwGBpU_-Sd-SdnoH3sbfKLgse-briE",
+                "P5N2wn3fYvtVKKIOWB2n7AQweA",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -585,8 +654,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "ip1=192.168.0.1",
-                "XsFI2T5km9raIz_rAAABfhMmioA",
+                "BwAAAD5km9raIz_rAAABfhMmioA",
+                "BwAAABJYg92lKoxdAAABfhMmioA",
                 "KNj6cLPRNEkqdjfOPIbg0wULrOlWBpU_-efWDsz6B6AnnwbZ7GeeocE",
+                "3ft2E9wEcQ7qLhAhG-bgQxIC_w",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -602,8 +673,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "ip1=12.12.45.254",
-                "XsFI2QWfEH_e_6wIAAABfhMmioA",
+                "BwAAAAWfEH_e_6wIAAABfhMmioA",
+                "BwAAAEqgz7x99nlVAAABfhMmioA",
                 "KNj6cLPRNEkqdjfOPIbg0wVhJ08TBpU_-bANzLhvKPczlle7Pq0z8Qw",
+                "3RV2CkXc8fttjm4g1xCOxnlI7A",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -619,8 +692,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "ip2=FE80:CD00:0000:0CDE:1257:0000:211E:729C",
-                "XsFI2WrrLHr1O4iQAAABfhMmioA",
+                "BwAAAGrrLHr1O4iQAAABfhMmioA",
+                "BwAAAHTrphGgaaxEAAABfhMmioA",
                 "KNDo3zGxO9HfN9XYJwKw2Z20h-WsBpU_-f4dSOLGSRlL1hoY2mgERuo",
+                "4ch2pulC-JV1tGryTUWFGMsHdQ",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -632,8 +707,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "o.ip3=2001:db8:85a3:8d3:1319:8a2e:370:7348",
-                "zh4dca7d-9aKOS1MAAABfhMmioA",
+                "BwAAAK7d-9aKOS1MAAABfhMmioA",
+                "BwAAANak4OD67dUVAAABfhMmioA",
                 "KLXDcBBWJAjgJvjSdF_EJwraAQUzBpU_-ba6HZsIyKnGcbmc3KRLlmI",
+                "ZKJ28_e_PHW9GEdDVaEHOBblSw",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -663,8 +740,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         items.add(
             new TestCase(
                 "huge",
-                "WZKJR_dECvXBSl3xAAABfhMmioA",
+                "BwAAAPdECvXBSl3xAAABfhMmioA",
+                "BwAAAEDsUEqRn2O2AAABfhMmioA",
                 "LIe18i0rRU_Bt9vB82F46LaS9mrUkvZq1K_2Gi7UEFMhFwNXrLA_H8TLpUr4",
+                "tIaGaQ90mXYrnllFi07m7A2pRMI",
                 "2022-01-01T01:00:00.000Z",
                 b -> {
                     b.field("@timestamp", "2022-01-01T01:00:00Z");
@@ -680,38 +759,43 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     private final TestCase testCase;
 
+    private static final int ROUTING_HASH = 7;
+
     public TsidExtractingIdFieldMapperTests(@Named("testCase") TestCase testCase) {
         this.testCase = testCase;
     }
 
-    public void testExpectedId() throws IOException {
-        assertThat(parse(null, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
+    public void testExpectedIdWithRoutingPath() throws IOException {
+        assertThat(parse(mapperService(false), testCase.source).id(), equalTo(testCase.expectedIdWithRoutingPath));
     }
 
-    public void testProvideExpectedId() throws IOException {
-        assertThat(parse(testCase.expectedId, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
+    public void testExpectedIdWithIndexDimensions() throws IOException {
+        assertThat(parse(mapperService(true), testCase.source).id(), equalTo(testCase.expectedIdWithIndexDimensions));
     }
 
-    public void testProvideWrongId() {
-        String wrongId = testCase.expectedId + "wrong";
-        Exception e = expectThrows(DocumentParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
+    public void testProvideExpectedIdWithRoutingPath() throws IOException {
         assertThat(
-            e.getCause().getMessage(),
-            equalTo(
-                "_id must be unset or set to ["
-                    + testCase.expectedId
-                    + "] but was ["
-                    + testCase.expectedId
-                    + "wrong] because [index] is in time_series mode"
-            )
+            parse(testCase.expectedIdWithRoutingPath, mapperService(false), testCase.source).id(),
+            equalTo(testCase.expectedIdWithRoutingPath)
         );
     }
 
-    public void testEquivalentSources() throws IOException {
-        MapperService mapperService = mapperService();
+    public void testProvideExpectedIdWithIndexDimensions() throws IOException {
+        assertThat(
+            parse(testCase.expectedIdWithIndexDimensions, mapperService(true), testCase.source).id(),
+            equalTo(testCase.expectedIdWithIndexDimensions)
+        );
+    }
+
+    public void testEquivalentSourcesWithRoutingPath() throws IOException {
+        MapperService mapperService = mapperService(false);
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
-            assertThat(parse(null, mapperService, equivalent).id(), equalTo(testCase.expectedId));
+            assertThat(parse(mapperService, equivalent).id(), equalTo(testCase.expectedIdWithRoutingPath));
         }
+    }
+
+    private ParsedDocument parse(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {
+        return parse(null, mapperService, source);
     }
 
     private ParsedDocument parse(@Nullable String id, MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source)
@@ -720,43 +804,45 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             builder.startObject();
             source.accept(builder);
             builder.endObject();
-            SourceToParse sourceToParse = new SourceToParse(id, BytesReference.bytes(builder), builder.contentType());
+            SourceToParse sourceToParse = new SourceToParse(
+                id,
+                BytesReference.bytes(builder),
+                builder.contentType(),
+                TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH)
+            );
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }
     }
 
-    public void testRoutingPathCompliant() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
-        IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
-        int indexShard = indexShard(indexRouting);
-        assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(indexShard));
-        assertThat(indexRouting.deleteShard(testCase.expectedId, null), equalTo(indexShard));
+    public void testRoutingHashCompliantWithRoutingPath() throws IOException {
+        byte[] bytes = Base64.getUrlDecoder().decode(testCase.expectedIdWithRoutingPath);
+        assertEquals(ROUTING_HASH, ByteUtils.readIntLE(bytes, 0));
     }
 
-    private int indexShard(IndexRouting indexRouting) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
-            builder.startObject();
-            testCase.source.accept(builder);
-            builder.endObject();
-            return indexRouting.indexShard(null, null, builder.contentType(), BytesReference.bytes(builder));
-        }
+    public void testRoutingHashCompliantWithIndexDimensions() throws IOException {
+        byte[] bytes = Base64.getUrlDecoder().decode(testCase.expectedIdWithIndexDimensions);
+        assertEquals(ROUTING_HASH, ByteUtils.readIntLE(bytes, 0));
     }
 
-    private Settings indexSettings(IndexVersion version) {
-        return Settings.builder()
+    private Settings indexSettings(IndexVersion version, boolean indexDimensions) {
+        Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 100))
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "r1,r2,o.r3")
-            .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 100)
-            .build();
+            .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 100);
+        if (indexDimensions) {
+            builder.put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "r1,r2,k1,k2,L1,L2,i1,i2,s1,s2,b1,b2,ip1,ip2,o.*");
+        } else {
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "r1,r2,o.r3");
+        }
+        return builder.build();
     }
 
-    private MapperService mapperService() throws IOException {
+    private MapperService mapperService(boolean indexDimensions) throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
-        return createMapperService(indexSettings(version), mapping(b -> {
+        return createMapperService(indexSettings(version, indexDimensions), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("k1").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -798,29 +884,61 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
-    public void testSourceDescription() throws IOException {
-        assertThat(TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext()), equalTo("a time series document"));
-        ParsedDocument d = parse(null, mapperService(), testCase.randomSource());
+    public void testSourceDescriptionWithRoutingPath() throws IOException {
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false)),
+            equalTo("a time series document")
+        );
+        ParsedDocument d = parse(mapperService(false), testCase.randomSource());
         IndexableField timestamp = d.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(timestamp)),
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false, timestamp)),
             equalTo("a time series document at [" + testCase.expectedTimestamp + "]")
         );
         IndexableField tsid = d.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(tsid)),
-            equalTo("a time series document with tsid " + testCase.expectedTsid)
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false, tsid)),
+            equalTo("a time series document with tsid " + testCase.expectedTsidWithRoutingPath)
         );
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(tsid, timestamp)),
-            equalTo("a time series document with tsid " + testCase.expectedTsid + " at [" + testCase.expectedTimestamp + "]")
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false, tsid, timestamp)),
+            equalTo("a time series document with tsid " + testCase.expectedTsidWithRoutingPath + " at [" + testCase.expectedTimestamp + "]")
         );
     }
 
-    private TestDocumentParserContext documentParserContext(IndexableField... fields) throws IOException {
+    public void testSourceDescriptionWithIndexDimensions() throws IOException {
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false)),
+            equalTo("a time series document")
+        );
+        ParsedDocument d = parse(mapperService(false), testCase.randomSource());
+        IndexableField timestamp = d.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false, timestamp)),
+            equalTo("a time series document at [" + testCase.expectedTimestamp + "]")
+        );
+        IndexableField tsid = d.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false, tsid)),
+            equalTo("a time series document with tsid " + testCase.expectedTsidWithRoutingPath)
+        );
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(false, tsid, timestamp)),
+            equalTo("a time series document with tsid " + testCase.expectedTsidWithRoutingPath + " at [" + testCase.expectedTimestamp + "]")
+        );
+    }
+
+    private TestDocumentParserContext documentParserContext(boolean indexDimensions, IndexableField... fields) throws IOException {
+        CheckedConsumer<XContentBuilder, IOException> source;
+        // not using a random source here as the index.dimensions id is sensitive to how ips are represented (e.g. equivalent ipv4 vs ipv6)
+        if (indexDimensions) {
+            source = testCase.source;
+        } else {
+            source = testCase.randomSource();
+        }
         TestDocumentParserContext ctx = new TestDocumentParserContext(
-            mapperService().mappingLookup(),
-            source(null, testCase.randomSource(), null)
+            mapperService(indexDimensions).mappingLookup(),
+            source(null, source, null)
         );
         for (IndexableField f : fields) {
             ctx.doc().add(f);
@@ -828,10 +946,34 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         return ctx;
     }
 
-    public void testParsedDescription() throws IOException {
+    public void testParsedDescriptionWithRoutingPath() throws IOException {
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(parse(null, mapperService(), testCase.randomSource())),
-            equalTo("[" + testCase.expectedId + "][" + testCase.expectedTsid + "@" + testCase.expectedTimestamp + "]")
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(parse(mapperService(false), testCase.randomSource())),
+            equalTo(
+                "["
+                    + testCase.expectedIdWithRoutingPath
+                    + "]["
+                    + testCase.expectedTsidWithRoutingPath
+                    + "@"
+                    + testCase.expectedTimestamp
+                    + "]"
+            )
+        );
+    }
+
+    public void testParsedDescriptionWithIndexDimensions() throws IOException {
+        // not using a random source here as the index.dimensions id is sensitive to how ips are represented (e.g. equivalent ipv4 vs ipv6)
+        assertThat(
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(parse(mapperService(true), testCase.source)),
+            equalTo(
+                "["
+                    + testCase.expectedIdWithIndexDimensions
+                    + "]["
+                    + testCase.expectedTsidWithIndexDimensions
+                    + "@"
+                    + testCase.expectedTimestamp
+                    + "]"
+            )
         );
     }
 }

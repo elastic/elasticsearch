@@ -1,0 +1,6 @@
+pr: 130531
+summary: Adding check for `isIndexed` in text fields when generating field exists
+  queries to avoid ISE when field is stored but not indexed or with `doc_values`
+area: Analysis
+type: bug
+issues: []

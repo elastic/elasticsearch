@@ -34,7 +34,9 @@ if ! which aws; then
   rm -rf awscliv2.zip aws
 fi
 
-aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read
+for i in {1..3}; do
+    aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read && break || sleep 5
+done
 
 if [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" ]]; then
   .buildkite/scripts/lucene-snapshot/update-es-snapshot.sh

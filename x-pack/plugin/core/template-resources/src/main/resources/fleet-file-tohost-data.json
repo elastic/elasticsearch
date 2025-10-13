@@ -25,6 +25,9 @@
           "@timestamp": {
             "type": "date"
           },
+          "namespaces": {
+            "type": "keyword"
+          },
           "data": {
             "type": "binary",
             "store": true

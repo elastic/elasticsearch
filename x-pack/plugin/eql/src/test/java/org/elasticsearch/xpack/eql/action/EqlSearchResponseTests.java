@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.action;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -190,7 +191,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -198,7 +199,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomBoolean(),
                 randomAlphaOfLength(10),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                ShardSearchFailure.EMPTY_ARRAY
             );
         }
     }
@@ -222,7 +224,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -230,7 +232,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomBoolean(),
                 randomAlphaOfLength(10),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                ShardSearchFailure.EMPTY_ARRAY
             );
         }
     }
@@ -273,7 +276,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             instance.isTimeout(),
             instance.id(),
             instance.isRunning(),
-            instance.isPartial()
+            instance.isPartial(),
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 
@@ -288,7 +292,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     e.index(),
                     e.id(),
                     e.source(),
-                    version.onOrAfter(TransportVersions.V_7_13_0) ? e.fetchFields() : null,
+                    e.fetchFields(),
                     version.onOrAfter(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
                 )
             );

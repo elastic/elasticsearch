@@ -13,9 +13,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,20 +35,27 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
     GetRollupIndexCapsAction.Request,
     GetRollupIndexCapsAction.Response> {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportGetRollupCapsAction.class);
+
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final Executor managementExecutor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetRollupIndexCapsAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
@@ -58,6 +68,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         this.clusterService = clusterService;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.resolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -66,17 +77,16 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         GetRollupIndexCapsAction.Request request,
         ActionListener<GetRollupIndexCapsAction.Response> listener
     ) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request, l)));
     }
 
     private void doExecuteForked(IndicesRequest request, ActionListener<GetRollupIndexCapsAction.Response> listener) {
         Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
-        Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(
-            Arrays.asList(indices),
-            clusterService.state().getMetadata().indices()
-        );
+        final var project = projectResolver.getProjectMetadata(clusterService.state());
+        String[] indices = resolver.concreteIndexNames(project, request.indicesOptions(), request);
+        Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices), project.indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 

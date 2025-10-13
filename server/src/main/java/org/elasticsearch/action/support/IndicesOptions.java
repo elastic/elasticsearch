@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -40,12 +44,18 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  *                               target does not exist.
  * @param wildcardOptions, applies only to wildcard expressions and defines how the wildcards will be expanded and if it will
  *                        be acceptable to have expressions that results to no indices.
- * @param generalOptions, applies to all the resolved indices and defines if throttled will be included and if certain type of
- *                        aliases or indices are allowed, or they will throw an error.
+ * @param gatekeeperOptions, applies to all the resolved indices and defines if throttled will be included and if certain type of
+ *                        aliases or indices are allowed, or they will throw an error. It acts as a gatekeeper when an action
+ *                        does not support certain options.
+ * @param crossProjectModeOptions, applies to all the indices and adds logic specific for cross-project search. These options are
+ *                                 internal-only and can change over the lifetime of a single request.
  */
-public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, WildcardOptions wildcardOptions, GeneralOptions generalOptions)
-    implements
-        ToXContentFragment {
+public record IndicesOptions(
+    ConcreteTargetOptions concreteTargetOptions,
+    WildcardOptions wildcardOptions,
+    GatekeeperOptions gatekeeperOptions,
+    CrossProjectModeOptions crossProjectModeOptions
+) implements ToXContentFragment {
 
     public static IndicesOptions.Builder builder() {
         return new Builder();
@@ -286,20 +296,31 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     }
 
     /**
-     * These options apply on all indices that have been selected by the other Options. It can either filter the response or
-     * define what type of indices or aliases are not allowed which will result in an error response.
+     * The "gatekeeper" options apply on all indices that have been selected by the other Options. It contains two type of flags:
+     * - The "allow*" flags, which purpose is to enable actions to define certain conditions that need to apply on the concrete indices
+     * they accept. For example, single-index actions will set allowAliasToMultipleIndices to false, while search will not accept a
+     * closed index etc. These options are not configurable by the end-user.
+     * - The ignoreThrottled flag, which is a deprecated flag that will filter out frozen indices.
      * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
      * @param allowClosedIndices, allow closed indices, true by default.
-     * @param ignoreThrottled, filters out throttled (aka frozen indices), defaults to true.
+     * @param allowSelectors, allow selectors within index expressions, true by default.
+     * @param includeFailureIndices, when true includes the failure indices when a data stream or a data stream alias is encountered and
+     *                              selectors are not allowed.
+     * @param ignoreThrottled, filters out throttled (aka frozen indices), defaults to true. This is deprecated and the only one
+     *                         that only filters and never throws an error.
      */
-    public record GeneralOptions(boolean allowAliasToMultipleIndices, boolean allowClosedIndices, @Deprecated boolean ignoreThrottled)
-        implements
-            ToXContentFragment {
+    public record GatekeeperOptions(
+        boolean allowAliasToMultipleIndices,
+        boolean allowClosedIndices,
+        boolean allowSelectors,
+        boolean includeFailureIndices,
+        @Deprecated boolean ignoreThrottled
+    ) implements ToXContentFragment {
 
         public static final String IGNORE_THROTTLED = "ignore_throttled";
-        public static final GeneralOptions DEFAULT = new GeneralOptions(true, true, false);
+        public static final GatekeeperOptions DEFAULT = new GatekeeperOptions(true, true, true, false, false);
 
-        public static GeneralOptions parseParameter(Object ignoreThrottled, GeneralOptions defaultOptions) {
+        public static GatekeeperOptions parseParameter(Object ignoreThrottled, GatekeeperOptions defaultOptions) {
             if (ignoreThrottled == null && defaultOptions != null) {
                 return defaultOptions;
             }
@@ -316,15 +337,19 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         public static class Builder {
             private boolean allowAliasToMultipleIndices;
             private boolean allowClosedIndices;
+            private boolean allowSelectors;
+            private boolean includeFailureIndices;
             private boolean ignoreThrottled;
 
             public Builder() {
                 this(DEFAULT);
             }
 
-            Builder(GeneralOptions options) {
+            Builder(GatekeeperOptions options) {
                 allowAliasToMultipleIndices = options.allowAliasToMultipleIndices;
                 allowClosedIndices = options.allowClosedIndices;
+                allowSelectors = options.allowSelectors;
+                includeFailureIndices = options.includeFailureIndices;
                 ignoreThrottled = options.ignoreThrottled;
             }
 
@@ -347,6 +372,25 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             }
 
             /**
+             * Selectors are allowed within index expressions when true, otherwise the resolution will treat their presence as a syntax
+             * error when resolving index expressions.
+             * Defaults to true.
+             */
+            public Builder allowSelectors(boolean allowSelectors) {
+                this.allowSelectors = allowSelectors;
+                return this;
+            }
+
+            /**
+             * When the selectors are not allowed, this flag determines if we will include the failure store
+             * indices in the resolution or not. Defaults to false.
+             */
+            public Builder includeFailureIndices(boolean includeFailureIndices) {
+                this.includeFailureIndices = includeFailureIndices;
+                return this;
+            }
+
+            /**
              * Throttled indices will not be included in the result. Defaults to false.
              */
             public Builder ignoreThrottled(boolean ignoreThrottled) {
@@ -354,8 +398,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 return this;
             }
 
-            public GeneralOptions build() {
-                return new GeneralOptions(allowAliasToMultipleIndices, allowClosedIndices, ignoreThrottled);
+            public GatekeeperOptions build() {
+                return new GatekeeperOptions(
+                    allowAliasToMultipleIndices,
+                    allowClosedIndices,
+                    allowSelectors,
+                    includeFailureIndices,
+                    ignoreThrottled
+                );
             }
         }
 
@@ -363,8 +413,39 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             return new Builder();
         }
 
-        public static Builder builder(GeneralOptions generalOptions) {
-            return new Builder(generalOptions);
+        public static Builder builder(GatekeeperOptions gatekeeperOptions) {
+            return new Builder(gatekeeperOptions);
+        }
+    }
+
+    /**
+     * The cross-project mode options are internal-only options that apply on all indices that have been selected by the other Options.
+     * These options may contextually change over the lifetime of the request.
+     * @param resolveIndexExpression determines that the index expression must be resolved for cross-project requests, defaults to false.
+     */
+    public record CrossProjectModeOptions(boolean resolveIndexExpression) implements Writeable {
+
+        public static final CrossProjectModeOptions DEFAULT = new CrossProjectModeOptions(false);
+
+        private static final TransportVersion INDICES_OPTIONS_RESOLUTION_MODE = TransportVersion.fromName(
+            "indices_options_resolution_mode"
+        );
+
+        private static final String INDEX_EXPRESSION_NAME = "resolve_cross_project_index_expression";
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(INDICES_OPTIONS_RESOLUTION_MODE)) {
+                out.writeBoolean(resolveIndexExpression);
+            }
+        }
+
+        public static CrossProjectModeOptions readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(INDICES_OPTIONS_RESOLUTION_MODE)) {
+                return new CrossProjectModeOptions(in.readBoolean());
+            } else {
+                return CrossProjectModeOptions.DEFAULT;
+            }
         }
     }
 
@@ -400,9 +481,12 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         EXCLUDE_ALIASES,
         ALLOW_EMPTY_WILDCARD_EXPRESSIONS,
         ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES,
-
         ERROR_WHEN_CLOSED_INDICES,
-        IGNORE_THROTTLED
+        IGNORE_THROTTLED,
+
+        ALLOW_FAILURE_INDICES,  // Added in 8.14, Removed in 8.18
+        ALLOW_SELECTORS,        // Added in 8.18
+        INCLUDE_FAILURE_INDICES // Added in 8.18
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
@@ -415,7 +499,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     public static final IndicesOptions DEFAULT = new IndicesOptions(
         ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
         WildcardOptions.DEFAULT,
-        GeneralOptions.DEFAULT
+        GatekeeperOptions.DEFAULT,
+        CrossProjectModeOptions.DEFAULT
     );
 
     public static final IndicesOptions STRICT_EXPAND_OPEN = IndicesOptions.builder()
@@ -428,7 +513,32 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_FAILURE_NO_SELECTOR = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(false)
+                .includeFailureIndices(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -440,7 +550,31 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .build();
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_NO_SELECTORS = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(false)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -452,7 +586,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -464,14 +604,39 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .build();
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(false)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -483,14 +648,53 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(true).allowClosedIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTORS = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(false)
+                .ignoreThrottled(false)
+        )
+        .build();
+    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_NO_SELECTORS = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(true).allowEmptyExpressions(true).resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .allowSelectors(false)
+                .includeFailureIndices(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -502,7 +706,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowClosedIndices(false)
+                .allowAliasToMultipleIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -514,7 +724,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowClosedIndices(false)
+                .allowAliasToMultipleIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -526,7 +742,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().ignoreThrottled(true).allowClosedIndices(false).allowAliasToMultipleIndices(true))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .ignoreThrottled(true)
+                .allowClosedIndices(false)
+                .allowSelectors(true)
+                .allowAliasToMultipleIndices(true)
+        )
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -538,7 +760,31 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(false).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(false)
+                .allowClosedIndices(false)
+                .allowSelectors(false)
+                .ignoreThrottled(false)
+        )
+        .build();
+    public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS = IndicesOptions.builder()
+        .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            WildcardOptions.builder()
+                .matchOpen(false)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(false)
+                .allowClosedIndices(false)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -550,7 +796,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 .allowEmptyExpressions(true)
                 .resolveAliases(true)
         )
-        .generalOptions(GeneralOptions.builder().allowClosedIndices(false).allowAliasToMultipleIndices(true).ignoreThrottled(false))
+        .gatekeeperOptions(
+            GatekeeperOptions.builder()
+                .allowClosedIndices(false)
+                .allowAliasToMultipleIndices(true)
+                .allowSelectors(true)
+                .ignoreThrottled(false)
+        )
         .build();
 
     /**
@@ -604,14 +856,28 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * @return Whether execution on closed indices is allowed.
      */
     public boolean forbidClosedIndices() {
-        return generalOptions.allowClosedIndices() == false;
+        return gatekeeperOptions.allowClosedIndices() == false;
+    }
+
+    /**
+     * @return Whether selectors (::) are allowed in the index expression.
+     */
+    public boolean allowSelectors() {
+        return gatekeeperOptions.allowSelectors();
+    }
+
+    /**
+     * @return true when selectors should be included in the resolution, false otherwise.
+     */
+    public boolean includeFailureIndices() {
+        return gatekeeperOptions.includeFailureIndices();
     }
 
     /**
      * @return whether aliases pointing to multiple indices are allowed
      */
     public boolean allowAliasesToMultipleIndices() {
-        return generalOptions().allowAliasToMultipleIndices();
+        return gatekeeperOptions().allowAliasToMultipleIndices();
     }
 
     /**
@@ -625,7 +891,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      * @return whether indices that are marked as throttled should be ignored
      */
     public boolean ignoreThrottled() {
-        return generalOptions().ignoreThrottled();
+        return gatekeeperOptions().ignoreThrottled();
+    }
+
+    /**
+     * @return whether indices will resolve to the cross-project "flat world" expression
+     */
+    public boolean resolveCrossProjectIndexExpression() {
+        return crossProjectModeOptions().resolveIndexExpression();
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
@@ -648,6 +921,14 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         if (ignoreUnavailable()) {
             backwardsCompatibleOptions.add(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS);
         }
+        // Until the feature flag is removed we access the field directly from the gatekeeper options.
+        if (gatekeeperOptions().allowSelectors()) {
+            backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
+        }
+
+        if (gatekeeperOptions.includeFailureIndices()) {
+            backwardsCompatibleOptions.add(Option.INCLUDE_FAILURE_INDICES);
+        }
         out.writeEnumSet(backwardsCompatibleOptions);
 
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
@@ -661,6 +942,11 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
+        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
+            out.writeBoolean(true);
+            out.writeBoolean(false);
+        }
+        out.writeWriteable(crossProjectModeOptions);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
@@ -670,24 +956,35 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             options.contains(Option.ALLOW_EMPTY_WILDCARD_EXPRESSIONS),
             options.contains(Option.EXCLUDE_ALIASES)
         );
-        GeneralOptions generalOptions = GeneralOptions.builder()
+        boolean allowSelectors = options.contains(Option.ALLOW_SELECTORS);
+        boolean includeFailureIndices = options.contains(Option.INCLUDE_FAILURE_INDICES);
+        GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
+            .allowSelectors(allowSelectors)
+            .includeFailureIndices(includeFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
+        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
+            // Reading from an older node, which will be sending two booleans that we must read out and ignore.
+            in.readBoolean();
+            in.readBoolean();
+        }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS
                 : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcardOptions,
-            generalOptions
+            gatekeeperOptions,
+            CrossProjectModeOptions.readFrom(in)
         );
     }
 
     public static class Builder {
         private ConcreteTargetOptions concreteTargetOptions;
         private WildcardOptions wildcardOptions;
-        private GeneralOptions generalOptions;
+        private GatekeeperOptions gatekeeperOptions;
+        private CrossProjectModeOptions crossProjectModeOptions;
 
         Builder() {
             this(DEFAULT);
@@ -696,7 +993,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         Builder(IndicesOptions indicesOptions) {
             concreteTargetOptions = indicesOptions.concreteTargetOptions;
             wildcardOptions = indicesOptions.wildcardOptions;
-            generalOptions = indicesOptions.generalOptions;
+            gatekeeperOptions = indicesOptions.gatekeeperOptions;
+            crossProjectModeOptions = indicesOptions.crossProjectModeOptions;
         }
 
         public Builder concreteTargetOptions(ConcreteTargetOptions concreteTargetOptions) {
@@ -714,18 +1012,23 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             return this;
         }
 
-        public Builder generalOptions(GeneralOptions generalOptions) {
-            this.generalOptions = generalOptions;
+        public Builder gatekeeperOptions(GatekeeperOptions gatekeeperOptions) {
+            this.gatekeeperOptions = gatekeeperOptions;
             return this;
         }
 
-        public Builder generalOptions(GeneralOptions.Builder generalOptions) {
-            this.generalOptions = generalOptions.build();
+        public Builder gatekeeperOptions(GatekeeperOptions.Builder generalOptions) {
+            this.gatekeeperOptions = generalOptions.build();
+            return this;
+        }
+
+        public Builder crossProjectModeOptions(CrossProjectModeOptions crossProjectModeOptions) {
+            this.crossProjectModeOptions = crossProjectModeOptions;
             return this;
         }
 
         public IndicesOptions build() {
-            return new IndicesOptions(concreteTargetOptions, wildcardOptions, generalOptions);
+            return new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, crossProjectModeOptions);
         }
     }
 
@@ -819,7 +1122,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             .resolveAliases(ignoreAliases == false)
             .allowEmptyExpressions(allowNoIndices)
             .build();
-        final GeneralOptions generalOptions = GeneralOptions.builder()
+        final GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowAliasToMultipleIndices(allowAliasesToMultipleIndices)
             .allowClosedIndices(forbidClosedIndices == false)
             .ignoreThrottled(ignoreThrottled)
@@ -827,12 +1130,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         return new IndicesOptions(
             ignoreUnavailable ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS : ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
             wildcards,
-            generalOptions
+            gatekeeperOptions,
+            CrossProjectModeOptions.DEFAULT
         );
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
-        if (request.hasParam(GeneralOptions.IGNORE_THROTTLED)) {
+        if (request.hasParam(GatekeeperOptions.IGNORE_THROTTLED)) {
             DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
         }
 
@@ -840,7 +1144,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             request.param(WildcardOptions.EXPAND_WILDCARDS),
             request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
             request.param(WildcardOptions.ALLOW_NO_INDICES),
-            request.param(GeneralOptions.IGNORE_THROTTLED),
+            request.param(GatekeeperOptions.IGNORE_THROTTLED),
             defaultSettings
         );
     }
@@ -852,7 +1156,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                 ? map.get(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
                 : map.get("ignoreUnavailable"),
             map.containsKey(WildcardOptions.ALLOW_NO_INDICES) ? map.get(WildcardOptions.ALLOW_NO_INDICES) : map.get("allowNoIndices"),
-            map.containsKey(GeneralOptions.IGNORE_THROTTLED) ? map.get(GeneralOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
+            map.containsKey(GatekeeperOptions.IGNORE_THROTTLED) ? map.get(GatekeeperOptions.IGNORE_THROTTLED) : map.get("ignoreThrottled"),
             defaultSettings
         );
     }
@@ -866,7 +1170,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             || "expandWildcards".equals(name)
             || ConcreteTargetOptions.IGNORE_UNAVAILABLE.equals(name)
             || "ignoreUnavailable".equals(name)
-            || GeneralOptions.IGNORE_THROTTLED.equals(name)
+            || GatekeeperOptions.IGNORE_THROTTLED.equals(name)
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name);
@@ -879,18 +1183,37 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         Object ignoreThrottled,
         IndicesOptions defaultSettings
     ) {
-        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null && ignoreThrottled == null) {
+        return fromParameters(wildcardsString, ignoreUnavailableString, allowNoIndicesString, ignoreThrottled, null, defaultSettings);
+    }
+
+    public static IndicesOptions fromParameters(
+        Object wildcardsString,
+        Object ignoreUnavailableString,
+        Object allowNoIndicesString,
+        Object ignoreThrottled,
+        Object failureStoreString,
+        IndicesOptions defaultSettings
+    ) {
+        if (wildcardsString == null
+            && ignoreUnavailableString == null
+            && allowNoIndicesString == null
+            && ignoreThrottled == null
+            && failureStoreString == null) {
             return defaultSettings;
         }
 
-        WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
-        GeneralOptions generalOptions = GeneralOptions.parseParameter(ignoreThrottled, defaultSettings.generalOptions);
+        var wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
+        var gatekeeperOptions = GatekeeperOptions.parseParameter(ignoreThrottled, defaultSettings.gatekeeperOptions);
+        var crossProjectModeOptions = defaultSettings.crossProjectModeOptions != null
+            ? defaultSettings.crossProjectModeOptions
+            : CrossProjectModeOptions.DEFAULT;
 
         // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return IndicesOptions.builder()
             .concreteTargetOptions(ConcreteTargetOptions.fromParameter(ignoreUnavailableString, defaultSettings.concreteTargetOptions))
             .wildcardOptions(wildcards)
-            .generalOptions(generalOptions)
+            .gatekeeperOptions(gatekeeperOptions)
+            .crossProjectModeOptions(crossProjectModeOptions)
             .build();
     }
 
@@ -898,13 +1221,13 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
-        generalOptions.toXContent(builder, params);
+        gatekeeperOptions.toXContent(builder, params);
         return builder;
     }
 
     private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField(WildcardOptions.EXPAND_WILDCARDS);
     private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField(ConcreteTargetOptions.IGNORE_UNAVAILABLE);
-    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GeneralOptions.IGNORE_THROTTLED).withAllDeprecated();
+    private static final ParseField IGNORE_THROTTLED_FIELD = new ParseField(GatekeeperOptions.IGNORE_THROTTLED).withAllDeprecated();
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField(WildcardOptions.ALLOW_NO_INDICES);
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
@@ -914,8 +1237,8 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
         WildcardOptions.Builder wildcards = defaults == null ? null : WildcardOptions.builder(defaults.wildcardOptions());
-        GeneralOptions.Builder generalOptions = GeneralOptions.builder()
-            .ignoreThrottled(defaults != null && defaults.generalOptions().ignoreThrottled());
+        GatekeeperOptions.Builder generalOptions = GatekeeperOptions.builder()
+            .ignoreThrottled(defaults != null && defaults.gatekeeperOptions().ignoreThrottled());
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
@@ -967,11 +1290,11 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
                     generalOptions.ignoreThrottled(parser.booleanValue());
                 } else {
                     throw new ElasticsearchParseException(
-                        "could not read indices options. unexpected index option [" + currentFieldName + "]"
+                        "could not read indices options. Unexpected index option [" + currentFieldName + "]"
                     );
                 }
             } else {
-                throw new ElasticsearchParseException("could not read indices options. unexpected object field [" + currentFieldName + "]");
+                throw new ElasticsearchParseException("could not read indices options. Unexpected object field [" + currentFieldName + "]");
             }
         }
 
@@ -994,7 +1317,7 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
         return IndicesOptions.builder()
             .concreteTargetOptions(new ConcreteTargetOptions(ignoreUnavailable))
             .wildcardOptions(wildcards)
-            .generalOptions(generalOptions)
+            .gatekeeperOptions(generalOptions)
             .build();
     }
 
@@ -1004,6 +1327,15 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
      */
     public static IndicesOptions strictExpandOpen() {
         return STRICT_EXPAND_OPEN;
+    }
+
+    /**
+     * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
+     * allows that no indices are resolved from wildcard expressions (not returning an error). It disallows selectors
+     * in the expression (no :: separators).
+     */
+    public static IndicesOptions strictExpandOpenFailureNoSelectors() {
+        return STRICT_EXPAND_OPEN_FAILURE_NO_SELECTOR;
     }
 
     /**
@@ -1041,6 +1373,24 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     }
 
     /**
+     * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, includes
+     * hidden indices, allows that no indices are resolved from wildcard expressions (not returning an error), and disallows selectors
+     * in the expression (no :: separators).
+     */
+    public static IndicesOptions strictExpandHiddenNoSelectors() {
+        return STRICT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTORS;
+    }
+
+    /**
+     * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, includes
+     * hidden indices, allows that no indices are resolved from wildcard expressions (not returning an error), and disallows selectors
+     * in the expression (no :: separators) but includes the failure indices.
+     */
+    public static IndicesOptions strictExpandHiddenFailureNoSelectors() {
+        return STRICT_EXPAND_OPEN_CLOSED_HIDDEN_FAILURE_NO_SELECTORS;
+    }
+
+    /**
      * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards.
      */
     public static IndicesOptions strictNoExpandForbidClosed() {
@@ -1056,11 +1406,28 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
     }
 
     /**
+     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
+     * throws error if any of the aliases resolves to multiple indices
+     */
+    public static IndicesOptions strictSingleIndexNoExpandForbidClosedAllowSelectors() {
+        return STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED_ALLOW_SELECTORS;
+    }
+
+    /**
      * @return indices options that ignores unavailable indices, expands wildcards only to open indices and
      * allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
         return LENIENT_EXPAND_OPEN;
+    }
+
+    /**
+     * @return indices options that ignores unavailable indices, expands wildcards only to open indices,
+     * allows that no indices are resolved from wildcard expressions (not returning an error), and disallows
+     * selectors in the expression (no :: separators).
+     */
+    public static IndicesOptions lenientExpandOpenNoSelectors() {
+        return LENIENT_EXPAND_OPEN_NO_SELECTORS;
     }
 
     /**
@@ -1108,6 +1475,12 @@ public record IndicesOptions(ConcreteTargetOptions concreteTargetOptions, Wildca
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
+            + ", allow_selectors="
+            + allowSelectors()
+            + ", include_failure_indices="
+            + includeFailureIndices()
+            + ", resolve_cross_project_index_expression="
+            + resolveCrossProjectIndexExpression()
             + ']';
     }
 }

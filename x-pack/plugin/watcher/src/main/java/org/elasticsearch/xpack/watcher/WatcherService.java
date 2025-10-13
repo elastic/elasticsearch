@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -134,6 +136,8 @@ public class WatcherService {
      * @return true if everything is good to go, so that the service can be started
      */
     public boolean validate(ClusterState state) {
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
         IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
             TriggeredWatchStoreField.INDEX_NAME,
@@ -160,7 +164,7 @@ public class WatcherService {
 
             return watcherIndexMetadata == null
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
-                    && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
+                    && state.routingTable(projectId).index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
             logger.warn("Validation error: cannot start watcher", e);
             return false;
@@ -201,7 +205,7 @@ public class WatcherService {
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
      * @param state cluster state, which is needed to find out about local shards
      */
-    void reload(ClusterState state, String reason) {
+    void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
         if (hasValidWatcherTemplates == false) {
             logger.warn("missing watcher index templates");
@@ -221,7 +225,10 @@ public class WatcherService {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> logger.error("error reloading watcher", e)));
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
+            logger.error("error reloading watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -326,7 +333,8 @@ public class WatcherService {
             List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
             // find out all allocation ids
-            List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
+            @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+            List<ShardRouting> watchIndexShardRoutings = clusterState.routingTable(ProjectId.DEFAULT).allShards(watchIndexName);
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
@@ -337,7 +345,7 @@ public class WatcherService {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits().value == 0) {
+            if (response.getHits().getTotalHits().value() == 0) {
                 return Collections.emptyList();
             }
 

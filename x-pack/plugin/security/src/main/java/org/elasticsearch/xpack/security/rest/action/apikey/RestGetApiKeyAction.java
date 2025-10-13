@@ -51,6 +51,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
         final boolean myApiKeysOnly = request.paramAsBoolean("owner", false);
         final boolean withLimitedBy = request.paramAsBoolean("with_limited_by", false);
         final boolean activeOnly = request.paramAsBoolean("active_only", false);
+        final boolean withProfileUid = request.paramAsBoolean("with_profile_uid", false);
         final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
             .realmName(realmName)
             .userName(userName)
@@ -59,6 +60,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
             .ownedByAuthenticatedUser(myApiKeysOnly)
             .withLimitedBy(withLimitedBy)
             .activeOnly(activeOnly)
+            .withProfileUid(withProfileUid)
             .build();
         return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest, new RestBuilderListener<>(channel) {
             @Override
@@ -66,7 +68,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
                 getApiKeyResponse.toXContent(builder, channel.request());
 
                 // return HTTP status 404 if no API key found for API key id
-                if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().length == 0) {
+                if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfoList().isEmpty()) {
                     return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
                 return new RestResponse(RestStatus.OK, builder);

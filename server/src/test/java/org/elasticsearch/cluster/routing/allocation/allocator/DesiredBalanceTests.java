@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -45,19 +46,19 @@ public class DesiredBalanceTests extends ESTestCase {
         );
 
         assertThat(
-            "1 shard movements when existing shard is moved and new shard copy is unassigned",
+            "1 shard movements when an existing shard copy is moved and new shard copy is unassigned",
             shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "c"), 3, 1, 0)),
             equalTo(1)
         );
 
         assertThat(
-            "1 shard movement",
+            "1 shard movement when an existing shard copy is moved",
             shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "c"), 2, 0, 0)),
             equalTo(1)
         );
 
         assertThat(
-            "2 shard movement",
+            "2 shard movements when both shard copies are move to new nodes",
             shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("c", "d"), 2, 0, 0)),
             equalTo(2)
         );
@@ -76,10 +77,10 @@ public class DesiredBalanceTests extends ESTestCase {
     }
 
     private static int shardMovements(ShardAssignment old, ShardAssignment updated) {
-        return DesiredBalance.shardMovements(of(old), of(updated));
+        return DesiredBalance.shardMovements(createDesiredBalanceWith(old), createDesiredBalanceWith(updated));
     }
 
-    private static DesiredBalance of(ShardAssignment assignment) {
+    private static DesiredBalance createDesiredBalanceWith(ShardAssignment assignment) {
         return new DesiredBalance(1, Map.of(new ShardId("index", "_na_", 0), assignment));
     }
 }

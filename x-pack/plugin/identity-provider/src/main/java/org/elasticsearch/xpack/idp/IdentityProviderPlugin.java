@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.idp;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -47,6 +45,7 @@ import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderFactory;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTemplateRegistry;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderCacheSettings;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
@@ -80,6 +79,15 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
+        var indexTemplateRegistry = new SamlServiceProviderIndexTemplateRegistry(
+            services.environment().settings(),
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        indexTemplateRegistry.initialize();
+
         SamlInit.initialize();
         final SamlServiceProviderIndex index = new SamlServiceProviderIndex(services.client(), services.clusterService());
         final SecurityContext securityContext = new SecurityContext(settings, services.threadPool().getThreadContext());
@@ -98,6 +106,8 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             index,
             serviceProviderFactory
         );
+        services.clusterService().addListener(registeredServiceProviderResolver);
+
         final WildcardServiceProviderResolver wildcardServiceProviderResolver = WildcardServiceProviderResolver.create(
             services.environment(),
             services.resourceWatcherService(),
@@ -111,20 +121,20 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final SamlFactory factory = new SamlFactory();
 
-        return List.of(index, idp, factory, userPrivilegeResolver);
+        return List.of(index, idp, factory, userPrivilegeResolver, indexTemplateRegistry);
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         if (enabled == false) {
             return List.of();
         }
         return List.of(
-            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
-            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
-            new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
-            new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
-            new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
+            new ActionHandler(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
+            new ActionHandler(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
+            new ActionHandler(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
+            new ActionHandler(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
+            new ActionHandler(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
         );
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -14,7 +15,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -33,8 +33,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
@@ -184,16 +183,6 @@ public class GatewayMetaState implements Closeable {
         long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
         long currentTerm = onDiskState.currentTerm;
 
-        if (onDiskState.empty()) {
-            @UpdateForV9 // legacy metadata loader is not needed anymore from v9 onwards
-            final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
-            if (legacyState.v1().isEmpty() == false) {
-                metadata = legacyState.v2();
-                lastAcceptedVersion = legacyState.v1().clusterStateVersion();
-                currentTerm = legacyState.v1().currentTerm();
-            }
-        }
-
         PersistedState persistedState = null;
         boolean success = false;
         try {
@@ -222,7 +211,11 @@ public class GatewayMetaState implements Closeable {
             }
             // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                new NodeMetadata(
+                    persistedClusterStateService.getNodeId(),
+                    BuildVersion.current(),
+                    clusterState.metadata().oldestIndexVersionAllProjects()
+                ),
                 persistedClusterStateService.getDataPaths()
             );
             success = true;
@@ -260,7 +253,11 @@ public class GatewayMetaState implements Closeable {
             metaStateService.deleteAll();
             // write legacy node metadata to prevent downgrades from spawning empty cluster state
             NodeMetadata.FORMAT.writeAndCleanup(
-                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                new NodeMetadata(
+                    persistedClusterStateService.getNodeId(),
+                    BuildVersion.current(),
+                    clusterState.metadata().oldestIndexVersionAllProjects()
+                ),
                 persistedClusterStateService.getDataPaths()
             );
         }
@@ -298,24 +295,60 @@ public class GatewayMetaState implements Closeable {
     static Metadata upgradeMetadata(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
+        for (ProjectMetadata projectMetadata : metadata.projects().values()) {
+            final ProjectMetadata upgradedProjectMetadata = upgradeProjectMetadata(
+                projectMetadata,
+                indexMetadataVerifier,
+                metadataUpgrader
+            );
+            changed |= projectMetadata != upgradedProjectMetadata;
+            upgradedMetadata.put(upgradedProjectMetadata);
+        }
+        return changed ? upgradedMetadata.build() : metadata;
+    }
+
+    private static ProjectMetadata upgradeProjectMetadata(
+        ProjectMetadata metadata,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader
+    ) {
+        boolean changed = false;
+        final ProjectMetadata.Builder upgradedMetadata = ProjectMetadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE);
+            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                indexMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            );
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
         // upgrade current templates
-        if (applyPluginUpgraders(
-            metadata.getTemplates(),
+        if (applyPluginTemplateUpgraders(
+            metadata.templates(),
             metadataUpgrader.indexTemplateMetadataUpgraders,
             upgradedMetadata::removeTemplate,
             (s, indexTemplateMetadata) -> upgradedMetadata.put(indexTemplateMetadata)
         )) {
             changed = true;
         }
+        // upgrade custom metadata
+        for (Map.Entry<String, UnaryOperator<Metadata.ProjectCustom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
+            String type = entry.getKey();
+            Function<Metadata.ProjectCustom, Metadata.ProjectCustom> upgrader = entry.getValue();
+            Metadata.ProjectCustom original = metadata.custom(type);
+            if (original != null) {
+                Metadata.ProjectCustom upgraded = upgrader.apply(original);
+                if (upgraded.equals(original) == false) {
+                    upgradedMetadata.putCustom(type, upgraded);
+                    changed = true;
+                }
+            }
+        }
         return changed ? upgradedMetadata.build() : metadata;
     }
 
-    private static boolean applyPluginUpgraders(
+    private static boolean applyPluginTemplateUpgraders(
         Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,
@@ -567,7 +600,7 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        metadata.oldestIndexVersion(),
+                        metadata.oldestIndexVersionAllProjects(),
                         metadata.clusterUUID(),
                         metadata.clusterUUIDCommitted()
                     );

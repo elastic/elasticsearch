@@ -16,12 +16,14 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -68,8 +70,8 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
 
         private final String enrichIndexName;
 
-        public Request(String name, String enrichIndexName) {
-            super(name);
+        public Request(TimeValue masterNodeTimeout, String name, String enrichIndexName) {
+            super(masterNodeTimeout, name);
             this.enrichIndexName = enrichIndexName;
         }
 
@@ -107,6 +109,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
 
         private final ClusterService clusterService;
         private final TransportService transportService;
+        private final ProjectResolver projectResolver;
         private final EnrichPolicyExecutor policyExecutor;
         private final AtomicInteger nodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
@@ -115,11 +118,13 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
             TransportService transportService,
             ActionFilters actionFilters,
             ClusterService clusterService,
+            ProjectResolver projectResolver,
             EnrichPolicyExecutor policyExecutor
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.transportService = transportService;
+            this.projectResolver = projectResolver;
             this.policyExecutor = policyExecutor;
         }
 
@@ -181,13 +186,19 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                             }
                         );
                     }
-                    policyExecutor.runPolicyLocally(task, request.getName(), request.getEnrichIndexName(), ActionListener.wrap(result -> {
-                        taskManager.unregister(task);
-                        listener.onResponse(result);
-                    }, e -> {
-                        taskManager.unregister(task);
-                        listener.onFailure(e);
-                    }));
+                    policyExecutor.runPolicyLocally(
+                        projectResolver.getProjectId(),
+                        task,
+                        request.getName(),
+                        request.getEnrichIndexName(),
+                        ActionListener.wrap(result -> {
+                            taskManager.unregister(task);
+                            listener.onResponse(result);
+                        }, e -> {
+                            taskManager.unregister(task);
+                            listener.onFailure(e);
+                        })
+                    );
 
                     if (request.isWaitForCompletion() == false) {
                         TaskId taskId = new TaskId(clusterState.nodes().getLocalNodeId(), task.getId());

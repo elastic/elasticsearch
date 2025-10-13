@@ -17,10 +17,10 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -54,6 +54,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final DataFrameAnalyticsAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteDataFrameAnalyticsAction(
@@ -61,11 +62,11 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         MlMemoryTracker memoryTracker,
         DataFrameAnalyticsConfigProvider configProvider,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDataFrameAnalyticsAction.NAME,
@@ -74,13 +75,13 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
             threadPool,
             actionFilters,
             DeleteDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.memoryTracker = memoryTracker;
         this.configProvider = configProvider;
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -125,7 +126,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         // still used from the running task which results in logging errors.
 
         StopDataFrameAnalyticsAction.Request stopRequest = new StopDataFrameAnalyticsAction.Request(request.getId());
-        stopRequest.setTimeout(request.timeout());
+        stopRequest.setTimeout(request.ackTimeout());
 
         ActionListener<StopDataFrameAnalyticsAction.Response> normalStopListener = ActionListener.wrap(
             listener::onResponse,
@@ -155,7 +156,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         ActionListener<AcknowledgedResponse> listener
     ) {
         String id = request.getId();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
             listener.onFailure(
@@ -169,12 +170,12 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
 
         configProvider.get(id, listener.delegateFailureAndWrap((l, config) -> {
             DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(parentTaskClient, auditor);
-            deleter.deleteAllDocuments(config, request.timeout(), l);
+            deleter.deleteAllDocuments(config, request.ackTimeout(), l);
         }));
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteDataFrameAnalyticsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

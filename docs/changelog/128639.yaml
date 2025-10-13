@@ -1,0 +1,6 @@
+pr: 128639
+summary: Substitue `date_trunc` with `round_to` when the pre-calculated rounding points
+  are available
+area: ES|QL
+type: enhancement
+issues: []

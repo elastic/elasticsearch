@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -39,22 +39,24 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         booleans(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         bytesRefs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         dateTimes(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
+        dateNanos(cases, "mv_dedupe", "MvDedupe", DataType.DATE_NANOS, (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
         doubles(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Double::valueOf)));
         ints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Integer::valueOf)));
         longs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
-        // TODO switch extraction to BigInteger so this just works.
-        // unsignedLongs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
-        return parameterSuppliersFromTypedData(cases);
+        cartesianPoints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        cartesianShape(cases, "mv_dedupe", "MvDedupe", DataType.CARTESIAN_SHAPE, (size, values) -> getMatcher(values));
+        geoPoints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        geoShape(cases, "mv_dedupe", "MvDedupe", DataType.GEO_SHAPE, (size, values) -> getMatcher(values));
+        geohashGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOHASH, (size, values) -> getMatcher(values));
+        geotileGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOTILE, (size, values) -> getMatcher(values));
+        geohexGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOHEX, (size, values) -> getMatcher(values));
+        unsignedLongs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, cases));
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvDedupe(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableTypes();
     }
 
     @SuppressWarnings("unchecked")

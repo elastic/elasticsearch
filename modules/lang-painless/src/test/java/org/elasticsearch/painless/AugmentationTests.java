@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -25,7 +26,7 @@ public class AugmentationTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        List<Whitelist> digestWhitelist = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> digestWhitelist = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
 
@@ -291,6 +292,24 @@ public class AugmentationTests extends ScriptTestCase {
         assertEquals("2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", execDigest("'foo'.sha256()"));
         assertEquals("fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9", execDigest("'bar'.sha256()"));
         assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
+    }
+
+    public void testSha512() {
+        assertEquals(
+            "f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc663832"
+                + "6e282c41be5e4254d8820772c5518a2c5a8c0c7f7eda19594a7eb539453e1ed7",
+            execDigest("'foo'.sha512()")
+        );
+        assertEquals(
+            "d82c4eb5261cb9c8aa9855edd67d1bd10482f41529858d925094d173fa662aa9"
+                + "1ff39bc5b188615273484021dfb16fd8284cf684ccf0fc795be3aa2fc1e6c181",
+            execDigest("'bar'.sha512()")
+        );
+        assertEquals(
+            "cb377c10b0f5a62c803625a799d9e908be45e767f5d147d4744907cb05597aa4"
+                + "edd329a0af147add0cf4181ed328fa1e7994265826b3ed3d7ef6f067ca99185a",
+            execDigest("'foobarbaz'.sha512()")
+        );
     }
 
     public void testToEpochMilli() {

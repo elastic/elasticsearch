@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -16,12 +17,13 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -34,28 +36,29 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
+    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractMultiClustersTestCase.class);
 
     private static volatile ClusterGroup clusterGroup;
 
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return randomSubsetOf(List.of("cluster-a", "cluster-b"));
     }
 
@@ -97,17 +100,18 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             return;
         }
         stopClusters();
-        final Map<String, InternalTestCluster> clusters = new HashMap<>();
+        final Map<String, InternalTestCluster> clusters = new ConcurrentHashMap<>();
         final List<String> clusterAliases = new ArrayList<>(remoteClusterAlias());
         clusterAliases.add(LOCAL_CLUSTER);
-        for (String clusterAlias : clusterAliases) {
+        final List<Class<? extends Plugin>> mockPlugins = List.of(
+            MockHttpTransport.TestPlugin.class,
+            MockTransportService.TestPlugin.class,
+            getTestTransportPlugin()
+        );
+        runInParallel(clusterAliases.size(), i -> {
+            String clusterAlias = clusterAliases.get(i);
             final String clusterName = clusterAlias.equals(LOCAL_CLUSTER) ? "main-cluster" : clusterAlias;
             final int numberOfNodes = randomIntBetween(1, 3);
-            final List<Class<? extends Plugin>> mockPlugins = List.of(
-                MockHttpTransport.TestPlugin.class,
-                MockTransportService.TestPlugin.class,
-                getTestTransportPlugin()
-            );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 
             final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
@@ -123,12 +127,17 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 0,
                 clusterName + "-",
                 mockPlugins,
-                Function.identity()
+                Function.identity(),
+                TEST_ENTITLEMENTS::addEntitledNodePaths
             );
-            cluster.beforeTest(random());
+            try {
+                cluster.beforeTest(random());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             clusters.put(clusterAlias, cluster);
-        }
-        clusterGroup = new ClusterGroup(clusters);
+        });
+        clusterGroup = new ClusterGroup(Map.copyOf(clusters));
         configureAndConnectsToRemoteClusters();
     }
 
@@ -148,19 +157,23 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected void disconnectFromRemoteClusters() throws Exception {
-        Settings.Builder settings = Settings.builder();
         final Set<String> clusterAliases = clusterGroup.clusterAliases();
         for (String clusterAlias : clusterAliases) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
-                settings.putNull("cluster.remote." + clusterAlias + ".seeds");
-                settings.putNull("cluster.remote." + clusterAlias + ".mode");
-                settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
+                removeRemoteCluster(clusterAlias);
             }
         }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+    }
+
+    protected void removeRemoteCluster(String clusterAlias) throws Exception {
+        Settings.Builder settings = Settings.builder();
+        settings.putNull("cluster.remote." + clusterAlias + ".seeds");
+        settings.putNull("cluster.remote." + clusterAlias + ".mode");
+        settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
+        client().admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).get();
         assertBusy(() -> {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
-                assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), empty());
+                assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), not(contains(clusterAlias)));
             }
         });
     }
@@ -177,12 +190,17 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
+        final var seedAddresses = seedNodes.stream().map(node -> {
+            final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
+            return transportService.boundAddress().publishAddress();
+        }).toList();
+        configureRemoteClusterWithSeedAddresses(clusterAlias, seedAddresses);
+    }
+
+    protected void configureRemoteClusterWithSeedAddresses(String clusterAlias, Collection<TransportAddress> seedNodes) throws Exception {
         final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
-        final List<String> seedAddresses = seedNodes.stream().map(node -> {
-            final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
-            return transportService.boundAddress().publishAddress().toString();
-        }).toList();
+        final List<String> seedAddresses = seedNodes.stream().map(TransportAddress::toString).toList();
         boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
             ? skipUnavailableForRemoteClusters().get(clusterAlias)
             : DEFAULT_SKIP_UNAVAILABLE;
@@ -204,7 +222,11 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
         builder.build();
 
-        ClusterUpdateSettingsResponse resp = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        ClusterUpdateSettingsResponse resp = client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
         if (skipUnavailable != DEFAULT_SKIP_UNAVAILABLE) {
             String key = Strings.format("cluster.remote.%s.skip_unavailable", clusterAlias);
             assertEquals(String.valueOf(skipUnavailable), resp.getPersistentSettings().get(key));

@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.math.BigDecimal;
@@ -167,7 +168,7 @@ public final class SchemaUtil {
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
                         transformId,
-                        Boolean.FALSE.equals(settingsConfig.getDeduceMappings()) == false,
+                        TransformEffectiveSettings.isDeduceMappingsDisabled(settingsConfig),
                         aggregationSourceFieldNames,
                         aggregationTypes,
                         fieldNamesForGrouping,
@@ -207,7 +208,7 @@ public final class SchemaUtil {
 
     private static Map<String, String> resolveMappings(
         String transformId,
-        boolean deduceMappings,
+        boolean deduceMappingsDisabled,
         Map<String, String> aggregationSourceFieldNames,
         Map<String, String> aggregationTypes,
         Map<String, String> fieldNamesForGrouping,
@@ -244,7 +245,7 @@ public final class SchemaUtil {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
                 logger.log(
-                    deduceMappings ? Level.WARN : Level.INFO,
+                    deduceMappingsDisabled ? Level.INFO : Level.WARN,
                     "[{}] Failed to deduce mapping for [{}], fall back to dynamic mapping. "
                         + "Create the destination index with complete mappings first to avoid deducing the mappings",
                     transformId,
@@ -260,7 +261,7 @@ public final class SchemaUtil {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
                 logger.log(
-                    deduceMappings ? Level.WARN : Level.INFO,
+                    deduceMappingsDisabled ? Level.INFO : Level.WARN,
                     "[{}] Failed to deduce mapping for [{}], fall back to keyword. "
                         + "Create the destination index with complete mappings first to avoid deducing the mappings",
                     transformId,

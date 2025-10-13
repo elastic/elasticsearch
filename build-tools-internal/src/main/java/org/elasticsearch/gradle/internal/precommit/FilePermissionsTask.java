@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
@@ -18,6 +19,8 @@ import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
@@ -78,6 +81,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
     @InputFiles
     @IgnoreEmptyDirectories
     @SkipWhenEmpty
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getFiles() {
         return getSources().get()
             .stream()
@@ -102,7 +106,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
         }
 
         outputMarker.getParentFile().mkdirs();
-        Files.write(outputMarker.toPath(), "done".getBytes("UTF-8"));
+        Files.writeString(outputMarker.toPath(), "done");
     }
 
     @OutputFile

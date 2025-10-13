@@ -102,11 +102,6 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
-    int defaultSpanForChunking(int maxWindowSize) {
-        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
-    }
-
-    @Override
     int numExtraTokensForSingleSequence() {
         return 2;
     }
@@ -173,6 +168,10 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
         return new XLMRobertaTokenizationResult.XLMRobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();
@@ -280,7 +279,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken);
+            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken, false);
             return new TokenStreamComponents(this.innerTokenizer);
         }
 

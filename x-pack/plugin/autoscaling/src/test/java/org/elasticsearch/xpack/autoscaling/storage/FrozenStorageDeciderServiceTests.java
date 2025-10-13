@@ -65,7 +65,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         AutoscalingDeciderContext context = mock(AutoscalingDeciderContext.class);
         when(context.state()).thenReturn(state);
-        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.index("index"));
+        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.getProject().index("index"));
         final long dataSetSize = sizeAndClusterInfo.v1();
         final ClusterInfo info = sizeAndClusterInfo.v2();
         when(context.info()).thenReturn(info);
@@ -109,7 +109,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
             // add irrelevant shards noise for completeness (should not happen IRL).
             sizes.put(new ShardId(index, i), randomLongBetween(0, Integer.MAX_VALUE));
         }
-        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), Map.of(), sizes, Map.of(), Map.of());
+        ClusterInfo info = ClusterInfo.builder().shardDataSetSizes(sizes).build();
         return Tuple.tuple(totalSize, info);
     }
 }

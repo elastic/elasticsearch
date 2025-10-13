@@ -7,19 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
 
@@ -63,11 +57,7 @@ public class Grant implements Writeable {
         this.username = in.readOptionalString();
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.runAsUsername = in.readOptionalString();
-        } else {
-            this.runAsUsername = null;
-        }
+        this.runAsUsername = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
         } else {
@@ -80,9 +70,7 @@ public class Grant implements Writeable {
         out.writeOptionalString(username);
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalString(runAsUsername);
-        }
+        out.writeOptionalString(runAsUsername);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(clientAuthentication);
         }
@@ -134,30 +122,6 @@ public class Grant implements Writeable {
 
     public void setClientAuthentication(ClientAuthentication clientAuthentication) {
         this.clientAuthentication = clientAuthentication;
-    }
-
-    public AuthenticationToken getAuthenticationToken() {
-        assert validate(null) == null : "grant is invalid";
-        return switch (type) {
-            case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(username, password);
-            case ACCESS_TOKEN_GRANT_TYPE -> {
-                SecureString clientAuthentication = this.clientAuthentication != null ? this.clientAuthentication.value() : null;
-                AuthenticationToken token = JwtAuthenticationToken.tryParseJwt(accessToken, clientAuthentication);
-                if (token != null) {
-                    yield token;
-                }
-                if (clientAuthentication != null) {
-                    clientAuthentication.close();
-                    throw new ElasticsearchSecurityException(
-                        "[client_authentication] not supported with the supplied access_token type",
-                        RestStatus.BAD_REQUEST
-                    );
-                }
-                // here we effectively assume it's an ES access token (from the {@code TokenService})
-                yield new BearerToken(accessToken);
-            }
-            default -> throw new ElasticsearchSecurityException("the grant type [{}] is not supported", type);
-        };
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {

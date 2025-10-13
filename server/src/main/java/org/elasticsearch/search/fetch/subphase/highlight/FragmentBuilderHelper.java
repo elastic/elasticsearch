@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -39,12 +40,12 @@ public final class FragmentBuilderHelper {
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
             CollectionUtil.introSort(subInfos, (o1, o2) -> {
-                int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
-                int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
+                int startOffset = o1.termsOffsets().get(0).getStartOffset();
+                int startOffset2 = o2.termsOffsets().get(0).getStartOffset();
                 return Integer.compare(startOffset, startOffset2);
             });
             return new WeightedFragInfo(
-                Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
+                Math.min(fragInfo.getSubInfos().get(0).termsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
                 fragInfo.getEndOffset(),
                 subInfos,
                 fragInfo.getTotalBoost()

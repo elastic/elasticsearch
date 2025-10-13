@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
 public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
 
     @Override

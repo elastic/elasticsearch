@@ -1,23 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.common.regex.Regex;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
@@ -29,9 +33,9 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
  * {@link BootstrapInfo#SERVER_READY_MARKER} signals the server is ready and the cli may
  * detach if daemonizing. All other messages are passed through to stderr.
  */
-class ErrorPumpThread extends Thread {
+class ErrorPumpThread extends Thread implements Closeable {
     private final BufferedReader reader;
-    private final PrintWriter writer;
+    private final Terminal terminal;
 
     // a latch which changes state when the server is ready or has had a bootstrap error
     private final CountDownLatch readyOrDead = new CountDownLatch(1);
@@ -42,10 +46,24 @@ class ErrorPumpThread extends Thread {
     // an unexpected io failure that occurred while pumping stderr
     private volatile IOException ioFailure;
 
-    ErrorPumpThread(PrintWriter errOutput, InputStream errInput) {
+    ErrorPumpThread(Terminal terminal, InputStream errInput) {
         super("server-cli[stderr_pump]");
         this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
-        this.writer = errOutput;
+        this.terminal = terminal;
+    }
+
+    private void checkForIoFailure() throws IOException {
+        IOException failure = ioFailure;
+        ioFailure = null;
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        assert isAlive() == false : "Pump thread must be drained first";
+        checkForIoFailure();
     }
 
     /**
@@ -56,9 +74,7 @@ class ErrorPumpThread extends Thread {
      */
     boolean waitUntilReady() throws IOException {
         nonInterruptibleVoid(readyOrDead::await);
-        if (ioFailure != null) {
-            throw ioFailure;
-        }
+        checkForIoFailure();
         return ready;
     }
 
@@ -69,8 +85,12 @@ class ErrorPumpThread extends Thread {
         nonInterruptibleVoid(this::join);
     }
 
-    /** List of messages / lines to filter from the output. */
-    List<String> filter = List.of("WARNING: Using incubator modules: jdk.incubator.vector");
+    /** Messages / lines predicate to filter from the output. */
+    private static Predicate<String> filter = Regex.simpleMatcher(
+        "WARNING: Using incubator modules: jdk.incubator.vector",
+        // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
+        "WARNING: Use of the three-letter time zone ID * is deprecated and it will be removed in a future release"
+    );
 
     @Override
     public void run() {
@@ -80,14 +100,14 @@ class ErrorPumpThread extends Thread {
                 if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else if (filter.contains(line) == false) {
-                    writer.println(line);
+                } else if (filter.test(line) == false) {
+                    terminal.errorPrintln(Verbosity.SILENT, line, false);
                 }
             }
         } catch (IOException e) {
             ioFailure = e;
         } finally {
-            writer.flush();
+            terminal.flush();
             readyOrDead.countDown();
         }
     }

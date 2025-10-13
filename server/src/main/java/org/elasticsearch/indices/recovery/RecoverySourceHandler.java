@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -314,14 +315,17 @@ public class RecoverySourceHandler {
                 cancellableThreads,
                 ActionListener.wrap(ignored -> {
                     final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                    logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    }
                     final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
                         "peer-recovery",
                         startingSeqNo,
                         Long.MAX_VALUE,
                         false,
                         false,
-                        true
+                        true,
+                        chunkSizeInBytes
                     );
                     resources.add(phase2Snapshot);
                     retentionLock.close();
@@ -531,56 +535,30 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            // When sync ids were used we could use them to check if two shard copies were equivalent,
-            // if that's the case we can skip sending files from the source shard to the target shard.
             // If the shard uses the current replication mechanism, we have to compute the recovery plan,
             // and it is still possible to skip the sending files from the source shard to the target shard
             // using a different mechanism to determine it.
-            // TODO: is this still relevant today?
-            if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
-                cancellableThreads.checkForCancel();
-                SubscribableListener
-                    // compute the plan
-                    .<ShardRecoveryPlan>newForked(
-                        l -> recoveryPlannerService.computeRecoveryPlan(
-                            shard.shardId(),
-                            shardStateIdentifier,
-                            recoverySourceMetadata,
-                            request.metadataSnapshot(),
-                            startingSeqNo,
-                            translogOps.getAsInt(),
-                            getRequest().targetNode().getMaxIndexVersion(),
-                            canUseSnapshots(),
-                            request.isPrimaryRelocation(),
-                            l
-                        )
+            cancellableThreads.checkForCancel();
+            SubscribableListener
+                // compute the plan
+                .<ShardRecoveryPlan>newForked(
+                    l -> recoveryPlannerService.computeRecoveryPlan(
+                        shard.shardId(),
+                        shardStateIdentifier,
+                        recoverySourceMetadata,
+                        request.metadataSnapshot(),
+                        startingSeqNo,
+                        translogOps.getAsInt(),
+                        getRequest().targetNode().getMaxIndexVersion(),
+                        canUseSnapshots(),
+                        request.isPrimaryRelocation(),
+                        l
                     )
-                    // perform the file recovery
-                    .<SendFileResult>andThen((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
-                    // and respond
-                    .addListener(listener);
-            } else {
-                logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
-                SubscribableListener
-                    // but we must still create a retention lease
-                    .<RetentionLease>newForked(leaseListener -> createRetentionLease(startingSeqNo, leaseListener))
-                    // and then compute the result of sending no files
-                    .andThenApply(ignored -> {
-                        final TimeValue took = stopWatch.totalTime();
-                        logger.trace("recovery [phase1]: took [{}]", took);
-                        return new SendFileResult(
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            0L,
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            0L,
-                            took
-                        );
-                    })
-                    // and finally respond
-                    .addListener(listener);
-            }
+                )
+                // perform the file recovery
+                .<SendFileResult>andThen((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
+                // and respond
+                .addListener(listener);
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), 0, ByteSizeValue.ZERO, e);
         }
@@ -700,7 +678,7 @@ public class RecoverySourceHandler {
                 .newForked(this::sendShardRecoveryPlanFileInfo)
                 // instruct the target to recover files from snapshot, possibly updating the plan on failure
                 .<List<StoreFileMetadata>>andThen(
-                    (l, ignored) -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
+                    l -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
                             && e instanceof CancellableThreads.ExecutionCancelledException == false) {
                             shardRecoveryPlan = shardRecoveryPlan.getFallbackPlan();
@@ -731,10 +709,7 @@ public class RecoverySourceHandler {
                 })
                 // create a retention lease
                 .<RetentionLease>andThen(
-                    (createRetentionLeaseListener, ignored) -> createRetentionLease(
-                        shardRecoveryPlan.getStartingSeqNo(),
-                        createRetentionLeaseListener
-                    )
+                    createRetentionLeaseListener -> createRetentionLease(shardRecoveryPlan.getStartingSeqNo(), createRetentionLeaseListener)
                 )
                 // run cleanFiles, renaming temp files, removing surplus ones, creating an empty translog and so on
                 .<Void>andThen((finalRecoveryPlanListener, retentionLease) -> {
@@ -954,7 +929,7 @@ public class RecoverySourceHandler {
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
         updateRetentionLease(syncListener -> {
-            // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
+            // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
             // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
             // the recovery now fails before copying enough history over then a subsequent attempt will find this lease, determine it is
@@ -1028,43 +1003,6 @@ public class RecoverySourceHandler {
      */
     private ActionListener<ReplicationResponse> wrapLeaseSyncListener(ActionListener<Void> listener) {
         return new ThreadedActionListener<>(shard.getThreadPool().generic(), listener).map(ignored -> null);
-    }
-
-    boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
-        if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
-            return false;
-        }
-        if (source.numDocs() != target.numDocs()) {
-            throw new IllegalStateException(
-                "try to recover "
-                    + request.shardId()
-                    + " from primary shard with sync id but number "
-                    + "of docs differ: "
-                    + source.numDocs()
-                    + " ("
-                    + request.sourceNode().getName()
-                    + ", primary) vs "
-                    + target.numDocs()
-                    + "("
-                    + request.targetNode().getName()
-                    + ")"
-            );
-        }
-        SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.commitUserData().entrySet());
-        SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.commitUserData().entrySet());
-        if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
-            final String message = "try to recover "
-                + request.shardId()
-                + " with sync id but "
-                + "seq_no stats are mismatched: ["
-                + source.commitUserData()
-                + "] vs ["
-                + target.commitUserData()
-                + "]";
-            assert false : message;
-            throw new IllegalStateException(message);
-        }
-        return true;
     }
 
     void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
@@ -1287,7 +1225,12 @@ public class RecoverySourceHandler {
                 logger.trace("performing relocation hand-off");
                 cancellableThreads.execute(
                     // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                    () -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext, finalStep)
+                    () -> shard.relocated(
+                        request.targetNode().getId(),
+                        request.targetAllocationId(),
+                        recoveryTarget::handoffPrimaryContext,
+                        finalStep
+                    )
                 );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
@@ -1371,7 +1314,7 @@ public class RecoverySourceHandler {
                         // we already have the file contents on heap no need to open the file again
                         currentInput = null;
                     } else {
-                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        currentInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
                     }
                 }
 

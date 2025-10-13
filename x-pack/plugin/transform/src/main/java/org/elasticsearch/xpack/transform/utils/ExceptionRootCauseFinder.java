@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -63,13 +64,22 @@ public final class ExceptionRootCauseFinder {
             }
 
             if (unwrappedThrowable instanceof ElasticsearchException elasticsearchException) {
-                if (isExceptionIrrecoverable(elasticsearchException)) {
+                if (isExceptionIrrecoverable(elasticsearchException) && isNotIndexNotFoundException(elasticsearchException)) {
                     return elasticsearchException;
                 }
             }
         }
 
         return null;
+    }
+
+    /**
+     * We can safely recover from IndexNotFoundExceptions on Bulk responses.
+     * If the transform is running, the next checkpoint will recreate the index.
+     * If the transform is not running, the next start request will recreate the index.
+     */
+    private static boolean isNotIndexNotFoundException(ElasticsearchException elasticsearchException) {
+        return elasticsearchException instanceof IndexNotFoundException == false;
     }
 
     public static boolean isExceptionIrrecoverable(ElasticsearchException elasticsearchException) {

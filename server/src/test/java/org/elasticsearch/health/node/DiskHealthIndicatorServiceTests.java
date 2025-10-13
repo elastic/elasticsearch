@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -26,19 +27,24 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -66,6 +72,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -97,6 +104,16 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
         DiscoveryNodeRole.TRANSFORM_ROLE
     );
+
+    private FeatureService featureService;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+
+        featureService = Mockito.mock(FeatureService.class);
+        Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+    }
 
     public void testServiceBasics() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
@@ -258,7 +275,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(discoveryNode.getId(), new DiskHealthInfo(HealthStatus.GREEN));
             }
         }
-        HealthInfo healthInfo = new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of());
+        HealthInfo healthInfo = new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
 
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(HealthStatus.RED));
@@ -947,7 +969,20 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(nonDataNonMasterAffectedResources.get(0).getNodes().size(), is(10));
             }
         }
+    }
 
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        ClusterService clusterService = createClusterService(discoveryNodes, false);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        HealthStatus expectedStatus = HealthStatus.RED;
+        HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(false, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
+        assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
+        assertThat(result.diagnosisList(), equalTo(List.of()));
+        assertThat(result.impacts().isEmpty(), equalTo(false));
+        assertThat(result.symptom().isEmpty(), equalTo(false));
     }
 
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
@@ -1021,7 +1056,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(node.getId(), diskHealthInfo);
             }
         }
-        return new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of());
+        return new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
     }
 
     private static ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {
@@ -1056,9 +1096,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Map<String, Set<String>> indexNameToNodeIdsMap
     ) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        for (DiscoveryNode node : nodes) {
-            nodesBuilder = nodesBuilder.add(node);
-        }
+        nodes.forEach(nodesBuilder::add);
         nodesBuilder.localNodeId(randomFrom(nodes).getId());
         nodesBuilder.masterNodeId(randomFrom(nodes).getId());
         ClusterBlocks.Builder clusterBlocksBuilder = new ClusterBlocks.Builder();

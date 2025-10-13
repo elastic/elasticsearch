@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.ML_ROLLOVER_LEGACY_INDICES;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
@@ -56,7 +55,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.onOrAfter(ML_ROLLOVER_LEGACY_INDICES);
+        return true;
     }
 
     @Override

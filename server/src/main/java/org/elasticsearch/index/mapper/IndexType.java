@@ -9,10 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Objects;
+
 /**
  * What type of index structure is available for this field
  */
-public class IndexType {
+// NB This is a class not a record because it has a private constructor
+public final class IndexType {
 
     /**
      * An IndexType with no index structures or doc values
@@ -109,16 +112,10 @@ public class IndexType {
      * @return an inverted-index based IndexType
      */
     public static IndexType terms(boolean isIndexed, boolean hasDocValues) {
-        if (isIndexed && hasDocValues) {
-            return new IndexType(true, false, false, false, true, false);
+        if (isIndexed == false && hasDocValues == false) {
+            return NONE;
         }
-        if (isIndexed) {
-            return new IndexType(true, false, false, false, false, false);
-        }
-        if (hasDocValues) {
-            return new IndexType(false, false, false, false, true, false);
-        }
-        return NONE;
+        return new IndexType(isIndexed, false, false, false, hasDocValues, false);
     }
 
     /**
@@ -132,16 +129,10 @@ public class IndexType {
      * @return a point-based IndexType
      */
     public static IndexType points(boolean isIndexed, boolean hasDocValues) {
-        if (isIndexed && hasDocValues) {
-            return new IndexType(false, true, true, false, true, false);
+        if (isIndexed == false && hasDocValues == false) {
+            return IndexType.NONE;
         }
-        if (isIndexed) {
-            return new IndexType(false, true, true, false, false, false);
-        }
-        if (hasDocValues) {
-            return new IndexType(false, false, false, false, true, false);
-        }
-        return NONE;
+        return new IndexType(false, isIndexed, isIndexed, false, hasDocValues, false);
     }
 
     /**
@@ -163,5 +154,41 @@ public class IndexType {
      */
     public static IndexType vectors() {
         return new IndexType(false, false, false, true, false, false);
+    }
+
+    @Override
+    public String toString() {
+        return "IndexType{"
+            + "hasTerms="
+            + hasTerms
+            + ", hasPoints="
+            + hasPoints
+            + ", hasPointsMetadata="
+            + hasPointsMetadata
+            + ", hasVectors="
+            + hasVectors
+            + ", hasDocValues="
+            + hasDocValues
+            + ", hasDocValuesSkipper="
+            + hasDocValuesSkipper
+            + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof IndexType indexType) {
+            return hasTerms == indexType.hasTerms
+                && hasPoints == indexType.hasPoints
+                && hasPointsMetadata == indexType.hasPointsMetadata
+                && hasVectors == indexType.hasVectors
+                && hasDocValues == indexType.hasDocValues
+                && hasDocValuesSkipper == indexType.hasDocValuesSkipper;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(hasTerms, hasPoints, hasPointsMetadata, hasVectors, hasDocValues, hasDocValuesSkipper);
     }
 }

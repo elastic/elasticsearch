@@ -179,8 +179,8 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
     }
 
     /**
-     * Enables the write load decider and overrides other write load decider settings.
-     * @param queueLatencyThresholdMillis Sets the queue latency threshold, controlling when canRemain starts returning not-preferred.
+     * Enables the write-load decider and overrides other write load decider settings.
+     * @param queueLatencyThresholdMillis Exceeding this is what makes the monitor call re-route
      */
     private Settings enabledWriteLoadDeciderSettings(long queueLatencyThresholdMillis) {
         return Settings.builder()

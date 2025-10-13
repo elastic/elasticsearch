@@ -250,7 +250,8 @@ public class SamplingServiceTests extends ESTestCase {
             );
         final ProjectId projectId = projectBuilder.getId();
         ProjectMetadata projectMetadata = projectBuilder.build();
-        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(randomAsciiByteArrayOfLength(150), XContentType.JSON);
+        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id")
+            .source(randomAsciiByteArrayOfLength(150), XContentType.JSON);
         for (int i = 0; i < maxSamples; i++) {
             samplingService.maybeSample(projectMetadata, indexRequest);
         }

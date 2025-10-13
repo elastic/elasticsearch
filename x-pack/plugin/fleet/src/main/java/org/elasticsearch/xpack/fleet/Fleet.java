@@ -79,7 +79,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 3;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 5;
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
@@ -280,6 +280,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
+            // This is a regular search index so it uses the shared thread pools.
+            // The only difference is that its mappings and settings are managed internally by Elasticsearch.
+            .setThreadPools(ExecutorNames.DEFAULT_INDEX_THREAD_POOLS)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".integration_knowledge-" + CURRENT_INDEX_VERSION)

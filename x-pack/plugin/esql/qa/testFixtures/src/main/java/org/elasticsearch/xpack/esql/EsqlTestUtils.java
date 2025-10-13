@@ -13,6 +13,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -21,28 +22,39 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
@@ -65,6 +77,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -86,7 +101,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryClusterSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -161,6 +179,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -243,7 +263,11 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD);
+        return relation(IndexMode.STANDARD);
+    }
+
+    public static EsRelation relation(IndexMode mode) {
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
     }
 
     /**
@@ -412,16 +436,43 @@ public final class EsqlTestUtils {
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
+    public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
+        DataPartitioning.AUTO,
+        ByteSizeValue.ofMb(1),
+        10_000,
+        ByteSizeValue.ofMb(1)
+    );
+
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
-        mock(TransportService.class),
+        createMockTransportService(),
         mock(SearchService.class),
         null,
-        mock(ClusterService.class),
+        createMockClusterService(),
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class))
+        new InferenceService(mock(Client.class)),
+        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+        TEST_PLANNER_SETTINGS
     );
+
+    private static ClusterService createMockClusterService() {
+        var service = mock(ClusterService.class);
+        doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        return service;
+    }
+
+    private static TransportService createMockTransportService() {
+        var service = mock(TransportService.class);
+        doReturn(createMockThreadPool()).when(service).getThreadPool();
+        return service;
+    }
+
+    private static ThreadPool createMockThreadPool() {
+        var threadPool = mock(ThreadPool.class);
+        doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
+        return threadPool;
+    }
 
     private EsqlTestUtils() {}
 
@@ -438,7 +489,9 @@ public final class EsqlTestUtils {
             false,
             TABLES,
             System.nanoTime(),
-            false
+            false,
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 
@@ -450,6 +503,15 @@ public final class EsqlTestUtils {
         return configuration(new QueryPragmas(Settings.EMPTY), query);
     }
 
+    public static EsqlQueryClusterSettings queryClusterSettings() {
+        return new EsqlQueryClusterSettings(
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+        );
+    }
+
     public static Literal L(Object value) {
         return of(value);
     }
@@ -459,7 +521,11 @@ public final class EsqlTestUtils {
     }
 
     public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
-        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(blockFactory, row)));
+        return new LocalRelation(
+            Source.EMPTY,
+            fields,
+            LocalSupplier.of(row.isEmpty() ? new Page(0) : new Page(BlockUtils.fromListRow(blockFactory, row)))
+        );
     }
 
     public static <T> T as(Object node, Class<T> type) {
@@ -526,23 +592,19 @@ public final class EsqlTestUtils {
     }
 
     public static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(Iterators.map(values, EsqlTestUtils::toList));
     }
 
     public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.iterator().forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.iterator().forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(Iterators.map(values.iterator(), row -> toList(row.iterator())));
+    }
+
+    private static <T> List<T> toList(Iterator<T> iterator) {
+        var list = new ArrayList<T>();
+        while (iterator.hasNext()) {
+            list.add(iterator.next());
+        }
+        return list;
     }
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
@@ -838,6 +900,15 @@ public final class EsqlTestUtils {
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
             case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case GEOHASH -> StGeohash.unboundedGrid.calculateGridId(
+                GeometryTestUtils.randomPoint(),
+                randomIntBetween(1, Geohash.PRECISION)
+            );
+            case GEOTILE -> StGeotile.unboundedGrid.calculateGridId(
+                GeometryTestUtils.randomPoint(),
+                randomIntBetween(0, GeoTileUtils.MAX_ZOOM)
+            );
+            case GEOHEX -> StGeohex.unboundedGrid.calculateGridId(GeometryTestUtils.randomPoint(), randomIntBetween(0, H3.MAX_H3_RES));
             case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
                 randomDouble(),
                 randomDouble(),
@@ -854,8 +925,9 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
@@ -869,6 +941,22 @@ public final class EsqlTestUtils {
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    static BytesReference randomTsId() {
+        RoutingPathFields routingPathFields = new RoutingPathFields(null);
+
+        int numDimensions = randomIntBetween(1, 4);
+        for (int i = 0; i < numDimensions; i++) {
+            String fieldName = "dim" + i;
+            if (randomBoolean()) {
+                routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
+            } else {
+                routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
+            }
+        }
+
+        return routingPathFields.buildHash();
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {
@@ -905,7 +993,11 @@ public final class EsqlTestUtils {
     }
 
     public static <T> T singleValue(Collection<T> collection) {
-        assertThat(collection, hasSize(1));
+        return singleValue("", collection);
+    }
+
+    public static <T> T singleValue(String reason, Collection<T> collection) {
+        assertThat(reason, collection, hasSize(1));
         return collection.iterator().next();
     }
 

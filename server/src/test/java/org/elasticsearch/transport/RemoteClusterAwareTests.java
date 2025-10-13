@@ -164,9 +164,7 @@ public class RemoteClusterAwareTests extends ESTestCase {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-
-        }
+        public void updateLinkedProject(LinkedProjectConfig config) {}
 
         @Override
         public Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {

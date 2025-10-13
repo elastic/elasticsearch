@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -65,6 +66,8 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
  * @see SearchHits
  */
 public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
+
+    private static final TransportVersion DOC_FIELDS_AS_LIST = TransportVersion.fromName("doc_fields_as_list");
 
     private final transient int docId;
 
@@ -201,9 +204,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             rank = NO_RANK;
         }
         final Text id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalText();
-        }
         final NestedIdentity nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
         final long version = in.readLong();
         final long seqNo = in.readZLong();
@@ -218,7 +218,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         }
         final Map<String, DocumentField> documentFields;
         final Map<String, DocumentField> metaFields;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DOC_FIELDS_AS_LIST)) {
+        if (in.getTransportVersion().supports(DOC_FIELDS_AS_LIST)) {
             documentFields = DocumentField.readFieldsFromMapValues(in);
             metaFields = DocumentField.readFieldsFromMapValues(in);
         } else {
@@ -315,9 +315,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalText(SINGLE_MAPPING_TYPE);
-        }
         out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeZLong(seqNo);
@@ -329,7 +326,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DOC_FIELDS_AS_LIST)) {
+        if (out.getTransportVersion().supports(DOC_FIELDS_AS_LIST)) {
             out.writeMapValues(documentFields);
             out.writeMapValues(metaFields);
         } else {
@@ -878,7 +875,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
-            if (IgnoredFieldMapper.NAME.equals(field.getName()) || field.getName().startsWith(IgnoredSourceFieldMapper.NAME)) {
+            if (IgnoredFieldMapper.NAME.equals(field.getName()) || field.getName().equals(IgnoredSourceFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());

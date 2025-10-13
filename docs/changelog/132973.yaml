@@ -1,5 +1,0 @@
-pr: 132973
-summary: Preserve lost thread context in node inference action. A lost context causes a memory leak if APM tracing is enabled
-area: Machine Learning
-type: bug
-issues: []

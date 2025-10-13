@@ -153,10 +153,9 @@ final class FieldTypeLookup {
 
     public static int dotCount(String path) {
         int dotCount = 0;
-        for (int i = 0; i < path.length(); i++) {
-            if (path.charAt(i) == '.') {
-                dotCount++;
-            }
+        int index = -1;
+        while ((index = path.indexOf('.', index + 1)) != -1) {
+            dotCount++;
         }
         return dotCount;
     }

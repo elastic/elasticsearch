@@ -1,0 +1,5 @@
+pr: 134822
+summary: Support querying multiple indices with the simplified RRF retriever
+area: Relevance
+type: enhancement
+issues: []

@@ -173,7 +173,7 @@ GET /my-index-000001/_search
 
 ## Rescore collapse results [rescore-collapse-results]
 
-You can use field collapsing alongside the [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) search parameter. Rescorers run on every shard for the top-ranked document per collapsed field. To maintain a reliable order, it is recommended to cluster documents sharing the same collapse field value on one shard. This is achieved by assigning the collapse field value as the [routing key](/reference/elasticsearch/rest-apis/search-shard-routing.md#search-routing) during indexing:
+You can use field collapsing alongside the [`rescore`](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) search parameter. Rescorers run on every shard for the top-ranked document per collapsed field. To maintain a reliable order, it is recommended to cluster documents sharing the same collapse field value on one shard. This is achieved by assigning the collapse field value as the [routing key](/reference/elasticsearch/rest-apis/search-shard-routing.md#search-routing) during indexing:
 
 ```console
 POST /my-index-000001/_doc?routing=xyz      <1>
@@ -189,7 +189,7 @@ POST /my-index-000001/_doc?routing=xyz      <1>
 
 By doing this, you guarantee that only one top document per collapse key gets rescored globally.
 
-The following request utilizes field collapsing on the `user.id` field and then rescores the top groups with a [query rescorer](/reference/elasticsearch/rest-apis/filter-search-results.md#query-rescorer):
+The following request utilizes field collapsing on the `user.id` field and then rescores the top groups with a [query rescorer](/reference/elasticsearch/rest-apis/rescore-search-results.md#query-rescorer):
 
 ```console
 GET /my-index-000001/_search

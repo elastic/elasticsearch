@@ -87,7 +87,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertEmptyStatus(Map<String, Object> map) {
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         assertThat(map, nullValue());
     }
 }

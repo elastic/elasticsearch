@@ -130,7 +130,7 @@ public class ExponentialHistogramMergeBench {
             CompressedExponentialHistogram.writeHistogramBytes(histoBytes, histogram.scale(), negativeBuckets, positiveBuckets);
             CompressedExponentialHistogram result = new CompressedExponentialHistogram();
             BytesRef data = histoBytes.bytes().toBytesRef();
-            result.reset(histogram.zeroBucket().zeroThreshold(), totalCount, data);
+            result.reset(histogram.zeroBucket().zeroThreshold(), totalCount, histogram.sum(), histogram.min(), histogram.max(), data);
             return result;
         } catch (IOException e) {
             throw new RuntimeException(e);

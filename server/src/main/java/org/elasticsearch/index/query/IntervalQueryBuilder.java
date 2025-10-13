@@ -13,11 +13,11 @@ import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -134,7 +134,12 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                 return new MatchNoDocsQuery();
             }
         }
-        return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));
+        if (fieldType instanceof TextFamilyFieldType tfft) {
+            return new IntervalQuery(field, sourceProvider.getSource(context, tfft));
+        }
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + field + "] which is of type [" + fieldType.typeName() + "]"
+        );
     }
 
     @Override
@@ -154,6 +159,6 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

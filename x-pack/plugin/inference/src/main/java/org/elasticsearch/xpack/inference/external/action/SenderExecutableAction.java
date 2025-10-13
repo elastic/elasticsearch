@@ -18,7 +18,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
-public class SenderExecutableAction implements ExecutableAction {
+public sealed class SenderExecutableAction implements ExecutableAction permits SingleInputSenderExecutableAction {
 
     private final Sender sender;
     private final RequestManager requestManager;

@@ -33,6 +33,8 @@ public final class SearchCapabilities {
     private static final String TRANSFORM_RANK_RRF_TO_RETRIEVER = "transform_rank_rrf_to_retriever";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
+    private static final String KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED = "kql_query_boolean_field_query";
+
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
     /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
@@ -57,6 +59,7 @@ public final class SearchCapabilities {
     private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
     private static final String EXCLUDE_SOURCE_VECTORS_SETTING = "exclude_source_vectors_setting";
+    private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -74,6 +77,7 @@ public final class SearchCapabilities {
         capabilities.add(MOVING_FN_RIGHT_MATH);
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
+        capabilities.add(KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
@@ -85,6 +89,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY);
         capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         capabilities.add(EXCLUDE_SOURCE_VECTORS_SETTING);
+        capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

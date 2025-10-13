@@ -96,7 +96,10 @@ public class GlobTests extends ESTestCase {
         var pattern = "*" + suffix;
         assertMatch(pattern, suffix);
         assertMatch(pattern, randomAsciiString(randomIntBetween(1, 30)) + suffix);
-        assertNonMatch(pattern, suffix + "#" + randomValueOtherThan(suffix, () -> randomAsciiString(randomIntBetween(1, 30))));
+        assertNonMatch(
+            pattern,
+            randomValueOtherThanMany(str -> str.endsWith(suffix), () -> suffix + "#" + randomAsciiString(randomIntBetween(1, 30)))
+        );
         assertNonMatch(pattern, suffix.substring(0, suffix.length() - 1));
         assertNonMatch(pattern, suffix.substring(1));
     }

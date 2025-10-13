@@ -1,43 +1,46 @@
 {
-  "ml.infer_trained_model":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/infer-trained-model.html",
-      "description":"Evaluate a trained model."
+  "ml.infer_trained_model": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-infer-trained-model",
+      "description": "Evaluate a trained model"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/trained_models/{model_id}/_infer",
-          "methods":[
+          "path": "/_ml/trained_models/{model_id}/_infer",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "model_id":{
-              "type":"string",
-              "description":"The unique identifier of the trained model.",
-              "required":true
+          "parts": {
+            "model_id": {
+              "type": "string",
+              "description": "The unique identifier of the trained model.",
+              "required": true
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"Controls the amount of time to wait for inference results.",
-        "default":"10s"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Controls the amount of time to wait for inference results.",
+        "default": "10s"
       }
     },
-    "body":{
-      "description":"The docs to apply inference on and inference configuration overrides",
-      "required":true
+    "body": {
+      "description": "The docs to apply inference on and inference configuration overrides",
+      "required": true
     }
   }
 }

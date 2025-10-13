@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateParseEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
@@ -59,35 +62,45 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    baseRamBytesUsed += formatter.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, BytesRefBlock valBlock, BytesRefBlock formatterBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (formatterBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (formatterBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (formatterBlock.getValueCount(p) != 1) {
-          if (formatterBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        BytesRef formatter = formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch);
         try {
-          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch)));
+          result.appendLong(DateParse.process(val, formatter));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -103,8 +116,10 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       BytesRef valScratch = new BytesRef();
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        BytesRef formatter = formatterVector.getBytesRef(p, formatterScratch);
         try {
-          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch)));
+          result.appendLong(DateParse.process(val, formatter));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -633,6 +633,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

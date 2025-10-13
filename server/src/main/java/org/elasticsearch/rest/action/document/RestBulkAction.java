@@ -38,6 +38,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -64,7 +65,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
     public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
-
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
     private final IncrementalBulkService.Enabled incrementalEnabled;
@@ -115,6 +115,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
+            bulkRequest.requestParamsUsed(request.params().keySet());
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -139,10 +140,15 @@ public class RestBulkAction extends BaseRestHandler {
                 client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
             };
         } else {
+            request.ensureContent();
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String refresh = request.param("refresh");
-            return new ChunkHandler(allowExplicitIndex, request, () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh));
+            return new ChunkHandler(
+                allowExplicitIndex,
+                request,
+                () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh, request.params().keySet())
+            );
         }
     }
 
@@ -317,12 +323,12 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public Set<String> supportedCapabilities() {
+        return capabilities;
     }
 
     @Override
-    public Set<String> supportedCapabilities() {
-        return capabilities;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
     }
 }

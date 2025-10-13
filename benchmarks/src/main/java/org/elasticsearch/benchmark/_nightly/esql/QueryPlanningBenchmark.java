@@ -86,7 +86,9 @@ public class QueryPlanningBenchmark {
             false,
             Map.of(),
             System.nanoTime(),
-            false
+            false,
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY)
         );
 
         var fields = 10_000;
@@ -117,7 +119,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
+        var parsed = parser.createStatement(query, new QueryParams(), telemetry);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;

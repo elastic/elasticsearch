@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
@@ -107,6 +108,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_MILLIS);
     }
 
+    private static final TransportVersion INDEX_TEMPLATE_TRACKING_INFO = TransportVersion.fromName("index_template_tracking_info");
+
     private final List<String> indexPatterns;
     @Nullable
     private final Template template;
@@ -171,17 +174,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readGenericMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
-        } else {
-            this.ignoreMissingComponentTemplates = null;
-        }
+        this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_TEMPLATE_TRACKING_INFO)) {
+        if (in.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
             this.createdDateMillis = in.readOptionalLong();
             this.modifiedDateMillis = in.readOptionalLong();
         } else {
@@ -292,13 +291,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
-        }
+        out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_TEMPLATE_TRACKING_INFO)) {
+        if (out.getTransportVersion().supports(INDEX_TEMPLATE_TRACKING_INFO)) {
             out.writeOptionalLong(createdDateMillis);
             out.writeOptionalLong(modifiedDateMillis);
         }
@@ -543,23 +540,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                allowCustomRouting = in.readBoolean();
-            } else {
-                allowCustomRouting = false;
-            }
-            if (in.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
-                // Accidentally included index_mode to binary node to node protocol in previous releases.
-                // (index_mode is removed and was part of code based when tsdb was behind a feature flag)
-                // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
-                // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
-                boolean value = in.readBoolean();
-                assert value == false : "expected false, because this used to be an optional enum that never got set";
-            }
-            if (in.getTransportVersion()
-                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-                in.readBoolean();
-            }
+            allowCustomRouting = in.readBoolean();
         }
 
         /**
@@ -591,19 +572,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeBoolean(allowCustomRouting);
-            }
-            if (out.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
-                // See comment in constructor.
-                out.writeBoolean(false);
-            }
-            if (out.getTransportVersion()
-                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-                // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
-                // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
-                out.writeBoolean(false);
-            }
+            out.writeBoolean(allowCustomRouting);
         }
 
         @Override

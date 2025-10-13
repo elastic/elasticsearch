@@ -15,6 +15,9 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -121,6 +124,43 @@ class LossySumDoubleAggregator {
         }
     }
 
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingSumState state,
+        DoubleVector values
+    ) {
+        return new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                delegate.add(positionOffset, groupIds);
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                delegate.add(positionOffset, groupIds);
+            }
+
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                if (groupIds.isConstant()) {
+                    double sum = 0.0;
+                    final int to = positionOffset + groupIds.getPositionCount();
+                    for (int i = positionOffset; i < to; i++) {
+                        sum += values.getDouble(i);
+                    }
+                    state.add(sum, groupIds.getInt(0));
+                } else {
+                    delegate.add(positionOffset, groupIds);
+                }
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(delegate);
+            }
+        };
+    }
+
     static final class SumState implements AggregatorState {
         private boolean seen;
         double value;
@@ -149,7 +189,7 @@ class LossySumDoubleAggregator {
             super(bigArrays);
             boolean success = false;
             try {
-                this.values = bigArrays.newDoubleArray(1);
+                this.values = bigArrays.newDoubleArray(128);
                 success = true;
             } finally {
                 if (success == false) {

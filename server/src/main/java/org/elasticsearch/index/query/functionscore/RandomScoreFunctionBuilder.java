@@ -9,7 +9,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -162,7 +161,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {

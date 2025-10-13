@@ -18,6 +18,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -42,13 +44,17 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
+    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
@@ -81,25 +87,37 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        boolean supportsAggregateMetricDouble,
+        boolean supportsDenseVector,
         ActionListener<IndexResolution> listener
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
+            listener.delegateFailureAndWrap((l, response) -> {
+                LOGGER.debug("minimum transport version {}", response.minTransportVersion());
+                l.onResponse(
+                    mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
+                );
+            })
         );
     }
 
+    public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}
+
     // public for testing only
-    public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
-        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
+    public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
-        if (fieldCapsResponse.getIndexResponses().isEmpty()) {
+        int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
+        if (numberOfIndices == 0) {
             return IndexResolution.notFound(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index
-        Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse);
+        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps);
+        Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
+        Map<String, Integer> indexMappingHashDuplicates = collectedFieldCaps.indexMappingHashDuplicates;
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
@@ -132,9 +150,10 @@ public class IndexResolver {
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
-            List<IndexFieldCapabilities> fcs = fieldsCaps.get(fullName);
+            var fieldCap = fieldsCaps.get(fullName);
+            List<IndexFieldCapabilities> fcs = fieldCap.fieldCapabilities;
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
+                ? createField(fieldsInfo, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -142,20 +161,19 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
-
-            var isPartiallyUnmapped = fcs.size() < numberOfIndices;
+            var isPartiallyUnmapped = fcs.size() + indexMappingHashDuplicates.getOrDefault(fieldCap.indexMappingHash, 0) < numberOfIndices;
             if (isPartiallyUnmapped) {
                 partiallyUnmappedFields.add(fullName);
             }
         }
 
-        Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+        Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
+        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
 
         boolean allEmpty = true;
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
@@ -165,15 +183,24 @@ public class IndexResolver {
         // for fields that do not exist in the index (but the index has a mapping) will result in "VerificationException Unknown column"
         // errors.
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
-        var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldCapsResponse.getFailures());
+        var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, concreteIndices.keySet(), failures);
     }
 
-    private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
-        Set<String> seenHashes = new HashSet<>();
-        Map<String, List<IndexFieldCapabilities>> fieldsCaps = new HashMap<>();
+    private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}
+
+    private record CollectedFieldCaps(
+        Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps,
+        // The map won't contain entries without duplicates, i.e., it's number of occurrences - 1.
+        Map<String, Integer> indexMappingHashDuplicates
+    ) {}
+
+    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
+        Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
+        Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
+
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
-            if (seenHashes.add(response.getIndexMappingHash()) == false) {
+            if (indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) > 1) {
                 continue;
             }
             for (IndexFieldCapabilities fc : response.get().values()) {
@@ -181,15 +208,29 @@ public class IndexResolver {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
                 }
-                List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(fc.name(), (_key) -> new ArrayList<>());
+                List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(
+                    fc.name(),
+                    (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
+                ).fieldCapabilities;
                 all.add(fc);
             }
         }
-        return fieldsCaps;
+
+        var iterator = indexMappingHashToDuplicateCount.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var next = iterator.next();
+            if (next.getValue() <= 1) {
+                iterator.remove();
+            } else {
+                next.setValue(next.getValue() - 1);
+            }
+        }
+
+        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount);
     }
 
     private static EsField createField(
-        FieldCapabilitiesResponse fieldCapsResponse,
+        FieldsInfo fieldsInfo,
         String name,
         String fullName,
         List<IndexFieldCapabilities> fcs,
@@ -198,12 +239,17 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
+        type = switch (type) {
+            case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.supportAggregateMetricDouble ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED;
+            case DENSE_VECTOR -> fieldsInfo.supportDenseVector ? DENSE_VECTOR : UNSUPPORTED;
+            default -> type;
+        };
         boolean aggregatable = first.isAggregatable();
-        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.UNKNOWN;
+        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {
-                    return conflictingMetricTypes(name, fullName, fieldCapsResponse);
+                    return conflictingMetricTypes(name, fullName, fieldsInfo.caps);
                 }
                 try {
                     timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
@@ -213,7 +259,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldCapsResponse);
+                    return conflictingTypes(name, fullName, fieldsInfo.caps);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -273,16 +319,26 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames, QueryBuilder requestFilter) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(
+        String index,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions
+    ) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
         req.indexFilter(requestFilter);
+        req.returnLocalAll(false);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        req.filters("-nested");
+        if (includeAllDimensions) {
+            req.filters("-nested", "+dimension");
+        } else {
+            req.filters("-nested");
+        }
         req.setMergeResults(false);
         return req;
     }

@@ -47,6 +47,11 @@ class TypeConverter {
                     }
 
                     @Override
+                    public long baseRamBytesUsed() {
+                        throw new UnsupportedOperationException("not used");
+                    }
+
+                    @Override
                     public void close() {}
                 };
             }

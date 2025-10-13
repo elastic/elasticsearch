@@ -30,7 +30,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -363,6 +362,14 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static boolean testFeatureServiceInitialized() {
         return testFeatureService != ALL_FEATURES;
+    }
+
+    /**
+     * Whether the old cluster version is not of the released versions, but a detached build.
+     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
+     */
+    protected static boolean isOldClusterDetachedVersion() {
+        return System.getProperty("tests.bwc.refspec.main") != null;
     }
 
     @BeforeClass
@@ -1610,6 +1617,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             final var projectId = System.getProperty("tests.rest.project.id");
             builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
+        if (System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT) != null) {
+            builder.put(CLIENT_SOCKET_TIMEOUT, System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT));
+        }
         return builder.build();
     }
 
@@ -2088,6 +2098,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
     }
 
+    protected static void awaitIndexDoesNotExist(String index) throws Exception {
+        awaitIndexDoesNotExist(index, TimeValue.timeValueSeconds(10));
+    }
+
     protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
         assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
@@ -2530,7 +2544,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             var transportVersion = getTransportVersionWithFallback(
                 objectPath.evaluate("nodes." + id + ".version"),
                 objectPath.evaluate("nodes." + id + ".transport_version"),
-                () -> TransportVersions.MINIMUM_COMPATIBLE
+                () -> TransportVersion.minimumCompatible()
             );
             if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
                 minTransportVersion = transportVersion;
@@ -2721,16 +2735,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("plans", instanceOf(List.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
-        if (includeMetadata) {
-            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-        }
+        mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         // Older version may not have is_partial
         if (includePartial) {
             mapMatcher = mapMatcher.entry("is_partial", false);
@@ -2742,7 +2754,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"), result.containsKey("documents_found"));
+        return getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found"));
     }
 
     /**

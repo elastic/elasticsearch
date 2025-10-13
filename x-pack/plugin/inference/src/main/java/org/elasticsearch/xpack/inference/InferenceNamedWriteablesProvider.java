@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.completion.Goog
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
@@ -136,14 +139,8 @@ public class InferenceNamedWriteablesProvider {
      * Any new classes which implements NamedWriteable should be added here.
      * In practice, that is anything which implements TaskSettings, ServiceSettings, or InferenceServiceResults.
      */
-    @SuppressWarnings("deprecation")
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-
-        // Legacy inference results
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceResults.class, LegacyTextEmbeddingResults.NAME, LegacyTextEmbeddingResults::new)
-        );
 
         addInferenceResultsNamedWriteables(namedWriteables);
 
@@ -570,6 +567,14 @@ public class InferenceNamedWriteablesProvider {
             )
         );
 
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                GoogleVertexAiChatCompletionTaskSettings.NAME,
+                GoogleVertexAiChatCompletionTaskSettings::new
+            )
+        );
+
     }
 
     private static void addInternalNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -598,6 +603,24 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticRerankerServiceSettings.NAME,
                 ElasticRerankerServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                in -> AbstractNamedDiffable.readDiffFrom(
+                    Metadata.ProjectCustom.class,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                    in
+                )
             )
         );
     }

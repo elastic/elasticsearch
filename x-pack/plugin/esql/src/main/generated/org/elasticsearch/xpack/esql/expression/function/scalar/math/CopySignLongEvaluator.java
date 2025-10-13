@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CopySignLongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CopySignLongEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator magnitude;
@@ -59,32 +62,42 @@ public final class CopySignLongEvaluator implements EvalOperator.ExpressionEvalu
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += magnitude.baseRamBytesUsed();
+    baseRamBytesUsed += sign.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock magnitudeBlock, DoubleBlock signBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (magnitudeBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (magnitudeBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (magnitudeBlock.getValueCount(p) != 1) {
-          if (magnitudeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (signBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (signBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (signBlock.getValueCount(p) != 1) {
-          if (signBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(CopySign.processLong(magnitudeBlock.getLong(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        long magnitude = magnitudeBlock.getLong(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendLong(CopySign.processLong(magnitude, sign));
       }
       return result.build();
     }
@@ -93,7 +106,9 @@ public final class CopySignLongEvaluator implements EvalOperator.ExpressionEvalu
   public LongVector eval(int positionCount, LongVector magnitudeVector, DoubleVector signVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, CopySign.processLong(magnitudeVector.getLong(p), signVector.getDouble(p)));
+        long magnitude = magnitudeVector.getLong(p);
+        double sign = signVector.getDouble(p);
+        result.appendLong(p, CopySign.processLong(magnitude, sign));
       }
       return result.build();
     }

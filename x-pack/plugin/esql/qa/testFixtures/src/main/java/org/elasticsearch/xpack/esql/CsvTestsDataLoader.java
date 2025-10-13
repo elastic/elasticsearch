@@ -43,6 +43,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,8 +77,9 @@ public class CsvTestsDataLoader {
     ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
-    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
-        .withData("languages_non_unique_key.csv");
+    private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
+    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_NON_UNIQUE_KEY.withIndex("languages_lookup_non_unique_key")
+        .withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
@@ -320,7 +323,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -342,14 +345,16 @@ public class CsvTestsDataLoader {
     public static Set<TestDataset> availableDatasetsForEs(
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
-        boolean inferenceEnabled
+        boolean inferenceEnabled,
+        boolean requiresTimeSeries
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
-                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)) {
+                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
+                && (requiresTimeSeries == false || isTimeSeries(dataset))) {
                 testDataSets.add(dataset);
             }
         }
@@ -373,17 +378,34 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
+    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("time_series"));
+    }
+
     public static void loadDataSetIntoEs(
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false);
+    }
+
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly
+    ) throws IOException {
         loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
+            timeSeriesOnly,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -395,12 +417,13 @@ public class CsvTestsDataLoader {
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
+        boolean timeSeriesOnly,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
+        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, timeSeriesOnly)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
@@ -415,6 +438,10 @@ public class CsvTestsDataLoader {
             createSparseEmbeddingInferenceEndpoint(client);
         }
 
+        if (clusterHasTextEmbeddingInferenceEndpoint(client) == false) {
+            createTextEmbeddingInferenceEndpoint(client);
+        }
+
         if (clusterHasRerankInferenceEndpoint(client) == false) {
             createRerankInferenceEndpoint(client);
         }
@@ -426,11 +453,12 @@ public class CsvTestsDataLoader {
 
     public static void deleteInferenceEndpoints(RestClient client) throws IOException {
         deleteSparseEmbeddingInferenceEndpoint(client);
+        deleteTextEmbeddingInferenceEndpoint(client);
         deleteRerankInferenceEndpoint(client);
         deleteCompletionInferenceEndpoint(client);
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    /** The semantic_text mapping type requires inference endpoints that need to be setup before creating the index. */
     public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
                   {
@@ -441,12 +469,36 @@ public class CsvTestsDataLoader {
             """);
     }
 
+    public static void createTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference", """
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                        "model": "my_model",
+                        "api_key": "abc64",
+                        "dimensions": 3,
+                        "similarity": "l2_norm",
+                        "element_type": "float"
+                    },
+                   "task_settings": { }
+                 }
+            """);
+    }
+
     public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         deleteInferenceEndpoint(client, "test_sparse_inference");
     }
 
+    public static void deleteTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_dense_inference");
+    }
+
     public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
         return clusterHasInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference");
+    }
+
+    public static boolean clusterHasTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference");
     }
 
     public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
@@ -583,6 +635,8 @@ public class CsvTestsDataLoader {
         }
     }
 
+    record ColumnHeader(String name, String type) {}
+
     @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -600,12 +654,13 @@ public class CsvTestsDataLoader {
      */
     private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
+
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null
+            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
 
             while ((line = reader.readLine()) != null) {
@@ -615,15 +670,16 @@ public class CsvTestsDataLoader {
                     String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
-                        columns = new String[entries.length];
+                        columns = new ColumnHeader[entries.length];
                         for (int i = 0; i < entries.length; i++) {
                             int split = entries[i].indexOf(':');
                             if (split < 0) {
-                                columns[i] = entries[i].trim();
+                                columns[i] = new ColumnHeader(entries[i].trim(), null);
                             } else {
                                 String name = entries[i].substring(0, split).trim();
+                                String type = entries[i].substring(split + 1).trim();
                                 if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = name;
+                                    columns[i] = new ColumnHeader(name, type);
                                 } else {// if it's a subfield, ignore it in the _bulk request
                                     columns[i] = null;
                                     subFieldsIndices.add(i);
@@ -653,7 +709,7 @@ public class CsvTestsDataLoader {
                                     // Value is null, skip
                                     continue;
                                 }
-                                if ("_id".equals(columns[i])) {
+                                if (columns[i] != null && "_id".equals(columns[i].name)) {
                                     // Value is an _id
                                     idField = entries[i];
                                     continue;
@@ -668,17 +724,17 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 1) {
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append(quoteIfNecessary(s)).append(",");
+                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = quoteIfNecessary(entries[i]);
+                                        entries[i] = toJson(columns[i].type, entries[i]);
                                     }
                                     // replace any escaped commas with single comma
                                     entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i]).append("\":").append(entries[i]);
+                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
                                         format(
@@ -716,10 +772,23 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String quoteIfNecessary(String value) {
-        boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        boolean isNumeric = value.matches(NUMERIC_REGEX);
-        return isQuoted || isNumeric ? value : "\"" + value + "\"";
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+
+    private static String toJson(String type, String value) {
+        return switch (type == null ? "" : type) {
+            case "date_range", "double_range", "integer_range" -> {
+                Matcher m = RANGE_PATTERN.matcher(value);
+                if (m.matches() == false) {
+                    throw new IllegalArgumentException("can't parse range: " + value);
+                }
+                yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+            }
+            default -> {
+                boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
+                boolean isNumeric = value.matches(NUMERIC_REGEX);
+                yield isQuoted || isNumeric ? value : "\"" + value + "\"";
+            }
+        };
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)

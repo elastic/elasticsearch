@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,23 +17,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
-import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -79,12 +70,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
         }
 
-        private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
-        private static final EnumSet<InputType> validEnumsBeforeClassificationClusteringAdded = EnumSet.range(
-            InputType.INGEST,
-            InputType.UNSPECIFIED
-        );
-
         public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser)
             throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
@@ -93,6 +78,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             builder.setContext(context);
             return builder;
         }
+
+        private static final TransportVersion RERANK_COMMON_OPTIONS_ADDED = TransportVersion.fromName("rerank_common_options_added");
 
         private final TaskType taskType;
         private final String inferenceEntityId;
@@ -162,28 +149,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.inferenceEntityId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.input = in.readStringCollectionAsList();
-            } else {
-                this.input = List.of(in.readString());
-            }
+            this.input = in.readStringCollectionAsList();
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                this.inputType = in.readEnum(InputType.class);
-            } else {
-                this.inputType = InputType.UNSPECIFIED;
-            }
+            this.inputType = in.readEnum(InputType.class);
+            this.query = in.readOptionalString();
+            this.inferenceTimeout = in.readTimeValue();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                this.query = in.readOptionalString();
-                this.inferenceTimeout = in.readTimeValue();
-            } else {
-                this.query = null;
-                this.inferenceTimeout = DEFAULT_TIMEOUT;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (in.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 this.returnDocuments = in.readOptionalBoolean();
                 this.topN = in.readOptionalInt();
             } else {
@@ -273,6 +245,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
+            if (taskType.equals(TaskType.TEXT_EMBEDDING) || taskType.equals(TaskType.SPARSE_EMBEDDING)) {
+                if (query != null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be specified for task type [%s]", taskType));
+                    return e;
+                }
+            }
+
             if (taskType.equals(TaskType.TEXT_EMBEDDING) == false
                 && taskType.equals(TaskType.ANY) == false
                 && (inputType != null && InputType.isInternalTypeOrUnspecified(inputType) == false)) {
@@ -289,40 +269,16 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(inferenceEntityId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeStringCollection(input);
-            } else {
-                out.writeString(input.get(0));
-            }
+            out.writeStringCollection(input);
             out.writeGenericMap(taskSettings);
+            out.writeEnum(inputType);
+            out.writeOptionalString(query);
+            out.writeTimeValue(inferenceTimeout);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalString(query);
-                out.writeTimeValue(inferenceTimeout);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+            if (out.getTransportVersion().supports(RERANK_COMMON_OPTIONS_ADDED)) {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
             }
-        }
-
-        // default for easier testing
-        static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.V_8_13_0)) {
-                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                    return InputType.INGEST;
-                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
-                    return InputType.UNSPECIFIED;
-                }
-            }
-
-            return inputType;
         }
 
         @Override
@@ -501,63 +457,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                results = in.readNamedWriteable(InferenceServiceResults.class);
-            } else {
-                // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
-                // hugging face elser and elser
-                results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
-            }
+            this.results = in.readNamedWriteable(InferenceServiceResults.class);
             // streaming isn't supported via Writeable yet
             this.isStreaming = false;
             this.publisher = null;
-        }
-
-        @SuppressWarnings("deprecation")
-        public static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
-            if (parsedResults.isEmpty()) {
-                throw new ElasticsearchStatusException(
-                    "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",
-                    RestStatus.INTERNAL_SERVER_ERROR
-                );
-            }
-
-            if (parsedResults.get(0) instanceof LegacyTextEmbeddingResults openaiResults) {
-                if (parsedResults.size() > 1) {
-                    throw new ElasticsearchStatusException(
-                        "Failed to transform results to response format, malformed text embedding result,"
-                            + " please remove and re-add the service",
-                        RestStatus.INTERNAL_SERVER_ERROR
-                    );
-                }
-
-                return openaiResults.transformToTextEmbeddingResults();
-            } else if (parsedResults.get(0) instanceof TextExpansionResults) {
-                return transformToSparseEmbeddingResult(parsedResults);
-            } else {
-                throw new ElasticsearchStatusException(
-                    "Failed to transform results to response format, unknown embedding type received,"
-                        + " please remove and re-add the service",
-                    RestStatus.INTERNAL_SERVER_ERROR
-                );
-            }
-        }
-
-        private static SparseEmbeddingResults transformToSparseEmbeddingResult(List<? extends InferenceResults> parsedResults) {
-            List<TextExpansionResults> textExpansionResults = new ArrayList<>(parsedResults.size());
-
-            for (InferenceResults result : parsedResults) {
-                if (result instanceof TextExpansionResults textExpansion) {
-                    textExpansionResults.add(textExpansion);
-                } else {
-                    throw new ElasticsearchStatusException(
-                        "Failed to transform results to response format, please remove and re-add the service",
-                        RestStatus.INTERNAL_SERVER_ERROR
-                    );
-                }
-            }
-
-            return SparseEmbeddingResults.of(textExpansionResults);
         }
 
         public InferenceServiceResults getResults() {

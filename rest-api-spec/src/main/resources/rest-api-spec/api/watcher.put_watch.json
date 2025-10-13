@@ -1,53 +1,58 @@
 {
-  "watcher.put_watch":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-put-watch.html",
-      "description":"Creates a new watch, or updates an existing one."
+  "watcher.put_watch": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-put-watch",
+      "description": "Create or update a watch"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_watcher/watch/{id}",
-          "methods":[
+          "path": "/_watcher/watch/{id}",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"Watch ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "Watch ID"
             }
           }
         }
       ]
     },
-    "params":{
-      "active":{
-        "type":"boolean",
-        "description":"Specify whether the watch is in/active by default"
+    "params": {
+      "active": {
+        "type": "boolean",
+        "default": true,
+        "description": "Specify whether the watch is in/active by default"
       },
-      "version":{
-        "type":"number",
-        "description":"Explicit version number for concurrency control"
+      "version": {
+        "type": "long",
+        "description": "Explicit version number for concurrency control"
       },
-      "if_seq_no":{
-        "type":"number",
-        "description":"only update the watch if the last operation that has changed the watch has the specified sequence number"
+      "if_seq_no": {
+        "type": "long",
+        "description": "only update the watch if the last operation that has changed the watch has the specified sequence number"
       },
-      "if_primary_term":{
-        "type":"number",
-        "description":"only update the watch if the last operation that has changed the watch has the specified primary term"
+      "if_primary_term": {
+        "type": "long",
+        "description": "only update the watch if the last operation that has changed the watch has the specified primary term"
       }
     },
-    "body":{
-      "description":"The watch",
-      "required":false
+    "body": {
+      "description": "The watch",
+      "required": true
     }
   }
 }

@@ -10,7 +10,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -205,7 +204,7 @@ public class DelayableWriteableTests extends ESTestCase {
     private static TransportVersion randomOldVersion() {
         return TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
     }

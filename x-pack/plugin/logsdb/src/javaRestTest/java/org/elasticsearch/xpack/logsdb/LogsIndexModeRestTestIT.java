@@ -31,10 +31,10 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         });
     }
 
-    protected static Response putComponentTemplate(final RestClient client, final String componentTemplate, final String contends)
+    protected static Response putComponentTemplate(final RestClient client, final String componentTemplate, final String contents)
         throws IOException {
         final Request request = new Request("PUT", "/_component_template/" + componentTemplate);
-        request.setJsonEntity(contends);
+        request.setJsonEntity(contents);
         return client.performRequest(request);
     }
 

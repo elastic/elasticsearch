@@ -203,6 +203,14 @@ public abstract class StreamInput extends InputStream {
         return readBytesRef(length);
     }
 
+    public @Nullable BytesRef readBytesRefOrNullIfEmpty() throws IOException {
+        int length = readArraySize();
+        if (length == 0) {
+            return null;
+        }
+        return readBytesRef(length);
+    }
+
     public BytesRef readBytesRef(int length) throws IOException {
         if (length == 0) {
             return new BytesRef();
@@ -841,7 +849,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     * Read an optional {@link Map} using the given key and value readers. The returned Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map or null if not present
+     */
+    public <K, V> Map<K, V> readOptionalImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final boolean present = readBoolean();
+        return present ? readImmutableMap(keyReader, valueReader) : null;
+    }
+
+    /**
+     * Read a {@link Map} using the given key and value readers. The returned Map is immutable.
      *
      * @param keyReader Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.
@@ -899,12 +919,8 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
-                ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
-                : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
-                ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
-                : readMap(StreamInput::readGenericValue);
+            case 9 -> readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue);
+            case 10 -> readMap(StreamInput::readGenericValue, StreamInput::readGenericValue);
             case 11 -> readByte();
             case 12 -> readDate();
             case 13 ->

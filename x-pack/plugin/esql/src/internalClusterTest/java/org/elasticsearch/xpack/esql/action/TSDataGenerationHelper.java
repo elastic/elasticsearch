@@ -24,6 +24,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,24 +49,50 @@ class TSDataGenerationHelper {
         }
     }
 
-    TSDataGenerationHelper(long numDocs) {
+    TSDataGenerationHelper(long numDocs, long timeRangeSeconds) {
         // Metrics coming into our system have a pre-set group of attributes.
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
         var maxAttributes = (int) Math.sqrt(numDocs);
-        attributesForMetrics = List.copyOf(
-            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
+        List<String> tempAttributeSet = List.copyOf(
+            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(3, 30)))
         );
         var maxTimeSeries = (int) Math.sqrt(numDocs);
         var minTimeSeries = Math.max(1, maxTimeSeries / 4);
         numTimeSeries = ESTestCase.randomIntBetween(minTimeSeries, maxTimeSeries);
+        Set<String> usedAttributeNames = new HashSet<>();
         // allTimeSeries contains the list of dimension-values for each time series.
         List<List<Tuple<String, Object>>> allTimeSeries = IntStream.range(0, numTimeSeries).mapToObj(tsIdx -> {
-            List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(attributesForMetrics);
+            List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(tempAttributeSet);
             // TODO: How do we handle the case when there are no dimensions? (i.e. regular randomSubsetof(...)
+            usedAttributeNames.addAll(dimensionsInMetric);
             return dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toList());
         }).toList();
+        attributesForMetrics = List.copyOf(usedAttributeNames);
 
+        // We want to ensure that all documents have different timestamps.
+        var timeRangeMs = timeRangeSeconds * 1000;
+        var timeRangeEnd = Instant.parse("2025-07-31T10:00:00Z").toEpochMilli();
+        var timeRangeStart = timeRangeEnd - timeRangeMs;
+        var timestampSet = new HashSet<Instant>();
+        var regens = 0;
+        for (int i = 0; i < numDocs; i++) {
+            // Random timestamps within the last 90 days.
+            while (true) {
+                var randomIns = Instant.ofEpochMilli(ESTestCase.randomLongBetween(timeRangeStart, timeRangeEnd));
+                if (timestampSet.add(randomIns)) {
+                    break;
+                }
+                regens++;
+                if (regens > numDocs) {
+                    throw new IllegalStateException("Too many collisions when generating timestamps");
+                }
+            }
+        }
+        // Timestampset should have exactly numDocs entries - this works as long as the random number generator
+        // does not cycle early.
+        assert timestampSet.size() == numDocs : "Expected [" + numDocs + "] timestamps but got [" + timestampSet.size() + "]";
+        var timestampsIter = timestampSet.iterator();
         spec = DataGeneratorSpecification.builder()
             .withMaxFieldCountPerLevel(0)
             .withPredefinedFields(
@@ -73,7 +101,7 @@ class TSDataGenerationHelper {
                         "@timestamp",
                         FieldType.DATE,
                         Map.of("type", "date"),
-                        fieldMapping -> ESTestCase.randomInstantBetween(Instant.now().minusSeconds(2 * 60 * 60), Instant.now())
+                        fieldMapping -> timestampsIter.next()
                     ),
                     new PredefinedField.WithGenerator(
                         "attributes",
@@ -88,13 +116,25 @@ class TSDataGenerationHelper {
                         "metrics",
                         FieldType.PASSTHROUGH,
                         Map.of("type", "passthrough", "dynamic", true, "priority", 10),
-                        (ignored) -> Map.of("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L))
+
+                        (ignored) -> {
+                            var res = new HashMap<String, Object>();
+                            res.put("counterl_hdd.bytes.read", Randomness.get().nextLong(0, 1000L));
+                            res.put("gaugel_hdd.bytes.used", Randomness.get().nextLong(0, 1000000L));
+                            // Counter metrics
+                            switch (ESTestCase.randomIntBetween(0, 1)) {
+                                case 0 -> res.put("counterd_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
+                                case 1 -> res.put("gauged_cpu.percent", Randomness.get().nextDouble(0, 100));
+                            }
+                            return res;
+                        }
                     )
                 )
             )
             .build();
 
         documentGenerator = new DocumentGenerator(spec);
+
         template = new TemplateGenerator(spec).generate();
         mapping = new MappingGenerator(spec).generate(template);
         var doc = mapping.raw().get("_doc");
@@ -106,13 +146,20 @@ class TSDataGenerationHelper {
             List.of(
                 Map.of(
                     "counter_long",
-                    Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "long", "time_series_metric", "counter"))
+                    Map.of("path_match", "metrics.counterl_*", "mapping", Map.of("type", "long", "time_series_metric", "counter"))
+                ),
+                Map.of(
+                    "counter_double",
+                    Map.of("path_match", "metrics.counterd_*", "mapping", Map.of("type", "double", "time_series_metric", "counter"))
                 ),
                 Map.of(
                     "gauge_long",
-                    Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
+                    Map.of("path_match", "metrics.gaugel_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
+                ),
+                Map.of(
+                    "gauge_double",
+                    Map.of("path_match", "metrics.gauged_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
                 )
-                // TODO: Add double and other metric types
             )
         );
     }

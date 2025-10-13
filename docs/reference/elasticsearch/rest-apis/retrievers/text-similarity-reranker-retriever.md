@@ -96,7 +96,7 @@ score = ln(score), if score < 0
     `size`
     :   (Optional, `int`)
 
-    The number of chunks to pass to the reranker for consideration. Defaults to `1`.
+    The number of chunks to pass to the reranker. Defaults to `1`.
 
     `chunking_settings`
     :   (Optional, `object`)

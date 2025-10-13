@@ -498,7 +498,7 @@ public class RequestExecutorService implements RequestExecutor {
         private final AdjustableCapacityBlockingQueue<RejectableTask> queue;
         private final Supplier<Boolean> isShutdownMethod;
         private final RequestSender requestSender;
-        private final String id;
+        private final String rateLimitGroupingId;
         private final AtomicReference<Instant> timeOfLastEnqueue = new AtomicReference<>();
         private final Clock clock;
         private final RateLimiter rateLimiter;
@@ -507,7 +507,7 @@ public class RequestExecutorService implements RequestExecutor {
         private final Long originalRequestsPerTimeUnit;
 
         RateLimitingEndpointHandler(
-            String id,
+            String rateLimitGroupingId,
             AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask> createQueue,
             RequestExecutorServiceSettings settings,
             RequestSender requestSender,
@@ -518,7 +518,7 @@ public class RequestExecutorService implements RequestExecutor {
             Integer rateLimitDivisor
         ) {
             this.requestExecutorServiceSettings = Objects.requireNonNull(settings);
-            this.id = Objects.requireNonNull(id);
+            this.rateLimitGroupingId = Objects.requireNonNull(rateLimitGroupingId);
             this.queue = new AdjustableCapacityBlockingQueue<>(createQueue, settings.getQueueCapacity());
             this.requestSender = Objects.requireNonNull(requestSender);
             this.clock = Objects.requireNonNull(clock);
@@ -536,20 +536,25 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         public void init() {
-            requestExecutorServiceSettings.registerQueueCapacityCallback(id, this::onCapacityChange);
-        }
-
-        public String id() {
-            return id;
+            requestExecutorServiceSettings.registerQueueCapacityCallback(rateLimitGroupingId, this::onCapacityChange);
         }
 
         private void onCapacityChange(int capacity) {
-            logger.debug(() -> Strings.format("Executor service grouping [%s] setting queue capacity to [%s]", id, capacity));
+            logger.debug(
+                () -> Strings.format("Executor service grouping [%s] setting queue capacity to [%s]", rateLimitGroupingId, capacity)
+            );
 
             try {
                 queue.setCapacity(capacity);
             } catch (Exception e) {
-                logger.warn(format("Executor service grouping [%s] failed to set the capacity of the task queue to [%s]", id, capacity), e);
+                logger.warn(
+                    format(
+                        "Executor service grouping [%s] failed to set the capacity of the task queue to [%s]",
+                        rateLimitGroupingId,
+                        capacity
+                    ),
+                    e
+                );
             }
         }
 
@@ -569,7 +574,7 @@ public class RequestExecutorService implements RequestExecutor {
             try {
                 return executeEnqueuedTaskInternal();
             } catch (Exception e) {
-                logger.warn(format("Executor service grouping [%s] failed to execute request", id), e);
+                logger.warn(format("Executor service grouping [%s] failed to execute request", rateLimitGroupingId), e);
                 // we tried to do some work but failed, so we'll say we did something to try looking for more work
                 return EXECUTED_A_TASK;
             }
@@ -625,7 +630,7 @@ public class RequestExecutorService implements RequestExecutor {
                     format(
                         "Failed to enqueue task for inference id [%s] because the request service [%s] has already shutdown",
                         task.getRequestManager().inferenceEntityId(),
-                        id
+                        rateLimitGroupingId
                     ),
                     true
                 );
@@ -641,7 +646,7 @@ public class RequestExecutorService implements RequestExecutor {
                     format(
                         "Failed to execute task for inference id [%s] because the request service [%s] queue is full",
                         task.getRequestManager().inferenceEntityId(),
-                        id
+                        rateLimitGroupingId
                     ),
                     false
                 );
@@ -661,7 +666,7 @@ public class RequestExecutorService implements RequestExecutor {
 
                 rejectTasks(notExecuted);
             } catch (Exception e) {
-                logger.warn(format("Failed to notify tasks of executor service grouping [%s] shutdown", id));
+                logger.warn(format("Failed to notify tasks of executor service grouping [%s] shutdown", rateLimitGroupingId));
             }
         }
 
@@ -673,13 +678,13 @@ public class RequestExecutorService implements RequestExecutor {
                     task,
                     format(
                         "Failed to send request, request service [%s] for inference id [%s] has shutdown prior to executing request",
-                        id,
+                        rateLimitGroupingId,
                         inferenceEntityId
                     ),
                     format(
                         "Failed to notify request for inference id [%s] of rejection after executor service grouping [%s] shutdown",
                         inferenceEntityId,
-                        id
+                        rateLimitGroupingId
                     )
                 );
             }
@@ -690,7 +695,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         public void close() {
-            requestExecutorServiceSettings.deregisterQueueCapacityCallback(id);
+            requestExecutorServiceSettings.deregisterQueueCapacityCallback(rateLimitGroupingId);
         }
     }
 

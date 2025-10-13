@@ -31,7 +31,6 @@ import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -117,7 +116,7 @@ public class InferenceResolverTests extends ESTestCase {
 
     private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
         InferenceResolver inferenceResolver = inferenceResolver();
-        List<String> inferenceIds = inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query, configuration(query)));
+        List<String> inferenceIds = inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query));
         assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
     }
 

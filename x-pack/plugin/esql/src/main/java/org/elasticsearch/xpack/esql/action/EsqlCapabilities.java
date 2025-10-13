@@ -1504,7 +1504,12 @@ public class EsqlCapabilities {
         /**
          * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
          */
-        TEMPORAL_AMOUNT_M;
+        TEMPORAL_AMOUNT_M,
+
+        /**
+         * Chunk function.
+         */
+        CHUNK_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

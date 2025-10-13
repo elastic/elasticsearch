@@ -360,7 +360,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             MinimalServiceSettings updatedModelSettings = modelRegistry.getMinimalServiceSettings(newInferenceId);
             if (currentModelSettings != null && updatedModelSettings == null) {
                 throw new IllegalArgumentException(
-                    "Cannot merge ["
+                    "Cannot update ["
                         + CONTENT_TYPE
                         + "] field ["
                         + leafName()

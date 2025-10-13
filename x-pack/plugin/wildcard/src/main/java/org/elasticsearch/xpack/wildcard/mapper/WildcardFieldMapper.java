@@ -36,7 +36,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
@@ -66,6 +64,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -281,7 +280,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private final IgnoreAbove ignoreAbove;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
-            super(name, true, false, true, meta);
+            super(name, IndexType.terms(true, true), false, meta);
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
@@ -314,15 +313,12 @@ public class WildcardFieldMapper extends FieldMapper {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new FieldExistsQuery(name());
             }
-            Automaton automaton = caseInsensitive
-                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern))
-                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             if (numClauses > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                return BinaryDvConfirmedQuery.fromAutomaton(approxQuery, name(), wildcardPattern, automaton);
+                return BinaryDvConfirmedQuery.fromWildcardQuery(approxQuery, name(), wildcardPattern, caseInsensitive);
             } else {
-                return BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
+                return BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), name(), wildcardPattern, caseInsensitive);
             }
         }
 
@@ -417,11 +413,8 @@ public class WildcardFieldMapper extends FieldMapper {
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
 
-            RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton automaton = Operations.determinize(regex.toAutomaton(), maxDeterminizedStates);
-
             // We can accelerate execution with the ngram query
-            return BinaryDvConfirmedQuery.fromAutomaton(approxNgramQuery, name(), value, automaton);
+            return BinaryDvConfirmedQuery.fromRegexpQuery(approxNgramQuery, name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -750,12 +743,11 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
             }
-            Automaton automaton = TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
 
             if (accelerationQuery == null) {
-                return BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), name(), lower + "-" + upper, automaton);
+                return BinaryDvConfirmedQuery.fromRangeQuery(new MatchAllDocsQuery(), name(), lower, upper, includeLower, includeUpper);
             }
-            return BinaryDvConfirmedQuery.fromAutomaton(accelerationQuery, name(), lower + "-" + upper, automaton);
+            return BinaryDvConfirmedQuery.fromRangeQuery(accelerationQuery, name(), lower, upper, includeLower, includeUpper);
         }
 
         @Override
@@ -844,10 +836,9 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewriteMethod
                     );
                 if (ngramQ.clauses().size() == 0) {
-                    return BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
+                    return BinaryDvConfirmedQuery.fromFuzzyQuery(new MatchAllDocsQuery(), name(), searchTerm, fq);
                 }
-
-                return BinaryDvConfirmedQuery.fromAutomaton(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
+                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }

@@ -9,8 +9,13 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.regex.Regex;
+
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -40,6 +45,21 @@ public class MetricNameValidator {
         "security-crypto"
     );
 
+    // forbidden attributes known to cause issues due to mapping conflicts or high cardinality
+    static final Predicate<String> FORBIDDEN_ATTRIBUTE_NAMES = Regex.simpleMatcher(
+        "index",
+        "*_id",
+        "*.timestamp",
+        "*_timestamp",
+        "created",
+        "*.created",
+        "*.creation_date",
+        "ingested",
+        "*.ingested",
+        "*.start",
+        "*.end"
+    );
+
     private MetricNameValidator() {}
 
     /**
@@ -63,6 +83,19 @@ public class MetricNameValidator {
         lastElementIsFromAllowList(elements, metricName);
         perElementValidations(elements, metricName);
         return metricName;
+    }
+
+    public static boolean validateAttributeNames(Map<String, Object> attributes) {
+        if (attributes == null && attributes.isEmpty()) {
+            return true;
+        }
+        for (String attribute : attributes.keySet()) {
+            if (FORBIDDEN_ATTRIBUTE_NAMES.test(attribute)) {
+                LogManager.getLogger(MetricNameValidator.class).warn("Attribute name [{}] is forbidden", attribute);
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

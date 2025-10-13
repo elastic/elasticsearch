@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -69,6 +68,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+
+    private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -129,9 +130,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean supportsNodeAssignment() throws IOException {
         if (supportsNodeAssignment == null) {
-            for (NodeInfo i : allNodeToInfo().values()) {
-                logger.error("NOCOMMIT {}", i);
-            }
             supportsNodeAssignment = allNodeToInfo().values()
                 .stream()
                 .allMatch(i -> (i.roles.contains("index") && i.roles.contains("search")) || (i.roles.contains("data")));
@@ -445,7 +443,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
-        return version.onOrAfter(INDEX_SOURCE) // *after* 9.1
+        return version.supports(INDEX_SOURCE) // *after* 9.1
             ? matchesList().item(0.5).item(10.0).item(5.9999995)
             : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }
@@ -541,10 +539,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Map<String, NodeInfo> expectedIndices() throws IOException {
-        logger.error("ADFADF NOCOMMIT");
         Map<String, NodeInfo> result = new TreeMap<>();
         if (supportsNodeAssignment()) {
-            logger.error("supports {}", allNodeToInfo());
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
                 String name = indexMode + "_" + e.getKey();
                 if (e.getValue().cluster != null) {
@@ -553,7 +549,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 result.put(name, e.getValue());
             }
         } else {
-            logger.error("one per {}", allNodeToInfo());
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
                 String name = indexMode.toString();
                 if (e.getValue().cluster != null) {

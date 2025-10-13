@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -307,7 +308,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }
 
         public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, true, false, true, meta);
+            super(name, IndexType.points(true, true), false, meta);
             this.metricType = metricType;
         }
 

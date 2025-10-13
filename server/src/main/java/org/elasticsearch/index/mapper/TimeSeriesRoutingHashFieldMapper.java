@@ -77,7 +77,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         };
 
         private TimeSeriesRoutingHashFieldType() {
-            super(NAME, false, false, true, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override

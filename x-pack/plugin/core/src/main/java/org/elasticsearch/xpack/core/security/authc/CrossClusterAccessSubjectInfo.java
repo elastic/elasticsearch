@@ -76,16 +76,6 @@ public final class CrossClusterAccessSubjectInfo {
         ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encode());
     }
 
-    public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
-        if (header == null) {
-            throw new IllegalArgumentException(
-                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"
-            );
-        }
-        return decode(header);
-    }
-
     public Authentication getAuthentication() {
         return authentication;
     }

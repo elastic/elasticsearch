@@ -411,9 +411,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/133481
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
@@ -567,9 +564,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLuceneOnSortedIndex
   issue: https://github.com/elastic/elasticsearch/issues/135939
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/135032
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testAliasFields
   issue: https://github.com/elastic/elasticsearch/issues/135996
@@ -627,21 +621,57 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.SpaceNegative}
   issue: https://github.com/elastic/elasticsearch/issues/136249
-- class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
-  method: testIsLoadedOnSlice
-  issue: https://github.com/elastic/elasticsearch/issues/136331
-- class: org.elasticsearch.cluster.coordination.NodeJoiningIT
-  method: testNodeTriesToJoinClusterAndThenSameMasterIsElected
-  issue: https://github.com/elastic/elasticsearch/issues/136332
-- class: org.elasticsearch.index.store.AsyncDirectIODirectoryTests
-  method: testSeekPastEOFAndRead
-  issue: https://github.com/elastic/elasticsearch/issues/136351
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136353
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
   method: testBwcCCSViaRCS1orRCS2
   issue: https://github.com/elastic/elasticsearch/issues/136368
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testServiceAccountApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136390
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcher {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136391
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSingleDoc {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136392
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testTransformLegacyTemplateCleanup {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136393
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testApiKeySuperuser {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136394
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSecurityNativeRealm {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136395
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testSlmPolicyAndStats {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136399
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query in a bool clause - missing num_candidates}
+  issue: https://github.com/elastic/elasticsearch/issues/136402
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/220_dense_vector_node_index_stats/index node stats non-quantized}
+  issue: https://github.com/elastic/elasticsearch/issues/136403
+- class: org.elasticsearch.TransportVersionTests
+  method: testVersionComparison
+  issue: https://github.com/elastic/elasticsearch/issues/136410
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testRollupAfterRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/136437
+- class: org.elasticsearch.cluster.coordination.NodeJoiningIT
+  method: testNodeTriesToJoinClusterAndThenSameMasterIsElected
+  issue: https://github.com/elastic/elasticsearch/issues/136332
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
+  issue: https://github.com/elastic/elasticsearch/issues/136443
+- class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
+  method: testExcludeInferenceFieldsFromSource
+  issue: https://github.com/elastic/elasticsearch/issues/136451
+- class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
+  method: testExcludeInferenceFieldsFromSourceOldIndexVersions
+  issue: https://github.com/elastic/elasticsearch/issues/136452
 
 # Examples:
 #

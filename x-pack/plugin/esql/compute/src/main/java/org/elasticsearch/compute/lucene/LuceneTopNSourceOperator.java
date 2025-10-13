@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
@@ -40,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -123,9 +123,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     // We use the same value as the INITIAL_INTERVAL from CancellableBulkScorer
     private static final int NUM_DOCS_INTERVAL = 1 << 12;
-
-    // The max time we should be spending scoring docs in one getOutput call, before we return to update the driver status
-    private static final long MAX_EXEC_TIME = TimeUnit.SECONDS.toNanos(1);
 
     private final DriverContext driverContext;
     private final List<SortBuilder<?>> sorts;
@@ -236,7 +233,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             // When it takes a long time to start emitting pages we need to return back to the driver so we can update its status.
             // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-            if (System.nanoTime() - start > MAX_EXEC_TIME) {
+            if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
                 return null;
             }
         }

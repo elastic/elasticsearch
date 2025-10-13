@@ -591,9 +591,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:union_types.MultiIndexTsLongStatsDrop}
   issue: https://github.com/elastic/elasticsearch/issues/136113
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:lookup-join-expression.LookupMultiColTwoExprAndNoMatch}
-  issue: https://github.com/elastic/elasticsearch/issues/136121
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:bucket.BucketByWeekInString}
   issue: https://github.com/elastic/elasticsearch/issues/136136

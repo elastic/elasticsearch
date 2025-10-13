@@ -58,11 +58,11 @@ public class Reliable extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "boolean", }, description = "...")
     public Reliable(
         Source source,
-        @Param(name = "estimates", type = { "double", "int", "long" }) Expression estimates,
-        @Param(name = "trialCount", type = { "int" }) Expression trialCount,
-        @Param(name = "bucketCount", type = { "int" }) Expression bucketCount
+        @Param(name = "estimates", type = { "double", "integer", "long" }) Expression estimates,
+        @Param(name = "trialCount", type = { "integer" }) Expression trialCount,
+        @Param(name = "bucketCount", type = { "integer" }) Expression bucketCount
     ) {
-        super(source, List.of(estimates));
+        super(source, List.of(estimates, trialCount, bucketCount));
         this.estimates = estimates;
         this.trialCount = trialCount;
         this.bucketCount = bucketCount;

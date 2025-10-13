@@ -514,6 +514,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 threadsToJoin[i].join();
             }
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
+            // Wait for the write executor to go idle
+            assertBusy(() -> assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0)));
 
             assertThat(
                 "Unexpectedly found a task queued for the write thread pool. Write thread pool dump: " + trackingWriteExecutor,

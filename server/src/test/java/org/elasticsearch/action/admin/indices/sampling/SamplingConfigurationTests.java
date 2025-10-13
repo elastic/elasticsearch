@@ -105,78 +105,149 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(config.condition(), nullValue());
     }
 
-    public void testValidation() {
+    public void testValidation() throws IOException {
         // Test invalid rate
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamplingConfiguration(-0.1, null, null, null, null)
-        );
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_RATE_MESSAGE));
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(1.1, null, null, null, null));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_RATE_MESSAGE));
+        assertValidationError("""
+            {
+              "rate": -0.1
+            }
+            """, SamplingConfiguration.INVALID_RATE_MESSAGE);
+
+        assertValidationError("""
+            {
+              "rate": 1.1
+            }
+            """, SamplingConfiguration.INVALID_RATE_MESSAGE);
 
         // Test invalid maxSamples
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, 0, null, null, null));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SAMPLES_MIN_MESSAGE));
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, -1, null, null, null));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SAMPLES_MIN_MESSAGE));
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamplingConfiguration(0.5, SamplingConfiguration.MAX_SAMPLES_LIMIT + 1, null, null, null)
-        );
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SAMPLES_MAX_MESSAGE));
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "max_samples": 0
+            }
+            """, SamplingConfiguration.INVALID_MAX_SAMPLES_MIN_MESSAGE);
+
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "max_samples": -1
+            }
+            """, SamplingConfiguration.INVALID_MAX_SAMPLES_MIN_MESSAGE);
+
+        assertValidationError(String.format("""
+            {
+              "rate": 0.5,
+              "max_samples": %d
+            }
+            """, SamplingConfiguration.MAX_SAMPLES_LIMIT + 1), SamplingConfiguration.INVALID_MAX_SAMPLES_MAX_MESSAGE);
 
         // Test invalid maxSize
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, ByteSizeValue.ZERO, null, null));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE));
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, ByteSizeValue.ofBytes(-1), null, null));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE));
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamplingConfiguration(0.5, null, ByteSizeValue.ofGb(SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES + 1), null, null)
-        );
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SIZE_MAX_MESSAGE));
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "max_size_in_bytes": 0
+            }
+            """, SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE);
+
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "max_size_in_bytes": -1
+            }
+            """, SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE);
+
+        assertValidationError(String.format("""
+            {
+              "rate": 0.5,
+              "max_size": "%dgb"
+            }
+            """, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES + 1), SamplingConfiguration.INVALID_MAX_SIZE_MAX_MESSAGE);
 
         // Test invalid timeToLive
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, null, TimeValue.ZERO, null));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MIN_MESSAGE));
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamplingConfiguration(0.5, null, null, TimeValue.timeValueDays(-1), null)
-        );
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MIN_MESSAGE));
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SamplingConfiguration(0.5, null, null, TimeValue.timeValueDays(SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS + 1), null)
-        );
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MAX_MESSAGE));
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "time_to_live_in_millis": 0
+            }
+            """, SamplingConfiguration.INVALID_TIME_TO_LIVE_MIN_MESSAGE);
+
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "time_to_live": "-1d"
+            }
+            """, SamplingConfiguration.INVALID_TIME_TO_LIVE_MIN_MESSAGE);
+
+        assertValidationError(String.format("""
+            {
+              "rate": 0.5,
+              "time_to_live": "%dd"
+            }
+            """, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS + 1), SamplingConfiguration.INVALID_TIME_TO_LIVE_MAX_MESSAGE);
 
         // Test invalid condition
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, null, null, ""));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_CONDITION_MESSAGE));
-
+        assertValidationError("""
+            {
+              "rate": 0.5,
+              "if": ""
+            }
+            """, SamplingConfiguration.INVALID_CONDITION_MESSAGE);
     }
 
-    public void testValidInputs() {
-        // Test boundary conditions
-        new SamplingConfiguration(0.001, 1, ByteSizeValue.ofBytes(1), TimeValue.timeValueMillis(1), randomAlphaOfLength(10)); // minimum
-                                                                                                                              // values
-        new SamplingConfiguration(
-            1.0,
-            SamplingConfiguration.MAX_SAMPLES_LIMIT,
-            ByteSizeValue.ofGb(SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES),
-            TimeValue.timeValueDays(SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS),
-            randomAlphaOfLength(10)
-        ); // maximum values
+    // Helper method to find a cause with a specific message in the cause chain
+    private Throwable findCauseWithMessage(Throwable throwable, String expectedMessage) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof IllegalArgumentException && expectedMessage.equals(current.getMessage())) {
+                return current;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
 
-        // Test random valid values
-        new SamplingConfiguration(
-            randomDoubleBetween(0.0, 1.0, true),
-            randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
-            ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
-            TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
-            randomAlphaOfLength(10)
-        );
+    /**
+     * Helper method to test that fromXContentUserData throws validation errors for invalid JSON input
+     */
+    private void assertValidationError(String jsonInput, String expectedErrorMessage) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, jsonInput);
+        Exception e = expectThrows(Exception.class, () -> SamplingConfiguration.fromXContentUserData(parser));
+        Throwable cause = findCauseWithMessage(e, expectedErrorMessage);
+        assertNotNull("Expected validation error: " + expectedErrorMessage, cause);
+        assertThat(cause.getMessage(), equalTo(expectedErrorMessage));
+    }
+
+    public void testValidInputs() throws IOException {
+        // Test boundary conditions - minimum values
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "rate": 0.001,
+              "max_samples": 1,
+              "max_size_in_bytes": 1,
+              "time_to_live_in_millis": 1,
+              "if": "test_condition"
+            }
+            """);
+        SamplingConfiguration config = SamplingConfiguration.fromXContent(parser);
+        assertThat(config.rate(), equalTo(0.001));
+        assertThat(config.maxSamples(), equalTo(1));
+
+        // Test boundary conditions - maximum values
+        parser = createParser(JsonXContent.jsonXContent, String.format("""
+            {
+              "rate": 1.0,
+              "max_samples": %d,
+              "max_size": "%dgb",
+              "time_to_live": "%dd",
+              "if": "test_condition"
+            }
+            """,
+            SamplingConfiguration.MAX_SAMPLES_LIMIT,
+            SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES,
+            SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS));
+        config = SamplingConfiguration.fromXContent(parser);
+        assertThat(config.rate(), equalTo(1.0));
+        assertThat(config.maxSamples(), equalTo(SamplingConfiguration.MAX_SAMPLES_LIMIT));
     }
 
     @Override

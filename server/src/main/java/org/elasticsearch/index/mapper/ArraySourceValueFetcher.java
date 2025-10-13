@@ -28,7 +28,7 @@ import java.util.Set;
  * array values in parsing. Field types should use this class if their corresponding
  * mapper returns true for {@link FieldMapper#parsesArrayValue()}.
  */
-public abstract class ArraySourceValueFetcher implements SourceBasedValueFetcher {
+public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
     private final IgnoredSourceFormat ignoredSourceFormat;

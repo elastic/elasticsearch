@@ -95,7 +95,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         protected final ValueFetcher fetcher;
         private final LeafIteratorLookup lookup;
 
-        private SourceBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        private SourceBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             this.fetcher = fetcher;
             this.lookup = lookup;
         }
@@ -143,7 +143,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code boolean}s from {@code _source}.
      */
     public static class BooleansBlockLoader extends SourceBlockLoader {
-        public BooleansBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public BooleansBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -183,7 +183,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@link BytesRef}s from {@code _source}.
      */
     public static class BytesRefsBlockLoader extends SourceBlockLoader {
-        public BytesRefsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -204,7 +204,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     public static class GeometriesBlockLoader extends SourceBlockLoader {
-        public GeometriesBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public GeometriesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -267,7 +267,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code double}s from {@code _source}.
      */
     public static class DoublesBlockLoader extends SourceBlockLoader {
-        public DoublesBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public DoublesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -309,7 +309,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     public static class DenseVectorBlockLoader extends SourceBlockLoader {
         private final int dimensions;
 
-        public DenseVectorBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
+        public DenseVectorBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup, int dimensions) {
             super(fetcher, lookup);
             this.dimensions = dimensions;
         }
@@ -350,7 +350,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code int}s from {@code _source}.
      */
     public static class IntsBlockLoader extends SourceBlockLoader {
-        public IntsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public IntsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -390,7 +390,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code long}s from {@code _source}.
      */
     public static class LongsBlockLoader extends SourceBlockLoader {
-        public LongsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public LongsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 
@@ -430,7 +430,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Load {@code ip}s from {@code _source}.
      */
     public static class IpsBlockLoader extends SourceBlockLoader {
-        public IpsBlockLoader(SourceBasedValueFetcher fetcher, LeafIteratorLookup lookup) {
+        public IpsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
         }
 

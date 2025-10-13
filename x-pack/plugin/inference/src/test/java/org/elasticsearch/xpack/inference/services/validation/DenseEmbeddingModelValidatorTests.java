@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.EmptyTaskSettingsTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
+import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.util.List;
@@ -64,7 +67,6 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
         when(mockInferenceService.updateModelWithEmbeddingDetails(eq(mockModel), anyInt())).thenReturn(mockModel);
         when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         when(mockModel.getServiceSettings()).thenReturn(mockServiceSettings);
-        when(mockModel.getInferenceEntityId()).thenReturn(randomAlphaOfLength(10));
     }
 
     public void testValidate_ServiceIntegrationValidatorThrowsException() {
@@ -73,7 +75,7 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
+            () -> underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener)
         );
 
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
@@ -83,13 +85,29 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
 
     public void testValidate_ServiceReturnsNullResults() {
         mockCallToServiceIntegrationValidator(null);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(
+            captor.getValue().getMessage(),
+            Matchers.is(
+                "Validation call did not return expected results type. Expected a result of type [DenseEmbeddingResults] got [null]"
+            )
+        );
+
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
     public void testValidate_ServiceReturnsNonTextEmbeddingResults() {
         mockCallToServiceIntegrationValidator(SparseEmbeddingResultsTests.createRandomResults());
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(
+            captor.getValue().getMessage(),
+            Matchers.is(
+                "Validation call did not return expected results type. Expected a result of type [DenseEmbeddingResults] got [SparseEmbeddingResults]"
+            )
+        );
+
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
@@ -100,7 +118,10 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
         when(mockServiceSettings.dimensions()).thenReturn(randomNonNegativeInt());
 
         mockCallToServiceIntegrationValidator(results);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(captor.getValue().getMessage(), Matchers.is("Could not determine embedding size"));
+
         verify(mockModel, times(1)).getServiceSettings();
         verify(mockServiceSettings).dimensions();
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
@@ -108,13 +129,27 @@ public class DenseEmbeddingModelValidatorTests extends ESTestCase {
 
     public void testValidate_DimensionsSetByUserDoNotEqualEmbeddingSize() {
         DenseEmbeddingByteResults results = DenseEmbeddingByteResultsTests.createRandomResults();
-        var dimensions = randomValueOtherThan(results.getFirstEmbeddingSize(), ESTestCase::randomNonNegativeInt);
+        int embeddingSize = results.getFirstEmbeddingSize();
+        int dimensions = randomValueOtherThan(embeddingSize, ESTestCase::randomNonNegativeInt);
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(dimensions);
 
         mockCallToServiceIntegrationValidator(results);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(
+            captor.getValue().getMessage(),
+            Matchers.is(
+                Strings.format(
+                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. Please recreate the [%s] configuration with the correct dimensions",
+                    embeddingSize,
+                    dimensions,
+                    null
+                )
+            )
+        );
+
         verify(mockModel).getServiceSettings();
         verify(mockModel).getInferenceEntityId();
         verify(mockServiceSettings).dimensionsSetByUser();

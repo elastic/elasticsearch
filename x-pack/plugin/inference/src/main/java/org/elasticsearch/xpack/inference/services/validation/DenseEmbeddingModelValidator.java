@@ -16,7 +16,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 
 public class DenseEmbeddingModelValidator implements ModelValidator {
@@ -58,11 +57,11 @@ public class DenseEmbeddingModelValidator implements ModelValidator {
             return service.updateModelWithEmbeddingDetails(model, embeddingSize);
         } else {
             throw new ElasticsearchStatusException(
-                "Validation call did not return expected results type."
+                "Validation call did not return expected results type. "
                     + "Expected a result of type ["
-                    + DenseEmbeddingFloatResults.NAME
+                    + DenseEmbeddingResults.class.getSimpleName()
                     + "] got ["
-                    + (results == null ? "null" : results.getWriteableName())
+                    + (results == null ? "null" : results.getClass().getSimpleName())
                     + "]",
                 RestStatus.BAD_REQUEST
             );

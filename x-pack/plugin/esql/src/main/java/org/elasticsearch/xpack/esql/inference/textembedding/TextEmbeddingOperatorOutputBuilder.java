@@ -97,9 +97,9 @@ class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuil
                 "Unsupported embedding type: "
                     + embedding.embeddings().get(0).getClass().getName()
                     + ". Expected "
-                    + DenseEmbeddingFloatResults.Embedding.class.getName()
+                    + DenseEmbeddingFloatResults.Embedding.class.getSimpleName()
                     + " or "
-                    + DenseEmbeddingByteResults.Embedding.class.getName()
+                    + DenseEmbeddingByteResults.Embedding.class.getSimpleName()
                     + "."
             );
         };

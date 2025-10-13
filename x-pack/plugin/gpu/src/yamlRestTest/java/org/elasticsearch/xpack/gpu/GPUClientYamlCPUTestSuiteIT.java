@@ -35,7 +35,7 @@ public class GPUClientYamlCPUTestSuiteIT extends ESClientYamlSuiteTestCase {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
             // set the tiny segment size so that most of the tests exercise CPU index build
-            .systemProperty("gpu.tiny.segment.size", "1000000");
+            .systemProperty("gpu.tiny.segment.size", String.valueOf(Integer.MAX_VALUE));
 
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {

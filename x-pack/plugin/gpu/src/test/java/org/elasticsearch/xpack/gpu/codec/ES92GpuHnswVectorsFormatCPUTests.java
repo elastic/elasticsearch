@@ -33,7 +33,7 @@ public class ES92GpuHnswVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCa
                 ThrowingCuVSResourceManager.supplier,
                 ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
                 ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                1_000_000
+                Integer.MAX_VALUE
             );
         }
     }

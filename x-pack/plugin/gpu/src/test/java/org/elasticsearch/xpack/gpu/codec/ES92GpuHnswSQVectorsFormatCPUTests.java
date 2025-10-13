@@ -7,17 +7,18 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
-@LuceneTestCase.SuppressSysoutChecks(bugUrl = "https://github.com/rapidsai/cuvs/issues/1310")
-public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+import static org.hamcrest.Matchers.startsWith;
+
+/** Runs format tests with a large segment threshold to exercise graph building on the CPU. */
+public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -26,6 +27,7 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     static Codec codec;
 
+    /** Format that can only build indices on the CPU, because of the ThrowingCuVSResourceManager. */
     static ES92GpuHnswSQVectorsFormat createES92GpuHnswSQVectorsFormat(int tinySegmentsThreshold) {
         return new ES92GpuHnswSQVectorsFormat(
             ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
@@ -33,22 +35,43 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             null,
             7,
             false,
-            CuVSResourceManager::pooling,
+            ThrowingCuVSResourceManager.supplier,
             tinySegmentsThreshold
         );
     }
 
     @BeforeClass
     public static void beforeClass() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
-
-        // Create the format that mostly builds indices on the GPU, because of the tinySegmentThreshold
-        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswSQVectorsFormat((2)));
+        // Create the format that builds indices on the CPU, because of the tinySegmentThreshold
+        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswSQVectorsFormat(Integer.MAX_VALUE));
     }
 
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    public void testKnnVectorsFormatToString() {
+        KnnVectorsFormat format = createES92GpuHnswSQVectorsFormat(1000000);
+        String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=1000000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(format.toString(), startsWith(expectedStr));
+
+        format = createES92GpuHnswSQVectorsFormat(Integer.MAX_VALUE);
+        expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=2147483647, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(format.toString(), startsWith(expectedStr));
+
+        // check the detail values
+        format = new ES92GpuHnswSQVectorsFormat();
+        expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(format.toString(), startsWith(expectedStr));
+
+        format = new ES92GpuHnswSQVectorsFormat(5, 6, null, 7, false, ThrowingCuVSResourceManager.supplier, 8);
+        expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+            + "maxConn=5, beamWidth=6, tinySegmentsThreshold=8, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(format.toString(), startsWith(expectedStr));
     }
 
     @Override

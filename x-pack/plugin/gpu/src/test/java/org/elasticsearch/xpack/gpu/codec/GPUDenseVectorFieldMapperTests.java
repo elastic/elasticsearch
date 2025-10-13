@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
@@ -44,7 +45,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         // TODO improve test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());
     }
 
@@ -53,8 +54,8 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
     }
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {

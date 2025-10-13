@@ -27,10 +27,21 @@ public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase 
 
     static Codec codec;
 
+    static ES92GpuHnswVectorsFormat createES92GpuHnswVectorsFormat(int tinySegmentsThreshold) {
+        return new ES92GpuHnswVectorsFormat(
+            ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
+            ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+            CuVSResourceManager::pooling,
+            tinySegmentsThreshold
+        );
+    }
+
     @BeforeClass
     public static void beforeClass() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
-        codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswVectorsFormat());
+
+        // Create the format that mostly builds indices on the GPU, because of the tinySegmentThreshold
+        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswVectorsFormat(2));
     }
 
     @Override

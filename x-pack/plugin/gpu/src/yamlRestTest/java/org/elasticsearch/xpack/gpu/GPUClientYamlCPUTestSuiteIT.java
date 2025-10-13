@@ -14,7 +14,11 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
-public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+/**
+ * This test sets a large(ish) tiny segment size so that it effectively only exercises code paths
+ * that build the index on CPU.
+ */
+public class GPUClientYamlCPUTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @BeforeClass
     public static void setup() {
@@ -30,8 +34,8 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
-            // set the tiny segment size so that most of the tests exercise GPU index build
-            .systemProperty("gpu.tiny.segment.size", "2");
+            // set the tiny segment size so that most of the tests exercise CPU index build
+            .systemProperty("gpu.tiny.segment.size", String.valueOf(Integer.MAX_VALUE));
 
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {
@@ -40,7 +44,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return builder.build();
     }
 
-    public GPUClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientYamlCPUTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

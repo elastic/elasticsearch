@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.xpack.gpu.GPUPlugin.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
 
@@ -33,18 +34,32 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
     static final int MAXIMUM_BEAM_WIDTH = 3200;
     private final int maxConn;
     private final int beamWidth;
+    // The threshold to use to bypass HNSW graph building for tiny segments on the GPU.
+    private final int tinySegmentsThreshold;
 
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
 
     public ES92GpuHnswSQVectorsFormat() {
-        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false, CuVSResourceManager::pooling, MIN_NUM_VECTORS_FOR_GPU_BUILD);
     }
 
     public ES92GpuHnswSQVectorsFormat(int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
+        this(maxConn, beamWidth, confidenceInterval, bits, compress, CuVSResourceManager::pooling, MIN_NUM_VECTORS_FOR_GPU_BUILD);
+    }
+
+    public ES92GpuHnswSQVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        Float confidenceInterval,
+        int bits,
+        boolean compress,
+        Supplier<CuVSResourceManager> cuVSResourceManagerSupplier,
+        int tinySegmentsThreshold
+    ) {
         super(NAME);
-        this.cuVSResourceManagerSupplier = CuVSResourceManager::pooling;
+        this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
         if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
             throw new IllegalArgumentException(
                 "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
@@ -55,8 +70,12 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
                 "beamWidth must be positive and less than or equal to " + MAXIMUM_BEAM_WIDTH + "; beamWidth=" + beamWidth
             );
         }
+        if (tinySegmentsThreshold < 2) {
+            throw new IllegalArgumentException("tinySegmentsThreshold must be greater than 1, got:" + tinySegmentsThreshold);
+        }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
+        this.tinySegmentsThreshold = tinySegmentsThreshold;
         this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
@@ -67,7 +86,8 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
-            flatVectorsFormat.fieldsWriter(state)
+            flatVectorsFormat.fieldsWriter(state),
+            tinySegmentsThreshold
         );
     }
 
@@ -90,6 +110,8 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             + maxConn
             + ", beamWidth="
             + beamWidth
+            + ", tinySegmentsThreshold="
+            + tinySegmentsThreshold
             + ", flatVectorFormat="
             + flatVectorsFormat
             + ")";

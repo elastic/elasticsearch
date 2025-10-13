@@ -16,6 +16,8 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
+import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
@@ -37,6 +39,10 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
+import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.NeighborArray;
+import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
@@ -61,7 +67,6 @@ import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE9
 import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME;
 import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
 import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
-import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
@@ -78,6 +83,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private final int M;
     private final int beamWidth;
     private final FlatVectorsWriter flatVectorWriter;
+    private final int tinySegmentsThreshold;
 
     private final List<FieldWriter> fields = new ArrayList<>();
     private boolean finished;
@@ -88,13 +94,15 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         SegmentWriteState state,
         int M,
         int beamWidth,
-        FlatVectorsWriter flatVectorWriter
+        FlatVectorsWriter flatVectorWriter,
+        int tinySegmentsThreshold
     ) throws IOException {
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
         this.beamWidth = beamWidth;
         this.flatVectorWriter = flatVectorWriter;
+        this.tinySegmentsThreshold = tinySegmentsThreshold;
         if (flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) {
             dataType = CuVSMatrix.DataType.BYTE;
         } else {
@@ -177,20 +185,15 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         // No tmp file written, or the file cannot be mmapped
         for (FieldWriter field : fields) {
             var started = System.nanoTime();
-            var fieldInfo = field.fieldInfo;
-
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
-            if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+            if (numVectors < tinySegmentsThreshold) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        numVectors,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
+                    logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, tinySegmentsThreshold);
                 }
-                // Will not be indexed on the GPU
-                flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
+                // Will not be indexed on the GPU, rather than the CPU
+                flushFieldBuildingGraphOnCPU(field, sortMap);
             } else {
+                var fieldInfo = field.fieldInfo;
                 var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
                 try {
                     var builder = CuVSMatrix.deviceBuilder(
@@ -214,12 +217,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void flushFieldWithMockGraph(FieldInfo fieldInfo, int numVectors, Sorter.DocMap sortMap) throws IOException {
+    void flushFieldBuildingGraphOnCPU(FieldWriter fieldWriter, Sorter.DocMap sortMap) throws IOException {
+        var fieldInfo = fieldWriter.fieldInfo;
+        var scorer = flatVectorWriter.getFlatVectorScorer();
+        RandomVectorScorerSupplier scorerSupplier = switch (fieldInfo.getVectorEncoding()) {
+            case BYTE -> throw new AssertionError("bytes not supported");
+            case FLOAT32 -> scorer.getRandomVectorScorerSupplier(
+                fieldInfo.getVectorSimilarityFunction(),
+                FloatVectorValues.fromFloats(fieldWriter.flatFieldVectorsWriter.getVectors(), fieldInfo.getVectorDimension())
+            );
+        };
         if (sortMap == null) {
-            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+            generateCPUGraphAndWriteMeta(fieldWriter, scorerSupplier);
         } else {
             // TODO: use sortMap
-            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+            generateCPUGraphAndWriteMeta(fieldWriter, scorerSupplier);
         }
     }
 
@@ -271,7 +283,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         CuVSMatrix dataset
     ) throws IOException {
         try {
-            assert dataset.size() >= MIN_NUM_VECTORS_FOR_GPU_BUILD;
+            assert dataset.size() >= tinySegmentsThreshold;
 
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
@@ -289,18 +301,52 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void generateMockGraphAndWriteMeta(FieldInfo fieldInfo, int datasetSize) throws IOException {
-        try {
-            long vectorIndexOffset = vectorIndex.getFilePointer();
-            int[][] graphLevelNodeOffsets = new int[1][];
-            final HnswGraph graph = writeMockGraph(datasetSize, graphLevelNodeOffsets);
-            long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
-            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetSize, graph, graphLevelNodeOffsets);
-        } catch (IOException e) {
-            throw e;
-        } catch (Throwable t) {
-            throw new IOException("Failed to write GPU index: ", t);
+    void generateCPUGraphAndWriteMeta(FieldWriter fieldWriter, RandomVectorScorerSupplier scorerSupplier) throws IOException {
+        final int datasetSize = fieldWriter.flatFieldVectorsWriter.getVectors().size();
+        final FieldInfo fieldInfo = fieldWriter.fieldInfo;
+        OnHeapHnswGraph graph = null;
+        if (datasetSize > 0) {
+            graph = buildGraphWithTheCPU(scorerSupplier, datasetSize);
         }
+        writeGraphAndMeta(fieldInfo, graph, datasetSize);
+    }
+
+    OnHeapHnswGraph buildGraphWithTheCPU(RandomVectorScorerSupplier scorerSupplier, int numVectors) throws IOException {
+        assert numVectors > 0;
+        var hnswGraphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed);
+        for (int i = 0; i < numVectors; i++) {
+            hnswGraphBuilder.addGraphNode(i);
+        }
+        return hnswGraphBuilder.getCompletedGraph();
+    }
+
+    void writeGraphAndMeta(FieldInfo fieldInfo, OnHeapHnswGraph graph, int datasetSize) throws IOException {
+        long vectorIndexOffset = vectorIndex.getFilePointer();
+        int[][] graphLevelNodeOffsets = writeGraph(graph); // graph may be null
+        long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
+        writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetSize, graph, graphLevelNodeOffsets);
+    }
+
+    void createGraphWithCPUAndWriteMeta(FieldInfo fieldInfo, IndexInput input, int size) throws IOException {
+        OnHeapHnswGraph graph = null;
+        if (size > 0) {
+            var vectorsScorer = flatVectorWriter.getFlatVectorScorer();
+            var similarity = fieldInfo.getVectorSimilarityFunction();
+            var dims = fieldInfo.getVectorDimension();
+            final RandomVectorScorerSupplier scoreSupplier = switch (dataType) {
+                case BYTE -> vectorsScorer.getRandomVectorScorerSupplier(
+                    similarity,
+                    new OffHeapByteVectorValues.DenseOffHeapVectorValues(dims, size, input, dims * Byte.BYTES, vectorsScorer, similarity)
+                );
+                case FLOAT -> vectorsScorer.getRandomVectorScorerSupplier(
+                    similarity,
+                    new OffHeapFloatVectorValues.DenseOffHeapVectorValues(dims, size, input, dims * Float.BYTES, vectorsScorer, similarity)
+                );
+                default -> throw new UnsupportedOperationException("unsupported datatype:" + dataType);
+            };
+            graph = buildGraphWithTheCPU(scoreSupplier, size);
+        }
+        writeGraphAndMeta(fieldInfo, graph, size); // a null graph is ok
     }
 
     private CagraIndex buildGPUIndex(
@@ -371,33 +417,50 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         return createMockGraph(maxElementCount, maxGraphDegree);
     }
 
-    // create a mock graph where every node is connected to every other node
-    private HnswGraph writeMockGraph(int elementCount, int[][] levelNodeOffsets) throws IOException {
-        if (elementCount == 0) {
-            return null;
-        }
-        int nodeDegree = elementCount - 1;
-        levelNodeOffsets[0] = new int[elementCount];
-
-        int[] neighbors = new int[nodeDegree];
-        int[] scratch = new int[nodeDegree];
-        for (int node = 0; node < elementCount; node++) {
-            if (nodeDegree > 0) {
-                for (int j = 0; j < nodeDegree; j++) {
-                    neighbors[j] = j < node ? j : j + 1; // skip self
+    /**
+     * Copied from Lucene99HnswVectorsWriter
+     * @param graph Write the graph in a compressed format
+     * @return The non-cumulative offsets for the nodes. Should be used to create cumulative offsets.
+     * @throws IOException if writing to vectorIndex fails
+     */
+    private int[][] writeGraph(OnHeapHnswGraph graph) throws IOException {
+        if (graph == null) return new int[0][0];
+        // write vectors' neighbours on each level into the vectorIndex file
+        int countOnLevel0 = graph.size();
+        int[][] offsets = new int[graph.numLevels()][];
+        int[] scratch = new int[graph.maxConn() * 2];
+        for (int level = 0; level < graph.numLevels(); level++) {
+            int[] sortedNodes = NodesIterator.getSortedNodes(graph.getNodesOnLevel(level));
+            offsets[level] = new int[sortedNodes.length];
+            int nodeOffsetId = 0;
+            for (int node : sortedNodes) {
+                NeighborArray neighbors = graph.getNeighbors(level, node);
+                int size = neighbors.size();
+                // Write size in VInt as the neighbors list is typically small
+                long offsetStart = vectorIndex.getFilePointer();
+                int[] nnodes = neighbors.nodes();
+                Arrays.sort(nnodes, 0, size);
+                // Now that we have sorted, do delta encoding to minimize the required bits to store the
+                // information
+                int actualSize = 0;
+                if (size > 0) {
+                    scratch[0] = nnodes[0];
+                    actualSize = 1;
                 }
-                scratch[0] = neighbors[0];
-                for (int i = 1; i < nodeDegree; i++) {
-                    scratch[i] = neighbors[i] - neighbors[i - 1];
+                for (int i = 1; i < size; i++) {
+                    assert nnodes[i] < countOnLevel0 : "node too large: " + nnodes[i] + ">=" + countOnLevel0;
+                    if (nnodes[i - 1] == nnodes[i]) {
+                        continue;
+                    }
+                    scratch[actualSize++] = nnodes[i] - nnodes[i - 1];
                 }
+                // Write the size after duplicates are removed
+                vectorIndex.writeVInt(actualSize);
+                vectorIndex.writeGroupVInts(scratch, actualSize);
+                offsets[level][nodeOffsetId++] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
             }
-
-            long offsetStart = vectorIndex.getFilePointer();
-            vectorIndex.writeVInt(nodeDegree);
-            vectorIndex.writeGroupVInts(scratch, nodeDegree);
-            levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
         }
-        return createMockGraph(elementCount, nodeDegree);
+        return offsets;
     }
 
     private static HnswGraph createMockGraph(int elementCount, int graphDegree) {
@@ -476,7 +539,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
             var input = FilterIndexInput.unwrapOnlyTest(in);
 
-            if (numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+            if (numVectors > tinySegmentsThreshold) {
                 if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                     // Direct access to mmapped file
                     final var dataset = DatasetUtils.getInstance()
@@ -524,9 +587,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     }
                 }
             } else {
-                // we don't really need real value for vectors here,
-                // we just build a mock graph where every node is connected to every other node
-                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+                createGraphWithCPUAndWriteMeta(fieldInfo, input, numVectors);
             }
         } catch (Throwable t) {
             throw new IOException("Failed to merge GPU index: ", t);

@@ -19,6 +19,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
@@ -33,6 +34,11 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
 
     public ES93HnswVectorsFormat(int maxConn, int beamWidth, boolean bfloat16, boolean useDirectIO) {
         super(NAME, maxConn, beamWidth);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
+    }
+
+    public ES93HnswVectorsFormat(int maxConn, int beamWidth, boolean bfloat16, boolean useDirectIO, int numMergeWorkers, ExecutorService mergeExec) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
     }
 

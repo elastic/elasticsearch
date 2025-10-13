@@ -47,6 +47,16 @@ public class ES93HnswBinaryQuantizedVectorsFormat extends AbstractHnswVectorsFor
     /**
      * Constructs a format using the given graph construction parameters.
      *
+     * @param useDirectIO whether to use direct IO when reading raw vectors
+     */
+    public ES93HnswBinaryQuantizedVectorsFormat(boolean useDirectIO) {
+        super(NAME);
+        flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(useDirectIO);
+    }
+
+    /**
+     * Constructs a format using the given graph construction parameters.
+     *
      * @param maxConn the maximum number of connections to a node in the HNSW graph
      * @param beamWidth the size of the queue maintained during graph construction.
      * @param useDirectIO whether to use direct IO when reading raw vectors

@@ -24,7 +24,7 @@ import java.util.Iterator;
 /**
  * {@link LongValues} implementation which is based on a script
  */
-public class ScriptLongValues extends SortingNumericLongValues implements ScorerAware {
+public final class ScriptLongValues extends SortingNumericLongValues implements ScorerAware {
 
     final AggregationScript script;
 

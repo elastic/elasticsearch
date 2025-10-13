@@ -531,7 +531,7 @@ public abstract class ValuesSource {
                 return new DoubleValues(delegate.doubleValues(context), script.newInstance(context));
             }
 
-            static class LongValues extends SortingNumericLongValues implements ScorerAware {
+            static final class LongValues extends SortingNumericLongValues implements ScorerAware {
 
                 private final SortedNumericLongValues longValues;
                 private final AggregationScript script;

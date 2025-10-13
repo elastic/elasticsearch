@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -75,8 +76,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
         clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         project = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-        // Use empty array since clusterState has no indices
-        response = createResponse(new String[0], clusterState, project);
+        response = createResponse(Strings.EMPTY_ARRAY /* no indices */ , clusterState, project);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(1));
     }
 

@@ -88,6 +88,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.replaceIsTrue("\\.ml-anomalies-shared.mappings._meta.version", "\\.ml-anomalies-shared-000001.mappings._meta.version")
   task.replaceKeyInMatch("\\.ml-anomalies-shared.mappings.new_field.mapping.new_field.type", "\\.ml-anomalies-shared-000001.mappings.new_field.mapping.new_field.type")
   task.replaceValueTextByKeyValue("index", ".ml-anomalies-shared", ".ml-anomalies-shared-000001")
+  task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1,.ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-1-000001,.ml-anomalies-custom-all-test-2-000001")
   task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1", ".ml-anomalies-custom-all-test-1-000001")
   task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")

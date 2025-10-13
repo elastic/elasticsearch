@@ -16,7 +16,7 @@ import org.hamcrest.Matchers;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
-public class SortingNumericDocValuesTests extends ESTestCase {
+public class SortingNumericLongValuesTests extends ESTestCase {
 
     public void testResize() {
         final int oldSize = Integer.MAX_VALUE - 200;
@@ -28,7 +28,7 @@ public class SortingNumericDocValuesTests extends ESTestCase {
             long total = counter.addAndGet(value);
             assertThat(total, Matchers.greaterThanOrEqualTo(0L));
         };
-        SortingNumericDocValues docValues = new SortingNumericDocValues(consumer) {
+        SortingNumericLongValues docValues = new SortingNumericLongValues(consumer) {
 
             @Override
             protected void growExact(int newValuesLength) {
@@ -43,26 +43,6 @@ public class SortingNumericDocValuesTests extends ESTestCase {
             @Override
             public boolean advanceExact(int target) {
                 return false;
-            }
-
-            @Override
-            public int docID() {
-                return 0;
-            }
-
-            @Override
-            public int nextDoc() {
-                return 0;
-            }
-
-            @Override
-            public int advance(int target) {
-                return 0;
-            }
-
-            @Override
-            public long cost() {
-                return 0;
             }
         };
         docValues.resize(newSize);

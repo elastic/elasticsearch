@@ -663,6 +663,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
   method: testExcludeInferenceFieldsFromSourceOldIndexVersions
   issue: https://github.com/elastic/elasticsearch/issues/136452
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
+  method: testEsqlRcs2UnavailableRemoteScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/136493
 
 # Examples:
 #

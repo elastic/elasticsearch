@@ -260,7 +260,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false
         );
-        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamForAllShards(indicesService);
+        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamSizeForAllShards(indicesService);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {

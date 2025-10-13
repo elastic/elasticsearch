@@ -70,7 +70,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
 
-    public static Map<ShardId, Long> getSharedRamForAllShards(IndicesService indicesService) {
+    public static Map<ShardId, Long> getSharedRamSizeForAllShards(IndicesService indicesService) {
         Map<ShardId, Long> shardIdToSharedRam = new HashMap<>();
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
         for (IndexService indexService : indicesService) {

@@ -1845,7 +1845,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
-        private List<FieldAttribute> unionFieldAttributes;
+        private List<Attribute.NonSemanticAttribute> unionFieldAttributes;
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
@@ -1860,7 +1860,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 unionFieldAttributes.clear();
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
-                        unionFieldAttributes.add(fa);
+                        unionFieldAttributes.add(fa.ignoreId());
                     }
                 }
             }
@@ -1879,7 +1879,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.get()).toList());
         }
 
         /**
@@ -1909,7 +1909,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.NonSemanticAttribute> unionFieldAttributes) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -1980,7 +1980,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
             MultiTypeEsField resolvedField,
-            List<FieldAttribute> unionFieldAttributes
+            List<Attribute.NonSemanticAttribute> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
@@ -1994,13 +1994,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedField,
                 true
             );
-            int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
+            var nonSemanticUnionFieldAttribute = unionFieldAttribute.ignoreId();
+
+            int existingIndex = unionFieldAttributes.indexOf(nonSemanticUnionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
-                return unionFieldAttributes.get(existingIndex);
+                return unionFieldAttributes.get(existingIndex).get();
             } else {
-                unionFieldAttributes.add(unionFieldAttribute);
-                return unionFieldAttribute;
+                unionFieldAttributes.add(nonSemanticUnionFieldAttribute);
+                return nonSemanticUnionFieldAttribute.get();
             }
         }
 

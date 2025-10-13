@@ -27,6 +27,9 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         this(source, name, children, id, false);
     }
 
+    /**
+     * Assigns a new id if null is passed for {@code id}.
+     */
     public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id, boolean synthetic) {
         super(source, children);
         this.name = name;

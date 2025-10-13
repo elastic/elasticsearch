@@ -29,7 +29,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     }
 
     @Override
-    protected EsField mutate(EsField instance) {
+    protected EsField mutateInstance(EsField instance) {
         String name = instance.getName();
         DataType esDataType = instance.getDataType();
         Map<String, EsField> properties = instance.getProperties();

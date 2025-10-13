@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.hamcrest.Matchers.is;
 
@@ -47,7 +48,7 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
             """;
         PhysicalPlan expectedPlan = plannerOptimizerTimeSeries.plan(controlQuery);
 
-        assertEquals(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
+        assertEqualsIgnoringIds(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
     }
 
     public void testPushdownOfSimpleCounterQuery() {

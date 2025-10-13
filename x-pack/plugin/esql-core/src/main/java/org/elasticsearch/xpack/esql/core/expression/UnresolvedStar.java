@@ -19,7 +19,7 @@ import static java.util.Collections.emptyList;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
-    // typically used for nested fields or inner/dotted fields
+    // TODO: Currently unused, but likely will be again when we support qualified star resolution
     private final UnresolvedAttribute qualifier;
 
     public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {

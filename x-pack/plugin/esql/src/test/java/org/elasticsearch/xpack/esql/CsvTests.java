@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -527,7 +528,16 @@ public class CsvTests extends ESTestCase {
         var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(
-            new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies, emptyInferenceResolution()),
+            // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
+            new AnalyzerContext(
+                configuration,
+                functionRegistry,
+                indexResolution,
+                Map.of(),
+                enrichPolicies,
+                emptyInferenceResolution(),
+                TransportVersion.current()
+            ),
             TEST_VERIFIER
         );
         LogicalPlan plan = analyzer.analyze(parsed);

@@ -538,7 +538,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             thrownException.getMessage(),
-            is("Failed to execute task for inference id [id] because the request service [3355] queue is full")
+            is(
+                Strings.format(
+                    "Failed to execute task for inference id [id] because the request service [%s] queue is full",
+                    requestManager.rateLimitGrouping().hashCode()
+                )
+            )
         );
 
         settings.setQueueCapacity(0);

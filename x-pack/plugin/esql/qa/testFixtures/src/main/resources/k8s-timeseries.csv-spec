@@ -114,7 +114,7 @@ TS k8s
 | SORT time_bucket DESC | LIMIT 2;
 
 // tag::rate-result[]
-max(rate(network.total_bytes_in)): double | time_bucket:date
+MAX(RATE(network.total_bytes_in)): double | time_bucket:date
 6.980660660660663                         | 2024-05-10T00:20:00.000Z
 23.702205882352942                        | 2024-05-10T00:15:00.000Z
 // end::rate-result[]

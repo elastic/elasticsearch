@@ -142,7 +142,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         final var settings = builder.put("xpack.security.http.ssl.enabled", true)
             .put("path.home", createTempDir())
             .put(
-                Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT.getKey(),
+                Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS.getKey(),
                 dynamicConfiguration ? between(0, 5) : maxConcurrentTlsHandshakes
             )
             .put(
@@ -157,7 +157,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         final var inflightHandshakesByEventLoop = ConcurrentCollections.<Thread, AtomicInteger>newConcurrentMap();
 
         final List<Setting<?>> settingsSet = new ArrayList<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT);
+        settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS);
         settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED);
         final var clusterSettings = new ClusterSettings(settings, Set.copyOf(settingsSet));
 
@@ -260,7 +260,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
         if (dynamicConfiguration) {
             clusterSettings.applySettings(
                 Settings.builder()
-                    .put(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT.getKey(), maxConcurrentTlsHandshakes)
+                    .put(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS.getKey(), maxConcurrentTlsHandshakes)
                     .put(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED.getKey(), maxDelayedTlsHandshakes)
                     .build()
             );
@@ -333,7 +333,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             logger.info("--> all handshakes blocked");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, clientCount);
+            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, clientCount);
             assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
@@ -398,7 +398,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             logger.info("--> expected number of delayed handshakes observed");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
+            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
             assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, expectedDelayedHandshakes);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, expectedDelayedHandshakes);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
@@ -478,7 +478,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             }
 
             final var client0 = new TestClient();
-            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 1);
+            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 1);
 
             final var client1 = new TestClient();
             awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 1);
@@ -568,7 +568,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             logger.info("--> excessive handshakes cancelled");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
+            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, eventLoopCount * maxConcurrentTlsHandshakes);
             assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, eventLoopCount * maxDelayedTlsHandshakes);
             assertLongMetric(
                 metricRecorder,
@@ -612,14 +612,14 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", randomBoolean());
             final var settings = builder.put("xpack.security.http.ssl.enabled", true)
                 .put("path.home", createTempDir())
-                .put(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT.getKey(), between(0, 1))
+                .put(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS.getKey(), between(0, 1))
                 .build();
             final var env = TestEnvironment.newEnvironment(settings);
             final var sslService = new SSLService(env);
             final var tlsConfig = new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine);
 
             final List<Setting<?>> settingsSet = new ArrayList<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT);
+            settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS);
             settingsSet.add(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED);
             final var clusterSettings = new ClusterSettings(settings, Set.copyOf(settingsSet));
 
@@ -663,11 +663,11 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
 
                 final boolean throttleEnabled;
                 if (throttleConfigured == null) {
-                    throttleEnabled = settings.getAsInt(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT.getKey(), null) > 0;
+                    throttleEnabled = settings.getAsInt(Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS.getKey(), null) > 0;
                 } else {
                     final var settingsBuilder = Settings.builder();
                     settingsBuilder.put(
-                        Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT.getKey(),
+                        Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS.getKey(),
                         throttleConfigured ? between(1, 1000) : 0
                     );
                     throttleEnabled = throttleConfigured;
@@ -764,7 +764,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             }
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
@@ -773,7 +773,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             safeAwait(completeLatch);
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, 0);
@@ -854,11 +854,11 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             getNextBlock(handshakeBlockQueue);
             logger.info("--> at least one handshake started");
 
-            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 0);
+            awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
             logger.info("--> CURRENT_IN_FLIGHT_METRIC reached zero");
 
             metricRecorder.collect();
-            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 0);
+            assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
             assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
             metricRecorder.resetCalls();
 
@@ -939,9 +939,9 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
 
     private static void assertFinalStats(MetricRecorder<Instrument> metricRecorder, int expectedTotalDelayed, int expectedTotalDropped) {
         // clients may get handshake completion before server, so we have to busy-wait here before checking final metrics:
-        awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 0);
+        awaitLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
         metricRecorder.collect();
-        assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_FLIGHT_METRIC, 0);
+        assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_IN_PROGRESS_METRIC, 0);
         assertLongMetric(metricRecorder, LONG_GAUGE, CURRENT_DELAYED_METRIC, 0);
         assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DELAYED_METRIC, expectedTotalDelayed);
         assertLongMetric(metricRecorder, LONG_ASYNC_COUNTER, TOTAL_DROPPED_METRIC, expectedTotalDropped);
@@ -993,7 +993,7 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
     };
 
     private static final String METRIC_PREFIX = "es.http.tls_handshakes.";
-    private static final String CURRENT_IN_FLIGHT_METRIC = METRIC_PREFIX + "current";
+    private static final String CURRENT_IN_PROGRESS_METRIC = METRIC_PREFIX + "in_progress.current";
     private static final String CURRENT_DELAYED_METRIC = METRIC_PREFIX + "delayed.current";
     private static final String TOTAL_DELAYED_METRIC = METRIC_PREFIX + "delayed.total";
     private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped.total";

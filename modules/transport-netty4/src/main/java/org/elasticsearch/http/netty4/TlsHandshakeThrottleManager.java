@@ -57,7 +57,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
     private final ClusterSettings clusterSettings;
     private final MeterRegistry meterRegistry;
     private final List<AutoCloseable> metricsToClose = new ArrayList<>(3);
-    volatile int maxConcurrentTlsHandshakes;
+    volatile int maxInProgressTlsHandshakes;
     volatile int maxDelayedTlsHandshakes;
 
     private final Map<Thread, TlsHandshakeThrottle> tlsHandshakeThrottles = ConcurrentCollections.newConcurrentMap();
@@ -76,8 +76,8 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         clusterSettings.<Integer>initializeAndWatch(
-            getRegisteredInstance(clusterSettings, Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT),
-            maxConcurrentTlsHandshakes -> this.maxConcurrentTlsHandshakes = maxConcurrentTlsHandshakes
+            getRegisteredInstance(clusterSettings, Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS),
+            maxInProgressTlsHandshakes -> this.maxInProgressTlsHandshakes = maxInProgressTlsHandshakes
         );
         clusterSettings.<Integer>initializeAndWatch(
             getRegisteredInstance(clusterSettings, Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED),
@@ -86,10 +86,10 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
 
         metricsToClose.add(
             meterRegistry.registerLongGauge(
-                "es.http.tls_handshakes.current",
-                "current number of in-flight TLS handshakes for HTTP connections",
+                "es.http.tls_handshakes.in_progress.current",
+                "current number of in-progress TLS handshakes for HTTP connections",
                 "count",
-                getMetric(TlsHandshakeThrottle::getInflightHandshakesCount)
+                getMetric(TlsHandshakeThrottle::getInProgressHandshakesCount)
             )
         );
         metricsToClose.add(
@@ -150,7 +150,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
             if (lifecycle.stoppedOrClosed()) {
                 throw new IllegalStateException("HTTP transport is already stopped");
             }
-            if (maxConcurrentTlsHandshakes == 0) {
+            if (maxInProgressTlsHandshakes == 0) {
                 return null;
             }
             return tlsHandshakeThrottles.computeIfAbsent(Thread.currentThread(), ignored -> new TlsHandshakeThrottle());
@@ -163,7 +163,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
     class TlsHandshakeThrottle {
 
         // volatile for metrics
-        private volatile int inflightHandshakesCount = 0;
+        private volatile int inProgressHandshakesCount = 0;
 
         // actions to run (or fail) to release a throttled handshake
         private final ArrayDeque<AbstractRunnable> delayedHandshakes = new ArrayDeque<>();
@@ -211,14 +211,14 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
         void handleHandshakeCompletion() {
             if (delayedHandshakes.isEmpty()) {
                 // noinspection NonAtomicOperationOnVolatileField all writes are on this thread
-                inflightHandshakesCount -= 1;
+                inProgressHandshakesCount -= 1;
             } else {
                 takeFirstDelayedHandshake().run();
             }
         }
 
-        public int getInflightHandshakesCount() {
-            return inflightHandshakesCount;
+        public int getInProgressHandshakesCount() {
+            return inProgressHandshakesCount;
         }
 
         public int getCurrentDelayedHandshakesCount() {
@@ -323,25 +323,25 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
                     return ctx.executor().newFailedFuture(exception);
                 }
 
-                final var maxConcurrentTlsHandshakes = TlsHandshakeThrottleManager.this.maxConcurrentTlsHandshakes; // single volatile read
-                if (maxConcurrentTlsHandshakes == 0 || inflightHandshakesCount < maxConcurrentTlsHandshakes) {
+                final var maxInProgressTlsHandshakes = TlsHandshakeThrottleManager.this.maxInProgressTlsHandshakes; // single volatile read
+                if (maxInProgressTlsHandshakes == 0 || inProgressHandshakesCount < maxInProgressTlsHandshakes) {
                     // noinspection NonAtomicOperationOnVolatileField all writes are on this thread
-                    inflightHandshakesCount += 1;
+                    inProgressHandshakesCount += 1;
                     handshakeCompletePromise.addListener(ActionListener.running(TlsHandshakeThrottle.this::handleHandshakeCompletion));
                     ctx.channel().pipeline().remove(HandshakeThrottleHandler.this);
                     handshakeStartedPromise.onResponse(null);
                 } else {
                     logger.debug(
-                        "[{}] in flight TLS handshakes already, enqueueing new handshake on [{}]",
-                        inflightHandshakesCount,
+                        "[{}] in-progress TLS handshakes already, enqueueing new handshake on [{}]",
+                        inProgressHandshakesCount,
                         ctx.channel()
                     );
                     addDelayedHandshake(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
                             logger.debug(
-                                "[{}] in flight and [{}] enqueued TLS handshakes, cancelling handshake on [{}]: {}",
-                                inflightHandshakesCount,
+                                "[{}] in-progress and [{}] delayed TLS handshakes, cancelling handshake on [{}]: {}",
+                                inProgressHandshakesCount,
                                 delayedHandshakes.size(),
                                 ctx.channel(),
                                 e.getMessage()
@@ -352,8 +352,8 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
                         @Override
                         protected void doRun() {
                             logger.debug(
-                                "[{}] in flight and [{}] enqueued TLS handshakes, processing delayed handshake on [{}]",
-                                inflightHandshakesCount,
+                                "[{}] in flight and [{}] delayed TLS handshakes, processing delayed handshake on [{}]",
+                                inProgressHandshakesCount,
                                 delayedHandshakes.size(),
                                 ctx.channel()
                             );
@@ -391,7 +391,7 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
          * A Netty pipeline handler that watches for a user event indicating a TLS handshake completed (or else the channel closed). On
          * completion of a handshake, this handler removes itself from the pipeline and completes a promise which will in turn call
          * {@link #handleHandshakeCompletion} to trigger either the processing of another handshake or a decrement of
-         * {@link #inflightHandshakesCount}.
+         * {@link #inProgressHandshakesCount}.
          */
         private static class HandshakeCompletionWatcher extends SimpleUserEventChannelHandler<SslCompletionEvent> {
             private final SubscribableListener<Void> handshakeCompletePromise;

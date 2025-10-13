@@ -25,7 +25,7 @@ public enum Netty4TestUtils {
             Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), randomBoolean()).build(),
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_CONCURRENT,
+                Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS,
                 Netty4Plugin.SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED
             )
         );

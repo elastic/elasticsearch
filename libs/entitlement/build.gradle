@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.embedded-providers'
 apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 embeddedProviders {
   impl 'entitlement', project(':libs:entitlement:asm-provider')
@@ -42,10 +43,8 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-// invoke using ./gradlew :libs:entitlement:dumpInstrumentedMethods --args="entitlement-methods.dump"
+// invoke using ./gradlew :libs:entitlement:dumpInstrumentedMethods --args="<output file>"
 tasks.register('dumpInstrumentedMethods', JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
-  // default fallback location
-  systemProperty 'es.entitlements.dump', './build/instrumented-methods.dump'
 }

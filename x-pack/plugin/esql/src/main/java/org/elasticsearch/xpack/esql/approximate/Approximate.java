@@ -226,16 +226,18 @@ public class Approximate {
 
     private final LogicalPlan logicalPlan;
     private final boolean preservesRows;
+    private final LogicalPlanRunner runner;
 
-    public Approximate(LogicalPlan logicalPlan) {
+    public Approximate(LogicalPlan logicalPlan, LogicalPlanRunner logicalPlanRunner) {
         this.logicalPlan = logicalPlan;
         this.preservesRows = verifyPlan(logicalPlan);
+        this.runner = logicalPlanRunner;
     }
 
     /**
      * Computes approximate results for the logical plan.
      */
-    public void approximate(LogicalPlanRunner runner, ActionListener<Result> listener) {
+    public void approximate(ActionListener<Result> listener) {
         runner.run(sourceCountPlan(), sourceCountListener(runner, listener));
     }
 

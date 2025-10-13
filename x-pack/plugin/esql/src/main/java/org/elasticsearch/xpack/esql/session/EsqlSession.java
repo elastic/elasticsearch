@@ -418,10 +418,14 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else if (request.approximate()) {
-            new Approximate(optimizedPlan).approximate(
-                (p, l) -> runner.run(logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile), configuration, foldContext, planTimeProfile, l),
-                listener
+            Approximate.LogicalPlanRunner logicalPlanRunner = (p, l) -> runner.run(
+                logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile),
+                configuration,
+                foldContext,
+                planTimeProfile,
+                l
             );
+            new Approximate(optimizedPlan, logicalPlanRunner).approximate(listener);
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             // execute main plan

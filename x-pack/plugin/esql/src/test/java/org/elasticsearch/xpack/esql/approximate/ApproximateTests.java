@@ -110,11 +110,11 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testVerify_validQuery() throws Exception {
-        createApproximate("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
-        createApproximate("FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x");
-        createApproximate("FROM test | LIMIT 1000 | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no)");
-        createApproximate("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
-        createApproximate("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
+        verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
+        verify("FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x");
+        verify("FROM test | LIMIT 1000 | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no)");
+        verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
+        verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
     }
 
     public void testVerify_exactlyOneStats() {
@@ -176,9 +176,9 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testCountPlan_largeDataNoFilters() throws Exception {
-        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)");
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)", runner);
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and approximation is executed immediately
         // after that with the correct sample probability.
         assertThat(runner.invocations, hasSize(2));
@@ -187,9 +187,9 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testCountPlan_smallDataNoFilters() throws Exception {
-        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)");
         TestRunner runner = new TestRunner(1_000, 1_000);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)", runner);
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and the original query is executed
         // immediately after that without sampling.
         assertThat(runner.invocations, hasSize(2));
@@ -198,9 +198,9 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testCountPlan_largeDataAfterFiltering() throws Exception {
-        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
         TestRunner runner = new TestRunner(1_000_000_000_000L, 1_000_000_000);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)", runner);
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, then a few passes to get a good sample
         // probability, and finally approximation is executed.
         assertThat(runner.invocations, hasSize(4));
@@ -211,9 +211,9 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testCountPlan_smallDataAfterFiltering() throws Exception {
-        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
         TestRunner runner = new TestRunner(1_000_000_000_000_000_000L, 100);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)", runner);
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, then a few passes to get a good sample
         // probability, and finally the original query is executed without sampling.
         assertThat(runner.invocations, hasSize(5));
@@ -225,9 +225,9 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testCountPlan_smallDataBeforeFiltering() throws Exception {
-        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
         TestRunner runner = new TestRunner(1_000, 10);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)", runner);
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and the original query is executed
         // immediately after that without sampling.
         assertThat(runner.invocations, hasSize(2));
@@ -236,9 +236,9 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testApproximatePlan_createsConfidenceInterval() throws Exception {
-        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)");
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)", runner);
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and approximation is executed immediately
         // after that with the correct sample probability.
         assertThat(runner.invocations, hasSize(2));
@@ -249,11 +249,12 @@ public class ApproximateTests extends ESTestCase {
     }
 
     public void testApproximatePlan_dependentConfidenceIntervals() throws Exception {
-        Approximate approximate = createApproximate(
-            "FROM test | STATS x=COUNT() | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
-        );
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        approximate.approximate(runner, TestRunner.resultCloser);
+        Approximate approximate = createApproximate(
+            "FROM test | STATS x=COUNT() | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)",
+            runner
+        );
+        approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and approximation is executed immediately
         // after that with the correct sample probability.
         assertThat(runner.invocations, hasSize(2));
@@ -303,11 +304,19 @@ public class ApproximateTests extends ESTestCase {
     }
 
     private void assertError(String esql, Matcher<String> matcher) {
-        Exception e = assertThrows(VerificationException.class, () -> createApproximate(esql));
+        Exception e = assertThrows(VerificationException.class, () -> verify(esql));
         assertThat(e.getMessage().substring("Found 1 problem\n".length()), matcher);
     }
 
-    private Approximate createApproximate(String query) throws Exception {
+    private void verify(String query) throws Exception {
+        Approximate.verifyPlan(getLogicalPlan(query));
+    }
+
+    private Approximate createApproximate(String query, Approximate.LogicalPlanRunner runner) throws Exception {
+        return new Approximate(getLogicalPlan(query), runner);
+    }
+
+    private LogicalPlan getLogicalPlan(String query) throws Exception {
         SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
         LogicalPlan plan = parser.createStatement(query, new QueryParams()).plan();
@@ -317,6 +326,6 @@ public class ApproximateTests extends ESTestCase {
         if (exceptionHolder.get() != null) {
             throw exceptionHolder.get();
         }
-        return new Approximate(resultHolder.get());
+        return resultHolder.get();
     }
 }

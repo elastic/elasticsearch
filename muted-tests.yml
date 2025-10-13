@@ -454,9 +454,6 @@ tests:
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/134512
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.FiveFork}
-  issue: https://github.com/elastic/elasticsearch/issues/134560
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/134635
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
@@ -477,9 +474,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithNulls {TestCase=<integer>, <integer>, <integer>, <_source> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/134679
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkBeforeStatsByWithWhere}
-  issue: https://github.com/elastic/elasticsearch/issues/134817
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
@@ -498,15 +492,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.CountDistinctWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/134993
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkBeforeStatsWithWhere}
-  issue: https://github.com/elastic/elasticsearch/issues/135041
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135055
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkWithStats}
-  issue: https://github.com/elastic/elasticsearch/issues/135116
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/135122
@@ -555,9 +543,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/135820
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkAfterEnrich}
-  issue: https://github.com/elastic/elasticsearch/issues/135830
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
@@ -570,15 +555,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/136002
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkWithFiltersOnConstantValues}
-  issue: https://github.com/elastic/elasticsearch/issues/136031
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testConcurrentAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/135777
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkBranchWithInlineStats}
-  issue: https://github.com/elastic/elasticsearch/issues/136091
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:date.EvalDateTruncQuarterlyIntervalWithGTInRange}
   issue: https://github.com/elastic/elasticsearch/issues/136102

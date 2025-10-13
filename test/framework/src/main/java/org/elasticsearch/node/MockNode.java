@@ -49,6 +49,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
@@ -201,13 +202,14 @@ public class MockNode extends Node {
             } else {
                 return new MockTransportService(
                     settings,
-                    transport,
+                    new StubbableTransport(transport),
                     threadPool,
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders(),
-                    nodeId
+                    MockTransportService.createTaskManager(settings, threadPool, taskManager.getTaskHeaders(), Tracer.NOOP, nodeId),
+                    linkedProjectConfigService,
+                    projectResolver
                 );
             }
         }

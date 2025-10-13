@@ -32,6 +32,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -40,6 +43,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,15 +66,18 @@ public class MetadataDataStreamsService {
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
     private final MasterServiceTaskQueue<UpdateSettingsTask> updateSettingsTaskQueue;
     private final MasterServiceTaskQueue<UpdateMappingsTask> updateMappingsTaskQueue;
+    private final IndexSettingProviders indexSettingProviders;
 
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.globalRetentionSettings = globalRetentionSettings;
+        this.indexSettingProviders = indexSettingProviders;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -497,13 +504,54 @@ public class MetadataDataStreamsService {
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
         Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
+        CompressedXContent effectiveMappings = dataStream.getEffectiveMappings(projectMetadata, indicesService);
         MetadataIndexTemplateService.validateTemplate(
-            mergedEffectiveSettings,
-            dataStream.getEffectiveMappings(projectMetadata, indicesService),
+            addSettingsFromIndexSettingProviders(dataStreamName, effectiveMappings, projectMetadata, mergedEffectiveSettings),
+            effectiveMappings,
             indicesService
         );
 
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
+    }
+
+    private Settings addSettingsFromIndexSettingProviders(
+        String dataStreamName,
+        CompressedXContent effectiveMappings,
+        ProjectMetadata projectMetadata,
+        Settings settings
+    ) throws IOException {
+        Settings.Builder additionalSettings = Settings.builder();
+        IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
+        Set<String> overrulingSettings = new HashSet<>();
+        indexSettingProviders.getIndexSettingProviders().forEach(indexSettingProvider -> {
+            Settings.Builder providerSettingsBuilder = Settings.builder();
+            indexSettingProvider.provideAdditionalSettings(
+                dataStreamName,
+                dataStreamName,
+                indexMode,
+                projectMetadata,
+                Instant.now(),
+                settings,
+                List.of(effectiveMappings),
+                IndexVersion.current(),
+                providerSettingsBuilder
+            );
+            Settings providerSettings = providerSettingsBuilder.build();
+            if (indexSettingProvider.overrulesTemplateAndRequestSettings()) {
+                overrulingSettings.addAll(providerSettings.keySet());
+            }
+            additionalSettings.put(providerSettings);
+        });
+        Settings filteredmergedEffectiveSettings = settings;
+        if (overrulingSettings.isEmpty() == false) {
+            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
+            final Settings.Builder filtered = Settings.builder().put(settings);
+            for (String setting : overrulingSettings) {
+                filtered.remove(setting);
+            }
+            filteredmergedEffectiveSettings = filtered.build();
+        }
+        return additionalSettings.put(filteredmergedEffectiveSettings).build();
     }
 
     private DataStream createDataStreamForUpdatedDataStreamMappings(

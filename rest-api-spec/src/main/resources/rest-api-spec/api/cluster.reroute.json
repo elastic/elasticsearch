@@ -27,14 +27,17 @@
     "params": {
       "dry_run": {
         "type": "boolean",
+        "default": false,
         "description": "Simulate the operation only and return the resulting state"
       },
       "explain": {
         "type": "boolean",
+        "default": false,
         "description": "Return an explanation of why the commands can or cannot be executed"
       },
       "retry_failed": {
         "type": "boolean",
+        "default": false,
         "description": "Retries allocation of shards that are blocked due to too many subsequent allocation failures"
       },
       "metric": {
@@ -49,6 +52,7 @@
           "master_node",
           "version"
         ],
+        "default": "all",
         "description": "Limit the information returned to the specified metrics. Defaults to all but metadata"
       },
       "master_timeout": {
@@ -58,11 +62,13 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     },
     "body": {
-      "description": "The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
+      "description": "The definition of `commands` to perform (`move`, `cancel`, `allocate`)",
+      "required": false
     }
   }
 }

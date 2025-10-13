@@ -44,7 +44,6 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
@@ -678,19 +677,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern));
-        Query csQ = BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), "field", pattern, caseSensitiveAutomaton);
-        Query ciQ = BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), "field", pattern, caseInSensitiveAutomaton);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", pattern, false);
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", pattern, true);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(
-            new Term("field", pattern),
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-        );
-        Query csQ2 = BinaryDvConfirmedQuery.fromAutomaton(new MatchAllDocsQuery(), "field", pattern, caseSensitiveAutomaton2);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", pattern, false);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }

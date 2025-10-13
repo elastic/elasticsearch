@@ -37,11 +37,13 @@
     "params": {
       "delete_intervening_results": {
         "type": "boolean",
+        "default": false,
         "description": "Should we reset the results back to the time of the snapshot?"
       }
     },
     "body": {
-      "description": "Reversion options"
+      "description": "Reversion options",
+      "required": false
     }
   }
 }

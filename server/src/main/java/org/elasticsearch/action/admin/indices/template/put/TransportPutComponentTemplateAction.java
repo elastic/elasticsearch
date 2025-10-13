@@ -18,14 +18,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
@@ -39,7 +35,6 @@ import java.util.Set;
 public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
-    private final IndexScopedSettings indexScopedSettings;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -49,7 +44,6 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexScopedSettings indexScopedSettings,
         ProjectResolver projectResolver
     ) {
         super(
@@ -62,7 +56,6 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
-        this.indexScopedSettings = indexScopedSettings;
         this.projectResolver = projectResolver;
     }
 
@@ -71,46 +64,36 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
-    public static ComponentTemplate normalizeComponentTemplate(
-        ComponentTemplate componentTemplate,
-        IndexScopedSettings indexScopedSettings
-    ) {
-        Template template = componentTemplate.template();
-        // Normalize the index settings if necessary
-        if (template.settings() != null) {
-            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-            Settings settings = builder.build();
-            indexScopedSettings.validate(settings, true);
-            template = Template.builder(template).settings(settings).build();
-            componentTemplate = new ComponentTemplate(
-                template,
-                componentTemplate.version(),
-                componentTemplate.metadata(),
-                componentTemplate.deprecated(),
-                componentTemplate.createdDateMillis().orElse(null),
-                componentTemplate.modifiedDateMillis().orElse(null)
-            );
-        }
-
-        return componentTemplate;
-    }
-
     @Override
     protected void masterOperation(
         Task task,
         final PutComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
-    ) {
-        ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
-        var projectId = projectResolver.getProjectId();
+    ) throws Exception {
+        final var project = projectResolver.getProjectMetadata(state);
+        final ComponentTemplate componentTemplate = indexTemplateService.normalizeComponentTemplate(request.componentTemplate());
+        final ComponentTemplate existingTemplate = project.componentTemplates().get(request.name());
+        if (existingTemplate != null) {
+            if (request.create()) {
+                listener.onFailure(new IllegalArgumentException("component template [" + request.name() + "] already exists"));
+                return;
+            }
+            // We have an early return here in case the component template already exists and is identical in content. We still need to do
+            // this check in the cluster state update task in case the cluster state changed since this check.
+            if (componentTemplate.contentEquals(existingTemplate)) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+        }
+
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             componentTemplate,
-            projectId,
+            project.id(),
             listener
         );
     }
@@ -134,7 +117,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 }

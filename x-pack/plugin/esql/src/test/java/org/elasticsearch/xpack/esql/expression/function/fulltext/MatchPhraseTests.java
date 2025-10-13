@@ -55,7 +55,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
 
     public static void addStringTestCases(List<TestCaseSupplier> suppliers) {
         for (DataType fieldType : DataType.stringTypes()) {
-            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldType)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(fieldType)) {
                 continue;
             }
             for (TestCaseSupplier.TypedDataSupplier queryDataSupplier : stringCases(fieldType)) {

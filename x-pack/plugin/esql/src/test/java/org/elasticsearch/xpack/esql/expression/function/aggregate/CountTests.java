@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,6 +44,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
@@ -73,7 +75,8 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.TEXT,
             DataType.GEO_POINT,
             DataType.CARTESIAN_POINT,
-            DataType.UNSIGNED_LONG
+            DataType.UNSIGNED_LONG,
+            DataType.AGGREGATE_METRIC_DOUBLE
         )) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -101,9 +104,20 @@ public class CountTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var rowCount = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
+            long count;
+            if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
+                count = fieldTypedData.multiRowData().stream().mapToLong(data -> {
+                    var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) data;
+                    if (aggMetric.count() != null) {
+                        return aggMetric.count();
+                    }
+                    return 0;
+                }).sum();
+            } else {
+                count = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
+            }
 
-            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), "Count", DataType.LONG, equalTo(rowCount));
+            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), "Count", DataType.LONG, equalTo(count));
         });
     }
 }

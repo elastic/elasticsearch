@@ -49,9 +49,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
 
     public SentenceBoundaryChunkingSettings(StreamInput in) throws IOException {
         maxChunkSize = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            sentenceOverlap = in.readVInt();
-        }
+        sentenceOverlap = in.readVInt();
     }
 
     @Override
@@ -156,9 +154,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(maxChunkSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(sentenceOverlap);
-        }
+        out.writeVInt(sentenceOverlap);
     }
 
     @Override

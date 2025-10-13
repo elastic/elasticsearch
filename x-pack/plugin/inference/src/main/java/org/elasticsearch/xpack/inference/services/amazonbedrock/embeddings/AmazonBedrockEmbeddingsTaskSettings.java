@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +27,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation cohereTruncation) implements TaskSettings {
     public static final AmazonBedrockEmbeddingsTaskSettings EMPTY = new AmazonBedrockEmbeddingsTaskSettings((CohereTruncation) null);
     public static final String NAME = "amazon_bedrock_embeddings_task_settings";
+    private static final TransportVersion AMAZON_BEDROCK_TASK_SETTINGS = TransportVersion.fromName("amazon_bedrock_task_settings");
 
     public static AmazonBedrockEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -80,13 +80,12 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS;
+        return AMAZON_BEDROCK_TASK_SETTINGS;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS)
-            || version.isPatchFrom(TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS_8_19);
+        return version.supports(AMAZON_BEDROCK_TASK_SETTINGS);
     }
 
     @Override

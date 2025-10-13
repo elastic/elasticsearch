@@ -45,6 +45,10 @@ public class IrateFloatAggregator {
         current.append(groupId, timestamp, value);
     }
 
+    public static String describe() {
+        return "instant change of floats";
+    }
+
     public static void combineIntermediate(
         FloatIrateGroupingState current,
         int groupId,

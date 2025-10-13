@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -160,12 +161,16 @@ public class Mapper {
             if (mappedChild instanceof ExchangeExec exchange) {
                 mappedChild = new ExchangeExec(mappedChild.source(), intermediate, true, exchange.child());
             }
-            // if no exchange was added (aggregation happening on the coordinator), create the initial agg
-            else {
-                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-            }
+            // if no exchange was added (aggregation happening on the coordinator), try to only create a single-pass agg
+            else if (aggregate.groupings()
+                .stream()
+                .noneMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction))) {
+                    return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.SINGLE, intermediate);
+                } else {
+                    mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+                }
 
-            // always add the final/reduction agg
+            // The final/reduction agg
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 

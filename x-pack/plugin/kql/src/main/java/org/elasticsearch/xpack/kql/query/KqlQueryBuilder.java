@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -71,7 +70,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     private final String query;
-    private boolean caseInsensitive = true;
+    private boolean caseInsensitive = false;
     private ZoneId timeZone;
     private String defaultField;
 
@@ -97,7 +96,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.KQL_QUERY_TECH_PREVIEW;
+        return TransportVersion.minimumCompatible();
     }
 
     public String queryString() {
@@ -152,7 +151,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
         try {
             KqlParser parser = new KqlParser();
             QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(context));

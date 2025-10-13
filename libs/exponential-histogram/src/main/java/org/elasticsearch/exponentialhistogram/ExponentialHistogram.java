@@ -144,6 +144,20 @@ public interface ExponentialHistogram extends Accountable {
          */
         long valueCount();
 
+        /**
+         * Returns the number of buckets. Note that this operation might require iterating over all buckets, and therefore is not cheap.
+         * @return the number of buckets
+         */
+        default int bucketCount() {
+            int count = 0;
+            BucketIterator it = iterator();
+            while (it.hasNext()) {
+                count++;
+                it.advance();
+            }
+            return count;
+        }
+
     }
 
     /**

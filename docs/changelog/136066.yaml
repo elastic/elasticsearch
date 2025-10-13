@@ -1,0 +1,5 @@
+pr: 136066
+summary: Simulate shards moved by explicit commands
+area: Allocation
+type: enhancement
+issues: []

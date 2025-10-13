@@ -192,8 +192,6 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Dense vector type is disabled", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-
         createIndexWithDenseVector("test");
 
         numDims = randomIntBetween(32, 64) * 2; // min 64, even number

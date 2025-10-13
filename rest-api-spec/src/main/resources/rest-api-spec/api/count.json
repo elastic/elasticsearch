@@ -41,14 +41,17 @@
     "params": {
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "ignore_throttled": {
         "type": "boolean",
+        "default": true,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
@@ -64,7 +67,7 @@
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "min_score": {
-        "type": "number",
+        "type": "double",
         "description": "Include only documents with a specific `_score` value in the result"
       },
       "preference": {
@@ -89,15 +92,16 @@
       },
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcard and prefix queries should be analyzed (default: false)"
       },
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {
@@ -106,15 +110,17 @@
       },
       "lenient": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
       },
       "terminate_after": {
-        "type": "number",
+        "type": "long",
         "description": "The maximum count for each shard, upon reaching which the query execution will terminate early"
       }
     },
     "body": {
-      "description": "A query to restrict the results specified with the Query DSL (optional)"
+      "description": "A query to restrict the results specified with the Query DSL (optional)",
+      "required": false
     }
   }
 }

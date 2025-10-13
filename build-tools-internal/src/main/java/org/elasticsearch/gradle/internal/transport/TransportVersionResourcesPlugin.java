@@ -14,17 +14,22 @@ import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 import java.util.Properties;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
@@ -36,6 +41,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
         project.getPluginManager().apply(VersionPropertiesPlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
+
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
 
         Properties versions = (Properties) project.getExtensions().getByName(VersionPropertiesPlugin.VERSIONS_EXT);
         Version currentVersion = Version.fromString(versions.getProperty("elasticsearch"));
@@ -50,9 +58,9 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
                 spec.getParameters().getTransportResourcesDirectory().set(transportResources);
                 spec.getParameters().getRootDirectory().set(project.getLayout().getSettingsDirectory().getAsFile());
-                Provider<String> upstreamRef = project.getProviders().gradleProperty("org.elasticsearch.transport.upstreamRef");
+                Provider<String> upstreamRef = project.getProviders().gradleProperty("org.elasticsearch.transport.baseRef");
                 if (upstreamRef.isPresent()) {
-                    spec.getParameters().getUpstreamRefOverride().set(upstreamRef.get());
+                    spec.getParameters().getBaseRefOverride().set(upstreamRef.get());
                 }
             });
 
@@ -76,6 +84,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getShouldValidateDensity().convention(true);
                 t.getShouldValidatePrimaryIdNotPatch().convention(true);
                 t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
+                t.getCI().set(buildParams.get().getCi());
             });
         project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 

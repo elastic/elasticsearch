@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class LogicalPlanPreOptimizerTests extends ESTestCase {
 
@@ -72,7 +73,8 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlanPreOptimizer preOptimizer() {
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small());
+        var inferenceService = mock(org.elasticsearch.xpack.esql.inference.InferenceService.class);
+        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small(), inferenceService);
         return new LogicalPlanPreOptimizer(preOptimizerContext);
     }
 

@@ -483,6 +483,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (context.shouldStopAtCheckpoint()) {
                 stop();
             }
+            context.resetReasonAndFailureCounter();
             listener.onResponse(null);
             return;
         }

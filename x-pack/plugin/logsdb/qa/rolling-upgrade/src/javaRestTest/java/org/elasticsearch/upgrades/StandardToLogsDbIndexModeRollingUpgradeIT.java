@@ -46,7 +46,7 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractRollingUp
     @ClassRule()
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(OLD_CLUSTER_VERSION)
+        .version(getOldClusterVersion(), isOldClusterDetachedVersion())
         .nodes(NODE_NUM)
         .user(USER, PASS)
         .module("constant-keyword")

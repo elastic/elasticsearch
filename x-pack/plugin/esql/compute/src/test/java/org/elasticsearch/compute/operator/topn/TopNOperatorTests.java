@@ -92,7 +92,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -470,7 +469,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             page
         );
         TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
-        rf.row(position, row);
+        rf.writeKey(position, row);
+        rf.writeValues(position, row);
         return row;
     }
 
@@ -1468,6 +1468,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         List<ElementType> types = Collections.nCopies(columns, INT);
         List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
+        boolean asc = randomBoolean();
         try (
             TopNOperator op = new TopNOperator(
                 driverContext().blockFactory(),
@@ -1475,7 +1476,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 10,
                 types,
                 encoders,
-                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
                 randomPageSize()
             )
         ) {
@@ -1491,7 +1492,8 @@ public class TopNOperatorTests extends OperatorTestCase {
 
             // 105 are from the objects
             // 1 is for the min-heap itself
-            assertThat(breaker.getMemoryRequestCount(), is(106L));
+            // -1 IF we're sorting ascending. We encode one less value.
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
         }
     }
 

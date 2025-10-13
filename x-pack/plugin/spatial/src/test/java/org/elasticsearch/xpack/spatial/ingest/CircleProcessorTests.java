@@ -27,6 +27,7 @@ import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -243,13 +244,12 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = CircleUtils.createRegularShapePolygon(circle, numSides);
 
-        Query sameShapeQuery = XYQueriesUtils.toXYShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, true, true);
+        Query sameShapeQuery = XYQueriesUtils.toXYShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, IndexType.points(true, true));
         Query centerPointQuery = XYQueriesUtils.toXYShapeQuery(
             new Point(circle.getLon(), circle.getLat()),
             fieldName,
             ShapeRelation.INTERSECTS,
-            true,
-            true
+            IndexType.points(true, true)
         );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

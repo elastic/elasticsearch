@@ -40,6 +40,13 @@ public interface SslTrustConfig {
     Collection<? extends StoredCertificate> getConfiguredCertificates();
 
     /**
+     * @return {@code true} if this trust config is based on any explicit trust settings
+     */
+    default boolean hasExplicitConfig() {
+        return false;
+    }
+
+    /**
      * @return {@code true} if this trust config is based on the system default truststore
      */
     default boolean isSystemDefault() {

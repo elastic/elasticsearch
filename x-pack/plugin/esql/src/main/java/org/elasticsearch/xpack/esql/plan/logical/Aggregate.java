@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,6 +55,7 @@ public class Aggregate extends UnaryPlan
         "Aggregate",
         Aggregate::new
     );
+    private static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = TransportVersion.fromName("esql_remove_aggregate_type");
 
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
@@ -69,7 +70,7 @@ public class Aggregate extends UnaryPlan
 
     public Aggregate(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-        if (in.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             in.readString();
         }
         this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
@@ -80,7 +81,7 @@ public class Aggregate extends UnaryPlan
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        if (out.getTransportVersion().before(TransportVersions.ESQL_REMOVE_AGGREGATE_TYPE)) {
+        if (out.getTransportVersion().supports(ESQL_REMOVE_AGGREGATE_TYPE) == false) {
             out.writeString("STANDARD");
         }
         out.writeNamedWriteableCollection(groupings);

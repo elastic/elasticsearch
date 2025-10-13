@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
+import static org.elasticsearch.xpack.esql.enrich.AbstractLookupService.termQueryList;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
@@ -154,17 +156,31 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                             if (right instanceof Attribute rightAttribute) {
                                 MappedFieldType fieldType = context.getFieldType(rightAttribute.name());
                                 if (fieldType != null) {
-                                    queryLists.add(
-                                        new BinaryComparisonQueryList(
+                                    // special handle Equals operator
+                                    // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
+                                    // so here we reuse the existing logic from field based join to build a termQueryList for Equals
+                                    if (binaryComparison instanceof Equals) {
+                                        QueryList termQueryForEquals = termQueryList(
                                             fieldType,
                                             context,
-                                            block,
-                                            binaryComparison,
-                                            clusterService,
                                             aliasFilter,
-                                            warnings
-                                        )
-                                    );
+                                            inputPage.getBlock(matchFields.get(i).channel()),
+                                            matchFields.get(i).type()
+                                        ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                                        queryLists.add(termQueryForEquals);
+                                    } else {
+                                        queryLists.add(
+                                            new BinaryComparisonQueryList(
+                                                fieldType,
+                                                context,
+                                                block,
+                                                binaryComparison,
+                                                clusterService,
+                                                aliasFilter,
+                                                warnings
+                                            )
+                                        );
+                                    }
                                     matched = true;
                                     break;
                                 } else {

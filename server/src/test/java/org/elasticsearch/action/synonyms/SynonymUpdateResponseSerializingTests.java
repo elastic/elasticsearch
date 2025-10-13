@@ -10,7 +10,6 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponseTests;
 import org.elasticsearch.common.Strings;
@@ -58,6 +57,8 @@ public class SynonymUpdateResponseSerializingTests extends AbstractBWCSerializat
         );
     }
 
+    private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
     @Override
     protected Writeable.Reader<SynonymUpdateResponse> instanceReader() {
         return SynonymUpdateResponse::new;
@@ -92,7 +93,7 @@ public class SynonymUpdateResponseSerializingTests extends AbstractBWCSerializat
     @Override
     protected SynonymUpdateResponse mutateInstanceForVersion(SynonymUpdateResponse instance, TransportVersion version) {
 
-        if (version.before(TransportVersions.SYNONYMS_REFRESH_PARAM) && instance.reloadAnalyzersResponse() == null) {
+        if (version.supports(SYNONYMS_REFRESH_PARAM) == false && instance.reloadAnalyzersResponse() == null) {
             // Nulls will be written as empty reload analyzer responses for older versions
             return new SynonymUpdateResponse(new SynonymsReloadResult(instance.updateStatus(), EMPTY_RELOAD_ANALYZER_RESPONSE));
         }

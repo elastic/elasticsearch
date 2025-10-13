@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
@@ -593,7 +594,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         for (String v : values) {
             BytesRef bytes = new BytesRef(v);
             doc.add(new SortedSetDocValuesField(ft.name(), bytes));
-            if (ft.isIndexed()) {
+            if (ft.indexType().hasTerms()) {
                 doc.add(new KeywordField(ft.name(), bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
             }
         }
@@ -819,12 +820,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private List<IndexableField> doc(MappedFieldType ft1, MappedFieldType ft2, String f1v1, String f1v2, String f2v) {
         FieldType fieldType1 = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        if (ft1.isIndexed() == false) {
+        if (ft1.indexType().hasTerms() == false) {
             fieldType1.setIndexOptions(IndexOptions.NONE);
         }
         fieldType1.freeze();
         FieldType fieldType2 = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        if (ft2.isIndexed() == false) {
+        if (ft2.indexType().hasTerms() == false) {
             fieldType2.setIndexOptions(IndexOptions.NONE);
         }
         fieldType2.freeze();
@@ -946,7 +947,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             } else {
                 result.add(new SortedDocValuesField("field", new BytesRef(val)));
             }
-            if (fieldType.isIndexed()) {
+            if (fieldType.indexType().hasTerms()) {
                 result.add(new StringField("field", new BytesRef(val), Field.Store.NO));
             }
             return result;
@@ -990,9 +991,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             } else {
                 result.add(new SortedDocValuesField("field", new BytesRef(InetAddressPoint.encode(val))));
             }
-            if (fieldType.isIndexed()) {
-                result.add(new InetAddressPoint("field", val));
-            }
+            result.add(new InetAddressPoint("field", val));
             return result;
         };
         InetAddress[] base = new InetAddress[] { InetAddresses.forString("192.168.0.0") };
@@ -1327,11 +1326,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIpField() throws Exception {
+        boolean indexed = randomBoolean();
         MappedFieldType fieldType = new IpFieldMapper.IpFieldType(
             "field",
-            randomBoolean(),
+            IndexType.points(indexed, true),
             false,
-            true,
             null,
             null,
             Collections.emptyMap(),
@@ -1342,7 +1341,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             Document document = new Document();
             InetAddress point = InetAddresses.forString("192.168.100.42");
             document.add(new SortedSetDocValuesField("field", new BytesRef(InetAddressPoint.encode(point))));
-            if (fieldType.isIndexed()) {
+            if (indexed) {
                 document.add(new InetAddressPoint("field", point));
             }
             iw.addDocument(document);

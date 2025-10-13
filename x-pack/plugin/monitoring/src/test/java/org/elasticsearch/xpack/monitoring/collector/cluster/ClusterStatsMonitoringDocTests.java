@@ -592,7 +592,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "queries": {},
                     "rescorers": {},
                     "sections": {},
-                    "retrievers": {}
+                    "retrievers": {},
+                    "extended": {}
                   },
                   "dense_vector": {
                     "value_count": 0

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -41,6 +40,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ROW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.TS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
@@ -63,6 +63,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -86,6 +87,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -109,6 +111,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -132,6 +135,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -154,6 +158,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -176,6 +181,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -199,6 +205,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -221,6 +228,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -263,6 +271,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(2L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -349,6 +358,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
@@ -381,6 +391,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
@@ -403,6 +414,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, show(c));
         assertEquals(0, row(c));
         assertEquals(0, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -426,6 +438,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(1L, row(c));
         assertEquals(0, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -448,6 +461,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(1L, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
@@ -476,6 +490,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
@@ -502,6 +517,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
@@ -530,6 +546,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -558,6 +575,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -585,6 +603,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -617,6 +636,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
@@ -645,6 +665,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, show(c));
         assertEquals(0, row(c));
         assertEquals(1L, from(c));
+        assertEquals(0, ts(c));
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
@@ -652,6 +673,60 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, lookupJoinOnFields(c));
         assertEquals(0, lookupJoinOnExpression(c));
         assertEquals(1, function("max", c));
+    }
+
+    public void testTimeSeriesAggregate() {
+        assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        Counters c = esql("""
+            TS metrics
+            | STATS sum(avg_over_time(salary))""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(1L, stats(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(0, from(c));
+        assertEquals(1L, ts(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(0, inlineStats(c));
+        assertEquals(0, lookupJoinOnFields(c));
+        assertEquals(0, lookupJoinOnExpression(c));
+        assertEquals(1, function("sum", c));
+        assertEquals(1, function("avg_over_time", c));
+    }
+
+    public void testTimeSeriesNoAggregate() {
+        assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        Counters c = esql("""
+            TS metrics
+            | KEEP salary""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(0, stats(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(0, from(c));
+        assertEquals(1L, ts(c));
+        assertEquals(0, drop(c));
+        assertEquals(1L, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(0, inlineStats(c));
+        assertEquals(0, lookupJoinOnFields(c));
+        assertEquals(0, lookupJoinOnExpression(c));
     }
 
     private long dissect(Counters c) {
@@ -700,6 +775,10 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private long from(Counters c) {
         return c.get(FEATURES_PREFIX + FROM);
+    }
+
+    private long ts(Counters c) {
+        return c.get(FEATURES_PREFIX + TS);
     }
 
     private long drop(Counters c) {
@@ -754,7 +833,7 @@ public class VerifierMetricsTests extends ESTestCase {
             metrics = new Metrics(new EsqlFunctionRegistry());
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
-        analyzer(verifier).analyze(parser.createStatement(esql, EsqlTestUtils.TEST_CFG));
+        analyzer(verifier).analyze(parser.createStatement(esql));
 
         return metrics == null ? null : metrics.stats();
     }

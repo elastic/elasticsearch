@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -74,38 +73,52 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         super(createTestConfiguration());
     }
 
-    private static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION) {
-            @Override
-            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                return CustomServiceTests.createService(threadPool, clientManager);
-            }
+    public static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.CHAT_COMPLETION,
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
+            ) {
+                @Override
+                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                    return CustomServiceTests.createService(threadPool, clientManager);
+                }
 
-            @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return CustomServiceTests.createServiceSettingsMap(taskType);
-            }
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                    return CustomServiceTests.createServiceSettingsMap(taskType);
+                }
 
-            @Override
-            protected Map<String, Object> createTaskSettingsMap() {
-                return CustomServiceTests.createTaskSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createTaskSettingsMap() {
+                    return CustomServiceTests.createTaskSettingsMap();
+                }
 
-            @Override
-            protected Map<String, Object> createSecretSettingsMap() {
-                return CustomServiceTests.createSecretSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createSecretSettingsMap() {
+                    return CustomServiceTests.createSecretSettingsMap();
+                }
 
-            @Override
-            protected void assertModel(Model model, TaskType taskType) {
-                CustomServiceTests.assertModel(model, taskType);
-            }
+                @Override
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    CustomServiceTests.assertModel(model, taskType, modelIncludesSecrets);
+                }
 
-            @Override
-            protected EnumSet<TaskType> supportedStreamingTasks() {
-                return EnumSet.noneOf(TaskType.class);
+                @Override
+                protected EnumSet<TaskType> supportedStreamingTasks() {
+                    return EnumSet.noneOf(TaskType.class);
+                }
+
+                @Override
+                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+                    assertThat(
+                        rerankingInferenceService.rerankerWindowSize("any model"),
+                        CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+                    );
+                }
             }
-        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+        ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
             protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
                 return createInternalEmbeddingModel(similarityMeasure);
@@ -113,38 +126,40 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         }).build();
     }
 
-    private static void assertModel(Model model, TaskType taskType) {
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model);
-            case COMPLETION -> assertCompletionModel(model);
+            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
+            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
     }
 
-    private static void assertTextEmbeddingModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
 
         assertThat(customModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(TextEmbeddingResponseParser.class));
     }
 
-    private static CustomModel assertCommonModelFields(Model model) {
+    private static CustomModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
         assertThat(model, instanceOf(CustomModel.class));
 
         var customModel = (CustomModel) model;
 
         assertThat(customModel.getServiceSettings().getUrl(), is("http://www.abc.com"));
         assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
-        assertThat(
-            customModel.getSecretSettings().getSecretParameters(),
-            is(Map.of("test_key", new SecureString("test_value".toCharArray())))
-        );
+        if (modelIncludesSecrets) {
+            assertThat(
+                customModel.getSecretSettings().getSecretParameters(),
+                is(Map.of("test_key", new SecureString("test_value".toCharArray())))
+            );
+        }
 
         return customModel;
     }
 
-    private static void assertCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(customModel.getTaskType(), is(TaskType.COMPLETION));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
     }
@@ -806,18 +821,5 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("input"), is(List.of("a")));
         }
-    }
-
-    @Override
-    public InferenceService createInferenceService() {
-        return createService(threadPool, clientManager);
-    }
-
-    @Override
-    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(
-            rerankingInferenceService.rerankerWindowSize("any model"),
-            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
-        );
     }
 }

@@ -4,6 +4,7 @@
 
 | number | result |
 | --- | --- |
+| aggregate_metric_double | double |
 | double | double |
 | integer | double |
 | long | double |

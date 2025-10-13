@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,13 +19,16 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
+
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
+    private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
+        "esql_documents_found_and_values_loaded"
+    );
+
     private final DriverCompletionInfo completionInfo;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
@@ -74,8 +76,7 @@ final class ComputeResponse extends TransportResponse {
         this.successfulShards = in.readVInt();
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         } else {
             this.failures = List.of();
@@ -95,15 +96,13 @@ final class ComputeResponse extends TransportResponse {
         out.writeVInt(successfulShards);
         out.writeVInt(skippedShards);
         out.writeVInt(failedShards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_FAILURE_FROM_REMOTE)) {
             out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }
 
     private static boolean supportsCompletionInfo(TransportVersion version) {
-        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
-            || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
+        return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
     }
 
     public DriverCompletionInfo getCompletionInfo() {

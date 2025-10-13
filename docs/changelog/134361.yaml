@@ -1,0 +1,5 @@
+pr: 134361
+summary: Add `ThreadWatchdog` to `ClusterApplierService`
+area: Cluster Coordination
+type: enhancement
+issues: []

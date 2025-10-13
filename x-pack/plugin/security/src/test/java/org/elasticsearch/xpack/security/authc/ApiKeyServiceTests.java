@@ -56,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -88,9 +89,11 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
@@ -1222,7 +1225,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             keyRoles,
             type,
             ApiKey.CURRENT_API_KEY_VERSION,
-            metadataMap
+            metadataMap,
+            null
         );
         Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
         if (invalidated) {
@@ -1348,7 +1352,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             ActionListener<Collection<ApplicationPrivilege>> listener = (ActionListener<Collection<ApplicationPrivilege>>) arg2;
             listener.onResponse(Collections.emptyList());
             return null;
-        }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
+        }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
 
         assertThat(service.parseRoleDescriptors(apiKeyId, null, randomApiKeyRoleType()), nullValue());
@@ -2756,7 +2760,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                         oldKeyRoles,
                         type,
                         oldVersion,
-                        oldMetadata
+                        oldMetadata,
+                        null
                     )
                 ),
                 XContentType.JSON
@@ -3162,7 +3167,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             clusterService,
             cacheInvalidatorRegistry,
             threadPool,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
 
         final Set<RoleDescriptor> userRoleDescriptorsWithWorkflowsRestriction = randomSet(
@@ -3200,6 +3206,123 @@ public class ApiKeyServiceTests extends ESTestCase {
         service.updateApiKeys(authentication, updateRequest, userRoleDescriptorsWithWorkflowsRestriction, updateFuture);
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(e2.getMessage(), containsString("owner user role descriptors must not include restriction"));
+    }
+
+    public void testMaybeBuildUpdatedDocumentCertificateIdentityHandling() throws Exception {
+        final String apiKeyId = randomAlphaOfLength(12);
+        final Clock mockClock = mock(Clock.class);
+        when(mockClock.instant()).thenReturn(Instant.now());
+
+        // Scenario 1: Update with a new value
+        {
+            final String originalCertIdentity = "CN=old-host,OU=engineering,DC=example,DC=com";
+            final String newCertIdentity = "CN=new-host,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(originalCertIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                new CertificateIdentity(newCertIdentity),
+                null
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, notNullValue());
+            final Map<String, Object> updatedDoc = extractDocumentContent(builder);
+            assertThat(updatedDoc.get("certificate_identity"), equalTo(newCertIdentity));
+        }
+
+        // Scenario 2: No-op update (same value)
+        {
+            final String certIdentity = "CN=host,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(certIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                new CertificateIdentity(certIdentity),
+                null
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, nullValue());
+        }
+
+        // Scenario 3: Explicitly clear an existing value
+        {
+            final String existingCertIdentity = "CN=existing-host,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(existingCertIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                new CertificateIdentity(null),
+                null
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, notNullValue());
+            final Map<String, Object> updatedDoc = extractDocumentContent(builder);
+            assertThat(updatedDoc.containsKey("certificate_identity"), is(false));
+        }
+
+        // Scenario 4: Omit the field, should preserve existing value
+        {
+            final String existingCertIdentity = "CN=existing,OU=engineering,DC=example,DC=com";
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(existingCertIdentity);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                null,
+                Map.of("updated", "value")
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, notNullValue());
+            final Map<String, Object> updatedDoc = extractDocumentContent(builder);
+            assertThat(updatedDoc.get("certificate_identity"), equalTo(existingCertIdentity));
+        }
+
+        // Scenario 5: Explicitly clear a value that doesn't exist
+        {
+            final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(null);
+            final BaseBulkUpdateApiKeyRequest updateRequest = createUpdateRequestWithCertificateIdentity(
+                apiKeyId,
+                new CertificateIdentity(null),
+                null
+            );
+            final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
+                apiKeyId,
+                apiKeyDoc,
+                ApiKey.CURRENT_API_KEY_VERSION,
+                createTestAuthentication(),
+                updateRequest,
+                Set.of(),
+                mockClock
+            );
+            assertThat(builder, nullValue());
+        }
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemotePrivileges() {
@@ -3250,7 +3373,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                 keyRoles,
                 ApiKey.Type.REST,
                 ApiKey.CURRENT_API_KEY_VERSION,
-                randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
+                randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+                null
             );
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
                 XContentHelper.createParser(
@@ -3310,6 +3434,37 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
+    private ApiKeyService createApiKeyService(Settings baseSettings, FeatureService customFeatureService) {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(baseSettings)
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+            )
+        );
+        final ApiKeyService service = new ApiKeyService(
+            settings,
+            clock,
+            client,
+            securityIndex,
+            ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
+            cacheInvalidatorRegistry,
+            threadPool,
+            MeterRegistry.NOOP,
+            customFeatureService  // Use the provided FeatureService
+        );
+        if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
+            verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());
+        } else {
+            verify(cacheInvalidatorRegistry).registerCacheInvalidator(eq("api_key"), any());
+        }
+        return service;
+    }
+
     private ApiKeyService createApiKeyService() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         return createApiKeyService(settings);
@@ -3339,7 +3494,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
             cacheInvalidatorRegistry,
             threadPool,
-            meterRegistry
+            meterRegistry,
+            mock(FeatureService.class)
         );
         if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
             verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());
@@ -3426,7 +3582,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                 "metadata",
                 Map.of()
             ),
-            metadataBytes
+            metadataBytes,
+            null
         );
     }
 
@@ -3456,6 +3613,68 @@ public class ApiKeyServiceTests extends ESTestCase {
         } else {
             return ApiKey.Type.REST;
         }
+    }
+
+    private ApiKeyDoc createCrossClusterApiKeyDocWithCertificateIdentity(String certificateIdentity) throws IOException {
+        final String apiKey = randomAlphaOfLength(16);
+        final char[] hash = getFastStoredHashAlgoForTests().hash(new SecureString(apiKey.toCharArray()));
+
+        return new ApiKeyDoc(
+            "api_key",
+            ApiKey.Type.CROSS_CLUSTER,
+            Instant.now().toEpochMilli(),
+            -1L,
+            false,
+            -1L,
+            new String(hash),
+            "test_key",
+            ApiKey.CURRENT_API_KEY_VERSION.version(),
+            new BytesArray("{}"),
+            new BytesArray("{}"),
+            createTestCreatorMap(),
+            null,
+            certificateIdentity
+        );
+    }
+
+    private Map<String, Object> createTestCreatorMap() {
+        final User user = new User("test-user", new String[0], "Test User", "test@example.com", Map.of("key", "value"), true);
+        return Map.of(
+            "principal",
+            user.principal(),
+            "full_name",
+            user.fullName(),
+            "email",
+            user.email(),
+            "metadata",
+            user.metadata(),
+            "realm",
+            "file",
+            "realm_type",
+            "file"
+        );
+    }
+
+    private Authentication createTestAuthentication() {
+        final User user = new User("test-user", new String[0], "Test User", "test@example.com", Map.of("key", "value"), true);
+        return AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("file", "file", "node-1")).build(false);
+    }
+
+    private static BaseBulkUpdateApiKeyRequest createUpdateRequestWithCertificateIdentity(
+        final String apiKeyId,
+        final CertificateIdentity certificateIdentity,
+        final Map<String, Object> metadata
+    ) {
+        return new BaseBulkUpdateApiKeyRequest(List.of(apiKeyId), null, metadata, null, certificateIdentity) {
+            @Override
+            public ApiKey.Type getType() {
+                return ApiKey.Type.CROSS_CLUSTER;
+            }
+        };
+    }
+
+    private Map<String, Object> extractDocumentContent(XContentBuilder builder) throws IOException {
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
     }
 
     private static Authenticator.Context getAuthenticatorContext(ThreadContext threadContext) {

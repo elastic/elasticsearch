@@ -21,3 +21,6 @@ stack: ga 9.1.0
 
 :::{include} ../types/copy_sign.md
 :::
+
+:::{include} ../examples/copy_sign.md
+:::

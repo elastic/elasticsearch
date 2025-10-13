@@ -31,7 +31,6 @@ import java.util.List;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomSource;
-import static org.elasticsearch.xpack.esql.session.EsqlSession.maxIntermediateLocalRelationSize;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.fromPages;
 import static org.hamcrest.Matchers.containsString;
@@ -90,32 +89,12 @@ public class SessionUtilsTests extends ESTestCase {
             var message = "data too large: ";
             var ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> checkPagesBelowSize(pagesRec.pages, pagesRec.dataLen - 1, l -> message + l)
+                () -> checkPagesBelowSize(pagesRec.pages, ByteSizeValue.ofBytes(pagesRec.dataLen - 1), l -> message + l)
             );
             // pages are mocked, their size is considerably larger than dataLen
             long pagesRamSize = pagesRec.pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
             assertThat(ex.getMessage(), containsString(message + pagesRamSize));
         }
-    }
-
-    // EsqlSession's
-    public void testMaxIntermediateLocalRelationSize() {
-        var circuitBreaker = mock(CircuitBreaker.class);
-        var blockFactory = mock(BlockFactory.class);
-        when(blockFactory.breaker()).thenReturn(circuitBreaker);
-
-        // enforcing upper limit
-        when(circuitBreaker.getLimit()).thenReturn(ByteSizeValue.ofGb(32).getBytes());
-        assertThat(maxIntermediateLocalRelationSize(blockFactory), is(ByteSizeValue.ofMb(30).getBytes()));
-
-        // enforcing lower limit
-        when(circuitBreaker.getLimit()).thenReturn(ByteSizeValue.ofMb(32).getBytes());
-        assertThat(maxIntermediateLocalRelationSize(blockFactory), is(ByteSizeValue.ofMb(1).getBytes()));
-
-        // in-between limits
-        var twentyGb = ByteSizeValue.ofGb(20).getBytes();
-        when(circuitBreaker.getLimit()).thenReturn(twentyGb);
-        assertThat(maxIntermediateLocalRelationSize(blockFactory), is((long) (twentyGb / 1000.d)));
     }
 
     private static PagesRec generatePageSet(BlockFactory blockFactory) {
@@ -126,39 +105,45 @@ public class SessionUtilsTests extends ESTestCase {
 
     // Generates a list of Pages with one BytesRef block, each of different positions, filled with random bytes.
     private static PagesRec generatePages(int minBytes, int maxBytes, BlockFactory blockFactory) {
-        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
+        BytesRefBlock.Builder builder = null;
+        try {
+            builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
 
-        byte[] buffer = new byte[maxBytes];
-        List<Page> pages = new ArrayList<>();
+            byte[] buffer = new byte[maxBytes];
+            List<Page> pages = new ArrayList<>();
 
-        int producedBytes = 0;
-        int producedRows = 0;
-        int rowsPerPage = randomIntBetween(1, 100);
-        int rows = 0;
-        while (producedBytes < maxBytes) {
-            int rowBytes = Math.min(randomIntBetween(1, maxBytes / minBytes), maxBytes - producedBytes);
-            byte[] rowValue = randomByteArrayOfLength(rowBytes);
+            int producedBytes = 0;
+            int producedRows = 0;
+            int rowsPerPage = randomIntBetween(1, 100);
+            int rows = 0;
+            while (producedBytes < maxBytes) {
+                int rowBytes = Math.min(randomIntBetween(1, maxBytes / minBytes), maxBytes - producedBytes);
+                byte[] rowValue = randomByteArrayOfLength(rowBytes);
 
-            builder.appendBytesRef(new BytesRef(rowValue));
-            System.arraycopy(rowValue, 0, buffer, producedBytes, rowBytes);
+                builder.appendBytesRef(new BytesRef(rowValue));
+                System.arraycopy(rowValue, 0, buffer, producedBytes, rowBytes);
 
-            producedBytes += rowBytes;
-            rows++;
+                producedBytes += rowBytes;
+                rows++;
 
-            if (rows > rowsPerPage) {
-                producedRows += rows;
-                rows = 0;
-                enqueueBlock(builder, pages);
-                builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
-                rowsPerPage = randomIntBetween(1, 100);
+                if (rows > rowsPerPage) {
+                    producedRows += rows;
+                    rows = 0;
+                    enqueueBlock(builder, pages);
+                    Releasables.close(builder);
+                    builder = blockFactory.newBytesRefBlockBuilder(maxBytes);
+                    rowsPerPage = randomIntBetween(1, 100);
+                }
             }
-        }
-        if (rows > 0) {
-            producedRows += rows;
-            enqueueBlock(builder, pages);
-        }
+            if (rows > 0) {
+                producedRows += rows;
+                enqueueBlock(builder, pages);
+            }
 
-        return new PagesRec(pages, buffer, producedBytes, producedRows);
+            return new PagesRec(pages, buffer, producedBytes, producedRows);
+        } finally {
+            Releasables.close(builder);
+        }
     }
 
     private BlockFactory blockFactory(long maxBytes) {
@@ -172,6 +157,5 @@ public class SessionUtilsTests extends ESTestCase {
     private static void enqueueBlock(BytesRefBlock.Builder builder, List<Page> pages) {
         Block block = builder.build();
         pages.add(new Page(block));
-        Releasables.close(builder);
     }
 }

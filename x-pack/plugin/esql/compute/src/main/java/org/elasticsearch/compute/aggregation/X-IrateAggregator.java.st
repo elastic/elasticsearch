@@ -45,6 +45,10 @@ public class Irate$Type$Aggregator {
         current.append(groupId, timestamp, value);
     }
 
+    public static String describe() {
+        return "instant change of $type$s";
+    }
+
     public static void combineIntermediate(
         $Type$IrateGroupingState current,
         int groupId,

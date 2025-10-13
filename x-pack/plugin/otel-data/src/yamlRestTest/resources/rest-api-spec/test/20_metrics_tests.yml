@@ -351,3 +351,27 @@ host.name pass-through:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
   - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
+
+---
+data stream settings ilm:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            resource:
+              attributes:
+                host.name: localhost
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+  - do:
+      indices.put_data_stream_settings:
+        name: metrics-generic.otel-default
+        body:
+          index:
+            number_of_shards: 2
+  - match: { data_streams.0.name: metrics-generic.otel-default }
+  - match: { data_streams.0.applied_to_data_stream: true }

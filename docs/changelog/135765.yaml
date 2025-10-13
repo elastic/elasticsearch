@@ -1,0 +1,11 @@
+pr: 135765
+summary: Add deprecation notice for `max_size` rollover condition
+area: "ILM+SLM"
+type: deprecation
+issues:
+ - 130737
+deprecation:
+  title: Add deprecation notice for `max_size` rollover condition
+  area: "REST API"
+  details: We have deprecated the `max_size` rollover condition, in favour of `max_primary_shard_size`, when used in `PUT /_ilm/policy/{name}` and `POST /{index}/_rollover` endpoints
+  impact: Users can continue to use this condition however a warning will be issued via the response headers and in the server logs. The condition may be removed fully in a later version of Elasticsearch.

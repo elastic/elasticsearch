@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -298,7 +297,8 @@ public final class OutboundHandler {
         byteStreamOutput.skip(TcpHeader.HEADER_SIZE);
         threadContext.writeTo(byteStreamOutput);
         if (messageDirection == MessageDirection.REQUEST) {
-            if (version.before(TransportVersions.V_8_0_0)) {
+            // although we won't write a v8 handshake in production, tests for reading v8 handshakes need this condition for writing
+            if (version.equals(TransportHandshaker.V8_HANDSHAKE_VERSION)) {
                 // empty features array
                 byteStreamOutput.writeStringArray(Strings.EMPTY_ARRAY);
             }

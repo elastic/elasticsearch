@@ -14,15 +14,20 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
@@ -39,6 +44,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
@@ -62,13 +68,15 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         if (rarely()) {
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER)
+                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                random().nextBoolean()
             );
         } else {
             // run with low numbers to force many clusters with parents
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8)
+                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                random().nextBoolean()
             );
         }
         super.setUp();
@@ -165,6 +173,37 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     assertEquals(0, offHeap.size());
                 }
             }
+        }
+    }
+
+    public void testDirectIOBackwardsCompatibleRead() throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig bwcConfig = newIndexWriterConfig();
+            bwcConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(new ES920DiskBBQVectorsFormat() {
+                @Override
+                public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                    return version0FieldsWriter(state);
+                }
+            }));
+
+            try (IndexWriter w = new IndexWriter(dir, bwcConfig)) {
+                // just testing the metadata here, don't need to do anything fancy
+                float[] vector = randomVector(1024);
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+                w.commit();
+
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    LeafReader r = getOnlyLeafReader(reader);
+                    FloatVectorValues vectorValues = r.getFloatVectorValues("f");
+                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
+                    assertEquals(0, iterator.nextDoc());
+                    assertArrayEquals(vector, vectorValues.vectorValue(0), 0);
+                    assertEquals(NO_MORE_DOCS, iterator.nextDoc());
+                }
+            }
+
         }
     }
 

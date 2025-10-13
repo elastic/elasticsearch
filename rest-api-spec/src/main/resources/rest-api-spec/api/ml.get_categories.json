@@ -51,10 +51,12 @@
     "params": {
       "from": {
         "type": "int",
+        "default": 0,
         "description": "skips a number of categories"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "specifies a max number of categories to get"
       },
       "partition_field_value": {
@@ -63,7 +65,8 @@
       }
     },
     "body": {
-      "description": "Category selection details if not provided in URI"
+      "description": "Category selection details if not provided in URI",
+      "required": false
     }
   }
 }

@@ -33,10 +33,12 @@
     "params": {
       "defer_validation": {
         "type": "boolean",
+        "default": false,
         "description": "If validations should be deferred until transform starts, defaults to false."
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Controls the time to wait for the transform to start"
       }
     },

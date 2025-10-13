@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,8 @@ public class NoneChunkingSettings implements ChunkingSettings {
 
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.NONE;
     private static final Set<String> VALID_KEYS = Set.of(ChunkingSettingsOptions.STRATEGY.toString());
+
+    private static final TransportVersion NONE_CHUNKING_STRATEGY = TransportVersion.fromName("none_chunking_strategy");
 
     private NoneChunkingSettings() {}
 
@@ -54,8 +55,7 @@ public class NoneChunkingSettings implements ChunkingSettings {
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.NONE_CHUNKING_STRATEGY_8_19)
-            || version.onOrAfter(TransportVersions.NONE_CHUNKING_STRATEGY);
+        return version.supports(NONE_CHUNKING_STRATEGY);
     }
 
     @Override

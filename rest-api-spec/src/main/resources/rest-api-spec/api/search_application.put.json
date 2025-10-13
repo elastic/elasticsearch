@@ -33,6 +33,7 @@
     "params": {
       "create": {
         "type": "boolean",
+        "default": false,
         "description": "If true, requires that a search application with the specified resource_id does not already exist. (default: false)"
       }
     },

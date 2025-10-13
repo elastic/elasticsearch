@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldType;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -94,11 +93,12 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE));
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            settings.add(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING);
-        }
-        return Collections.unmodifiableList(settings);
+        return List.of(
+            FALLBACK_SETTING,
+            CLUSTER_LOGSDB_ENABLED,
+            LOGSDB_PRIOR_LOGS_USAGE,
+            PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING
+        );
     }
 
     @Override
@@ -111,11 +111,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
-            return singletonMap(PatternTextFieldType.CONTENT_TYPE, PatternTextFieldMapper.PARSER);
-        } else {
-            return Map.of();
-        }
+        return singletonMap(PatternTextFieldType.CONTENT_TYPE, PatternTextFieldMapper.PARSER);
     }
 
     protected XPackLicenseState getLicenseState() {

@@ -143,7 +143,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
             String settingKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
             Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
-            ConnectionProfile proxyProfile = buildConnectionProfile(toConfig(clusterAlias, proxySettings), randomBoolean());
+            ConnectionProfile proxyProfile = buildConnectionProfile(
+                toConfig(clusterAlias, proxySettings),
+                randomBoolean() ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
+            );
             assertEquals(
                 "Incorrect number of channels for " + strategy.name(),
                 strategy.getNumberOfChannels(),
@@ -157,7 +160,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // New rcs connection with credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = buildConnectionProfile(toConfig(clusterAlias, Settings.EMPTY), true);
+            ConnectionProfile profile = buildConnectionProfile(
+                toConfig(clusterAlias, Settings.EMPTY),
+                RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            );
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
@@ -167,7 +173,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // Legacy ones without credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = buildConnectionProfile(toConfig(clusterAlias, Settings.EMPTY), false);
+            ConnectionProfile profile = buildConnectionProfile(toConfig(clusterAlias, Settings.EMPTY), TransportSettings.DEFAULT_PROFILE);
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 TransportSettings.DEFAULT_PROFILE,

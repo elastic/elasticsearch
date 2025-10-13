@@ -12,7 +12,7 @@ package org.elasticsearch.cluster.routing.allocation.command;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -46,6 +46,8 @@ public class CancelAllocationCommand implements AllocationCommand {
 
     public static final String NAME = "cancel";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private final String index;
     private final int shardId;
@@ -83,7 +85,7 @@ public class CancelAllocationCommand implements AllocationCommand {
         shardId = in.readVInt();
         node = in.readString();
         allowPrimary = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             projectId = ProjectId.readFrom(in);
         } else {
             projectId = Metadata.DEFAULT_PROJECT_ID;
@@ -96,7 +98,7 @@ public class CancelAllocationCommand implements AllocationCommand {
         out.writeVInt(shardId);
         out.writeString(node);
         out.writeBoolean(allowPrimary);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             projectId.writeTo(out);
         } else {
             assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : projectId;

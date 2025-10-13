@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,6 +40,9 @@ import java.io.IOException;
  * the same block at the same time.
  */
 public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCounted, Releasable {
+
+    TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName("esql_aggregate_metric_double_block");
+
     /**
      * The maximum number of values that can be added to one position via lookup.
      * TODO maybe make this everywhere?
@@ -373,8 +375,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     }
 
     static boolean supportsAggregateMetricDoubleBlock(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
-            || version.isPatchFrom(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19);
+        return version.supports(ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK);
     }
 
     /**

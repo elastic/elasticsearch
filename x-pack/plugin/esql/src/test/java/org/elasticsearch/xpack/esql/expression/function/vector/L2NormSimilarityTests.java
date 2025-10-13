@@ -26,6 +26,11 @@ public class L2NormSimilarityTests extends AbstractVectorSimilarityFunctionTestC
         super(testCaseSupplier);
     }
 
+    @Override
+    public String getBaseEvaluatorName() {
+        return L2Norm.class.getSimpleName();
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return similarityParameters(L2Norm.class.getSimpleName(), L2Norm.SIMILARITY_FUNCTION);

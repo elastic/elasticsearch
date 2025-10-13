@@ -130,18 +130,19 @@ event_log:long | cluster:keyword | time_bucket:datetime
 
 count_distinct_over_time_of_keyword
 required_capability: ts_command_v0
-TS k8s | STATS pod = min(count_distinct_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS pod = min(count_distinct_over_time(network.eth0.up)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 pod:long | cluster:keyword | time_bucket:datetime
-1        | prod            | 2024-05-10T00:00:00.000Z
-1        | qa              | 2024-05-10T00:00:00.000Z
-1        | staging         | 2024-05-10T00:00:00.000Z
-1        | prod            | 2024-05-10T00:10:00.000Z
-1        | qa              | 2024-05-10T00:10:00.000Z
+2        | prod            | 2024-05-10T00:00:00.000Z
+2        | qa              | 2024-05-10T00:00:00.000Z
+2        | staging         | 2024-05-10T00:00:00.000Z
+2        | prod            | 2024-05-10T00:10:00.000Z
+2        | qa              | 2024-05-10T00:10:00.000Z
 1        | staging         | 2024-05-10T00:10:00.000Z
 1        | prod            | 2024-05-10T00:20:00.000Z
 1        | qa              | 2024-05-10T00:20:00.000Z
 1        | staging         | 2024-05-10T00:20:00.000Z
+
 ;
 
 count_distinct_over_time_with_filtering
@@ -190,8 +191,6 @@ bytes:long | pod:keyword | time_bucket:datetime     | kb:double
 
 count_distinct_over_time_multi_values
 required_capability: ts_command_v0
-required_capability: count_distinct_over_time
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = avg(count_distinct_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 10;
 
 events:double     | pod:keyword | time_bucket:datetime

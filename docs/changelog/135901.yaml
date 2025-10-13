@@ -1,0 +1,5 @@
+pr: 135901
+summary: Add support for dot-separated attribute names (e.g. `foo.bar`) and for parameters (e.g. `??my_param`) in FUSE GROUP BY
+area: ES|QL
+type: bug
+issues: []

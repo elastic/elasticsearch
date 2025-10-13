@@ -22,6 +22,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -302,9 +303,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 new NumberFieldMapper.NumberFieldType(
                     NUMBER_FIELD_NAME,
                     NumberType.INTEGER,
+                    IndexType.points(randomBoolean(), true),
                     randomBoolean(),
-                    randomBoolean(),
-                    true,
                     false,
                     null,
                     Collections.emptyMap(),
@@ -321,9 +321,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldMillisecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
-            randomBoolean(),
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
@@ -351,9 +350,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
@@ -382,9 +380,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
@@ -415,21 +412,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNotFitIntoDouble() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NUMBER_FIELD_NAME,
-            NumberType.LONG,
-            true,
-            false,
-            true,
-            false,
-            null,
-            Collections.emptyMap(),
-            null,
-            false,
-            null,
-            null,
-            false
-        );
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberType.LONG);
 
         long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
 
@@ -701,9 +684,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
-            randomBoolean(),
-            true,
             false,
             null,
             Collections.emptyMap(),

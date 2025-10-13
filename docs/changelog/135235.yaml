@@ -1,5 +1,0 @@
-pr: 135235
-summary: Fix systemd notify to use a shared arena
-area: Infra/Node Lifecycle
-type: bug
-issues: []

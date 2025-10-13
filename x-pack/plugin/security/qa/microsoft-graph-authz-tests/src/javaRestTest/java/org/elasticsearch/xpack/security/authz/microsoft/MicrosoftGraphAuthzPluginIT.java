@@ -122,6 +122,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_id", CLIENT_ID)
             .keystore("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_secret", CLIENT_SECRET)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.tenant_id", TENANT_ID)
+            .setting("logger.org.elasticsearch.xpack.security.authc", "DEBUG")
             .setting("logger.org.elasticsearch.xpack.security.authz.microsoft", "TRACE")
             .setting("logger.com.microsoft", "TRACE")
             .setting("logger.com.azure", "TRACE");

@@ -24,10 +24,12 @@
     "params": {
       "enabled": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to enable upgrade_mode ML setting or not. Defaults to false."
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Controls the time to wait before action times out. Defaults to 30 seconds"
       }
     }

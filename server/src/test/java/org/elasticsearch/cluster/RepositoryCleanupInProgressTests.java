@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -29,6 +29,10 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
 
     private Supplier<ProjectId> projectIdSupplier;
 
@@ -90,9 +94,7 @@ public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializ
 
     public void testSerializationBwc() throws IOException {
         projectIdSupplier = () -> ProjectId.DEFAULT;
-        final var oldVersion = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP
-        );
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
         final ClusterState.Custom original = createTestInstance();
@@ -106,9 +108,7 @@ public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializ
 
     public void testDiffSerializationBwc() throws IOException {
         projectIdSupplier = () -> ProjectId.DEFAULT;
-        final var oldVersion = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP
-        );
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
 

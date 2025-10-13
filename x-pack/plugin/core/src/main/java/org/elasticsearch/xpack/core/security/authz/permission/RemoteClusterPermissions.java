@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
     public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = TransportVersions.V_8_15_0;
-    public static final TransportVersion ROLE_MONITOR_STATS = TransportVersions.V_8_17_0;
 
     public static final String NAME = "remote_cluster_permissions";
     private static final Logger logger = LogManager.getLogger(RemoteClusterPermissions.class);
@@ -79,7 +78,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     static Map<TransportVersion, Set<String>> allowedRemoteClusterPermissions = Map.of(
         ROLE_REMOTE_CLUSTER_PRIVS,
         Set.of(ClusterPrivilegeResolver.MONITOR_ENRICH.name()),
-        ROLE_MONITOR_STATS,
+        TransportVersion.minimumCompatible(),
         Set.of(ClusterPrivilegeResolver.MONITOR_STATS.name())
     );
     static final TransportVersion lastTransportVersionPermission = allowedRemoteClusterPermissions.keySet()

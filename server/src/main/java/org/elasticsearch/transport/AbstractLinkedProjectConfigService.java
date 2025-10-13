@@ -9,8 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -28,16 +26,5 @@ public abstract class AbstractLinkedProjectConfigService implements LinkedProjec
 
     protected void handleUpdate(LinkedProjectConfig config) {
         listeners.forEach(listener -> listener.updateLinkedProject(config));
-    }
-
-    protected void handleSkipUnavailableChanged(
-        ProjectId originProjectId,
-        ProjectId linkedProjectId,
-        String linkedProjectAlias,
-        boolean skipUnavailable
-    ) {
-        listeners.forEach(
-            listener -> listener.skipUnavailableChanged(originProjectId, linkedProjectId, linkedProjectAlias, skipUnavailable)
-        );
     }
 }

@@ -34,12 +34,12 @@
       "wait_for_advance": {
         "type": "boolean",
         "description": "Whether to wait for the global checkpoint to advance past the specified current checkpoints",
-        "default": "false"
+        "default": false
       },
       "wait_for_index": {
         "type": "boolean",
         "description": "Whether to wait for the target index to exist and all primary shards be active",
-        "default": "false"
+        "default": false
       },
       "checkpoints": {
         "type": "list",

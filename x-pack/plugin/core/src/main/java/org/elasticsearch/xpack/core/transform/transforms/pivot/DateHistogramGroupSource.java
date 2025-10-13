@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -228,11 +227,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         super(in);
         this.interval = readInterval(in);
         this.timeZone = in.readOptionalZoneId();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.offset = in.readLong();
-        } else {
-            this.offset = 0;
-        }
+        this.offset = in.readLong();
         this.rounding = buildRounding();
     }
 
@@ -331,9 +326,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         super.writeTo(out);
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeLong(offset);
-        }
+        out.writeLong(offset);
     }
 
     @Override

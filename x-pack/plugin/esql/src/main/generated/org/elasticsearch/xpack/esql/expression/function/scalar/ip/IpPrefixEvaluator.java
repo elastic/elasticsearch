@@ -92,38 +92,38 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (ipBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (ipBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (ipBlock.getValueCount(p) != 1) {
-          if (ipBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (prefixLengthV4Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (prefixLengthV4Block.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV4Block.getValueCount(p) != 1) {
-          if (prefixLengthV4Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV6Block.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (prefixLengthV6Block.getValueCount(p) != 1) {
-          if (prefixLengthV6Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (prefixLengthV6Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);
         int prefixLengthV4 = prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p));

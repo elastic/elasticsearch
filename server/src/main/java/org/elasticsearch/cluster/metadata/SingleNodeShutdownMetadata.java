@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.NODE_SHUTDOWN_EPHEMERAL_ID_ADDED;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -169,11 +168,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
-        if (in.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
-            this.nodeEphemeralId = in.readOptionalString();
-        } else {
-            this.nodeEphemeralId = null; // empty when talking to old nodes, meaning the persistent node id is the only differentiator
-        }
+        this.nodeEphemeralId = in.readOptionalString();
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
@@ -263,9 +258,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
-            out.writeOptionalString(nodeEphemeralId);
-        }
+        out.writeOptionalString(nodeEphemeralId);
         if (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
         } else {

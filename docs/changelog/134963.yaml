@@ -1,6 +1,0 @@
-pr: 134963
-summary: Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing
-area: Transform
-type: bug
-issues:
- - 134263

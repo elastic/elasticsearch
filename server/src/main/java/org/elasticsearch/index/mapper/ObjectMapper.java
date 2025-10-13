@@ -577,6 +577,22 @@ public class ObjectMapper extends Mapper {
             MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
         }
         var mergeResult = MergeResult.build(this, (ObjectMapper) mergeWith, parentMergeContext);
+        if (mergeWith instanceof PassThroughObjectMapper passThroughObjectMapper) {
+            if (PassThroughObjectMapper.isEligibleForMerge(this)) {
+                return new PassThroughObjectMapper(
+                    leafName(),
+                    fullPath,
+                    mergeResult.enabled,
+                    mergeResult.sourceKeepMode,
+                    mergeResult.dynamic,
+                    mergeResult.mappers,
+                    passThroughObjectMapper.timeSeriesDimensionSubFields(),
+                    passThroughObjectMapper.priority()
+                );
+            } else {
+                MapperErrors.throwPassThroughMappingConflictError(fullPath());
+            }
+        }
         return new ObjectMapper(
             leafName(),
             fullPath,

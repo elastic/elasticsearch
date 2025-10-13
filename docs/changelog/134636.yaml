@@ -1,6 +1,0 @@
-pr: 134636
-summary: "[Island Browser] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
-area: Authorization
-type: enhancement
-issues:
-  - 134136

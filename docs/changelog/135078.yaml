@@ -1,6 +1,0 @@
-pr: 135078
-summary: Fix async get results with inconsistent headers
-area: ES|QL
-type: bug
-issues:
- - 135042

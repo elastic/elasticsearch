@@ -18,7 +18,7 @@ import java.io.IOException;
  * Provides methods to iterate through the vectors and retrieve
  * associated quantization correction data.
  */
-interface QuantizedVectorValues {
+public interface QuantizedVectorValues {
     int count();
 
     byte[] next() throws IOException;

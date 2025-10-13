@@ -87,4 +87,44 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
         assertUpperBound("9.1", "new_tv,8012002")
         assertUpperBound("8.19", "new_tv,7123002")
     }
+
+    def "no new transport version is idempotent"() {
+        when:
+        def result = runResolveAndValidateTask().build()
+
+        then:
+        assertResolveAndValidateSuccess(result)
+        assertUpperBound("9.2", "existing_92,8123000")
+    }
+
+    def "upstream changes don't affect merge"() {
+        given:
+        // setup main with 2 commits, but we will only merge in the first one
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("upstream_new_tv1", "8124000")
+        transportVersionUpperBound("9.2", "upstream_new_tv1", "8124000")
+        execute("git add .")
+        execute("git commit -m update1")
+        String toMerge = execute("git rev-parse HEAD")
+        referableAndReferencedTransportVersion("upstream_new_tv2", "8125000")
+        transportVersionUpperBound("9.2", "upstream_new_tv2", "8125000")
+        execute("git add .")
+        execute("git commit -m update2")
+        execute("git checkout test")
+        // now commit a conflict on the test branch, a new TV
+        referableAndReferencedTransportVersion("branch_new_tv", "8124000")
+        transportVersionUpperBound("9.2", "branch_new_tv", "8124000")
+        execute("git add .")
+        execute("git commit -m branch")
+        // and finally initiate the merge
+        System.out.println("Merging commit " + toMerge);
+        execute("git merge " + toMerge, testProjectDir.root, true);
+
+        when:
+        def result = runResolveAndValidateTask().build()
+
+        then:
+        assertResolveAndValidateSuccess(result)
+        assertUpperBound("9.2", "branch_new_tv,8125000")
+    }
 }

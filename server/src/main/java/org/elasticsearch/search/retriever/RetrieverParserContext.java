@@ -37,8 +37,9 @@ public class RetrieverParserContext {
         searchUsage.trackRescorerUsage(name);
     }
 
-    public void trackRetrieverUsage(String name) {
-        searchUsage.trackRetrieverUsage(name);
+    public void trackRetrieverUsage(RetrieverBuilder retriever) {
+        searchUsage.trackRetrieverUsage(retriever.getName());
+        searchUsage.trackRetrieverExtendedDataUsage(retriever.getName(), retriever.getExtendedUsageFields());
     }
 
     public boolean clusterSupportsFeature(NodeFeature nodeFeature) {

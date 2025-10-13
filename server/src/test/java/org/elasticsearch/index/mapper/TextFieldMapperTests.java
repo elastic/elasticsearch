@@ -292,7 +292,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
         });
-        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+        IndexVersion bwcVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcVersion, indexSettings, () -> true, mapping).documentMapper();
 
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
@@ -311,17 +312,35 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testStoreParameterDefaultsSyntheticSource() throws IOException {
-        var indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
-        var indexSettings = indexSettingsBuilder.build();
+    public void testStoreParameterDefaultsToFalseWithLatestIndexVersionWhenSyntheticSourceIsEnabled() throws IOException {
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
 
         var mapping = mapping(b -> {
             b.startObject("name");
             b.field("type", "text");
             b.endObject();
         });
+
         DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+    }
+
+    public void testStoreParameterDefaultsSyntheticSource() throws IOException {
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
 
         var source = source(b -> b.field("name", "quick brown fox"));
         ParsedDocument doc = mapper.parse(source);
@@ -345,7 +364,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
 
         var source = source(b -> b.field("name", "quick brown fox"));
         ParsedDocument doc = mapper.parse(source);
@@ -394,7 +415,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
 
         var source = source(b -> b.field("name", "quick brown fox"));
         ParsedDocument doc = mapper.parse(source);

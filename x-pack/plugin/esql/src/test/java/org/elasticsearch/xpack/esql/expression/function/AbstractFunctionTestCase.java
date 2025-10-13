@@ -418,7 +418,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // We don't test that functions don't take date_period or time_duration. We should.
                 return false;
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(t)) {
                 /*
                  * Types under construction aren't checked because we're actively
                  * adding support for them to functions. That’s *why* they are
@@ -763,7 +763,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).dataType().esNameIfPossible());
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.returnType()) == false) {
+            if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
                 returnFromSignature.add(entry.returnType().esNameIfPossible());
             }
         }
@@ -771,11 +771,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
-                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i)
                 .stream()
-                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
@@ -796,7 +796,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType())
-            .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+            .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
     }
@@ -1055,7 +1055,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Should this particular signature be hidden from the docs even though we test it?
      */
     static boolean shouldHideSignature(List<DocsV3Support.Param> argTypes, DataType returnType) {
-        for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
+        if (returnType == DataType.TSID_DATA_TYPE || argTypes.stream().anyMatch(p -> p.dataType() == DataType.TSID_DATA_TYPE)) {
+            // TSID is special (for internal use) and we don't document it
+            return true;
+        }
+
+        for (DataType dt : DataType.UNDER_CONSTRUCTION) {
             if (returnType == dt || argTypes.stream().anyMatch(p -> p.dataType() == dt)) {
                 return true;
             }

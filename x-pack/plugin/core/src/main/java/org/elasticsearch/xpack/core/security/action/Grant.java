@@ -57,11 +57,7 @@ public class Grant implements Writeable {
         this.username = in.readOptionalString();
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.runAsUsername = in.readOptionalString();
-        } else {
-            this.runAsUsername = null;
-        }
+        this.runAsUsername = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
         } else {
@@ -74,9 +70,7 @@ public class Grant implements Writeable {
         out.writeOptionalString(username);
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalString(runAsUsername);
-        }
+        out.writeOptionalString(runAsUsername);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(clientAuthentication);
         }

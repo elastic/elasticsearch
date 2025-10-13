@@ -2182,7 +2182,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
+                    if ((e instanceof NotMasterException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);
@@ -2249,7 +2249,7 @@ public class MasterServiceTests extends ESTestCase {
             ).submitTask(source, new ClusterStateTaskListener() {
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof FailedToCommitClusterStateException
+                    if (e instanceof NotMasterException
                         && e.getMessage().startsWith("could not schedule timeout handler")
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()
@@ -2361,7 +2361,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
+                    if ((e instanceof NotMasterException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);

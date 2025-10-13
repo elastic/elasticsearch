@@ -1,0 +1,5 @@
+pr: 135036
+summary: Performance improvements for Lookup Join on Expression
+area: ES|QL
+type: enhancement
+issues: []

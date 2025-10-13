@@ -53,12 +53,13 @@
         "default": "5d"
       },
       "batched_reduce_size": {
-        "type": "number",
+        "type": "long",
         "description": "The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",
         "default": 5
       },
       "request_cache": {
         "type": "boolean",
+        "default": true,
         "description": "Specify if request cache should be used for this request or not, defaults to true"
       },
       "analyzer": {
@@ -77,10 +78,10 @@
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {
@@ -100,7 +101,7 @@
         "description": "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
       },
       "from": {
-        "type": "number",
+        "type": "int",
         "description": "Starting offset (default: 0)"
       },
       "ignore_unavailable": {
@@ -161,7 +162,7 @@
         "description": "Search operation type"
       },
       "size": {
-        "type": "number",
+        "type": "int",
         "description": "Number of hits to return (default: 10)"
       },
       "sort": {
@@ -181,7 +182,7 @@
         "description": "A list of fields to extract and return from the _source field"
       },
       "terminate_after": {
-        "type": "number",
+        "type": "long",
         "description": "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
       },
       "stats": {
@@ -203,7 +204,7 @@
         "description": "Specify suggest mode"
       },
       "suggest_size": {
-        "type": "number",
+        "type": "long",
         "description": "How many suggestions to return in response"
       },
       "suggest_text": {
@@ -240,13 +241,14 @@
         "description": "Specify whether to return sequence number and primary term of the last modification of each hit"
       },
       "max_concurrent_shard_requests": {
-        "type": "number",
+        "type": "int",
         "description": "The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
         "default": 5
       }
     },
     "body": {
-      "description": "The search definition using the Query DSL"
+      "description": "The search definition using the Query DSL",
+      "required": false
     }
   }
 }

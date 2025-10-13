@@ -32,6 +32,6 @@
   "examples" : [
     "ROW u = \"https://example.com/?x=foo bar&y=baz\"\n| EVAL u = URL_ENCODE_COMPONENT(u)"
   ],
-  "preview" : true,
-  "snapshot_only" : true
+  "preview" : false,
+  "snapshot_only" : false
 }

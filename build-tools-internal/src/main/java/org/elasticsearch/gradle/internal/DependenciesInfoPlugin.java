@@ -17,6 +17,8 @@ import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.plugins.JavaPlugin;
 
+import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createNonTransitiveArtifactsView;
+
 public class DependenciesInfoPlugin implements Plugin<Project> {
 
     public static String USAGE_ATTRIBUTE = "DependenciesInfo";
@@ -25,16 +27,15 @@ public class DependenciesInfoPlugin implements Plugin<Project> {
     public void apply(final Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         var depsInfo = project.getTasks().register("dependenciesInfo", DependenciesInfoTask.class);
-
         depsInfo.configure(t -> {
             var runtimeConfiguration = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-            t.getRuntimeArtifacts().set(project.getProviders().provider(() -> runtimeConfiguration.getIncoming().getArtifacts()));
+            t.getRuntimeArtifacts()
+                .set(project.getProviders().provider(() -> createNonTransitiveArtifactsView(runtimeConfiguration).getArtifacts()));
             t.getClasspath().from(runtimeConfiguration);
             var compileOnlyConfiguration = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.getCompileOnlyArtifacts().set(project.getProviders().provider(() -> compileOnlyConfiguration.getIncoming().getArtifacts()));
             t.getClasspath().from(compileOnlyConfiguration);
-
         });
         Configuration dependenciesInfoFilesConfiguration = project.getConfigurations().create("dependenciesInfoFiles");
         dependenciesInfoFilesConfiguration.setCanBeResolved(false);

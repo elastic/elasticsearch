@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -32,6 +32,10 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
     public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
     public static final String NAME = "cluster:admin/xpack/inference/put";
+
+    private static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = TransportVersion.fromName(
+        "inference_add_timeout_put_endpoint"
+    );
 
     public PutInferenceModelAction() {
         super(NAME);
@@ -61,8 +65,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+            if (in.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
                 this.timeout = in.readTimeValue();
             } else {
                 this.timeout = InferenceAction.Request.DEFAULT_TIMEOUT;
@@ -97,8 +100,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+            if (out.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
                 out.writeTimeValue(timeout);
             }
         }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,10 +26,8 @@ import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 
-import static org.elasticsearch.TransportVersions.INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD;
-import static org.elasticsearch.TransportVersions.INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD;
-
 public class IndexWriteLoad implements Writeable, ToXContentFragment {
+
     public static final ParseField SHARDS_WRITE_LOAD_FIELD = new ParseField("loads");
     public static final ParseField SHARDS_UPTIME_IN_MILLIS = new ParseField("uptimes");
     public static final ParseField SHARDS_RECENT_WRITE_LOAD_FIELD = new ParseField("recent_loads");
@@ -55,6 +54,13 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), SHARDS_RECENT_WRITE_LOAD_FIELD);
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), SHARDS_PEAK_WRITE_LOAD_FIELD);
     }
+
+    private static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = TransportVersion.fromName(
+        "index_metadata_includes_recent_write_load"
+    );
+    private static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = TransportVersion.fromName(
+        "index_stats_and_metadata_include_peak_write_load"
+    );
 
     private static IndexWriteLoad create(
         List<Double> shardsWriteLoad,
@@ -146,8 +152,8 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         this(
             in.readDoubleArray(),
             in.readLongArray(),
-            in.getTransportVersion().onOrAfter(INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD) ? in.readDoubleArray() : null,
-            in.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD) ? in.readDoubleArray() : null
+            in.getTransportVersion().supports(INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD) ? in.readDoubleArray() : null,
+            in.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD) ? in.readDoubleArray() : null
         );
     }
 
@@ -155,10 +161,10 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(shardWriteLoad);
         out.writeLongArray(shardUptimeInMillis);
-        if (out.getTransportVersion().onOrAfter(INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD)) {
+        if (out.getTransportVersion().supports(INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD)) {
             out.writeDoubleArray(shardRecentWriteLoad);
         }
-        if (out.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
+        if (out.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
             out.writeDoubleArray(shardPeakWriteLoad);
         }
     }

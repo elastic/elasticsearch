@@ -30,8 +30,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -134,14 +134,8 @@ public class SliceBuilderTests extends ESTestCase {
         String fieldName,
         DocValuesType dvType
     ) {
-        MappedFieldType fieldType = new MappedFieldType(
-            fieldName,
-            true,
-            false,
-            dvType != null,
-            TextSearchInfo.NONE,
-            Collections.emptyMap()
-        ) {
+        IndexType indexType = IndexType.terms(false, dvType != null);
+        MappedFieldType fieldType = new MappedFieldType(fieldName, indexType, false, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {

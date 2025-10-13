@@ -20,7 +20,7 @@ import java.io.IOException;
  * This class provides the structure for writing vectors in bulk, with specific
  * implementations for different bit sizes strategies.
  */
-abstract class DiskBBQBulkWriter {
+public abstract class DiskBBQBulkWriter {
     protected final int bulkSize;
     protected final IndexOutput out;
 
@@ -29,18 +29,18 @@ abstract class DiskBBQBulkWriter {
         this.out = out;
     }
 
-    abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
+    public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
 
-    static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+    public static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        OneBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        public OneBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
 
         @Override
-        void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -93,16 +93,16 @@ abstract class DiskBBQBulkWriter {
         }
     }
 
-    static class SevenBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+    public static class SevenBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        SevenBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        public SevenBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
 
         @Override
-        void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {

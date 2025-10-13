@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -62,6 +63,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
         Map.entry(DATE_NANOS, ToStringFromDateNanosEvaluator.Factory::new),
         Map.entry(IP, ToStringFromIPEvaluator.Factory::new),
+        Map.entry(DENSE_VECTOR, ToStringFromFloatEvaluator.Factory::new),
         Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
@@ -96,6 +98,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -167,6 +170,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromDouble")
     static BytesRef fromDouble(double dbl) {
         return numericBooleanToString(dbl);
+    }
+
+    @ConvertEvaluator(extraName = "FromFloat")
+    static BytesRef fromFloat(float flt) {
+        return numericBooleanToString(flt);
     }
 
     @ConvertEvaluator(extraName = "FromLong")

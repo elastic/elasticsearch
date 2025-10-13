@@ -104,7 +104,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
         // If we do not know the field type, the field is not indexed (e.g. runtime field) or the field
         // has no doc values we should not apply the optimization.
-        if (fieldType == null || fieldType.isIndexed() == false || fieldType.hasDocValues() == false) {
+        if (fieldType == null || fieldType.indexType().hasTerms() == false || fieldType.hasDocValues() == false) {
             return false;
         }
 

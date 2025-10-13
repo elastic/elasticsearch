@@ -211,9 +211,9 @@ public class CoordinationState {
     }
 
     /**
-     * May be called on receipt of a Join.
+     * May be called on receipt of a {@link Join}, which is effectively a vote for the receiving node to be the elected master.
      *
-     * @param join The Join received.
+     * @param join The {@link Join} received.
      * @return true iff this instance does not already have a join vote from the given source node for this term
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
@@ -234,6 +234,9 @@ public class CoordinationState {
 
         final long lastAcceptedTerm = getLastAcceptedTerm();
         if (join.lastAcceptedTerm() > lastAcceptedTerm) {
+            // Note that this is running on the receiving node, so it must reject joins from nodes with fresher state. This is unlike a
+            // real-world election where candidates will accept every vote they receive and it's the voter's responsibility to be selective
+            // about the votes they cast.
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted term (expected: <=[{}], actual: [{}])",
                 lastAcceptedTerm,
@@ -248,6 +251,9 @@ public class CoordinationState {
         }
 
         if (join.lastAcceptedTerm() == lastAcceptedTerm && join.lastAcceptedVersion() > getLastAcceptedVersion()) {
+            // Note that this is running on the receiving node, so it must reject joins from nodes with fresher state. This is unlike a
+            // real-world election where candidates will accept every vote they receive and it's the voter's responsibility to be selective
+            // about the votes they cast.
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
                 getLastAcceptedVersion(),

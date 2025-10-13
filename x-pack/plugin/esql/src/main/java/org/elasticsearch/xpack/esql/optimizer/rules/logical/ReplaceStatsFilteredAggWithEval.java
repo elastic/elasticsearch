@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -136,6 +137,6 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
             attributes.add(alias.toAttribute());
             blocks[i] = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, ((Literal) alias.child()).value(), 1);
         }
-        return new LocalRelation(source, attributes, LocalSupplier.of(blocks));
+        return new LocalRelation(source, attributes, LocalSupplier.of(new Page(blocks)));
     }
 }

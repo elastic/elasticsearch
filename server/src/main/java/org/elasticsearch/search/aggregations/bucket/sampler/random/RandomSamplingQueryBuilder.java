@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +34,8 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
     static final ParseField PROBABILITY = new ParseField("query");
     static final ParseField SEED = new ParseField("seed");
     static final ParseField HASH = new ParseField("hash");
+
+    private static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER = TransportVersion.fromName("random_sampler_query_builder");
 
     private final double probability;
     private int seed = Randomness.get().nextInt();
@@ -141,8 +142,7 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.RANDOM_SAMPLER_QUERY_BUILDER)
-            || version.isPatchFrom(TransportVersions.RANDOM_SAMPLER_QUERY_BUILDER_8_19);
+        return version.supports(RANDOM_SAMPLER_QUERY_BUILDER);
     }
 
     @Override

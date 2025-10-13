@@ -38,6 +38,7 @@
     "params": {
       "analyze_wildcard": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether wildcards and prefix queries in the query string query should be analyzed (default: false)"
       },
       "analyzer": {
@@ -47,10 +48,10 @@
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {
@@ -63,6 +64,7 @@
       },
       "lenient": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
       },
       "preference": {
@@ -91,7 +93,8 @@
       }
     },
     "body": {
-      "description": "The query definition using the Query DSL"
+      "description": "The query definition using the Query DSL",
+      "required": false
     }
   }
 }

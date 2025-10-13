@@ -72,10 +72,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         assertThat(mapperService.fieldType("s"), notNullValue());
-        assertFalse(mapperService.fieldType("s").isIndexed());
+        assertThat(mapperService.fieldType("s").indexType(), is(IndexType.NONE));
 
         assertThat(mapperService.fieldType("l"), notNullValue());
-        assertTrue(mapperService.fieldType("l").isIndexed());
+        assertTrue(mapperService.fieldType("l").indexType().hasPoints());
     }
 
     public void testUnmatchTypeOnly() throws Exception {
@@ -103,10 +103,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         assertThat(mapperService.fieldType("s"), notNullValue());
-        assertTrue(mapperService.fieldType("s").isIndexed());
+        var indexType = mapperService.fieldType("s").indexType();
+        assertTrue(indexType.hasTerms());
+        assertFalse(indexType.hasDocValues());
 
         assertThat(mapperService.fieldType("l"), notNullValue());
-        assertFalse(mapperService.fieldType("l").isIndexed());
+        assertTrue(mapperService.fieldType("l").indexType().hasOnlyDocValues());
     }
 
     public void testSimple() throws Exception {

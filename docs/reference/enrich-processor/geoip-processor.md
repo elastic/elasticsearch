@@ -206,14 +206,18 @@ PUT my_ip_locations
 
 If you can’t [automatically update](#geoip-automatic-updates) your IP geolocation databases from the Elastic endpoint, you have a few other options:
 
-* [Use a proxy endpoint](#use-proxy-geoip-endpoint)
+* [Use a reverse proxy endpoint](#use-proxy-geoip-endpoint)
 * [Use a custom endpoint](#use-custom-geoip-endpoint)
 * [Manually update your IP geolocation databases](#manually-update-geoip-databases)
 
 $$$use-proxy-geoip-endpoint$$$
-**Use a proxy endpoint**
+**Use a reverse proxy endpoint**
 
-If you can’t connect directly to the Elastic GeoIP endpoint, consider setting up a secure proxy. You can then specify the proxy endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.
+If you can’t connect directly to the Elastic GeoIP endpoint, consider setting up a secure reverse proxy. You can then specify the reverse proxy endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.
+
+:::{note}
+True HTTP proxy support for GeoIP database downloads is not currently available in {{es}}.
+:::
 
 In a strict setup the following domains may need to be added to the allowed domains list:
 

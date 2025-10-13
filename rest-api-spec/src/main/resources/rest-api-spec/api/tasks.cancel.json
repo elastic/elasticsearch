@@ -48,6 +48,7 @@
       },
       "wait_for_completion": {
         "type": "boolean",
+        "default": false,
         "description": "Should the request block until the cancellation of the task and its descendant tasks is completed. Defaults to false"
       }
     }

@@ -64,6 +64,11 @@ public final class CborXContentImpl implements XContent {
     }
 
     @Override
+    public boolean hasBulkSeparator() {
+        return false;
+    }
+
+    @Override
     public byte bulkSeparator() {
         throw new XContentParseException("cbor does not support bulk parsing...");
     }

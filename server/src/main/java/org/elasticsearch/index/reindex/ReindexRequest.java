@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -417,6 +418,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
 
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        String apiKey = extractString(remote, "api_key");
+        if (apiKey != null) {
+            headers = headersWithApiKey(headers, apiKey);
+        }
+
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
@@ -492,5 +498,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         } else {
             request.setMaxDocs(maxDocs);
         }
+    }
+
+    /**
+     * Returns a headers map with the {@code Authorization} key set to the value {@code "ApiKey <apiKey>"}. If the original map is a
+     * {@link HashMap}, it is mutated; if not (e.g. it is {@link java.util.Collections#EMPTY_MAP}), it is copied. If the headers already
+     * include an {@code Authorization} key, an {@link IllegalArgumentException} is thrown.
+     */
+    private static Map<String, String> headersWithApiKey(Map<String, String> original, String apiKey) {
+        if (original.keySet().stream().anyMatch(key -> key.equalsIgnoreCase("Authorization"))) {
+            throw new IllegalArgumentException("Cannot specify both [api_key] and [headers] including [Authorization] key");
+        }
+        Map<String, String> updated = (original instanceof HashMap) ? original : new HashMap<>(original);
+        updated.put("Authorization", "ApiKey " + apiKey);
+        return updated;
     }
 }

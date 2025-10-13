@@ -5,11 +5,19 @@
 | field | limit | order | result |
 | --- | --- | --- | --- |
 | boolean | integer | keyword | boolean |
+| boolean | integer | | boolean |
 | date | integer | keyword | date |
+| date | integer | | date |
 | double | integer | keyword | double |
+| double | integer | | double |
 | integer | integer | keyword | integer |
+| integer | integer | | integer |
 | ip | integer | keyword | ip |
+| ip | integer | | ip |
 | keyword | integer | keyword | keyword |
+| keyword | integer | | keyword |
 | long | integer | keyword | long |
+| long | integer | | long |
 | text | integer | keyword | keyword |
+| text | integer | | keyword |
 

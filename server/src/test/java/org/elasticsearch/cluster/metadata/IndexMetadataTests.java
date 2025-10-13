@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -66,6 +65,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
+
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
 
     @Before
     public void setUp() throws Exception {
@@ -687,7 +688,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata idx = IndexMetadata.builder("test").settings(settings).reshardingMetadata(reshardingMetadata).build();
 
         // the version prior to TransportVersions.INDEX_RESHARDING_METADATA
-        final var version = TransportVersions.ESQL_FAILURE_FROM_REMOTE;
+        final var version = ESQL_FAILURE_FROM_REMOTE;
         // should round trip
         final var deserialized = roundTripWithVersion(idx, version);
 

@@ -39,7 +39,8 @@
       ]
     },
     "body": {
-      "description": "The search definition template and its params"
+      "description": "The search definition template and its params",
+      "required": true
     }
   }
 }

@@ -2,15 +2,19 @@ increase_of_long_no_grouping
 required_capability: increase
 required_capability: ts_command_v0
 
+// tag::increase[]
 TS k8s
 | STATS increase_bytes_in=avg(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,1minute)
+// end::increase[]
 | SORT increase_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
+// tag::increase-result[]
 increase_bytes_in:double | time_bucket:datetime
 null                     | 2024-05-10T00:01:00.000Z
 1728.1785714285716       | 2024-05-10T00:15:00.000Z
 1525.3333333333335       | 2024-05-10T00:04:00.000Z
 1457.3676470588234       | 2024-05-10T00:19:00.000Z
+// end::increase-result[]
 1443.333333333333        | 2024-05-10T00:10:00.000Z
 1352.8076923076924       | 2024-05-10T00:13:00.000Z
 1262.3891797611566       | 2024-05-10T00:17:00.000Z
@@ -64,14 +68,19 @@ null                 | 2024-05-10T00:01:00.000Z
 increase_with_filtering
 required_capability: increase
 required_capability: ts_command_v0
-TS k8s | WHERE pod == "one"
-| STATS increase_bytes_in = sum(increase(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+// tag::increase[]
+TS k8s
+| WHERE pod == "one"
+| STATS increase_bytes_in = SUM(INCREASE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
+// end::increase[]
 | SORT time_bucket, cluster | LIMIT 10;
 
+// tag::increase-result[]
 increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 2418.8749174917493       | prod            | 2024-05-10T00:00:00.000Z
 5973.5                   | qa              | 2024-05-10T00:00:00.000Z
 2545.467283950617        | staging         | 2024-05-10T00:00:00.000Z
+// end::increase-result[]
 6713.028169014084        | prod            | 2024-05-10T00:10:00.000Z
 7333.555555555556        | qa              | 2024-05-10T00:10:00.000Z
 1830.2228941684662       | staging         | 2024-05-10T00:10:00.000Z

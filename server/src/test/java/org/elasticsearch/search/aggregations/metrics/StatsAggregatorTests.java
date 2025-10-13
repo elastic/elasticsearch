@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -80,9 +81,8 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         DateFormatter.forPattern("epoch_millis");
         final MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "field",
+            IndexType.points(true, true),
             true,
-            true,
-            false,
             true,
             DateFormatter.forPattern("epoch_millis"),
             DateFieldMapper.Resolution.MILLISECONDS,

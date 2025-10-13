@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -201,9 +202,8 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         return new NumberFieldMapper.NumberFieldType(
             name,
             NumberFieldMapper.NumberType.LONG,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             false,
             null,
             Collections.emptyMap(),
@@ -218,7 +218,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType timeStampField() {
         return new DateFieldMapper.DateFieldType(
             "@timestamp",
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

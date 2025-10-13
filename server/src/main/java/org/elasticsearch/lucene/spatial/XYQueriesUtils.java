@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.mapper.IndexType;
 
 import java.util.Arrays;
 
@@ -38,7 +39,9 @@ public class XYQueriesUtils {
      *  Note that lucene only supports intersects spatial relation so we build other relations
      *  using just that one.
      * */
-    public static Query toXYPointQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean indexed, boolean hasDocValues) {
+    public static Query toXYPointQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
+        boolean indexed = indexType.hasPoints();
+        boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         // XYPointField only supports intersects query so we build all the relationships using that logic.
@@ -285,7 +288,9 @@ public class XYQueriesUtils {
 
     /** Generates a lucene query for a field that has been previously indexed using {@link XYShape}.It expects
      * either {code indexed} or {@code has docValues} to be true or both to be true. */
-    public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean indexed, boolean hasDocValues) {
+    public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
+        boolean indexed = indexType.hasPoints();
+        boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         if (geometry == null || geometry.isEmpty()) {
             return new MatchNoDocsQuery();

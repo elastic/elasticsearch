@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +30,8 @@ import java.util.Objects;
 public class SearchStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
+
+        private static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = TransportVersion.fromName("search_load_per_index_stats");
 
         private long queryCount;
         private long queryTimeInMillis;
@@ -118,7 +121,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 fetchFailure = in.readVLong();
             }
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_LOAD_PER_INDEX_STATS)) {
+            if (in.getTransportVersion().supports(SEARCH_LOAD_PER_INDEX_STATS)) {
                 recentSearchLoad = in.readDouble();
             }
         }
@@ -146,7 +149,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(fetchFailure);
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_LOAD_PER_INDEX_STATS)) {
+            if (out.getTransportVersion().supports(SEARCH_LOAD_PER_INDEX_STATS)) {
                 out.writeDouble(recentSearchLoad);
             }
         }

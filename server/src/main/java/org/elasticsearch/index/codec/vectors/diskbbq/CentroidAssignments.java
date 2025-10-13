@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
+public record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
 
-    CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
+    public CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
         this(centroids.length, centroids, assignments, overspillAssignments);
         assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
             : "assignments and overspillAssignments must have the same length";

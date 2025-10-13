@@ -310,6 +310,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         final List<String> profileUids;

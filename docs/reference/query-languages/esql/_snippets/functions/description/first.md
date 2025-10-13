@@ -2,5 +2,5 @@
 
 **Description**
 
-The earliest value of a field.
+Calculates the earliest value of a field.
 

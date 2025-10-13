@@ -54,14 +54,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         protected AbstractShapeGeometryFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Parser<T> parser,
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
+            super(name, indexType, isStored, parser, null, meta);
             this.orientation = orientation;
         }
 

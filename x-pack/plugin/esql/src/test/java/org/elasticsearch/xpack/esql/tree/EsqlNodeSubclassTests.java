@@ -707,7 +707,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     static List<DataType> DATA_TYPES = DataType.types()
         .stream()
-        .filter(d -> DataType.UNDER_CONSTRUCTION.containsKey(d) == false || Build.current().isSnapshot())
+        .filter(d -> DataType.UNDER_CONSTRUCTION.contains(d) == false || Build.current().isSnapshot())
         .toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {

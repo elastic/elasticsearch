@@ -44,6 +44,6 @@ public final class IrateIntAggregatorFunctionSupplier implements AggregatorFunct
 
   @Override
   public String describe() {
-    return "irate of ints";
+    return IrateIntAggregator.describe();
   }
 }

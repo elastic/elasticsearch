@@ -51,9 +51,9 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsIndexed() {
         RankVectorsFieldType fft = createFloatFieldType();
-        assertFalse(fft.isIndexed());
+        assertTrue(fft.indexType().hasOnlyDocValues());
         RankVectorsFieldType bft = createByteFieldType();
-        assertFalse(bft.isIndexed());
+        assertTrue(bft.indexType().hasOnlyDocValues());
     }
 
     public void testIsSearchable() {

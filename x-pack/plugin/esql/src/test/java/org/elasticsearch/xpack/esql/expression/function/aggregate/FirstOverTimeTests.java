@@ -43,8 +43,13 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
-                TestCaseSupplier testCaseSupplier = makeSupplier(fieldSupplier);
-                suppliers.add(testCaseSupplier);
+                DataType type = fieldSupplier.type();
+                suppliers.add(makeSupplier(fieldSupplier, type));
+                switch (type) {
+                    case LONG -> suppliers.add(makeSupplier(fieldSupplier, DataType.COUNTER_LONG));
+                    case DOUBLE -> suppliers.add(makeSupplier(fieldSupplier, DataType.COUNTER_DOUBLE));
+                    case INTEGER -> suppliers.add(makeSupplier(fieldSupplier, DataType.COUNTER_INTEGER));
+                }
             }
         }
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
@@ -65,11 +70,11 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
-        DataType type = fieldSupplier.type();
+    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier, DataType type) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             List<Object> dataRows = fieldTypedData.multiRowData();
+            fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
             List<Long> timestamps = IntStream.range(0, dataRows.size()).mapToLong(unused -> randomNonNegativeLong()).boxed().toList();
             TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(timestamps, DataType.DATETIME, "timestamps");
             Object expected = null;
@@ -85,8 +90,8 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorName("First", fieldSupplier.type()) + "ByTimestamp",
-                type,
+                standardAggregatorName("First", type) + "ByTimestamp",
+                fieldSupplier.type(),
                 equalTo(expected)
             );
         });

@@ -37,6 +37,7 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)"
       },
       "format": {
@@ -46,6 +47,7 @@
       },
       "h": {
         "type": "list",
+        "default": "['bc', 'id', 'sc', 's']",
         "description": "Comma-separated list of column names to display"
       },
       "help": {

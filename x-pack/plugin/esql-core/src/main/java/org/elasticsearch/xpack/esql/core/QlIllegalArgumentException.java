@@ -6,6 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.core;
 
+/**
+ * Like {@link IllegalArgumentException}, but treated as a server error.
+ * <p>
+ *     Throw this in case of bugs, and the other in case of wrong user input.
+ * </p>
+ */
 public class QlIllegalArgumentException extends QlServerException {
     public QlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);

@@ -65,7 +65,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -74,6 +75,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @FunctionInfo(
         returnType = "long",
         description = "Returns the approximate number of distinct values.",
+        note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
+            + "aggregation-functions.md#esql-agg-count-distinct-approximate).",
         appendix = """
             ### Counts are approximate [esql-agg-count-distinct-approximate]
 
@@ -116,7 +119,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version", "_tsid" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(

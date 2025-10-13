@@ -62,7 +62,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE",
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsNotCalledWhenStateIsNotRecovered() {
@@ -81,7 +81,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to global block",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "skipping monitor as the cluster state is not recovered yet"
                 )
             );
@@ -93,7 +93,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE",
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsNotCalledWhenDeciderIsNotEnabled() {
@@ -117,7 +117,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to decider being disabled",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "skipping monitor because the write load decider is not fully enabled"
                 )
             );
@@ -129,7 +129,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE",
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsNotCalledWhenNoNodesAreHotSpotting() {
@@ -146,7 +146,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to no nodes hot-spotting",
                     WriteLoadConstraintMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "No hot-spotting nodes detected"
                 )
             );
@@ -196,7 +196,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                         "don't reroute due to reroute being called recently",
                         WriteLoadConstraintMonitor.class.getCanonicalName(),
                         Level.DEBUG,
-                        "Not calling reroute because we called reroute recently and there are no new hot spots"
+                        "Not calling reroute because we called reroute * ago and there are no new hot spots"
                     )
                 );
                 writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
@@ -213,7 +213,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor:TRACE",
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsCalledBeforeMinimumIntervalHasPassedIfNewNodesBecomeHotSpotted() {

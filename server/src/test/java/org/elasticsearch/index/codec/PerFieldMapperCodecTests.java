@@ -215,21 +215,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testSeqnoField() throws IOException {
-        assumeTrue(
-            "seqno_field_use_tsdb_doc_values_format should be enabled",
-            PerFieldFormatSupplier.SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()
-        );
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
-    }
-
-    public void testSeqnoFieldFeatureFlagDisabled() throws IOException {
-        assumeTrue(
-            "seqno_field_use_tsdb_doc_values_format should be disabled",
-            PerFieldFormatSupplier.SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled() == false
-        );
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(false));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, IndexMode mode, String mapping) throws IOException {

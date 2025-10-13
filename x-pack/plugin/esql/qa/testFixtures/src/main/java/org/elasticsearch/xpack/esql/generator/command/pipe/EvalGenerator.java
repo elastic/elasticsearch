@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -34,6 +35,7 @@ public class EvalGenerator implements CommandGenerator {
     ) {
         StringBuilder cmd = new StringBuilder(" | eval ");
         int nFields = randomIntBetween(1, 10);
+        Map<String, Column> usablePrevious = previousOutput.stream().collect(Collectors.toMap(Column::name, c -> c));
         // TODO pass newly created fields to next expressions
         var newColumns = new ArrayList<>();
         for (int i = 0; i < nFields; i++) {
@@ -46,7 +48,7 @@ public class EvalGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.expression(previousOutput);
+            String expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true);
             if (i > 0) {
                 cmd.append(",");
             }
@@ -56,6 +58,11 @@ public class EvalGenerator implements CommandGenerator {
             newColumns.add(unquote(name));
             cmd.append(" = ");
             cmd.append(expression);
+
+            // there could be collisions in many ways, remove all of them
+            usablePrevious.remove(name);
+            usablePrevious.remove("`" + name + "`");
+            usablePrevious.remove(unquote(name));
         }
         String cmdString = cmd.toString();
         return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));

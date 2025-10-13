@@ -36,18 +36,22 @@
     "params": {
       "interval": {
         "type": "time",
+        "default": "500ms",
         "description": "The interval for the second sampling of threads"
       },
       "snapshots": {
-        "type": "number",
+        "type": "long",
+        "default": 10,
         "description": "Number of samples of thread stacktrace (default: 10)"
       },
       "threads": {
-        "type": "number",
+        "type": "long",
+        "default": 3,
         "description": "Specify the number of threads to provide information for (default: 3)"
       },
       "ignore_idle_threads": {
         "type": "boolean",
+        "default": true,
         "description": "Don't show threads that are in known-idle places, such as waiting on a socket select or pulling from an empty task queue (default: true)"
       },
       "type": {
@@ -58,6 +62,7 @@
           "block",
           "mem"
         ],
+        "default": "cpu",
         "description": "The type to sample (default: cpu)"
       },
       "sort": {
@@ -70,6 +75,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     }

@@ -159,20 +159,20 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
-                relocatingShards,
+                "below threshold [%s=%d] for concurrent rebalances, current rebalance shard count [%d]",
                 CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
-                clusterConcurrentRebalance
+                clusterConcurrentRebalance,
+                relocatingShards
             );
         }
         if (clusterConcurrentFrozenRebalance == -1 || relocatingFrozenShards < clusterConcurrentFrozenRebalance) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "below threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
-                relocatingFrozenShards,
+                "below threshold [%s=%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
                 CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_FROZEN_REBALANCE_SETTING.getKey(),
-                clusterConcurrentFrozenRebalance
+                clusterConcurrentFrozenRebalance,
+                relocatingFrozenShards
             );
         }
         return allocation.decision(

@@ -8,7 +8,7 @@ applies_to:
 
 This page provides practical examples of how to configure highlighting in {{es}}.
 
-# Highlighting examples [highlighting-examples]
+# Highlighting examples
 
 * [Override global settings](#override-global-settings)
 * [Specify a highlight query](#specify-highlight-query)
@@ -20,7 +20,6 @@ This page provides practical examples of how to configure highlighting in {{es}}
 * [Control highlighted fragments](#control-highlighted-frags)
 * [Highlight using the postings list](#highlight-postings-list)
 * [Specify a fragmenter for the plain highlighter](#specify-fragmenter)
-
 
 ## Override global settings [override-global-settings]
 

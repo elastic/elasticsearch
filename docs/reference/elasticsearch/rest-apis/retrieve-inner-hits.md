@@ -286,7 +286,6 @@ POST test/_search
   }
 }
 ```
-
 % TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
 % TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 

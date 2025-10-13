@@ -20,7 +20,7 @@ POST _search
 {
   "suggest": {
     "my-suggest-1" : {
-      "text" : "tring out Elasticsearch",
+      "text" : "trying out Elasticsearch",
       "term" : {
         "field" : "message"
       }

@@ -46,7 +46,7 @@ To see how you can set up an index for the `terms_set` query, try the following 
       }
     }
     ```
-    %  TESTSETUP
+    % TESTSETUP
 
 2. Index a document with an ID of `1` and the following values:
 
@@ -64,6 +64,7 @@ To see how you can set up an index for the `terms_set` query, try the following 
       "required_matches": 2
     }
     ```
+
 
 3. Index another document with an ID of `2` and the following values:
 
@@ -93,6 +94,28 @@ The following search returns documents where the `programming_languages` field c
 * `php`
 
 The `minimum_should_match_field` is `required_matches`. This means the number of matching terms required is `2`, the value of the `required_matches` field.
+
+<!--
+```console
+PUT /job-candidates
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "keyword"
+      },
+      "programming_languages": {
+        "type": "keyword"
+      },
+      "required_matches": {
+        "type": "long"
+      }
+    }
+  }
+}
+```
+% TESTSETUP
+-->
 
 ```console
 GET /job-candidates/_search

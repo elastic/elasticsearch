@@ -188,6 +188,7 @@ request is ignored and the `result` element in the response returns `noop`:
    "result": "noop"
 }
 ```
+% NOTCONSOLE
 
 You can disable this behavior by setting `"detect_noop": false`:
 

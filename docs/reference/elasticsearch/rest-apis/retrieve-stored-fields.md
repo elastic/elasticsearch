@@ -59,7 +59,7 @@ The API returns the following response:
   "_index": "my-index-000001",
   "_id": "1",
   "_version": 1,
-  "_seq_no": 22,
+  "_seq_no": 0,
   "_primary_term": 1,
   "found": true,
   "fields": {

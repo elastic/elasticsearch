@@ -223,6 +223,11 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 

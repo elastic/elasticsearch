@@ -77,6 +77,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -208,7 +209,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     private List<ValuesSourceReaderOperator.ShardContext> initShardContexts() {
         return INDICES.keySet()
             .stream()
-            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), () -> SourceLoader.FROM_STORED_SOURCE, 0.2))
+            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2))
             .toList();
     }
 
@@ -598,6 +599,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             @Override
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
             }
         };
     }
@@ -1325,7 +1331,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false // no scoring
         );
-        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2);
+        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (p) -> SourceLoader.FROM_STORED_SOURCE, 0.2);
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -1455,7 +1461,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1484,7 +1490,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (int s = 0; s < shardCount; s++) {
                 contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
                 readerShardContexts.add(
-                    new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                    new ValuesSourceReaderOperator.ShardContext(readers[s], (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
                 );
             }
             var luceneFactory = new LuceneSourceOperator.Factory(

@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -194,7 +195,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         return new DocValueFetcher(
             docValueFormat(format, null),
             context.getForField(this, FielddataOperation.SEARCH),
-            StoredFieldsSpec.NEEDS_SOURCE       // for now we assume runtime fields need source
+            StoredFieldsSpec.withSourcePaths(context.ignoredSourceFormat(), Set.of(name())) // for now we assume runtime fields need source
         );
     }
 

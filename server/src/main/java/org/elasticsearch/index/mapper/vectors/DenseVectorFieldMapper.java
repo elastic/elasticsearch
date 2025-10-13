@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -2693,11 +2694,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.DenseVectorBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup, dims);
+            return new BlockSourceReader.DenseVectorBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat()),
+                lookup,
+                dims
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, null) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, null, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

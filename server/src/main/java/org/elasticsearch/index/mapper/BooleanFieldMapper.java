@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
@@ -203,11 +204,22 @@ public class BooleanFieldMapper extends FieldMapper {
                 return null;
             }
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
-            return scriptFactory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer);
+            if (scriptFactory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Boolean> consumer) {
+                    scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer);
+                }
+
+                @Override
+                public String name() {
+                    return leafName();
+                }
+            };
         }
     }
 
@@ -281,11 +293,17 @@ public class BooleanFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.ignoredSourceFormat()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {
@@ -364,7 +382,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 };
             }
 
-            ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat());
             BlockSourceReader.LeafIteratorLookup lookup = indexType.hasTerms() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
@@ -427,11 +445,18 @@ public class BooleanFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+                if (isSyntheticSource) {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                        fieldDataContext.indexSettings().getIndexVersionCreated()
+                    );
+                } else {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                }
                 return new SourceValueFetcherSortedBooleanIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.BOOLEAN,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, ignoredSourceFormat),
                     searchLookup,
                     BooleanDocValuesField::new
                 );

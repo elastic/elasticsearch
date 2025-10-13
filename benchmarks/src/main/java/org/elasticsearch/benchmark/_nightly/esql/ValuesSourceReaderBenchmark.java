@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -259,6 +260,11 @@ public class ValuesSourceReaderBenchmark {
                 public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                     return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
                 }
+
+                @Override
+                public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                    throw new UnsupportedOperationException();
+                }
             });
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
@@ -368,7 +374,7 @@ public class ValuesSourceReaderBenchmark {
             blockFactory,
             ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             0

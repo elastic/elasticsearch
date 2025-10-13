@@ -180,6 +180,11 @@ public class BlockLoaderTestRunner {
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                return mapperService.mappingLookup().ignoredSourceFormat();
+            }
         });
     }
 

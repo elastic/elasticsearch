@@ -79,6 +79,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -368,15 +369,22 @@ public final class DateFieldMapper extends FieldMapper {
                 return null;
             }
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
-            return factory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(
-                    leafName(),
-                    script.get().getParams(),
-                    lookup,
-                    buildFormatter(),
-                    OnScriptError.FAIL
-                ).newInstance(ctx).runForDoc(doc, consumer::accept);
+            if (factory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Long> consumer) {
+                    factory.newFactory(leafName(), script.get().getParams(), lookup, buildFormatter(), OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer::accept);
+                }
+
+                @Override
+                public String name() {
+                    return leafName();
+                }
+            };
         }
 
         @Override
@@ -662,8 +670,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         // returns a Long to support source fallback which emulates numeric doc values for dates
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 public Long parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
@@ -999,7 +1010,10 @@ public final class DateFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || indexType.hasPoints()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.LongsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat()),
+                lookup
+            );
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -1063,11 +1077,18 @@ public final class DateFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+                if (isSyntheticSource) {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                        fieldDataContext.indexSettings().getIndexVersionCreated()
+                    );
+                } else {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                }
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType().getValuesSourceType(),
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, ignoredSourceFormat),
                     searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );

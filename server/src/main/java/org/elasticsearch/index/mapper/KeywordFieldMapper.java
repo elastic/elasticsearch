@@ -85,6 +85,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
@@ -386,11 +387,22 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return null;
             }
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
-            return scriptFactory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer);
+            if (scriptFactory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<String> consumer) {
+                    scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer);
+                }
+
+                @Override
+                public String name() {
+                    return leafName();
+                }
+            };
         }
 
         @Override
@@ -820,7 +832,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
-            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }
 
@@ -903,12 +915,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 };
             }
-
             Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                sourceValueFetcher(sourcePaths),
+                sourceValueFetcher(sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE),
                 fieldDataContext.lookupSupplier().get(),
                 KeywordDocValuesField::new
             );
@@ -930,11 +941,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.ignoredSourceFormat()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

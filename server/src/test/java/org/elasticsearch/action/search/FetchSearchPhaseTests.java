@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -78,6 +79,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -864,7 +866,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
+                    return StoredFieldsSpec.withSourcePaths(
+                        searchContext.getSearchExecutionContext().ignoredSourceFormat(),
+                        Set.of("thefield")
+                    );
                 }
             }));
             fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
@@ -918,7 +923,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
+                    boolean sourceSynthetic = fetchContext.getSearchExecutionContext().isSourceSynthetic();
+                    return StoredFieldsSpec.withSourcePaths(
+                        IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        Set.of("thefield")
+                    );
                 }
             }));
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(

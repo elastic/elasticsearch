@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -360,7 +361,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 fieldInfos,
-                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
+                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), (p) -> {
                     throw new IllegalStateException("can't load source here");
                 }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
                 0
@@ -533,6 +534,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             @Override
             public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                 return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+
+            @Override
+            public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+                throw new UnsupportedOperationException();
             }
         };
     }

@@ -30,6 +30,7 @@ import java.util.Set;
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -43,6 +44,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
         this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
         this.nullValue = nullValue;
+        this.ignoredSourceFormat = context.ignoredSourceFormat();
     }
 
     /**
@@ -52,6 +54,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
     }
 
     @Override
@@ -76,7 +79,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**

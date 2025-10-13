@@ -77,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -163,11 +164,22 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 return null;
             }
             GeometryFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeometryFieldScript.CONTEXT);
-            return factory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer);
+            if (factory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Geometry> consumer) {
+                    factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer);
+                }
+
+                @Override
+                public String name() {
+                    return leafName();
+                }
+            };
         }
 
         @Override

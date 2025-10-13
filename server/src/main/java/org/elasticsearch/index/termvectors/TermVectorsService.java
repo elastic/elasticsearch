@@ -283,7 +283,10 @@ public class TermVectorsService {
             Source s = Source.fromMap(source, XContentType.JSON);
             for (String field : fields) {
                 if (values.containsKey(field) == false) {
-                    SourceValueFetcher valueFetcher = SourceValueFetcher.toString(mappingLookup.sourcePaths(field));
+                    SourceValueFetcher valueFetcher = SourceValueFetcher.toString(
+                        mappingLookup.sourcePaths(field),
+                        mappingLookup.ignoredSourceFormat()
+                    );
                     List<Object> ignoredValues = new ArrayList<>();
                     List<Object> v = valueFetcher.fetchValues(s, -1, ignoredValues);
                     if (v.isEmpty() == false) {

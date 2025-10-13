@@ -753,15 +753,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(context);
         }
 
         public IgnoreAbove ignoreAbove() {
             return ignoreAbove;
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, null) {
+        private SourceValueFetcher sourceValueFetcher(SearchExecutionContext context) {
+            Set<String> sourcePaths = context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet();
+            return new SourceValueFetcher(sourcePaths, null, context.ignoredSourceFormat()) {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {

@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
@@ -166,11 +167,22 @@ public class IpFieldMapper extends FieldMapper {
                 return null;
             }
             IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
-            return factory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer);
+            if (factory == null) {
+                return null;
+            }
+            return new FieldValues<>() {
+                @Override
+                public void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<InetAddress> consumer) {
+                    factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer);
+                }
+
+                @Override
+                public String name() {
+                    return leafName();
+                }
+            };
         }
 
         @Override
@@ -486,7 +498,10 @@ public class IpFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.IpsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.ignoredSourceFormat()),
+                lookup
+            );
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
@@ -503,8 +518,11 @@ public class IpFieldMapper extends FieldMapper {
             };
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValue, ignoredSourceFormat) {
                 @Override
                 public InetAddress parseSourceValue(Object value) {
                     return parse(value);

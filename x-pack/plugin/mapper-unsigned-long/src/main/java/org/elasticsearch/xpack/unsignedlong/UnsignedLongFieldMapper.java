@@ -398,7 +398,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 };
             }
 
-            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            ValueFetcher valueFetcher = new SourceValueFetcher(
+                blContext.sourcePaths(name()),
+                nullValueFormatted,
+                blContext.ignoredSourceFormat()
+            ) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -507,11 +511,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
-
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+                if (isSyntheticSource) {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(
+                        fieldDataContext.indexSettings().getIndexVersionCreated()
+                    );
+                } else {
+                    ignoredSourceFormat = IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                }
                 return new SourceValueFetcherSortedUnsignedLongIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, ignoredSourceFormat),
                     searchLookup,
                     UnsignedLongDocValuesField::new
                 );
@@ -525,11 +536,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.ignoredSourceFormat()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValueFormatted) {
+        private SourceValueFetcher sourceValueFetcher(
+            Set<String> sourcePaths,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) {
+            return new SourceValueFetcher(sourcePaths, nullValueFormatted, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

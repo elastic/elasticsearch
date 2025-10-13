@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
@@ -223,7 +224,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return StoredFieldsSpec.NEEDS_SOURCE;
+                return StoredFieldsSpec.withSourcePaths(context.ignoredSourceFormat(), Set.of(name()));
             }
         };
     }

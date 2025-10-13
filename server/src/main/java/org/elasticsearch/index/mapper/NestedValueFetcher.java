@@ -18,8 +18,10 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -31,13 +33,19 @@ public class NestedValueFetcher implements ValueFetcher {
     // the name of the nested field without the full path, i.e. in foo.bar.baz it would be baz
     private final String nestedFieldName;
     private final String[] nestedPathParts;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-    public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher) {
+    public NestedValueFetcher(
+        String nestedField,
+        FieldFetcher nestedFieldFetcher,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+    ) {
         assert nestedField != null && nestedField.isEmpty() == false;
         this.nestedFieldPath = nestedField;
         this.nestedFieldFetcher = nestedFieldFetcher;
         this.nestedPathParts = nestedFieldPath.split("\\.");
         this.nestedFieldName = nestedPathParts[nestedPathParts.length - 1];
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
@@ -92,6 +100,6 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, new HashSet<>(Arrays.asList(nestedPathParts)));
     }
 }

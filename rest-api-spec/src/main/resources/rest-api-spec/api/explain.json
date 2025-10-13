@@ -48,10 +48,10 @@
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {

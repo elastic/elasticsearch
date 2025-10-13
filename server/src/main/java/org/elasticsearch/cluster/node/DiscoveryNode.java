@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -61,7 +59,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     static final String COORDINATING_ONLY = "coordinating_only";
-    public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersions.V_8_3_0;
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
         .thenComparing(DiscoveryNode::getId);
 
@@ -331,11 +328,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         minReadOnlyIndexVersion = IndexVersion.readVersion(in);
         IndexVersion maxIndexVersion = IndexVersion.readVersion(in);
         versionInfo = new VersionInformation(version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
-        if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
-            this.externalId = readStringLiteral.read(in);
-        } else {
-            this.externalId = nodeName;
-        }
+        this.externalId = readStringLiteral.read(in);
         this.roleNames = Set.of(roleNames);
     }
 
@@ -367,9 +360,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
         IndexVersion.writeVersion(versionInfo.minReadOnlyIndexVersion(), out);
         IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
-        if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
-            out.writeString(externalId);
-        }
+        out.writeString(externalId);
     }
 
     /**

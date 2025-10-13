@@ -294,21 +294,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     @Override
-    public void skipUnavailableChanged(
-        ProjectId originProjectId,
-        ProjectId linkedProjectId,
-        String linkedProjectAlias,
-        boolean skipUnavailable
-    ) {
-        assert crossProjectEnabled == false
-            : "Cannot configure setting [" + RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getKey() + "] in CPS environments.";
-        final var remote = getConnectionsMapForProject(originProjectId).get(linkedProjectAlias);
-        if (remote != null) {
-            remote.setSkipUnavailable(skipUnavailable);
-        }
-    }
-
-    @Override
     public void updateLinkedProject(LinkedProjectConfig config) {
         final var projectId = config.originProjectId();
         final var clusterAlias = config.linkedProjectAlias();
@@ -385,6 +370,9 @@ public final class RemoteClusterService extends RemoteClusterAware
             remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
+        } else if (remote.isSkipUnavailable() != config.skipUnavailable()) {
+            remote.setSkipUnavailable(config.skipUnavailable());
+            listener.onResponse(RemoteClusterConnectionStatus.UPDATED);
         } else {
             // No changes to connection configuration.
             listener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
@@ -395,7 +383,8 @@ public final class RemoteClusterService extends RemoteClusterAware
         CONNECTED,
         DISCONNECTED,
         RECONNECTED,
-        UNCHANGED
+        UNCHANGED,
+        UPDATED
     }
 
     /**

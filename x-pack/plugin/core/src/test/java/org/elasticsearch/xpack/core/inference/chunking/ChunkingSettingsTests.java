@@ -5,16 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
-import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
-import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
-import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.util.HashMap;
 import java.util.Map;

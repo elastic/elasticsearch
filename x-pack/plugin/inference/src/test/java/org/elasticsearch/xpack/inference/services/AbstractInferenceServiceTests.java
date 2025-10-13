@@ -27,7 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

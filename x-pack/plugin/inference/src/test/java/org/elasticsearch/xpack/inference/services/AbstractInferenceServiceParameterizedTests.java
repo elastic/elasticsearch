@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

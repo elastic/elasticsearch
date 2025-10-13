@@ -738,8 +738,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
     public void testStartsRequestQueueTask() {
         var mockExecutorService = mock(ExecutorService.class);
-        @SuppressWarnings("unchecked")
-        var stubbing = when(mockExecutorService.submit(any(Runnable.class))).thenReturn(mock(Future.class));
+        when(mockExecutorService.submit(any(Runnable.class))).thenAnswer(i -> mock(Future.class));
 
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.executor(any())).thenReturn(mockExecutorService);

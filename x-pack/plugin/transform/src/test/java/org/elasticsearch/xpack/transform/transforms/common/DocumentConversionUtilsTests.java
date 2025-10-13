@@ -87,17 +87,18 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     public void testExtractFieldMappings() {
-        FieldCapabilitiesResponse response = FieldCapabilitiesResponse.builder().withIndices(
-            new String[] { "some-index" })
-                .withFields(
-            Map.ofEntries(
-                entry("field-1", Map.of("keyword", createFieldCapabilities("field-1", "keyword"))),
-                entry(
-                    "field-2",
-                    Map.of("long", createFieldCapabilities("field-2", "long"), "keyword", createFieldCapabilities("field-2", "keyword"))
+        FieldCapabilitiesResponse response = FieldCapabilitiesResponse.builder()
+            .withIndices(new String[] { "some-index" })
+            .withFields(
+                Map.ofEntries(
+                    entry("field-1", Map.of("keyword", createFieldCapabilities("field-1", "keyword"))),
+                    entry(
+                        "field-2",
+                        Map.of("long", createFieldCapabilities("field-2", "long"), "keyword", createFieldCapabilities("field-2", "keyword"))
+                    )
                 )
             )
-                ).build();
+            .build();
 
         assertThat(
             DocumentConversionUtils.extractFieldMappings(response),

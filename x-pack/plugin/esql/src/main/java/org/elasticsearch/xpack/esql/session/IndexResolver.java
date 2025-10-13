@@ -110,7 +110,7 @@ public class IndexResolver {
                     var clusterAlias = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
                     if (cause instanceof IndexNotFoundException) {
                         missingIndices.addAll(Arrays.asList(failure.getIndices()));
-                    } else if (executionInfo != null && executionInfo.shouldSkipOnFailure(clusterAlias)) {
+                    } else if (executionInfo != null && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                         listener.onFailure(failure.getException());
                         return;
                     }

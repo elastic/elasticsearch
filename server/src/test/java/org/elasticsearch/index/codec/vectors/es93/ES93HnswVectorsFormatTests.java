@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -64,20 +63,17 @@ public class ES93HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     public void testToString() {
-        FilterCodec customCodec =
-            new FilterCodec("foo", Codec.getDefault()) {
-                @Override
-                public KnnVectorsFormat knnVectorsFormat() {
-                    return new ES93HnswVectorsFormat(10, 20, false, false);
-                }
-            };
-        String expectedPattern =
-            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20," +
-                " flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat," +
-                " format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s())))";
+        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
+            @Override
+            public KnnVectorsFormat knnVectorsFormat() {
+                return new ES93HnswVectorsFormat(10, 20, false, false);
+            }
+        };
+        String expectedPattern = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20,"
+            + " flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+            + " format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s())))";
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer =
-            format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
+        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
         assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
     }
 
@@ -90,13 +86,13 @@ public class ES93HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, 3201, false, false));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES93HnswVectorsFormat(20, 100, false, false, 1, new SameThreadExecutorService()));
+            () -> new ES93HnswVectorsFormat(20, 100, false, false, 1, new SameThreadExecutorService())
+        );
     }
 
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
-        try (Directory dir = newDirectory();
-             IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
             Document doc = new Document();
             doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
             w.addDocument(doc);

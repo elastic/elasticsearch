@@ -37,7 +37,14 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
     }
 
-    public ES93HnswVectorsFormat(int maxConn, int beamWidth, boolean bfloat16, boolean useDirectIO, int numMergeWorkers, ExecutorService mergeExec) {
+    public ES93HnswVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        boolean bfloat16,
+        boolean useDirectIO,
+        int numMergeWorkers,
+        ExecutorService mergeExec
+    ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
         flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
     }

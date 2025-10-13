@@ -53,17 +53,17 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     private final int tinySegmentsThreshold;
 
     public ES92GpuHnswVectorsFormat() {
-        this(CuVSResourceManager::pooling, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, MIN_NUM_VECTORS_FOR_GPU_BUILD);
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, CuVSResourceManager::pooling, MIN_NUM_VECTORS_FOR_GPU_BUILD);
     }
 
     public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager::pooling, maxConn, beamWidth, MIN_NUM_VECTORS_FOR_GPU_BUILD);
+        this(maxConn, beamWidth, CuVSResourceManager::pooling, MIN_NUM_VECTORS_FOR_GPU_BUILD);
     }
 
     public ES92GpuHnswVectorsFormat(
-        Supplier<CuVSResourceManager> cuVSResourceManagerSupplier,
         int maxConn,
         int beamWidth,
+        Supplier<CuVSResourceManager> cuVSResourceManagerSupplier,
         int tinySegmentsThreshold
     ) {
         super(NAME);

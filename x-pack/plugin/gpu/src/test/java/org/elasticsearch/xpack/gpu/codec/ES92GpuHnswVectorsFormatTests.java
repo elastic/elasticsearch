@@ -29,9 +29,9 @@ public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase 
 
     static ES92GpuHnswVectorsFormat createES92GpuHnswVectorsFormat(int tinySegmentsThreshold) {
         return new ES92GpuHnswVectorsFormat(
-            CuVSResourceManager::pooling,
             ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
             ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+            CuVSResourceManager::pooling,
             tinySegmentsThreshold
         );
     }

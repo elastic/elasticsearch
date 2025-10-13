@@ -314,7 +314,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     OnHeapHnswGraph buildGraphWithTheCPU(RandomVectorScorerSupplier scorerSupplier, int numVectors) throws IOException {
         assert numVectors > 0;
         var hnswGraphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed);
-        // hnswGraphBuilder.setInfoStream(infoStream);
         for (int i = 0; i < numVectors; i++) {
             hnswGraphBuilder.addGraphNode(i);
         }

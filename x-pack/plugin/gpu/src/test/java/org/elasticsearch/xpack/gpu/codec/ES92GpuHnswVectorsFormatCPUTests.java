@@ -30,9 +30,9 @@ public class ES92GpuHnswVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCa
     static class ES92GpuHnswVectorsFormatTinyOneMillion extends ES92GpuHnswVectorsFormat {
         ES92GpuHnswVectorsFormatTinyOneMillion() {
             super(
-                ThrowingCuVSResourceManager.supplier,
                 ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
                 ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                ThrowingCuVSResourceManager.supplier,
                 Integer.MAX_VALUE
             );
         }
@@ -60,7 +60,7 @@ public class ES92GpuHnswVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCa
             + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());
 
-        knnVectorsFormat = new ES92GpuHnswVectorsFormat(ThrowingCuVSResourceManager.supplier, 5, 6, 7);
+        knnVectorsFormat = new ES92GpuHnswVectorsFormat(5, 6, ThrowingCuVSResourceManager.supplier, 7);
         expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=5, beamWidth=6, tinySegmentsThreshold=7, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());

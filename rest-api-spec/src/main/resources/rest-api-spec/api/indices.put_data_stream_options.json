@@ -45,6 +45,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit timestamp for the document"
       },
       "master_timeout": {
@@ -54,7 +55,8 @@
       }
     },
     "body": {
-      "description": "The data stream options configuration that consist of the failure store configuration"
+      "description": "The data stream options configuration that consist of the failure store configuration",
+      "required": true
     }
   }
 }

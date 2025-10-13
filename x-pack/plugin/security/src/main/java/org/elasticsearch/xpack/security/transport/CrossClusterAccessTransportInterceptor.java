@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -76,6 +78,9 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
         TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
         TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
     );
+
+    // Visible for testing
+    static final TransportVersion ADD_CROSS_CLUSTER_API_KEY_SIGNATURE = TransportVersion.fromName("add_cross_cluster_api_key_signature");
 
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
@@ -212,7 +217,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
-
+                var signer = crossClusterApiKeySignatureManager.signerForClusterAlias(remoteClusterCredentials.clusterAlias());
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (user instanceof InternalUser && false == SystemUser.is(user)) {
                     final String message = "Internal user [" + user.principal() + "] should not be used for cross cluster requests";
@@ -244,6 +249,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )
                     );
+
                     // To be able to enforce index-level privileges under the new remote cluster security model,
                     // we switch from old-style internal actions to their new equivalent indices actions so that
                     // they will be checked for index privileges against the index specified in the requests
@@ -251,7 +257,15 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     if (false == effectiveAction.equals(action)) {
                         logger.trace("switching internal action from [{}] to [{}]", action, effectiveAction);
                     }
-                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, effectiveAction, request, options, handler);
+                    sendWithCrossClusterAccessHeaders(
+                        crossClusterAccessHeaders,
+                        connection,
+                        effectiveAction,
+                        signer,
+                        request,
+                        options,
+                        handler
+                    );
                 } else {
                     assert false == action.startsWith("internal:") : "internal action must be sent with system user";
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
@@ -279,7 +293,15 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                                 remoteClusterCredentials.credentials(),
                                 new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection)
                             );
-                            sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
+                            sendWithCrossClusterAccessHeaders(
+                                crossClusterAccessHeaders,
+                                connection,
+                                action,
+                                signer,
+                                request,
+                                options,
+                                handler
+                            );
                         }, // it's safe to not use a context restore handler here since `getRoleDescriptorsIntersectionForRemoteCluster`
                            // uses a context preserving listener internally, and `sendWithCrossClusterAccessHeaders` uses a context restore
                            // handler
@@ -293,6 +315,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                 final CrossClusterAccessHeaders crossClusterAccessHeaders,
                 final Transport.Connection connection,
                 final String action,
+                @Nullable final CrossClusterApiKeySignatureManager.Signer signer,
                 final TransportRequest request,
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
@@ -303,7 +326,11 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     handler
                 );
                 try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(AuditUtil.AUDIT_REQUEST_ID)) {
-                    crossClusterAccessHeaders.writeToContext(threadContext);
+                    if (connection.getTransportVersion().supports(ADD_CROSS_CLUSTER_API_KEY_SIGNATURE)) {
+                        crossClusterAccessHeaders.writeToContext(threadContext, signer);
+                    } else {
+                        crossClusterAccessHeaders.writeToContext(threadContext, null);
+                    }
                     sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                 } catch (Exception e) {
                     contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));

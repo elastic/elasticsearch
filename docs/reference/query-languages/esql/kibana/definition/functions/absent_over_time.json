@@ -234,7 +234,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| WHERE cluster == \"prod\" AND pod == \"two\"\n| STATS events_received = max(absent_over_time(events_received)) BY pod, time_bucket = tbucket(2 minute)"
+    "TS k8s\n| WHERE cluster == \"prod\" AND pod == \"two\"\n| STATS events_received = MAX(ABSENT_OVER_TIME(events_received)) BY pod, time_bucket = TBUCKET(2 minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

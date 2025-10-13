@@ -110,7 +110,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
                     "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",

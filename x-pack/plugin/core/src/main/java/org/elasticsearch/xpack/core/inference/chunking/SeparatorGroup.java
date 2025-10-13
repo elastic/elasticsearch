@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import java.util.List;
 import java.util.Locale;

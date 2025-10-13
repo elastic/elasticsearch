@@ -174,7 +174,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readGenericMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
+        } else {
+            this.ignoreMissingComponentTemplates = null;
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
@@ -291,7 +295,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
         }

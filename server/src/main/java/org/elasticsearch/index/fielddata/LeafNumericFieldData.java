@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
-
 /**
  * Specialization of {@link LeafFieldData} for numeric data.
  */
@@ -21,7 +19,7 @@ public interface LeafNumericFieldData extends LeafFieldData {
      * stores floating-point numbers then these values will return the same
      * values but casted to longs.
      */
-    SortedNumericDocValues getLongValues();
+    SortedNumericLongValues getLongValues();
 
     /**
      * Return a floating-point view of the values in this segment. If the

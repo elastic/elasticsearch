@@ -26,7 +26,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
     }
 
     @Override
-    void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+    public void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
         List<BiConsumer<LogicalPlan, Failures>> checkers = new ArrayList<>();
 
         optimizedPlan.forEachUp(p -> {

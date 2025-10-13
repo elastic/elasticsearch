@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.util.List;
@@ -74,7 +78,14 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
             // We perform an optimizer run on every fragment. LookupJoinExec also contains such a fragment,
             // and currently it only contains an EsQueryExec after optimization.
             boolean hasLookupJoinExec = optimizedPlan instanceof EsQueryExec esQueryExec && esQueryExec.indexMode() == LOOKUP;
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec;
+            // If we group on a text field when using the TS command, we create an Alias that wraps the text field
+            // in a Values aggregation. Aggregations will return Keywords as opposed to Text types, so we want to
+            // permit the output type changing here.
+            boolean hasTextGroupingInTimeSeries = optimizedPlan.anyMatch(
+                a -> a instanceof TimeSeriesAggregate ts
+                    && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
+            );
+            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries;
             if (ignoreError == false) {
                 failures.add(
                     fail(

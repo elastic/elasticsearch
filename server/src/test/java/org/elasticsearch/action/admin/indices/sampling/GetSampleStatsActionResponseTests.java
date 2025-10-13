@@ -67,6 +67,7 @@ public class GetSampleStatsActionResponseTests extends AbstractWireSerializingTe
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomPositiveTimeValue(),
             randomPositiveTimeValue(),
             randomPositiveTimeValue(),

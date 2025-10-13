@@ -563,7 +563,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Cannot update [semantic_text] field [" + fieldName + "] because inference endpoint [" + newInferenceId + "] does not exist."
+                "Cannot update [semantic_text] field ["
+                    + fieldName
+                    + "] because inference endpoint ["
+                    + newInferenceId
+                    + "] does not exist."
             )
         );
     }

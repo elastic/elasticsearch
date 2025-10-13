@@ -91,7 +91,8 @@ public class MetricNameValidator {
         }
         for (String attribute : attributes.keySet()) {
             if (FORBIDDEN_ATTRIBUTE_NAMES.test(attribute)) {
-                LogManager.getLogger(MetricNameValidator.class).warn("Attribute name [{}] is forbidden", attribute);
+                LogManager.getLogger(MetricNameValidator.class)
+                    .warn("Attribute name [{}] is forbidden due to potential mapping conflicts or assumed high cardinality", attribute);
                 return false;
             }
         }

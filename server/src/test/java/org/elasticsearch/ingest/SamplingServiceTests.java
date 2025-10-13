@@ -33,6 +33,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -250,7 +251,8 @@ public class SamplingServiceTests extends ESTestCase {
             );
         final ProjectId projectId = projectBuilder.getId();
         ProjectMetadata projectMetadata = projectBuilder.build();
-        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(randomByteArrayOfLength(150), XContentType.JSON);
+        final IndexRequest indexRequest = new IndexRequest(indexName).id("_id")
+            .source(randomAlphanumericOfLength(150).getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         for (int i = 0; i < maxSamples; i++) {
             samplingService.maybeSample(projectMetadata, indexRequest);
         }

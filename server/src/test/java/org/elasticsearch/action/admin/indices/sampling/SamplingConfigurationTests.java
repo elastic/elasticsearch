@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -134,7 +135,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             }
             """, SamplingConfiguration.INVALID_MAX_SAMPLES_MIN_MESSAGE);
 
-        assertValidationError(String.format("""
+        assertValidationError(String.format(Locale.ROOT, """
             {
               "rate": 0.5,
               "max_samples": %d
@@ -156,7 +157,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             }
             """, SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE);
 
-        assertValidationError(String.format("""
+        assertValidationError(String.format(Locale.ROOT, """
             {
               "rate": 0.5,
               "max_size": "%dgb"
@@ -178,7 +179,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             }
             """, SamplingConfiguration.INVALID_TIME_TO_LIVE_MIN_MESSAGE);
 
-        assertValidationError(String.format("""
+        assertValidationError(String.format(Locale.ROOT, """
             {
               "rate": 0.5,
               "time_to_live": "%dd"
@@ -236,6 +237,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         parser = createParser(
             JsonXContent.jsonXContent,
             String.format(
+                Locale.ROOT,
                 """
                     {
                       "rate": 1.0,

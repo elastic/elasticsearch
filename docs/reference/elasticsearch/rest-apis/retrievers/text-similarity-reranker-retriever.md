@@ -89,7 +89,7 @@ score = ln(score), if score < 0
 `chunk_rescorer` {applies_to}`stack: beta 9.2`
 :   (Optional, `object`)
 
-    When specified, chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit.
+    Chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit.
 
     Parameters for `chunk_rescorer`:
 

@@ -492,11 +492,11 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
             if (samplingMetadata != null) {
                 for (Map.Entry<String, SamplingConfiguration> entry : samplingMetadata.getIndexToSamplingConfigMap().entrySet()) {
                     SamplingConfiguration samplingConfiguration = entry.getValue();
-                    if (samplingConfiguration.creationDate().millis() + samplingConfiguration.timeToLive().millis() < now) {
+                    if (samplingConfiguration.creationTime() + samplingConfiguration.timeToLive().millis() < now) {
                         logger.debug(
                             "Configuration created at "
                                 + ZonedDateTime.ofInstant(
-                                    Instant.ofEpochMilli(samplingConfiguration.creationDate().millis()),
+                                    Instant.ofEpochMilli(samplingConfiguration.creationTime()),
                                     ZoneOffset.UTC
                                 )
                                 + " is older than "

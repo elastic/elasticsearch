@@ -71,9 +71,8 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsF
     }
 
     public void testToString() {
-        String expected =
-            "ES818HnswBinaryQuantizedVectorsFormat" +
-                "(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
+        String expected = "ES818HnswBinaryQuantizedVectorsFormat"
+            + "(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
         expected = format(
             Locale.ROOT,
             expected,

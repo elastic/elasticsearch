@@ -24,6 +24,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -91,6 +93,7 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
+        EsqlExecutionInfo executionInfo,
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
@@ -101,7 +104,17 @@ public class IndexResolver {
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             ActionListener.wrap(response -> {
                 LOGGER.debug("minimum transport version {}", response.minTransportVersion());
-                var missingIndices = missingRequiredIndices(response.caps().getFailures());
+                var missingIndices = new TreeSet<String>();
+                for (FieldCapabilitiesFailure failure : response.caps().getFailures()) {
+                    var cause = ExceptionsHelper.unwrapCause(failure.getException());
+                    var clusterAlias = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+                    if (cause instanceof IndexNotFoundException) {
+                        missingIndices.addAll(Arrays.asList(failure.getIndices()));
+                    } else if (executionInfo != null && executionInfo.shouldSkipOnFailure(clusterAlias)) {
+                        listener.onFailure(failure.getException());
+                        return;
+                    }
+                }
                 if (missingIndices.isEmpty()) {
                     listener.onResponse(
                         mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
@@ -118,10 +131,6 @@ public class IndexResolver {
                 }
             })
         );
-    }
-
-    private static List<String> missingRequiredIndices(List<FieldCapabilitiesFailure> failures) {
-        return failures.stream().flatMap(f -> Arrays.stream(f.getIndices())).toList();
     }
 
     public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}

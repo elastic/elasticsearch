@@ -356,6 +356,15 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
+        // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
+        {
+            String q = "FROM cluster-a:nomatch*";
+            try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                assertThat(getValuesList(resp).size(), equalTo(0));
+                assertThat(resp.columns().size(), greaterThan(0));
+            }
+        }
+
         // an error is thrown if there is a concrete index that does not match
         {
             String q = "FROM nomatch*,cluster-a:nomatch";
@@ -386,10 +395,21 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String localIndexName = randomFrom(localIndex, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String remote2IndexName = randomFrom(remote2Index, IDX_ALIAS, FILTERED_IDX_ALIAS);
-            String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
-            String expectedError = "Unknown index [cluster-a:nomatch]";
+
+            String q = "FROM "
+                + localIndexName
+                + "*," // local index pattern
+                + REMOTE_CLUSTER_1
+                + ":nomatch," // missing remote index
+                + REMOTE_CLUSTER_2
+                + ":"
+                + remote2IndexName
+                + "*"; // present remote pattern
+
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            String expectedError = "Unknown index [cluster-a:nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+
             setSkipUnavailable(REMOTE_CLUSTER_1, true);
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));

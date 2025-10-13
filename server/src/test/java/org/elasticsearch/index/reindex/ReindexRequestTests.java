@@ -203,10 +203,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             )
         );
         ActionRequestValidationException e = reindex.validate();
-        assertEquals(
-            "Validation Failed: 1: reindex from remote source included username but not password;",
-            e.getMessage()
-        );
+        assertEquals("Validation Failed: 1: reindex from remote source included username but not password;", e.getMessage());
     }
 
     public void testReindexFromRemoteRejectsPasswordWithNoUsername() {
@@ -226,10 +223,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             )
         );
         ActionRequestValidationException e = reindex.validate();
-        assertEquals(
-            "Validation Failed: 1: reindex from remote source included password but not username;",
-            e.getMessage()
-        );
+        assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {

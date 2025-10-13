@@ -22,7 +22,7 @@ public abstract class LeafCartesianPointFieldData extends LeafPointFieldData<Car
 
     @Override
     public final CartesianPointValuesSource.MultiCartesianPointValues getPointValues() {
-        return new CartesianPointValuesSource.MultiCartesianPointValues(getSortedNumericDocValues());
+        return new CartesianPointValuesSource.MultiCartesianPointValues(getSortedNumericLongValues());
     }
 
     @Override

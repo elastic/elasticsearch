@@ -13,7 +13,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -222,9 +221,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         fuzzyRewrite = in.readOptionalString();
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalFloat();
-        }
         zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
@@ -245,9 +241,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalFloat(null);
-        }
         zeroTermsQuery.writeTo(out);
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         out.writeBoolean(fuzzyTranspositions);

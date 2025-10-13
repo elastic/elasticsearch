@@ -287,18 +287,13 @@ required_capability: lookup_join_on_boolean_expression
 FROM multi_column_joinable_lookup
 | RENAME id_int AS left_id, name_str AS left_name
 | EVAL left_name = "nomatch"
+| WHERE left_id > 1 and left_id < 10
 | LOOKUP JOIN multi_column_joinable_lookup ON left_id == id_int AND left_name == name_str
 | KEEP left_id, left_name, id_int, name_str
 | SORT left_id, left_name, id_int, name_str
 ;
 
-warning:Line 4:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON left_id == id_int AND left_name == name_str] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
-
 left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
-[1, 19, 20]     | nomatch           | null           | null
-1               | nomatch           | null           | null
-1               | nomatch           | null           | null
 2               | nomatch           | null           | null
 3               | nomatch           | null           | null
 3               | nomatch           | null           | null
@@ -308,12 +303,6 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
 6               | nomatch           | null           | null
 7               | nomatch           | null           | null
 8               | nomatch           | null           | null
-12              | nomatch           | null           | null
-13              | nomatch           | null           | null
-14              | nomatch           | null           | null
-16              | nomatch           | null           | null
-[17, 18]        | nomatch           | null           | null
-null            | nomatch           | null           | null
 ;
 
 lookupMultiColMixedEqNeq

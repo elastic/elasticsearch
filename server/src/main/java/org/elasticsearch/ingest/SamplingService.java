@@ -1036,13 +1036,14 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         ) {
             logger.debug(
                 "Updating sampling configuration for index [{}] with rate [{}],"
-                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
+                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition [{}], creationTime [{}]",
                 updateSamplingConfigurationTask.indexName,
                 updateSamplingConfigurationTask.samplingConfiguration.rate(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
                 updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
-                updateSamplingConfigurationTask.samplingConfiguration.condition()
+                updateSamplingConfigurationTask.samplingConfiguration.condition(),
+                updateSamplingConfigurationTask.samplingConfiguration.creationTime()
             );
 
             // Get sampling metadata

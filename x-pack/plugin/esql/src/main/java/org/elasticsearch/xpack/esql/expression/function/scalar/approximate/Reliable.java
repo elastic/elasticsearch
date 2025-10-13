@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -240,7 +239,6 @@ public class Reliable extends EsqlScalarFunction {
                 reliableCount++;
             }
         }
-        System.out.println("estimates = " + Arrays.toString(estimates) + " -> reliableCount = " + reliableCount + " / " + trialCount);
         return 2 * reliableCount > trialCount;
     }
 

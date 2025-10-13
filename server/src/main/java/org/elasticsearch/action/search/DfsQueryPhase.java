@@ -73,6 +73,7 @@ class DfsQueryPhase extends SearchPhase {
     @SuppressWarnings("unchecked")
     @Override
     protected void run() {
+        phaseStartTimeInNanos = System.nanoTime();
         List<DfsSearchResult> searchResults = (List<DfsSearchResult>) context.results.getAtomicArray().asList();
         AggregatedDfs dfs = aggregateDfs(searchResults);
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs

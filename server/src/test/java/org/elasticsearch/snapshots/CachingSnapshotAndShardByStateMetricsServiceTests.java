@@ -25,8 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +38,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -45,7 +48,9 @@ import static org.mockito.Mockito.when;
 
 public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCase {
 
-    public void testMetricsAreOnlyCalculatedAfterAValidClusterStateHasBeenSeen() {
+    public void testMetricsAreOnlyCalculatedWhileClusterServiceIsStartedAndLocalNodeIsMaster() {
+        final var indexName = randomIdentifier();
+        final var repositoryName = randomIdentifier();
         final ClusterService clusterService = mock(ClusterService.class);
         final CachingSnapshotAndShardByStateMetricsService byStateMetricsService = new CachingSnapshotAndShardByStateMetricsService(
             clusterService
@@ -59,17 +64,20 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
 
         // Simulate the metrics service being started/a state being applied
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        final ClusterState withSnapshotsInProgress = createClusterStateWithSnapshotsInProgress();
+        final ClusterState withSnapshotsInProgress = createClusterStateWithSnapshotsInProgress(indexName, repositoryName);
         when(clusterService.state()).thenReturn(withSnapshotsInProgress);
 
         // This time we should publish some metrics
-        assertThat(byStateMetricsService.getShardsByState(), not(empty()));
-        assertThat(byStateMetricsService.getSnapshotsByState(), not(empty()));
+        final Collection<LongWithAttributes> shardsByState = byStateMetricsService.getShardsByState();
+        final Collection<LongWithAttributes> snapshotsByState = byStateMetricsService.getSnapshotsByState();
+        assertThat(shardsByState, not(empty()));
+        assertThat(snapshotsByState, not(empty()));
         verify(clusterService, times(2)).state();
 
         reset(clusterService);
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
-        // Then publish a new state in which we aren't master
+        // Then observe a new state in which we aren't master
         final ClusterState noLongerMaster = ClusterState.builder(withSnapshotsInProgress)
             .nodes(
                 DiscoveryNodes.builder(withSnapshotsInProgress.nodes())
@@ -80,20 +88,52 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
                         )
                     )
             )
+            .incrementVersion()
             .build();
         when(clusterService.state()).thenReturn(noLongerMaster);
 
         // We should no longer publish metrics
         assertThat(byStateMetricsService.getShardsByState(), empty());
         assertThat(byStateMetricsService.getSnapshotsByState(), empty());
+
+        // Become master again
+        final ClusterState masterAgain = ClusterState.builder(noLongerMaster)
+            .nodes(DiscoveryNodes.builder(noLongerMaster.nodes()).masterNodeId(noLongerMaster.nodes().getLocalNodeId()))
+            .incrementVersion()
+            .build();
+        when(clusterService.state()).thenReturn(masterAgain);
+
+        // We should return cached metrics because the SnapshotsInProgress hasn't changed
+        final Collection<LongWithAttributes> secondShardsByState = byStateMetricsService.getShardsByState();
+        final Collection<LongWithAttributes> secondSnapshotsByState = byStateMetricsService.getSnapshotsByState();
+        assertThat(secondShardsByState, sameInstance(shardsByState));
+        assertThat(secondSnapshotsByState, sameInstance(snapshotsByState));
+
+        // Update SnapshotsInProgress
+        final ClusterState newSnapshotsInProgress = ClusterState.builder(masterAgain)
+            .putCustom(SnapshotsInProgress.TYPE, createSnapshotsInProgress(indexName, repositoryName))
+            .incrementVersion()
+            .build();
+        when(clusterService.state()).thenReturn(newSnapshotsInProgress);
+
+        // We should return fresh metrics because the SnapshotsInProgress has changed
+        final Collection<LongWithAttributes> thirdShardsByState = byStateMetricsService.getShardsByState();
+        final Collection<LongWithAttributes> thirdSnapshotsByState = byStateMetricsService.getSnapshotsByState();
+        assertThat(thirdShardsByState, not(empty()));
+        assertThat(thirdSnapshotsByState, not(empty()));
+        assertThat(thirdShardsByState, not(sameInstance(shardsByState)));
+        assertThat(thirdSnapshotsByState, not(sameInstance(snapshotsByState)));
+
+        // Then the cluster service is stopped, we should no longer publish metrics
+        reset(clusterService);
+        when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STOPPED);
+        assertThat(byStateMetricsService.getShardsByState(), empty());
+        assertThat(byStateMetricsService.getSnapshotsByState(), empty());
         verify(clusterService, never()).state();
     }
 
-    private ClusterState createClusterStateWithSnapshotsInProgress() {
-        final var indexName = randomIdentifier();
-        final var repositoryName = randomIdentifier();
+    private ClusterState createClusterStateWithSnapshotsInProgress(String indexName, String repositoryName) {
         final ClusterState state = ClusterStateCreationUtils.state(indexName, randomIntBetween(1, 3), randomIntBetween(1, 2));
-        final IndexMetadata index = state.projectState(ProjectId.DEFAULT).metadata().index(indexName);
         return ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
             .putProjectMetadata(
@@ -103,9 +143,15 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
                         new RepositoriesMetadata(List.of(new RepositoryMetadata(repositoryName, "fs", Settings.EMPTY)))
                     )
             )
-            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(createEntry(index, repositoryName)))
+            .putCustom(SnapshotsInProgress.TYPE, createSnapshotsInProgress(indexName, repositoryName))
             .incrementVersion()
             .build();
+    }
+
+    private SnapshotsInProgress createSnapshotsInProgress(String indexName, String repositoryName) {
+        final ClusterState state = ClusterStateCreationUtils.state(indexName, randomIntBetween(1, 3), randomIntBetween(1, 2));
+        final IndexMetadata index = state.projectState(ProjectId.DEFAULT).metadata().index(indexName);
+        return SnapshotsInProgress.EMPTY.withAddedEntry(createEntry(index, repositoryName));
     }
 
     private SnapshotsInProgress.Entry createEntry(IndexMetadata indexMetadata, String repositoryName) {

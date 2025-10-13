@@ -234,7 +234,7 @@ public class EsqlSession {
             values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
             values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
             var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(new Page(blocks)));
             planRunner.run(physicalPlan, listener);
         } else {
             // TODO: this could be snuck into the underlying listener
@@ -292,13 +292,13 @@ public class EsqlSession {
         executionInfo.startSubPlans();
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
-            AtomicReference<Block[]> localRelationBlocks = new AtomicReference<>();
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-                localRelationBlocks.set(resultWrapper.supplier().get());
-                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationBlocks));
+                localRelationPage.set(resultWrapper.supplier().get());
+                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationPage));
                 subPlansResults.add(resultWrapper);
 
                 // replace the original logical plan with the backing result
@@ -340,7 +340,7 @@ public class EsqlSession {
             } catch (Exception e) {
                 // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks off
                 // the current thread, but with the blocks still referenced
-                releaseLocalRelationBlocks(localRelationBlocks);
+                releaseLocalRelationBlocks(localRelationPage);
                 throw e;
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
@@ -356,14 +356,15 @@ public class EsqlSession {
             actual -> "sub-plan execution results too large [" + ByteSizeValue.ofBytes(actual) + "] > " + intermediateLocalRelationMaxSize
         );
         List<Attribute> schema = result.schema();
+
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
-        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks));
+        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
     }
 
-    private static void releaseLocalRelationBlocks(AtomicReference<Block[]> localRelationBlocks) {
-        Block[] relationBlocks = localRelationBlocks.getAndSet(null);
-        if (relationBlocks != null) {
-            Releasables.closeExpectNoException(relationBlocks);
+    private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {
+        Page relationPage = localRelationPage.getAndSet(null);
+        if (relationPage != null) {
+            Releasables.closeExpectNoException(relationPage);
         }
     }
 
@@ -438,7 +439,20 @@ public class EsqlSession {
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
         var result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false);
+        var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
+        resolveIndices(parsed, executionInfo, description, requestFilter, preAnalysis, result, logicalPlanListener);
+    }
+
+    private void resolveIndices(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        String description,
+        QueryBuilder requestFilter,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<LogicalPlan> logicalPlanListener
+    ) {
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
         SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
@@ -458,7 +472,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
+            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, executionInfo, description, requestFilter, preAnalysis, r, l))
             .addListener(logicalPlanListener);
     }
 
@@ -632,8 +646,9 @@ public class EsqlSession {
      * Check whether the lookup index resolves to a single concrete index on all clusters or not.
      * If it's a single index, we are compatible with old pre-9.2 LOOKUP JOIN code and just need to send the same resolution as we did.
      * If there are multiple index names (e.g. due to aliases) then pre-9.2 clusters won't be able to handle it so we need to skip them.
+     *
      * @return An updated `IndexResolution` object if the index resolves to a single concrete index,
-     *         or the original `lookupIndexResolution` if no changes are needed.
+     * or the original `lookupIndexResolution` if no changes are needed.
      */
     private IndexResolution checkSingleIndex(
         String index,
@@ -693,13 +708,12 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         if (preAnalysis.indexPattern() != null) {
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
+            if (executionInfo.clusterAliases().isEmpty()) {
+                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
                 listener.onResponse(result.withIndices(IndexResolution.empty(preAnalysis.indexPattern().indexPattern())));
             } else {
                 indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
+                    preAnalysis.indexPattern().indexPattern(),
                     result.fieldNames,
                     // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     switch (preAnalysis.indexMode()) {
@@ -728,21 +742,19 @@ public class EsqlSession {
 
     private void analyzeWithRetry(
         LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        String description,
         QueryBuilder requestFilter,
         PreAnalyzer.PreAnalysis preAnalysis,
-        EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         ActionListener<LogicalPlan> listener
     ) {
-        var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         LOGGER.debug("Analyzing the plan ({})", description);
         try {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                if (executionInfo.clusterInfo.isEmpty() == false) {
-                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
-                }
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             LogicalPlan plan = analyzedPlan(parsed, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
@@ -754,20 +766,9 @@ public class EsqlSession {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 listener.onFailure(ve);
             } else {
-                // retrying and make the index resolution work without any index filtering.
-                preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, listener.delegateFailure((l, r) -> {
-                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-                    try {
-                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
-                        LogicalPlan plan = analyzedPlan(parsed, r, executionInfo);
-                        LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
-                        l.onResponse(plan);
-                    } catch (Exception e) {
-                        l.onFailure(e);
-                    }
-                }));
+                // retrying the index resolution without index filtering.
+                executionInfo.clusterInfo.clear();
+                resolveIndices(parsed, executionInfo, "second attempt, without filter", null, preAnalysis, result, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);

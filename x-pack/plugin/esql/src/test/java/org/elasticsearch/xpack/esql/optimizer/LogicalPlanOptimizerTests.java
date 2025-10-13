@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -97,6 +98,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
@@ -165,6 +167,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -190,7 +193,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
@@ -211,9 +213,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop salary
             """);
 
-        var relation = as(plan, LocalRelation.class);
-        assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        var project = as(plan, EsqlProject.class);
+        assertThat(project.expressions(), is(empty()));
+        var limit = as(project.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testEmptyProjectionInStat() {
@@ -222,10 +225,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | stats c = count(salary)
             | drop c
             """);
-
-        var relation = as(plan, LocalRelation.class);
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), LocalRelation.class);
         assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        Page page = relation.supplier().get();
+        assertThat(page.getBlockCount(), is(0));
+        assertThat(page.getPositionCount(), is(1));
     }
 
     /**
@@ -252,8 +257,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         var singleRowRelation = as(limit.child(), LocalRelation.class);
         var singleRow = singleRowRelation.supplier().get();
-        assertThat(singleRow.length, equalTo(1));
-        assertThat(singleRow[0].getPositionCount(), equalTo(1));
+        assertThat(singleRow.getBlockCount(), equalTo(1));
+        assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
 
         var exprs = eval.fields();
         assertThat(exprs.size(), equalTo(1));
@@ -5169,8 +5174,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var eval = as(project.child(), Eval.class);
             var singleRowRelation = as(eval.child(), LocalRelation.class);
             var singleRow = singleRowRelation.supplier().get();
-            assertThat(singleRow.length, equalTo(1));
-            assertThat(singleRow[0].getPositionCount(), equalTo(1));
+            assertThat(singleRow.getBlockCount(), equalTo(1));
+            assertThat(singleRow.getBlock(0).getPositionCount(), equalTo(1));
 
             assertAggOfConstExprs(testCase, eval.fields());
         }
@@ -5735,6 +5740,51 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ReferenceAttribute yTemp = as(yTempRenamed.child(), ReferenceAttribute.class);
             assertTrue(yTemp.semanticEquals(rightmostGeneratedWithNewName));
         }
+    }
+
+    /*
+     * Test for: https://github.com/elastic/elasticsearch/issues/134407
+     *
+     * Input:
+     * OrderBy[[Order[a{f}#2,ASC,ANY]]]
+     * \_Project[[aTemp{r}#3 AS a#2]]
+     *   \_Eval[[null[INTEGER] AS aTemp#3]]
+     *     \_EsRelation[uYiPqAFD][LOOKUP][a{f}#2]
+     *
+     * Output:
+     * Project[[aTemp{r}#3 AS a#2]]
+     * \_OrderBy[[Order[aTemp{r}#3,ASC,ANY]]]
+     *   \_Eval[[null[INTEGER] AS aTemp#3]]
+     *     \_EsRelation[uYiPqAFD][LOOKUP][a{f}#2]
+     */
+    public void testPushDownOrderByPastRename() {
+        FieldAttribute a = getFieldAttribute("a");
+        EsRelation relation = relation().withAttributes(List.of(a));
+
+        Alias aTemp = new Alias(EMPTY, "aTemp", new Literal(EMPTY, null, a.dataType()));
+        Eval eval = new Eval(EMPTY, relation, List.of(aTemp));
+
+        // Rename the null literal to "a" so that the OrderBy can refer to it. Requires re-using the id of original "a" attribute.
+        Alias aliasA = new Alias(EMPTY, "a", aTemp.toAttribute(), a.id());
+        Project project = new Project(EMPTY, eval, List.of(aliasA));
+
+        // OrderBy sorts on original `a` attribute; after pushing down it should sort on aTemp.
+        OrderBy orderBy = new OrderBy(EMPTY, project, List.of(new Order(EMPTY, a, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
+
+        LogicalPlan optimized = new PushDownAndCombineOrderBy().apply(orderBy);
+
+        var projectOut = as(optimized, Project.class);
+        assertThat(projectOut.projections(), equalTo(project.projections()));
+        var orderByOutput = as(projectOut.child(), OrderBy.class);
+        var orderAttr = as(orderByOutput.order().getFirst().child(), ReferenceAttribute.class);
+
+        // the actual fix test
+        assertThat(orderAttr.name(), equalTo("aTemp"));
+        assertThat(orderAttr.id(), equalTo(aTemp.id()));
+
+        var evalOutput = as(orderByOutput.child(), Eval.class);
+        assertThat(evalOutput.fields(), equalTo(eval.fields()));
+        assertThat(evalOutput.child(), equalTo(relation));
     }
 
     /**

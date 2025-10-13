@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -45,7 +46,11 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof RegexExtract
                 || unary instanceof Enrich
                 || unary instanceof InferencePlan<?>) {
-                return unary.replaceChild(limit.replaceChild(unary.child()));
+                if (unary instanceof Eval && ((Eval) unary).fields().stream().anyMatch(x -> x.child() instanceof Score)) {
+                    return limit;
+                } else {
+                    return unary.replaceChild(limit.replaceChild(unary.child()));
+                }
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)

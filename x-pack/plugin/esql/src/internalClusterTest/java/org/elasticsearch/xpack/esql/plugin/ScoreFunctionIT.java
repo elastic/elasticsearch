@@ -33,6 +33,23 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
+    public void testScoreOnMatch() {
+        var query = """
+            FROM test
+            | EVAL first_score = score(match(content, "dog")), s = [1]
+            | LIMIT 2
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "double", "integer"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "first_score", "s"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("This is a brown fox", 1, 0.0, 1), List.of("This is a brown dog", 2, 0.49630528688430786, 1))
+            );
+        }
+    }
+
     public void testScoreSingleNoMetadata() {
         var query = """
             FROM test

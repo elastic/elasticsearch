@@ -493,6 +493,50 @@ tasks.named('stringTemplates').configure {
     }
   }
 
+  File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateDoubleAggregator.java"
+  }
+
+  File deltaAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DeltaAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaDoubleAggregator.java"
+  }
+
   File fallibleStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-FallibleState.java.st")
   template {
     it.properties = booleanProperties
@@ -603,6 +647,7 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  fallibleArrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/FloatFallibleArrayState.java"
   }
+
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
   template {
     it.properties = intProperties
@@ -628,28 +673,6 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = valuesAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesBytesRefAggregator.java"
-  }
-
-  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateAggregator.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntAggregator.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongAggregator.java"
-  }
-  template {
-    it.properties = floatProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateFloatAggregator.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
   File stdDevAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-StdDevAggregator.java.st")
@@ -953,5 +976,22 @@ tasks.named('stringTemplates').configure {
         it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}BytesRefByTimestampAggregator.java"
       }
     }
+  }
+
+  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntGroupingAggregatorFunction.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleGroupingAggregatorFunction.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
   }
 }

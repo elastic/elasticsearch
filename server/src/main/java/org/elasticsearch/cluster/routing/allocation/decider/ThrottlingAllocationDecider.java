@@ -210,7 +210,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
      *
      * This method returns the corresponding initializing shard that would be allocated to this node.
      */
-    private static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
+    public static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
         final ShardRouting initializingShard;
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

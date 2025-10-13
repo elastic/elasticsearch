@@ -46,8 +46,8 @@ public class First extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword" },
-        description = "The earliest value of a field.",
-        appliesTo = @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE),
+        description = "Calculates the earliest value of a field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = @Example(file = "stats_first", tag = "first")
     )
     public First(
@@ -94,6 +94,10 @@ public class First extends AggregateFunction implements ToAggregator {
     @Override
     public First withFilter(Expression filter) {
         return new First(source(), field(), filter, sort);
+    }
+
+    public Expression sort() {
+        return sort;
     }
 
     @Override

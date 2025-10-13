@@ -44,9 +44,9 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
     }
 
     public void testBucketCollapsingPreservesExactThreshold() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(2);
-        histo.resetBuckets(0);
-        histo.tryAddBucket(0, 42, true); // bucket [1,2]
+        ExponentialHistogram histo = createAutoReleasedHistogram(
+            b -> b.scale(0).setPositiveBucket(0, 42) // bucket [1,2]
+        );
 
         ZeroBucket bucketA = ZeroBucket.create(3.0, 10);
 

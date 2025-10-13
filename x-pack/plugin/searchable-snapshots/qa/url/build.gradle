@@ -5,7 +5,9 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
-  javaRestTestImplementation project(':test:fixtures:url-fixture')
+  javaRestTestImplementation(project(':test:fixtures:url-fixture')) {
+    exclude group: 'org.slf4j'
+  }
 }
 
 restResources {

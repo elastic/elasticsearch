@@ -25,7 +25,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +44,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 

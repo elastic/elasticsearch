@@ -45,7 +45,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -928,7 +927,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
+            public void writeTo(StreamOutput out) {
                 if (timeAdvancer != null) {
                     timeAdvancer.advanceTime();
                 }
@@ -1064,7 +1063,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             cluster.addNodesAndStabilise(1);
-            final ClusterNode newNode = cluster.clusterNodes.get(cluster.clusterNodes.size() - 1);
+            final ClusterNode newNode = cluster.clusterNodes.getLast();
             final PublishClusterStateStats newNodePublishStats = newNode.coordinator.stats().getPublishStats();
             // initial cluster state send when joining
             assertEquals(1L, newNodePublishStats.getFullClusterStateReceivedCount());
@@ -1289,9 +1288,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
      * @param failJoinOnAllNodes this controls whether to fail join on all nodes or only a majority subset. The atomic register CAS election
      *                           strategy will succeed in electing a master if any node can vote (even the master candidate voting for
      *                           itself).
-     * @throws Exception
      */
-    protected void clusterCannotFormWithFailingJoinValidation(boolean failJoinOnAllNodes) throws Exception {
+    protected void clusterCannotFormWithFailingJoinValidation(boolean failJoinOnAllNodes) {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             List<ClusterNode> clusterNodesToFailJoin;
             if (failJoinOnAllNodes) {
@@ -1593,7 +1591,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
             throw new ElasticsearchException(EXCEPTION_MESSAGE);
         }
 
@@ -1708,9 +1706,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                 .toList();
                             assertThat(matchingNodes, hasSize(1));
 
-                            assertTrue(message, Regex.simpleMatch(discoveryMessageFn.apply(matchingNodes.get(0).toString()), message));
+                            assertTrue(message, Regex.simpleMatch(discoveryMessageFn.apply(matchingNodes.getFirst().toString()), message));
 
-                            nodesLogged.add(matchingNodes.get(0).getLocalNode());
+                            nodesLogged.add(matchingNodes.getFirst().getLocalNode());
                         }
 
                         @Override

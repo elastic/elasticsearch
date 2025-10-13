@@ -10,10 +10,10 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
@@ -86,7 +86,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+    public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 }

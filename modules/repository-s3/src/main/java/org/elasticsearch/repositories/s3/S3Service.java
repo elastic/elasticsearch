@@ -310,6 +310,7 @@ class S3Service extends AbstractLifecycleComponent {
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
+        httpClientBuilder.connectionMaxIdleTime(Duration.ofMillis(clientSettings.connectionMaxIdleTimeMillis));
 
         Optional<ProxyConfiguration> proxyConfiguration = buildProxyConfiguration(clientSettings);
         if (proxyConfiguration.isPresent()) {

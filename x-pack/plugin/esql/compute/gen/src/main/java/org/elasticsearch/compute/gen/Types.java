@@ -31,9 +31,9 @@ public class Types {
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
-    static final TypeName STRING = ClassName.get("java.lang", "String");
+    public static final TypeName STRING = ClassName.get("java.lang", "String");
 
-    static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
+    public static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
 
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
     static final ClassName BLOCK = ClassName.get(DATA_PACKAGE, "Block");
@@ -44,14 +44,14 @@ public class Types {
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
     static final ClassName RAM_USAGE_ESIMATOR = ClassName.get("org.apache.lucene.util", "RamUsageEstimator");
 
-    static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
-    static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
-    static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
-    static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
-    static final ClassName INT_BIG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntBigArrayBlock");
-    static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
-    static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
-    static final ClassName FLOAT_BLOCK = ClassName.get(DATA_PACKAGE, "FloatBlock");
+    public static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
+    public static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
+    public static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
+    public static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
+    public static final ClassName INT_BIG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntBigArrayBlock");
+    public static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
+    public static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
+    public static final ClassName FLOAT_BLOCK = ClassName.get(DATA_PACKAGE, "FloatBlock");
 
     static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
     static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
@@ -96,28 +96,33 @@ public class Types {
     );
     static final ClassName SEEN_GROUP_IDS = ClassName.get(AGGREGATION_PACKAGE, "SeenGroupIds");
 
-    static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
-    static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
+    public static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
+    public static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
 
-    static final ClassName DRIVER_CONTEXT = ClassName.get(OPERATOR_PACKAGE, "DriverContext");
-    static final ClassName GROUPING_AGGREGATOR_EVALUATOR_CONTEXT = ClassName.get(
+    public static final ClassName DRIVER_CONTEXT = ClassName.get(OPERATOR_PACKAGE, "DriverContext");
+    public static final ClassName GROUPING_AGGREGATOR_EVALUATOR_CONTEXT = ClassName.get(
         AGGREGATION_PACKAGE,
         "GroupingAggregatorEvaluationContext"
     );
 
-    static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
-    static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator", "Factory");
-    static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
+    public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
+    public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(
+        OPERATOR_PACKAGE,
+        "EvalOperator",
+        "ExpressionEvaluator",
+        "Factory"
+    );
+    public static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",
         "AbstractEvaluator"
     );
-    static final ClassName ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
+    public static final ClassName ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",
         "AbstractNullableEvaluator"
     );
-    static final ClassName ABSTRACT_CONVERT_FUNCTION_EVALUATOR = ClassName.get(
+    public static final ClassName ABSTRACT_CONVERT_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.convert",
         "AbstractConvertFunction",
         "AbstractEvaluator"
@@ -127,10 +132,10 @@ public class Types {
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 
-    static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
+    public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
-    static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
-    static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
+    public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
+    public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
     private record TypeDef(TypeName type, String alias, ClassName block, ClassName vector) {
 
@@ -162,7 +167,7 @@ public class Types {
         return findRequired(type, "plain").type;
     }
 
-    static ClassName blockType(TypeName elementType) {
+    public static ClassName blockType(TypeName elementType) {
         return blockType(elementType.toString());
     }
 
@@ -170,7 +175,7 @@ public class Types {
         return findRequired(elementType, "block").block;
     }
 
-    static ClassName vectorType(TypeName elementType) {
+    public static ClassName vectorType(TypeName elementType) {
         return vectorType(elementType.toString());
     }
 
@@ -259,7 +264,7 @@ public class Types {
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }
 
-    static boolean extendsSuper(javax.lang.model.util.Types types, TypeMirror c, String superName) {
+    public static boolean extendsSuper(javax.lang.model.util.Types types, TypeMirror c, String superName) {
         Deque<TypeMirror> mirrors = new ArrayDeque<>();
         mirrors.add(c);
         while (mirrors.isEmpty() == false) {

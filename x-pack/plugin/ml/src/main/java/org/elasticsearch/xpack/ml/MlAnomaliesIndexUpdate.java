@@ -52,8 +52,6 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
     private static final Logger logger = LogManager.getLogger(MlAnomaliesIndexUpdate.class);
 
-    private static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = TransportVersion.fromName("ml_rollover_legacy_indices");
-
     private final IndexNameExpressionResolver expressionResolver;
     private final OriginSettingClient client;
 
@@ -66,7 +64,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.supports(ML_ROLLOVER_LEGACY_INDICES);
+        return true;
     }
 
     @Override

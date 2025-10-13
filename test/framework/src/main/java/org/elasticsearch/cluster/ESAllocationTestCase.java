@@ -29,10 +29,12 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -40,18 +42,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -97,6 +100,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         public void refreshLicense() {}
     };
+
+    public static final DesiredBalanceShardsAllocator.ShardAllocationExplainer TEST_ONLY_EXPLAINER = (
+        shard,
+        allocation) -> ShardAllocationDecision.NOT_TAKEN;
 
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.EMPTY);
@@ -153,7 +160,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (pickShardsAllocator(settings)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(
+                Settings.builder().put(settings).put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR).build()
+            );
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
         };
@@ -167,7 +176,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        var clusterSettings = createBuiltInClusterSettings(settings);
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder()
+                // disable thread watchdog (submits infinitely repeating task to threadpool) by default
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+                .put(settings)
+                .build()
+        );
         var clusterService = ClusterServiceUtils.createClusterService(queue.getThreadPool(), clusterSettings);
         return new DesiredBalanceShardsAllocator(
             clusterSettings,
@@ -175,8 +190,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             clusterService,
             null,
-            TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER,
+            DesiredBalanceMetrics.NOOP
         ) {
             private RoutingAllocation lastAllocation;
 

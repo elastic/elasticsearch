@@ -9,11 +9,12 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -62,6 +63,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
+    private static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = TransportVersion.fromName(
+        "re_remove_min_compatible_shard_node"
+    );
+
     private final String localClusterAlias;
     private final long absoluteStartMillis;
     private final boolean finalReduce;
@@ -69,6 +74,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+
+    @Nullable
+    private ResolvedIndexExpressions resolvedIndexExpressions = null;
 
     @Nullable
     private String routing;
@@ -154,6 +162,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return true;
     }
 
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
     /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
@@ -230,15 +243,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         preference = in.readOptionalString();
         scrollKeepAlive = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
-                );
-            }
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
@@ -254,17 +258,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
-            && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
+        if (in.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
     }
 
     @Override
@@ -283,10 +282,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         out.writeOptionalString(preference);
         out.writeOptionalTimeValue(scrollKeepAlive);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
@@ -299,19 +294,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false
-            && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
+        if (out.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false) {
             out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
     }
 
     @Override
@@ -398,6 +386,17 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         validateIndices(indices);
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 
     private static void validateIndices(String... indices) {

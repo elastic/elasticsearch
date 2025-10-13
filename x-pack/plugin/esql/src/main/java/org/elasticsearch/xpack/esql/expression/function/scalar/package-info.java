@@ -77,7 +77,7 @@
  *.        To make it work with IntelliJ, also click {@code Build->Recompile 'FunctionName.java'}.
  *         Please commit the generated evaluator before submitting your PR.
  *         <p>
- *             NOTE: The function you copied may have a method annotated with
+ *             NOTE 1: The function you copied may have a method annotated with
  *             {@link org.elasticsearch.compute.ann.ConvertEvaluator} or
  *             {@link org.elasticsearch.compute.ann.MvEvaluator} instead of
  *             {@link org.elasticsearch.compute.ann.Evaluator}. Those do similar things and the
@@ -151,7 +151,7 @@
  *     <li>
  *         Now it’s time to generate some docs!
  *         Actually, running the tests in the example above should have done it for you.
- *         The generated files are
+ *         Make sure to commit the following generated files
  *         <ul>
  *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/description/myfunction.md}</li>
  *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/examples/myfunction.md}</li>
@@ -160,13 +160,18 @@
  *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/types/myfunction.md}</li>
  *              <li>{@code docs/reference/query-languages/esql/kibana/definition/functions/myfunction.json}</li>
  *              <li>{@code docs/reference/query-languages/esql/kibana/docs/functions/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/images/functions/myfunction.svg}</li>
  *         </ul>
  *
- *         Make sure to commit them. Add a reference to the
- *         {@code docs/reference/query-languages/esql/_snippets/functions/layout/myfunction.md} in the function list
- *         docs. There are plenty of examples on how
- *         to reference those files e.g. if you are writing a Math function, you will want to
- *         list it in {@code docs/reference/query-languages/esql/functions-operators/math-functions.md}.
+ *         In order to make your function appear in the docs, you should add a reference to it in the most suitable two md files under the
+ *         {@code docs/reference/query-languages/esql/functions-operators} and {@code docs/reference/query-languages/esql/_snippets/lists}
+ *         directories.
+ *         <br/><br/>
+ *
+ *         For example, if you are writing a Math function, you will want to add it in
+ *         {@code docs/reference/query-languages/esql/functions-operators/math-functions.md} and in
+ *         {@code docs/reference/query-languages/esql/_snippets/lists/math-functions.md}.
+ *         <br/>
  *         <p>
  *             You can generate the docs for just your function by running
  *             {@code ./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'}. It’s just
@@ -178,21 +183,16 @@
  *         }</pre>
  *     </li>
  *     <li>
- *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>
- *          and running:
+ *         Install the docs-builder binary from <a href="https://github.com/elastic/docs-builder">https://github.com/elastic/docs-builder</a>,
+ *         then build the docs locally by running the command below from the elasticsearch directory:
  *          <pre>{@code
- * ../docs/build_docs --doc docs/reference/index.md --open --chunk 1
+ * docs-builder serve
  *          }</pre>
- *          from the elasticsearch directory. The first time you run the docs build it does a bunch
- *          of things with docker to get itself ready. Hopefully you can sit back and watch the show.
- *          It won’t need to do it a second time unless some poor soul updates the Dockerfile in the
- *          docs repo.
  *     </li>
  *     <li>
- *         When it finishes building it'll open a browser window. Go to the
- *         <a href="http://localhost:8000/guide/esql-functions.html">functions page</a> to see your
- *         function in the list and follow it’s link to get to the page you built. Make sure it
- *         looks ok.
+ *         You can now browse the docs at <a href="http://localhost:3000">http://localhost:3000</a>. Or you can go directly to
+ *         <a href="http://localhost:3000/reference/query-languages/esql/esql-functions-operators">ES|QL functions and operators</a> to see your
+ *         function in the list and follow its link to get to the page you built. Make sure it looks ok.
  *     </li>
  *     <li>
  *         Let’s finish up the code by making the tests backwards compatible. Since this is a new
@@ -204,15 +204,36 @@
  *         to all of your csv-spec tests. Run those csv-spec tests as integration tests to double
  *         check that they run on the main branch.
  *         <br><br>
- *         **Note:** you may notice tests gated based on Elasticsearch version. This was the old way
+ *         NOTE: You may notice tests gated based on Elasticsearch version. This was the old way
  *         of doing things. Now, we use specific capabilities for each function.
+ *     </li>
+ *     <li>
+ *         Sometimes we want to implement a function without releasing it. For example, there's a probability its implementation might
+ *         need to change because we're not sure how to handle some edge cases, or we just require further feedback on it. In such case,
+ *         we can still ship it as a snapshot function, and ensure the following:
+ *
+ *         <ul>
+ *             <li>The new function doesn't show up in the docs. Committing the 8 generated docs files is ok.</li>
+ *             <li>The new function is marked as a snapshot function in {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}.</li>
+ *             <li>The new function is grouped with other snapshot functions in
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.</li>
+ *             <li>The class that implements your new functions has the right annotations.</li>
+ *         </ul>
+ *
+ *         When it comes to the correct syntax, e.g.: annotations, groupings, etc., feel free to look at existing snapshot functions and
+ *         Git history.
+ *
+ *         If your function should be available in snapshot <strong>only</strong>, add it to the list in
+ *         {@code x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/60_usage.yml} around
+ *         {@code not_exists: esql.functions.delay}. The release build will fail if this function is
+ *         available. Check out the instructions for running a release build in {@code testing.asciidoc}
+ *         if you want to test this, but it's generally enough to let CI do it.
  *     </li>
  *     <li>
  *         Open the PR. The subject and description of the PR are important because those'll turn
  *         into the commit message we see in the commit history. Good PR descriptions make me very
  *         happy. But functions don’t need an essay.
- *     </li>
- *     <li>
+ *
  *         Add the {@code >enhancement} and {@code :Analytics/ES|QL} tags if you are able.
  *         Request a review if you can, probably from one of the folks that github proposes to you.
  *     </li>

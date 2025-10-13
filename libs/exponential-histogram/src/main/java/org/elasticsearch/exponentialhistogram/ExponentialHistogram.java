@@ -144,6 +144,20 @@ public interface ExponentialHistogram extends Accountable {
          */
         long valueCount();
 
+        /**
+         * Returns the number of buckets. Note that this operation might require iterating over all buckets, and therefore is not cheap.
+         * @return the number of buckets
+         */
+        default int bucketCount() {
+            int count = 0;
+            BucketIterator it = iterator();
+            while (it.hasNext()) {
+                count++;
+                it.advance();
+            }
+            return count;
+        }
+
     }
 
     /**
@@ -204,6 +218,26 @@ public interface ExponentialHistogram extends Accountable {
 
     static ExponentialHistogram empty() {
         return EmptyExponentialHistogram.INSTANCE;
+    }
+
+    /**
+     * Create a builder for an exponential histogram with the given scale.
+     * @param scale the scale of the histogram to build
+     * @param breaker the circuit breaker to use
+     * @return a new builder
+     */
+    static ExponentialHistogramBuilder builder(int scale, ExponentialHistogramCircuitBreaker breaker) {
+        return new ExponentialHistogramBuilder(scale, breaker);
+    }
+
+    /**
+     * Create a builder for an exponential histogram, which is initialized to copy the given histogram.
+     * @param toCopy the histogram to copy
+     * @param breaker the circuit breaker to use
+     * @return a new builder
+     */
+    static ExponentialHistogramBuilder builder(ExponentialHistogram toCopy, ExponentialHistogramCircuitBreaker breaker) {
+        return new ExponentialHistogramBuilder(toCopy, breaker);
     }
 
     /**

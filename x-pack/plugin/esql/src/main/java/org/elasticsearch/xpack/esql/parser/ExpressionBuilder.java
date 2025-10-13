@@ -611,8 +611,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
+        return buildComparison(source(ctx), left, right, op);
+    }
 
-        Source source = source(ctx);
+    private Expression buildComparison(Source source, Expression left, Expression right, TerminalNode op) {
         ZoneId zoneId = DateUtils.UTC;
 
         return switch (op.getSymbol().getType()) {
@@ -623,7 +625,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
             case EsqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId);
             case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
-            default -> throw new ParsingException(source, "Unknown comparison operator {}", source.text());
+            default -> throw new ParsingException(source, "Unknown comparison operator {}", op.getText());
         };
     }
 
@@ -1047,8 +1049,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 return new UnresolvedAttribute(source, value.toString());
             }
         }
-        if ((type == KEYWORD || type == TEXT) && value instanceof String) {
-            value = BytesRefs.toBytesRef(value);
+        if ((type == KEYWORD || type == TEXT)) {
+            if (value instanceof String) {
+                value = BytesRefs.toBytesRef(value);
+            } else if (value instanceof List<?> list) {
+                value = list.stream().map(v -> v instanceof String ? BytesRefs.toBytesRef(v) : v).toList();
+            }
         }
         return new Literal(source, value, type);
     }

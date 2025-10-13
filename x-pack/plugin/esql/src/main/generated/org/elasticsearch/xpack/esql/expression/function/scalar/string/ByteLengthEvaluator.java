@@ -65,18 +65,19 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(ByteLength.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        result.appendInt(ByteLength.process(val));
       }
       return result.build();
     }
@@ -86,7 +87,8 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, ByteLength.process(valVector.getBytesRef(p, valScratch)));
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        result.appendInt(p, ByteLength.process(val));
       }
       return result.build();
     }

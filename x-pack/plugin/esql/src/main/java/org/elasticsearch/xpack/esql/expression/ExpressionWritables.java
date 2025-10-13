@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -39,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -119,6 +123,12 @@ public class ExpressionWritables {
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
         entries.addAll(vector());
+        return entries;
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>();
+        entries.addAll(literals());
         return entries;
     }
 
@@ -206,6 +216,7 @@ public class ExpressionWritables {
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDegrees.ENTRY);
+        entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
@@ -227,6 +238,7 @@ public class ExpressionWritables {
         entries.add(WildcardLikeList.ENTRY);
         entries.add(Delay.ENTRY);
         entries.add(UrlEncode.ENTRY);
+        entries.add(UrlEncodeComponent.ENTRY);
         entries.add(UrlDecode.ENTRY);
         entries.add(Chunk.ENTRY);
         // mv functions
@@ -251,7 +263,7 @@ public class ExpressionWritables {
         return List.of(Add.ENTRY, Div.ENTRY, Mod.ENTRY, Mul.ENTRY, Sub.ENTRY);
     }
 
-    private static List<NamedWriteableRegistry.Entry> binaryComparisons() {
+    public static List<NamedWriteableRegistry.Entry> binaryComparisons() {
         return List.of(Equals.ENTRY, GreaterThan.ENTRY, GreaterThanOrEqual.ENTRY, LessThan.ENTRY, LessThanOrEqual.ENTRY, NotEquals.ENTRY);
     }
 
@@ -261,5 +273,14 @@ public class ExpressionWritables {
 
     private static List<NamedWriteableRegistry.Entry> vector() {
         return VectorWritables.getNamedWritables();
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> literals() {
+        return List.of(
+            new SearchPlugin.GenericNamedWriteableSpec(
+                "AggregateMetricDoubleLiteral",
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
+            )
+        );
     }
 }

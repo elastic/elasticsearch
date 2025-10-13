@@ -101,9 +101,4 @@ public class MedianTests extends AbstractAggregationTestCase {
             }
         });
     }
-
-    @Override
-    protected boolean optIntoToAggregatorToStringChecks() {
-        return true;
-    }
 }

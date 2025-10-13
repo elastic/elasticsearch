@@ -56,6 +56,8 @@ public interface BuildParameterExtension {
 
     String getTestSeed();
 
+    Provider<String> getTestSeedProvider();
+
     Boolean getCi();
 
     Integer getDefaultParallel();
@@ -66,7 +68,7 @@ public interface BuildParameterExtension {
 
     Provider<BwcVersions> getBwcVersionsProvider();
 
-    Random getRandom();
+    Provider<Random> getRandom();
 
     Boolean getGraalVmRuntime();
 }

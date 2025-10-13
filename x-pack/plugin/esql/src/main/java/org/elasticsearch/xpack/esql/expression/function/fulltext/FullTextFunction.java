@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
@@ -380,24 +381,27 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
+    }
+
+    /**
+     * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
+     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     *
+     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     */
+    protected QueryBuilder evaluatorQueryBuilder() {
+        // Use the same query builder as for the translation by default
+        return queryBuilder();
     }
 
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+        return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
+    }
+
+    private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
+        return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
     // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks

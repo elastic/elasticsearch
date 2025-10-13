@@ -40,7 +40,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -59,7 +59,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         webServer.start();
         gatewayUrl = getUrl(webServer);
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
@@ -176,7 +176,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             try (var service = createElasticInferenceService()) {
                 ensureAuthorizationCallFinished(service);
 
-                assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertTrue(service.defaultConfigIds().isEmpty());
                 assertThat(service.supportedTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
 
@@ -299,7 +299,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             try (var service = createElasticInferenceService()) {
                 ensureAuthorizationCallFinished(service);
 
-                assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
                     containsInAnyOrder(

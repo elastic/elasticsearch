@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -318,6 +319,9 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
                 .execute();
 
             waitForBlockOnAnyDataNode(repositoryName);
+            safeAwait(
+                (ActionListener<Void> l) -> flushMasterQueue(internalCluster().getCurrentMasterNodeInstance(ClusterService.class), l)
+            );
 
             // Should be {numShards} in INIT state, and 1 STARTED snapshot
             Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();

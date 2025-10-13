@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.RefCounted;
@@ -818,6 +818,12 @@ public class BasicBlockTests extends ESTestCase {
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
+            // modify the offset
+            var v0 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            var v1 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            v1.length = 0;
+            var v2 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            assertThat(v2, equalTo(v0));
         }
     }
 
@@ -1459,7 +1465,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocBlock() {
         int positionCount = randomIntBetween(0, 100);
         DocBlock block = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
@@ -1501,7 +1507,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocVector() {
         int positionCount = randomIntBetween(0, 100);
         DocVector vector = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
@@ -1784,10 +1790,13 @@ public class BasicBlockTests extends ESTestCase {
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 
-            assertThat(
-                deepCopy.asVector() != null && deepCopy.asVector().isConstant(),
-                equalTo(block.asVector() != null && block.asVector().isConstant())
-            );
+            if (block.asVector() != null && block.asVector().isConstant()) {
+                /*
+                 * If we were a constant, we will still be one. If we were not a constant,
+                 * deepCopy might make a constant in the rare case that we have a single element array.
+                 */
+                assertThat(deepCopy.asVector() != null && deepCopy.asVector().isConstant(), equalTo(true));
+            }
         }
         Block untracked = block.deepCopy(TestBlockFactory.getNonBreakingInstance());
         assertThat(untracked, equalTo(block));

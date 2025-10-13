@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -64,9 +66,9 @@ dependencies {
   api ( "org.cryptacular:cryptacular:1.2.5") {
     exclude group: 'org.bouncycastle'
   }
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}" // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
+
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -167,13 +169,12 @@ tasks.named("processTestResources").configure {
   from(project(xpackModule('core')).file('src/test/resources'))
 }
 
-
 tasks.named('assemble').configure {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   dependsOn tasks.named('jar')
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'
@@ -184,6 +185,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
+  exclude '**/*.bcfks'
   exclude '**/*.p12'
   exclude '**/*.der'
   exclude '**/*.zip'
@@ -425,7 +427,9 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataHandler',
     'javax.activation.DataSource',
     'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap'
+    'javax.activation.FileTypeMap',
+    // SLF4j
+    'org.slf4j.ext.EventData'
   )
 }
 

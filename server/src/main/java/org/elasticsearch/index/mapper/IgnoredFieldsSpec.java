@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Defines which fields need to be loaded from _ignored_source during a fetch.
@@ -54,7 +53,6 @@ public record IgnoredFieldsSpec(Set<String> requiredIgnoredFields, IgnoredSource
      * Get the set of stored fields required to load the specified fields from _ignored_source.
      */
     public Set<String> requiredStoredFields() {
-        return requiredIgnoredFields.stream().flatMap(field -> format.requiredStoredFields(field).stream()).collect(Collectors.toSet());
-
+        return Set.of(IgnoredSourceFieldMapper.NAME);
     }
 }

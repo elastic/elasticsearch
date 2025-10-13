@@ -18,6 +18,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -48,22 +49,28 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;
-    protected final ShardConfig[] shards;
+    protected final IndexedByShardId<ShardConfig> shards;
 
-    private final List<ShardState> perShardState;
+    private final LongObjectPagedHashMap<ShardState> perShardState;
 
-    protected LuceneQueryEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
-        assert shards != null && shards.length > 0 : "LuceneQueryEvaluator requires shard information";
+    protected LuceneQueryEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
+        assert shards != null && shards.isEmpty() == false : "LuceneQueryEvaluator requires shard information";
         this.blockFactory = blockFactory;
         this.shards = shards;
-        this.perShardState = new ArrayList<>(Collections.nCopies(shards.length, null));
+        this.perShardState = new LongObjectPagedHashMap<>(10, blockFactory.bigArrays());
     }
 
     public Block executeQuery(Page page) {
-        // Lucene based operators retrieve DocVectors as first block
-        Block block = page.getBlock(0);
-        assert block instanceof DocBlock : "LuceneQueryExpressionEvaluator expects DocBlock as input";
-        DocVector docs = (DocVector) block.asVector();
+        // Search for DocVector block
+        Block docBlock = null;
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            if (page.getBlock(i) instanceof DocBlock) {
+                docBlock = page.getBlock(i);
+                break;
+            }
+        }
+        assert docBlock != null : "LuceneQueryExpressionEvaluator expects a DocBlock";
+        DocVector docs = (DocVector) docBlock.asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs);
@@ -162,15 +169,17 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        perShardState.close();
+    }
 
     private ShardState shardState(int shard) throws IOException {
         ShardState shardState = perShardState.get(shard);
         if (shardState != null) {
             return shardState;
         }
-        shardState = new ShardState(shards[shard]);
-        perShardState.set(shard, shardState);
+        shardState = new ShardState(shards.get(shard));
+        perShardState.put(shard, shardState);
         return shardState;
     }
 

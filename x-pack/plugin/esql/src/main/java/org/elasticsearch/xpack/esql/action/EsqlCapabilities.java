@@ -12,16 +12,12 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -254,7 +250,7 @@ public class EsqlCapabilities {
          * support for MV_CONTAINS function
          * <a href="https://github.com/elastic/elasticsearch/pull/133099/">Add MV_CONTAINS function #133099</a>
          */
-        FN_MV_CONTAINS,
+        FN_MV_CONTAINS_V1,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
@@ -269,12 +265,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS(),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V2(),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -310,6 +306,11 @@ public class EsqlCapabilities {
          * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
          */
         AGG_TOP_STRING_SUPPORT,
+
+        /**
+         * Make optional the order field in the TOP agg command, and default it to "ASC".
+         */
+        AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
          * {@code CASE} properly handling multivalue conditions.
@@ -353,7 +354,7 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
          */
-        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS,
 
         /**
          * Support for named or positional parameters in EsqlQueryRequest.
@@ -414,12 +415,17 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID(Build.current().isSnapshot()),
+        SPATIAL_GRID,
 
         /**
          * Support geohash, geotile and geohex data types. Done in #129581
          */
-        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
+        SPATIAL_GRID_TYPES,
+
+        /**
+         * Support geohash, geotile and geohex in ST_INTERSECTS and ST_DISJOINT. Done in #133546
+         */
+        SPATIAL_GRID_INTERSECTS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -544,6 +550,11 @@ public class EsqlCapabilities {
         FIXED_PUSHDOWN_PAST_PROJECT,
 
         /**
+         * When resolving renames, consider all {@code Attribute}s in the plan, not just the {@code ReferenceAttribute}s.
+         */
+        FIXED_PUSHDOWN_PAST_PROJECT_WITH_ATTRIBUTES_RESOLUTION,
+
+        /**
          * Adds the {@code MV_PSERIES_WEIGHTED_SUM} function for converting sorted lists of numbers into
          * a bounded score. This is a generalization of the
          * <a href="https://en.wikipedia.org/wiki/Riemann_zeta_function">riemann zeta function</a> but we
@@ -665,6 +676,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -722,6 +738,11 @@ public class EsqlCapabilities {
          * KQL function
          */
         KQL_FUNCTION,
+
+        /**
+         * Support for optional parameters in KQL function (case_insensitive, time_zone, default_field, boost).
+         */
+        KQL_FUNCTION_OPTIONS,
 
         /**
          * Hash function
@@ -798,12 +819,12 @@ public class EsqlCapabilities {
         /**
          * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
          */
-        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+        SNAPSHOT_TEST_FOR_TELEMETRY_V2(Build.current().isSnapshot()),
 
         /**
          * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
          */
-        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false),
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY_V2(Build.current().isSnapshot() == false),
 
         /**
          * Support simplified syntax for named parameters for field and function names.
@@ -922,50 +943,9 @@ public class EsqlCapabilities {
         QUERY_STRING_FUNCTION_OPTIONS,
 
         /**
-         * Support for aggregate_metric_double type
+         * Enable aggregate_metric_double in non-snapshot builds
          */
-        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Support for partial subset of metrics in aggregate_metric_double type
-         */
-        AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Support for rendering aggregate_metric_double type
-         */
-        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Support for to_aggregate_metric_double function
-         */
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Support for sorting when aggregate_metric_doubles are present
-         */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Support avg with aggregate metric doubles
-         */
-        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Support for implicit casting of aggregate metric double when run in aggregations
-         */
-        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
-         * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
-         */
-        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
-         * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
-         */
-        AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+        AGGREGATE_METRIC_DOUBLE_V0,
 
         /**
          * Support change point detection "CHANGE_POINT".
@@ -983,7 +963,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11,
+
+        /**
+         * Renamed `INLINESTATS` to `INLINE STATS`.
+         */
+        INLINE_STATS,
 
         /**
          * Support partial_results
@@ -1044,6 +1029,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1086,14 +1072,14 @@ public class EsqlCapabilities {
         QUERY_MONITORING,
 
         /**
-         * Support max_over_time aggregation that gets evaluated per time-series
-         */
-        MAX_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * Support for FORK out of snapshot
          */
         FORK_V9,
+
+        /**
+         * Support for union types in FORK
+         */
+        FORK_UNION_TYPES,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1104,11 +1090,6 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain a histogram of {@code took} values?
          */
         USAGE_CONTAINS_TOOK,
-
-        /**
-         * Support avg_over_time aggregation that gets evaluated per time-series
-         */
-        AVG_OVER_TIME(Build.current().isSnapshot()),
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -1135,11 +1116,6 @@ public class EsqlCapabilities {
         DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
 
         /**
-         * Support last_over_time aggregation that gets evaluated per time-series
-         */
-        LAST_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
          * score function
          */
         SCORE_FUNCTION(Build.current().isSnapshot()),
@@ -1160,39 +1136,11 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support min_over_time aggregation that gets evaluated per time-series
+         * Support for INCREASE, DELTA timeseries aggregations.
          */
-        MIN_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support first_over_time aggregation that gets evaluated per time-series
-         */
-        FIRST_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support sum_over_time aggregation that gets evaluated per time-series
-         */
-        SUM_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support count_over_time aggregation that gets evaluated per time-series
-         */
-        COUNT_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
-         */
-        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
-
-        /**
-         * Extra field types in the k8s.csv dataset
-         */
-        K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
-
-        /**
-         * Geospatial field types in the k8s.csv and k8s-downsampled.csv datasets
-         */
-        K8S_DATASETS_GEOSPATIAL_FIELDS(Build.current().isSnapshot()),
+        INCREASE,
+        DELTA_TS_AGG,
+        CLAMP_FUNCTIONS,
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
@@ -1214,6 +1162,11 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
          */
         FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Allow the merging of the children to use {@code Aliase}s, instead of just {@code ReferenceAttribute}s.
+         */
+        FIX_JOIN_OUTPUT_MERGING,
 
         /**
          * Avid GROK and DISSECT attributes being removed when resolving fields.
@@ -1255,7 +1208,7 @@ public class EsqlCapabilities {
         /**
          * Dense vector field type support
          */
-        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_RELEASED,
 
         /**
          * Enable support for index aliases in lookup joins
@@ -1275,7 +1228,13 @@ public class EsqlCapabilities {
         /**
          * Enable support for cross-cluster lookup joins.
          */
-        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
+
+        /**
+         * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129372">java.lang.ClassCastException when combining LOOKUP JOIN and remote ENRICH</a>
+         */
+        REMOTE_ENRICH_AFTER_LOOKUP_JOIN,
 
         /**
          * MATCH PHRASE function
@@ -1285,7 +1244,12 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V3(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5,
+
+        /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION,
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1314,6 +1278,11 @@ public class EsqlCapabilities {
         FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
 
         /**
+         * Support for the SET command.
+         */
+        SET_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1325,7 +1294,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE(Build.current().isSnapshot()),
+        FUSE_V6,
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1373,6 +1342,11 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
+         * Decay function for custom scoring
+         */
+        DECAY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * FIRST and LAST aggregate functions.
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),
@@ -1391,7 +1365,12 @@ public class EsqlCapabilities {
         /**
          * Byte elements dense vector field type support.
          */
-        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS,
+
+        /**
+         * Bit elements dense vector field type support.
+         */
+        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
          * Support null elements on vector similarity functions
@@ -1416,12 +1395,116 @@ public class EsqlCapabilities {
         /**
          * URL encoding function.
          */
-        URL_ENCODE(Build.current().isSnapshot()),
+        URL_ENCODE(),
+
+        /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(),
 
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot()),
+        URL_DECODE(),
+
+        /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
+
+        /**
+         * FORK with remote indices
+         */
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+
+        /**
+         * Support for the Present function
+         */
+        FN_PRESENT,
+
+        /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION,
+
+        /**
+         * Multivalued query parameters
+         */
+        QUERY_PARAMS_MULTI_VALUES(),
+
+        FIX_PERCENTILE_PRECISION(),
+
+        /**
+         * Support for the Absent function
+         */
+        FN_ABSENT,
+
+        /** INLINE STATS supports remote indices */
+        INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+
+        INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0(),
+
+        /**
+         * Add support for counter doubles, ints, and longs in first_ and last_over_time
+         */
+        FIRST_LAST_OVER_TIME_COUNTER_SUPPORT,
+
+        FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
+
+        /**
+         * INLINE STATS fix incorrect prunning of null filtering
+         * https://github.com/elastic/elasticsearch/pull/135011
+         */
+        INLINE_STATS_FIX_PRUNING_NULL_FILTER(INLINESTATS_V11.enabled),
+
+        INLINE_STATS_FIX_OPTIMIZED_AS_LOCAL_RELATION(INLINESTATS_V11.enabled),
+
+        DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_FNS,
+
+        /**
+         * FUSE L2_NORM score normalization support
+         */
+        FUSE_L2_NORM(Build.current().isSnapshot()),
+
+        /**
+         * Support for requesting the "_tsid" metadata field.
+         */
+        METADATA_TSID_FIELD,
+
+        /**
+         * Permit the data type of a field changing from TEXT to KEYWORD
+         * when being grouped on in aggregations on the TS command.
+         */
+        TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
+
+        /**
+         * Fix management of plans with no columns
+         * https://github.com/elastic/elasticsearch/issues/120272
+         */
+        FIX_NO_COLUMNS,
+
+        /**
+         * Support for dots in FUSE attributes
+         */
+        DOTS_IN_FUSE,
+
+        /**
+         * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
+         */
+        TEMPORAL_AMOUNT_M,
 
         /**
          * Chunk function.

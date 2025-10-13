@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -47,14 +46,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
     )
     public void testRerouteIsCalledWhenHotSpotAppears() {
         final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
-        final int utilisationThresholdPercent = randomIntBetween(50, 100);
-        internalCluster().startMasterOnlyNode(enabledWriteLoadDeciderSettings(utilisationThresholdPercent, queueLatencyThresholdMillis));
-        final String dataNodeOne = internalCluster().startDataOnlyNode(
-            enabledWriteLoadDeciderSettings(utilisationThresholdPercent, queueLatencyThresholdMillis)
-        );
-        final String dataNodeTwo = internalCluster().startDataOnlyNode(
-            enabledWriteLoadDeciderSettings(utilisationThresholdPercent, queueLatencyThresholdMillis)
-        );
+        final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis);
+        internalCluster().startMasterOnlyNode(settings);
+        final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
+        final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
 
         // Unmodified cluster info should detect no hot-spotting nodes
         MockLog.awaitLogger(
@@ -184,19 +179,13 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
 
     /**
      * Enables the write load decider and overrides other write load decider settings.
-     * @param utilizationThresholdPercent Sets the write thread pool utilization threshold, controlling when canAllocate starts returning
-     *                                    not-preferred.
      * @param queueLatencyThresholdMillis Sets the queue latency threshold, controlling when canRemain starts returning not-preferred.
      */
-    private Settings enabledWriteLoadDeciderSettings(int utilizationThresholdPercent, long queueLatencyThresholdMillis) {
+    private Settings enabledWriteLoadDeciderSettings(long queueLatencyThresholdMillis) {
         return Settings.builder()
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-            )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                utilizationThresholdPercent + "%"
             )
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
@@ -204,8 +193,6 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
             )
             // Make the re-route interval large so we can test it
             .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(5))
-            // Disable rebalancing so that testing can see Decider change outcomes only.
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             .build();
     }
 }

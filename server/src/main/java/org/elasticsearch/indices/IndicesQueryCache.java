@@ -70,6 +70,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
 
+    /**
+     * Calculates a map of {@link ShardId} to {@link Long} which contains the calculated share of the {@link IndicesQueryCache} shared ram
+     * size for a given shard (that is, the sum of all the longs is the size of the indices query cache). Since many shards will not
+     * participate in the cache, shards whose calculated share is zero will not be contained in the map at all. As a consequence, the
+     * correct pattern for using the returned map will be via {@link Map#getOrDefault(Object, Object)} with a {@code defaultValue} of
+     * {@code 0L}.
+     */
     public static Map<ShardId, Long> getSharedRamSizeForAllShards(IndicesService indicesService) {
         Map<ShardId, Long> shardIdToSharedRam = new HashMap<>();
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);

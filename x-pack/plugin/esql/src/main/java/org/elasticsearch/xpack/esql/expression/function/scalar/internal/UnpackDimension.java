@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,8 +22,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
  * An internal convert function that unpacks dimension values were packed by {@link PackDimension}
@@ -39,7 +36,7 @@ public final class UnpackDimension extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(field(), sourceText(), DEFAULT);
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

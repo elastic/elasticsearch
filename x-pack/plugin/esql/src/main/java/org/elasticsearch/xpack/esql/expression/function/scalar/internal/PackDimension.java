@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 
 /**
  * An internal convert function that packs dimension values into a single BytesRef
@@ -51,7 +51,7 @@ public class PackDimension extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return SOURCE;
     }
 
     @Override

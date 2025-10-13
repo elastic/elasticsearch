@@ -166,12 +166,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Tests that do SORT before LOOKUP JOIN - not supported in CCS
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
 
-        if (testCase.requiredCapabilities.contains(FORK_V9.capabilityName())) {
-            assumeTrue(
-                "FORK not yet supported with CCS",
-                hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES.capabilityName()))
-            );
-        }
+        assumeFalse("FORK not yet supported with CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

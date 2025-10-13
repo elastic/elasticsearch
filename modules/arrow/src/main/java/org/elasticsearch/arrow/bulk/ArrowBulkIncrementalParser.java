@@ -10,15 +10,12 @@
 package org.elasticsearch.arrow.bulk;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
-import org.apache.arrow.vector.VariableWidthFieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
-import org.apache.arrow.vector.complex.UnionVector;
 import org.apache.arrow.vector.dictionary.Dictionary;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.util.Text;
@@ -27,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.arrow.xcontent.ArrowToString;
 import org.elasticsearch.arrow.xcontent.ArrowToXContent;
 import org.elasticsearch.arrow.xcontent.XContentBuffer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -170,8 +168,8 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
         FieldVector actionVector = actionField == null ? null : schemaRoot.getVector(actionField);
 
         for (int i = 0; i < rowCount; i++) {
-            String id = idVector == null ? null : getString(idVector, i);
-            String index = indexVector == null ? null : getString(indexVector, i);
+            String id = idVector == null ? null : ArrowToString.getString(idVector, i, dictionary);
+            String index = indexVector == null ? null : ArrowToString.getString(indexVector, i, dictionary);
 
             var action = parseAction(actionVector, i, id, index);
             switch (action) {
@@ -296,7 +294,7 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
             for (int pos = mapVector.getElementStartIndex(position); pos < mapVector.getElementEndIndex(position); pos++) {
                 keyVec.read(pos, key);
                 if (Arrays.equals(nameBytes, 0, nameBytes.length, key.getBytes(), 0, (int) key.getLength())) {
-                    return getString(valueVec, pos);
+                    return ArrowToString.getString(valueVec, pos, this.dictionaries);
                 }
             }
             // Not found
@@ -305,46 +303,14 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
 
         if (vector instanceof StructVector structVector) {
             var childVector = structVector.getChild(name);
-            return childVector == null ? null : getString(childVector, position);
+            return childVector == null ? null : ArrowToString.getString(childVector, position, this.dictionaries);
         }
 
         for (var child : vector.getChildrenFromFields()) {
             if (child instanceof ValueVector valueVector && valueVector.getName().equals(name)) {
-                return getString(valueVector, position);
+                return ArrowToString.getString(valueVector, position, this.dictionaries);
             }
         }
         return null;
-    }
-
-    private String getString(ValueVector vector, int position) {
-        if (vector.isNull(position)) {
-            return null;
-        }
-
-        return switch (vector.getMinorType()) {
-            case TINYINT, SMALLINT, INT, BIGINT, UINT1, UINT2, UINT4, UINT8 -> String.valueOf(
-                ((BaseIntVector) vector).getValueAsLong(position)
-            );
-
-            case VARCHAR, LARGEVARCHAR, VIEWVARCHAR -> {
-                var bytesVector = (VariableWidthFieldVector) vector;
-                yield new String(bytesVector.get(position), StandardCharsets.UTF_8);
-            }
-
-            case UNION -> {
-                UnionVector unionVector = (UnionVector) vector;
-                // Find the child field that isn't null, which is the active variant.
-                for (var variantVec : unionVector.getChildrenFromFields()) {
-                    if (variantVec.isNull(position) == false) {
-                        yield getString(variantVec, position);
-                    }
-                }
-                yield null;
-            }
-
-            default -> {
-                throw new ArrowFormatException("Arrow type [" + vector.getMinorType() + "] cannot be converted to string");
-            }
-        };
     }
 }

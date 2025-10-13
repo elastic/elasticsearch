@@ -126,11 +126,14 @@ public class IndexResolver {
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
                 TransportVersion minimumVersion = response.minTransportVersion();
+
                 LOGGER.debug("minimum transport version {}", minimumVersion);
                 l.onResponse(
                     new Versioned<>(
                         mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector)),
-                        minimumVersion
+                        // The minimum transport version was added to the field caps response in 9.2.1; in clusters with older nodes,
+                        // we don't have that information and need to assume the oldest supported version.
+                        minimumVersion == null ? TransportVersion.minimumCompatible() : minimumVersion
                     )
                 );
             })

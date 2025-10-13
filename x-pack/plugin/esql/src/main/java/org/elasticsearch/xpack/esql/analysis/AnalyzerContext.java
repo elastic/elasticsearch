@@ -43,7 +43,13 @@ public record AnalyzerContext(
         this.inferenceResolution = inferenceResolution;
         this.minimumTransportVersion = minimumTransportVersion;
 
-        assert minimumTransportVersion != null && minimumTransportVersion.onOrBefore(TransportVersion.current());
+        assert minimumTransportVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert minimumTransportVersion.onOrBefore(TransportVersion.current())
+            : "AnalyzerContext ["
+                + minimumTransportVersion
+                + "] is not on or before current transport version ["
+                + TransportVersion.current()
+                + "]";
     }
 
     public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {

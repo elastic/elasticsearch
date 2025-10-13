@@ -223,14 +223,12 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
               "creation_time": "2023-10-05T12:34:56.789Z"
             }
             """);
-        Exception e = expectThrows(
-            Exception.class,
-            () -> SamplingConfiguration.fromXContentUserData(parserA)
-        );
+        Exception e = expectThrows(Exception.class, () -> SamplingConfiguration.fromXContentUserData(parserA));
         // The IllegalArgumentException may be wrapped by the parser, so check the cause chain
         Throwable cause = e;
-        while (cause != null && (cause instanceof IllegalArgumentException &&
-                cause.getMessage().equals("Creation time cannot be set by user (field: creation_time)")) == false) {
+        while (cause != null
+            && (cause instanceof IllegalArgumentException
+                && cause.getMessage().equals("Creation time cannot be set by user (field: creation_time)")) == false) {
             cause = cause.getCause();
         }
         assertNotNull("Expected IllegalArgumentException with creation_time message", cause);
@@ -243,14 +241,12 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
               "creation_time_in_millis": 1696508096789
             }
             """);
-        e = expectThrows(
-            Exception.class,
-            () -> SamplingConfiguration.fromXContentUserData(parserB)
-        );
+        e = expectThrows(Exception.class, () -> SamplingConfiguration.fromXContentUserData(parserB));
         // The IllegalArgumentException may be wrapped by the parser, so check the cause chain
         cause = e;
-        while (cause != null && (cause instanceof IllegalArgumentException &&
-                cause.getMessage().equals("Creation time cannot be set by user (field: creation_time_in_millis)")) == false) {
+        while (cause != null
+            && (cause instanceof IllegalArgumentException
+                && cause.getMessage().equals("Creation time cannot be set by user (field: creation_time_in_millis)")) == false) {
             cause = cause.getCause();
         }
         assertNotNull("Expected IllegalArgumentException with creation_time_in_millis message", cause);

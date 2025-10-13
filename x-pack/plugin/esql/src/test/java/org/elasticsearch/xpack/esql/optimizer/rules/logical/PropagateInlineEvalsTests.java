@@ -169,7 +169,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return optimizer.optimize(analyzer.analyze(parser.createStatement(query)));
     }
 
     @Override

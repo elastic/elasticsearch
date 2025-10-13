@@ -76,9 +76,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 final var queryCache = indicesService.getIndicesQueryCache();
-                long sharedRam = (queryCache == null)
-                    ? 0L
-                    : IndicesQueryCache.getSharedRamSizeForShard(queryCache, indexShard.shardId(), cacheTotals);
+                long sharedRam = (queryCache == null) ? 0L : queryCache.getSharedRamSizeForShard(indexShard.shardId(), cacheTotals);
                 // as a size optimization, only store non-zero values in the map
                 if (sharedRam > 0L) {
                     shardIdToSharedRam.put(indexShard.shardId(), sharedRam);
@@ -144,18 +142,17 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public static long getSharedRamSizeForShard(IndicesService indicesService, ShardId shardId) {
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
         final var queryCache = indicesService.getIndicesQueryCache();
-        return (queryCache == null) ? 0L : IndicesQueryCache.getSharedRamSizeForShard(queryCache, shardId, cacheTotals);
+        return (queryCache == null) ? 0L : queryCache.getSharedRamSizeForShard(shardId, cacheTotals);
     }
 
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
-     * @param queryCache
      * @param shardId The shard to compute the shared RAM size for
      * @param cacheTotals Shard totals computed in getCacheTotalsForAllShards()
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
-    private static long getSharedRamSizeForShard(IndicesQueryCache queryCache, ShardId shardId, CacheTotals cacheTotals) {
-        long sharedRamBytesUsed = queryCache.getSharedRamBytesUsed();
+    private long getSharedRamSizeForShard(ShardId shardId, CacheTotals cacheTotals) {
+        long sharedRamBytesUsed = getSharedRamBytesUsed();
         if (sharedRamBytesUsed == 0L) {
             return 0L;
         }
@@ -171,7 +168,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * shard.
          */
         long totalItemsInCache = cacheTotals.totalItemsInCache();
-        long itemsInCacheForShard = queryCache.getCacheSizeForShard(shardId);
+        long itemsInCacheForShard = getCacheSizeForShard(shardId);
         final long additionalRamBytesUsed;
         if (totalItemsInCache == 0) {
             // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards

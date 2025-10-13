@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -25,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Locate any TopN that is "visible" under remote ENRICH, and make a copy of it above the ENRICH,
@@ -48,61 +54,85 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
             // This loop only takes care of one TopN. Repeated TopNs may be a problem, we can't handle them here.
             while (true) {
                 if (plan instanceof GeneratingPlan<?> gen) {
+                    // We collect all generated attributes, for the case that one of them might override the fields used by TopN
                     generatedAttributes.addAll(gen.generatedAttributes());
                 }
                 var outputs = en.output();
                 if (plan instanceof TopN topN && topN.local() == false) {
-                    // Create a fake OrderBy and "push" Enrich through it to generate aliases
-                    OrderBy fakeOrderBy = new OrderBy(topN.source(), topN.child(), topN.order());
-                    Enrich enrichWithOrderBy = new Enrich(
-                        en.source(),
-                        fakeOrderBy,
-                        en.mode(),
-                        en.policyName(),
-                        en.matchField(),
-                        en.policy(),
-                        en.concreteIndices(),
-                        // We add here all the attributes generated on the way, so if one of them is needed for ordering,
-                        // it will be aliased
-                        new ArrayList<>(generatedAttributes)
-                    );
-                    LogicalPlan pushPlan = PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(enrichWithOrderBy);
-                    // If we needed to alias any names, the result would look like this:
-                    // Project[[host{f}#14, timestamp{f}#16, user{f}#15, ip{r}#19, os{r}#20]]
-                    // \_OrderBy[[Order[timestamp{f}#16,ASC,LAST], Order[user{f}#15,ASC,LAST],
-                    // Order[$$ip$temp_name$21{r$}#22,ASC,LAST]]]
-                    // \_Enrich[REMOTE,hosts[KEYWORD],ip{r}#3,{"match":{"indices":[],"match_field":"ip",
-                    // "enrich_fields":["ip","os"]}},{},[ip{r}#19,os{r}#20]]
-                    // \_Eval[[ip{r}#3 AS $$ip$temp_name$21#22]]
-                    if (pushPlan instanceof Project proj) {
-                        // We needed renaming - deconstruct the plan from above and extract the relevant parts
-                        if ((proj.child() instanceof OrderBy o && o.child() instanceof Enrich e && e.child() instanceof Eval) == false) {
-                            throw new IllegalStateException("Unexpected pushed plan structure: " + pushPlan);
-                        }
-                        OrderBy order = (OrderBy) proj.child();
-                        Enrich enrich = (Enrich) order.child();
-                        Eval eval = (Eval) enrich.child();
-                        // We insert the evals above the original TopN, so that the copy TopN works on the renamed fields
-                        LogicalPlan replacementTop = eval.replaceChild(topN.withLocal(true));
+                    Set<String> generatedFieldNames = generatedAttributes.stream().map(Expressions::name).collect(Collectors.toSet());
+
+                    AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
+                    List<Expression> rewrittenExpressions = new ArrayList<>();
+
+                    for (Expression expr : topN.order()) {
+                        rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
+                            if (generatedFieldNames.contains(attr.name())) {
+                                Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
+                                    String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
+                                    return new Alias(a.source(), tempName, a, null, true);
+                                });
+                                return renamedAttribute.toAttribute();
+                            }
+
+                            return attr;
+                        }));
+                    }
+                    var replacedAttributes = aliasesForReplacedAttributesBuilder.build();
+                    // Do we need to do any aliasing because some of the fields were overridden by Enrich or other generating plans?
+                    if (replacedAttributes.isEmpty()) {
+                        // No need for aliasing - then it's simple, just copy the TopN on top of Enrich and mark the original as local
+                        LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == topN ? topN.withLocal(true) : t);
+                        return new TopN(topN.source(), transformedEnrich, topN.order(), topN.limit(), false);
+                    } else {
+                        // We need to create a copy of attributes used by TonP, because Enrich or some command on the way overwrites them.
+                        // Shadowed structure is going to look like this:
+                        /*
+                         Project[[_meta_field{f}#16, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,...]]
+                         \_TopN[[Order[$$emp_no$temp_name$26{r$}#27,ASC,LAST]],10[INTEGER],false]
+                          \_Enrich[REMOTE,languages_remote[KEYWORD],id{r}#4,{"match":{"indices":[],"match_field":"id",
+                         "enrich_fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#24, language_name{r}#25]]
+                            \_Eval[[emp_no{f}#10 + 1[INTEGER] AS emp_no#8]]
+                             \_Eval[[emp_no{f}#10 AS $$emp_no$temp_name$26#27]]
+                               \_TopN[[Order[emp_no{f}#10,ASC,LAST]],10[INTEGER],true]
+                                \_Eval[[emp_no{f}#10 AS id#4]]
+                                 \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+                         */
+                        // Put Eval which renames the affected fields above the original TopN, and mark that one as local
+                        Eval replacementTop = new Eval(topN.source(), topN.withLocal(true), new ArrayList<>(replacedAttributes.values()));
                         LogicalPlan transformedEnrich = en.transformDown(p -> switch (p) {
                             case TopN t when t == topN -> replacementTop;
                             // We only need to take care of Project because Drop can't possibly drop our newly created fields
                             case Project pr -> {
                                 List<NamedExpression> allFields = new LinkedList<>(pr.projections());
-                                allFields.addAll(eval.fields());
+                                allFields.addAll(replacementTop.fields());
                                 yield pr.withProjections(allFields);
                             }
                             default -> p;
                         });
+                        @SuppressWarnings("unchecked")
+                        List<Order> newOrder = (List<Order>) (List<?>) rewrittenExpressions;
 
-                        // Create the copied topN on top of the Enrich
-                        var copyTop = new TopN(topN.source(), transformedEnrich, order.order(), topN.limit(), false);
+                        // Verify that the outputs of transformed Enrich contain all the fields TopN needs
+                        // This can happen if there's a node that removes fields like Project and we didn't catch it above
+                        var newOutputs = new HashSet<>(transformedEnrich.output());
+                        newOrder.forEach(o -> {
+                            o.child().forEachDown(Attribute.class, a -> {
+                                if (newOutputs.contains(a) == false) {
+                                    throw new IllegalStateException(
+                                        "Attribute ["
+                                            + a
+                                            + "] required by TopN but is not in the outputs of Enrich ["
+                                            + Expressions.names(newOutputs)
+                                            + "]"
+                                    );
+                                }
+                            });
+                        });
+
+                        // Create a copy of TopN with the rewritten attributes on top on Enrich
+                        var copyTop = new TopN(topN.source(), transformedEnrich, newOrder, topN.limit(), false);
                         // And use the Project to remove the fields that we don't need anymore
-                        return new Project(en.source(), copyTop, en.output());
-                    } else {
-                        // No need for aliasing - then it's simple, just copy the TopN on top of Enrich and mark the original as local
-                        LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == topN ? topN.withLocal(true) : t);
-                        return new TopN(topN.source(), transformedEnrich, topN.order(), topN.limit(), false);
+                        return new Project(en.source(), copyTop, outputs);
                     }
                 }
                 if ((plan instanceof CardinalityPreserving) == false // can change the number of rows, so we can't just pull a TopN from

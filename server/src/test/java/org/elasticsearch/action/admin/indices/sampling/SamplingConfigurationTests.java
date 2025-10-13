@@ -215,7 +215,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(configWithTime.creationTime(), equalTo(explicitTime));
     }
 
-    public void testCreationTimeUserDataRestriction() throws IOException {
+    public void testCreationTimeUserDataRestrictionHumanReadable() throws IOException {
         // Test that user data cannot set creation time via human-readable field
         final XContentParser parserA = createParser(JsonXContent.jsonXContent, """
             {
@@ -225,7 +225,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             """);
         Exception e = expectThrows(Exception.class, () -> SamplingConfiguration.fromXContentUserData(parserA));
         // The IllegalArgumentException may be wrapped by the parser, so check the cause chain
-        Throwable cause = e;
+        Throwable cause = e.getCause();
         while (cause != null
             && (cause instanceof IllegalArgumentException
                 && cause.getMessage().equals("Creation time cannot be set by user (field: creation_time)")) == false) {
@@ -233,7 +233,9 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         }
         assertNotNull("Expected IllegalArgumentException with creation_time message", cause);
         assertThat(cause.getMessage(), equalTo("Creation time cannot be set by user (field: creation_time)"));
+    }
 
+    public void testCreationTimeUserDataRestrictionRaw() throws IOException {
         // Test that user data cannot set creation time via machine-readable field
         final XContentParser parserB = createParser(JsonXContent.jsonXContent, """
             {
@@ -241,9 +243,9 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
               "creation_time_in_millis": 1696508096789
             }
             """);
-        e = expectThrows(Exception.class, () -> SamplingConfiguration.fromXContentUserData(parserB));
+        Exception e = expectThrows(Exception.class, () -> SamplingConfiguration.fromXContentUserData(parserB));
         // The IllegalArgumentException may be wrapped by the parser, so check the cause chain
-        cause = e;
+        Throwable cause = e;
         while (cause != null
             && (cause instanceof IllegalArgumentException
                 && cause.getMessage().equals("Creation time cannot be set by user (field: creation_time_in_millis)")) == false) {

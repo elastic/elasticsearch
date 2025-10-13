@@ -128,18 +128,12 @@ public record SamplingConfiguration(
         );
         PARSER.declareString(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            if (c.get(IS_USER_DATA_CONTEXT_KEY) == Boolean.TRUE) {
-                throw new IllegalArgumentException("Creation time cannot be set by user (field: creation_time)");
-            } else {
-                return Instant.parse(p.text()).toEpochMilli();
-            }
+            validateUserDataContext(c, CREATION_TIME_FIELD_NAME);
+            return Instant.parse(p.text()).toEpochMilli();
         }, new ParseField(CREATION_TIME_FIELD_NAME), ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            if (c.get(IS_USER_DATA_CONTEXT_KEY) == Boolean.TRUE) {
-                throw new IllegalArgumentException("Creation time cannot be set by user (field: creation_time_in_millis)");
-            } else {
-                return p.longValue();
-            }
+            validateUserDataContext(c, CREATION_TIME_IN_MILLIS_FIELD_NAME);
+            return p.longValue();
         }, new ParseField(CREATION_TIME_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.LONG);
     }
 
@@ -295,5 +289,11 @@ public record SamplingConfiguration(
         }
         return humanReadableValue != null ? humanReadableValue : rawValue;
 
+    }
+
+    private static void validateUserDataContext(Map<String, Boolean> context, String fieldName) {
+        if (context.get(IS_USER_DATA_CONTEXT_KEY) == Boolean.TRUE) {
+            throw new IllegalArgumentException("Creation time cannot be set by user (field: " + fieldName + ")");
+        }
     }
 }

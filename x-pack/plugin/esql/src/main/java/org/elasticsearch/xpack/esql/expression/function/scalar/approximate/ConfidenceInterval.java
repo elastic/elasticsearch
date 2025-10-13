@@ -304,7 +304,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         int bucketCount,
         double confidenceLevel
     ) {
-        System.out.println("bestEstimate = " + bestEstimate + ", estimates = " + java.util.Arrays.toString(estimates));
         Mean means = new Mean();
         Mean stddevs = new Mean();
         Mean skews = new Mean();
@@ -321,11 +320,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             means.increment(mean.getResult());
             stddevs.increment(stdDev.getResult());
             skews.increment(skew.getResult());
-            System.out.println(
-                "trial " + trial + ": mean = " + mean.getResult() + ", stddev = " + stdDev.getResult() + ", skew = " + skew.getResult()
-            );
         }
-        System.out.println("total: mean = " + means.getResult() + ", stddev = " + stddevs.getResult() + ", skew = " + skews.getResult());
         double sm = stddevs.getResult();
         if (sm == 0.0) {
             return new double[] { bestEstimate, bestEstimate };

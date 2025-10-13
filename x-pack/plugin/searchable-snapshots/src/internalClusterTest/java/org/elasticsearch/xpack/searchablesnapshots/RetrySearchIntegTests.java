@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -16,9 +15,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -58,10 +54,6 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockSearchService.TestPlugin.class);
         return plugins;
-    }
-
-    protected boolean addMockHttpTransport() {
-        return false;
     }
 
     public void testSearcherId() throws Exception {
@@ -181,15 +173,6 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             "---> Original PIT id: "
                 + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
         );
-        // for debugging, we try to see where the documents are located
-        try (RestClient restClient = createRestClient()) {
-            Request checkShardsRequest = new Request(
-                "GET",
-                "/_cat/shards/" + indexName + "?format=json&h=index,node,shard,prirep,state,docs,index"
-            );
-            Response response = restClient.performRequest(checkShardsRequest);
-            logger.info("---> document distribution: " + EntityUtils.toString(response.getEntity()));
-        }
         SetOnce<BytesReference> updatedPit = new SetOnce<>();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
@@ -235,7 +218,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 }
             );
             logger.info("--> second search after node restart finished");
-            assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
+            if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+                assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
+            }
         } catch (Exception e) {
             logger.error("---> unexpected exception", e);
             throw e;

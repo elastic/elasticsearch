@@ -300,6 +300,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final FeatureFlag BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase");
 
+    public static final FeatureFlag PIT_RELOCATION_FEATURE_FLAG = new FeatureFlag("pit_relocation_feature");
+
     /**
      * The size of the buffer used for memory accounting.
      * This buffer is used to locally track the memory accummulated during the execution of
@@ -1281,21 +1283,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searcherSupplier.close();
                     throw e;
                 }
-                // we are using a PIT here so set singleSession to false to prevent clearing after the search finishes
-                ReaderContext readerContext = createAndPutReaderContext(
-                    contextId,
-                    request,
-                    indexService,
-                    shard,
-                    searcherSupplier,
-                    false,
-                    keepAliveInMillis
-                );
-                logger.debug(
-                    "Recreated reader context [{}] on node [{}]",
-                    readerContext.id(),
-                    clusterService.state().nodes().getLocalNode()
-                );
+                ReaderContext readerContext = null;
+                if (PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+                    // we are using a PIT here so set singleSession to false to prevent clearing after the search finishes
+                    readerContext = createAndPutReaderContext(
+                        contextId,
+                        request,
+                        indexService,
+                        shard,
+                        searcherSupplier,
+                        false,
+                        keepAliveInMillis
+                    );
+                    logger.debug("Recreated reader context [{}]", readerContext.id());
+                } else {
+                    // when feature is disabled, stay with the old way of just adding a temporary context
+                    readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
+                }
                 return readerContext;
             }
         }
@@ -1315,7 +1319,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return createAndPutReaderContext(id, request, indexService, shard, reader, true, keepAliveInMillis);
     }
 
-    public ReaderContext createAndPutReaderContext(
+    private ReaderContext createAndPutReaderContext(
         ShardSearchContextId id,
         ShardSearchRequest request,
         IndexService indexService,
@@ -1327,7 +1331,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
-            if (request != null && request.scroll() != null) {
+            if (request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());

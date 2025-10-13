@@ -94,7 +94,7 @@ public record Build(
             // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
             hash = "unknown";
             date = "unknown";
-            version = Version.CURRENT.toString();
+            version = Build.current().version();
             final String buildSnapshot = System.getProperty("build.snapshot");
             if (buildSnapshot != null) {
                 try {

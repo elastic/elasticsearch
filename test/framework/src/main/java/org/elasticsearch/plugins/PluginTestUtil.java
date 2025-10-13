@@ -9,7 +9,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -38,7 +38,7 @@ public class PluginTestUtil {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",

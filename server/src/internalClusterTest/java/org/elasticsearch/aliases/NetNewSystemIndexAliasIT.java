@@ -9,7 +9,7 @@
 
 package org.elasticsearch.aliases;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -68,7 +68,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 builder.startObject();
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT.toString());
+                    builder.field("version", Build.current().version());
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 

@@ -126,7 +126,7 @@ public class NodeService implements Closeable {
     ) {
         return new NodeInfo(
             // TODO: revert to Build.current().version() when Kibana is updated
-            Version.CURRENT.toString(),
+            Build.current().version(),
             compatibilityVersions,
             IndexVersion.current(),
             componentVersions,

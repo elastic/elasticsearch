@@ -7973,7 +7973,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types  | EVAL interval = "3 ours", x = date + interval::time_duration"""));
         assertEquals(
             "Invalid interval value in [interval::time_duration], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
@@ -7981,7 +7981,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types  | EVAL interval = "- 3 hours", x = date + interval::time_duration"""));
         assertEquals(
             "Invalid interval value in [interval::time_duration], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [- 3 hours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [- 3 hours]",
             e.getMessage()
         );
 
@@ -7989,7 +7989,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
@@ -7997,7 +7997,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types  | EVAL interval = "- 3 hours", x = date - to_timeduration(interval)"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [- 3 hours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [- 3 hours]",
             e.getMessage()
         );
 
@@ -8005,7 +8005,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
         );
 
@@ -8029,7 +8029,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             row x = "2024-01-01"::datetime | eval y = x + "3 ours"::time_duration"""));
         assertEquals(
             "Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
@@ -8037,7 +8037,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3 ours")"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 ours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
@@ -8045,7 +8045,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3.5 hours")"""));
         assertEquals(
             "Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
-                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3.5 hours]",
+                + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
         );
     }

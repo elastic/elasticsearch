@@ -206,8 +206,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     try (var dataset = builder.build()) {
                         flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap);
                     }
-                } finally {
-                    cuVSResourceManager.release(cuVSResources);
                 }
             }
             var elapsed = started - System.nanoTime();

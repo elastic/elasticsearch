@@ -211,7 +211,7 @@ public class RequestExecutorService implements RequestExecutor {
             startHandlingRateLimitedTasks();
         } catch (Exception e) {
             logger.warn("Failed to start request executor", e);
-            cleanup();
+            cleanup(CleanupStrategy.RATE_LIMITED_REQUEST_QUEUES_ONLY);
         }
     }
 
@@ -254,7 +254,7 @@ public class RequestExecutorService implements RequestExecutor {
     private void scheduleNextHandleTasks(TimeValue timeToWait) {
         if (shutdown.get()) {
             logger.debug("Shutdown requested while scheduling next handle task call, cleaning up");
-            cleanup();
+            cleanup(CleanupStrategy.RATE_LIMITED_REQUEST_QUEUES_ONLY);
             return;
         }
 
@@ -290,7 +290,7 @@ public class RequestExecutorService implements RequestExecutor {
         } catch (Exception e) {
             logger.error("Unexpected error processing request queue, terminating", e);
         } finally {
-            cleanup();
+            cleanup(CleanupStrategy.REQUEST_QUEUE_ONLY);
         }
     }
 
@@ -340,10 +340,16 @@ public class RequestExecutorService implements RequestExecutor {
         return rateLimitSettings != null && rateLimitSettings.isEnabled();
     }
 
-    private void cleanup() {
+    private void cleanup(CleanupStrategy cleanupStrategy) {
         try {
             shutdown();
-            notifyRequestsOfShutdown();
+
+            switch (cleanupStrategy) {
+                case RATE_LIMITED_REQUEST_QUEUES_ONLY -> notifyRateLimitedRequestsOfShutdown();
+                case REQUEST_QUEUE_ONLY -> rejectRequestsInRequestQueue();
+                default -> logger.error(Strings.format("Unknown clean up strategy for request executor: [%s]", cleanupStrategy.toString()));
+            }
+
             terminationLatch.countDown();
         } catch (Exception e) {
             logger.warn("Encountered an error while cleaning up", e);
@@ -356,7 +362,7 @@ public class RequestExecutorService implements RequestExecutor {
             do {
                 if (isShutdown()) {
                     logger.debug("Shutdown requested while handling rate limited tasks, cleaning up");
-                    cleanup();
+                    cleanup(CleanupStrategy.RATE_LIMITED_REQUEST_QUEUES_ONLY);
                     return;
                 }
 
@@ -370,24 +376,29 @@ public class RequestExecutorService implements RequestExecutor {
             scheduleNextHandleTasks(timeToWait);
         } catch (Exception e) {
             logger.warn("Encountered an error while handling rate limited tasks", e);
-            cleanup();
+            cleanup(CleanupStrategy.RATE_LIMITED_REQUEST_QUEUES_ONLY);
         }
     }
 
-    private void notifyRequestsOfShutdown() {
+    private void notifyRateLimitedRequestsOfShutdown() {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
-        // Reject rate-limited requests
         for (var endpoint : rateLimitGroupings.values()) {
             endpoint.notifyRequestsOfShutdown();
         }
+    }
 
-        // Reject non-rate-limited requests
+    private void rejectRequestsInRequestQueue() {
+        assert isShutdown() : "Requests in request queue should only be notified if the executor is shutting down";
+
         List<RejectableTask> requests = new ArrayList<>();
         requestQueue.drainTo(requests);
 
         for (var request : requests) {
-            rejectNonRateLimitedRequest(request);
+            // NoopTask does not implement being rejected, therefore we need to skip it
+            if (request != NoopTask) {
+                rejectNonRateLimitedRequest(request);
+            }
         }
     }
 
@@ -731,4 +742,8 @@ public class RequestExecutorService implements RequestExecutor {
         }
     };
 
+    private enum CleanupStrategy {
+        REQUEST_QUEUE_ONLY,
+        RATE_LIMITED_REQUEST_QUEUES_ONLY
+    }
 }

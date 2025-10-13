@@ -109,11 +109,18 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            unionAll.forEachDown(UnionAll.class, otherUnionAll -> {
-                if (unionAll == otherUnionAll) {
+            unionAll.forEachDown(Fork.class, otherForkOrUnionAll -> {
+                if (unionAll == otherForkOrUnionAll) {
                     return;
                 }
-                failures.add(Failure.fail(otherUnionAll, "Nested subqueries are not supported"));
+                failures.add(
+                    Failure.fail(
+                        otherForkOrUnionAll,
+                        otherForkOrUnionAll instanceof UnionAll
+                            ? "Nested subqueries are not supported"
+                            : "FORK inside subquery is not supported"
+                    )
+                );
             });
         }
     }

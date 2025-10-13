@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
 /**
  * Push down filters that can be evaluated by the UnionAll child to each child, below the added
  * {@code Limit} and {@code Subquery}, so that the filters can be pushed down further to the
- * data source when possible.  Filters that cannot be pushed down remain above the UnionAll.
+ * data source when possible. Filters that cannot be pushed down remain above the UnionAll.
  *
  * Also push down the {@code Limit} added by {@code AddImplicitForkLimit} below the
  * {@code Subquery}, so that the other rules related to {@code Limit} optimization can be applied.

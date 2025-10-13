@@ -1355,6 +1355,70 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(8)));
     }
 
+    public void testNestedSubqueries() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                        testIndexName(),
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Nested subqueries are not supported"));
+    }
+
+    public void testSubqueryWithFork() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK after subquery is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK inside subquery is not supported"));
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);

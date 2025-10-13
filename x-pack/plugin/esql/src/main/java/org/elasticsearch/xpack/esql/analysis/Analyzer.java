@@ -865,7 +865,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (attrType.isCounter()) {
                         attrType = attrType.noCounter();
                     }
-                    return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
+                    // use the current fork branch's source as the source of the alias, instead of the original FieldAttribute's source.
+                    return new Alias(source, attr.name(), new Literal(source, null, attrType));
                 }).toList();
 
                 // add the missing columns

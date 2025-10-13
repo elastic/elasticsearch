@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -73,7 +76,8 @@ public abstract class FullTextFunction extends Function
         EvaluatorMapper,
         ExpressionScoreMapper,
         PostOptimizationVerificationAware,
-        RewriteableAware {
+        RewriteableAware,
+        PostOptimizationPlanVerificationAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -192,26 +196,30 @@ public abstract class FullTextFunction extends Function
                 failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
             }
 
-            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                // Check for limitations of QSTR and KQL function.
+            // Defer the check to children commands to post optimization plan verification,
+            // after the candidate predicates are pushed down into subqueries
+            if (hasSubqueryInChildrenPlans(f) == false) {
+                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                    // Check for limitations of QSTR and KQL function.
+                    checkCommandsBeforeExpression(
+                        plan,
+                        condition,
+                        functionClass,
+                        lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                        failures
+                    );
+                });
+
                 checkCommandsBeforeExpression(
                     plan,
                     condition,
-                    functionClass,
-                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    FullTextFunction.class,
+                    lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                    m -> "[" + m.functionName() + "] " + m.functionType(),
                     failures
                 );
-            });
-
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                FullTextFunction.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
+            }
             checkFullTextFunctionsParents(condition, failures);
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
@@ -343,7 +351,8 @@ public abstract class FullTextFunction extends Function
         var fieldAttribute = fieldAsFieldAttribute(field);
         if (fieldAttribute == null) {
             plan.forEachExpression(function.getClass(), m -> {
-                if (function.children().contains(field)) {
+                // Defer the field check to post optimization plan verification if there are subqueries in the plan
+                if (m.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     failures.add(
                         fail(
                             field,
@@ -434,5 +443,21 @@ public abstract class FullTextFunction extends Function
     @Override
     public void postOptimizationVerification(Failures failures) {
         resolveTypeQuery(query(), sourceText(), forPostOptimizationValidation(query(), failures));
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        // check plan again after predicates are pushed down into subqueries
+        return FullTextFunction::checkFullTextQueryFunctions;
+    }
+
+    private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {
+        Holder<Boolean> hasSubqueryInChildrenPlans = new Holder<>(false);
+        plan.forEachDown(p -> {
+            if (p instanceof UnionAll) {
+                hasSubqueryInChildrenPlans.set(true);
+            }
+        });
+        return hasSubqueryInChildrenPlans.get();
     }
 }

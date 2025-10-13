@@ -319,6 +319,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
+        int size = ctxs == null ? 0 : ctxs.size();
         if (ctxs != null) {
             ctxs.forEach(c -> {
                 if (c.indexPattern() != null) {
@@ -369,7 +370,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
             } else {
                 // the output of UnionAll is resolved by analyzer
-                return new UnionAll(source, mainQueryAndSubqueries, List.of());
+                return new UnionAll(source(ctxs.get(0), ctxs.get(size - 1)), mainQueryAndSubqueries, List.of());
             }
         }
     }

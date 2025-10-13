@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,6 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -658,5 +663,226 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assertEquals(100000, literal.value());
         EsRelation relation = as(childFilter.child(), EsRelation.class);
         assertEquals("test1", relation.indexPattern());
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_UnionAll[[_meta_field{r}#26, emp_no{r}#27, first_name{r}#28, gender{r}#29, hire_date{r}#30, job{r}#31, job.raw{r}#32, l
+     * anguages{r}#33, last_name{r}#34, long_noidx{r}#35, salary{r}#36]]
+     *   |_EsqlProject[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
+     *   | \_Limit[1000[INTEGER],false]
+     *   |   \_Filter[:(first_name{f}#5,first[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     *   \_EsqlProject[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
+     * anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     *     \_Subquery[]
+     *       \_Limit[1000[INTEGER],false]
+     *         \_Filter[languages{f}#18 &gt; 0[INTEGER] AND :(first_name{f}#16,first[KEYWORD])]
+     *           \_EsRelation[test1][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testPushDownSingleFullTextFunctionPastUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | WHERE languages > 0)
+            | WHERE first_name:"first"
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Limit childLimit = as(child1.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        MatchOperator match = as(childFilter.condition(), MatchOperator.class);
+        FieldAttribute first_name = as(match.field(), FieldAttribute.class);
+        assertEquals("first_name", first_name.name());
+        Literal right = as(match.query(), Literal.class);
+        assertEquals(new BytesRef("first"), right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        Subquery subquery = as(child2.child(), Subquery.class);
+        childLimit = as(subquery.child(), Limit.class);
+        childFilter = as(childLimit.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
+        MatchOperator matchOperator = as(and.right(), MatchOperator.class);
+        first_name = as(matchOperator.field(), FieldAttribute.class);
+        assertEquals("first_name", first_name.name());
+        right = as(matchOperator.query(), Literal.class);
+        assertEquals(new BytesRef("first"), right.value());
+        GreaterThan greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_UnionAll[[_meta_field{r}#27, emp_no{r}#28, first_name{r}#29, gender{r}#30, hire_date{r}#31, job{r}#32, job.raw{r}#33, l
+     * anguages{r}#34, last_name{r}#35, long_noidx{r}#36, salary{r}#37]]
+     *   |_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
+     *   | \_Limit[1000[INTEGER],false]
+     *   |   \_Filter[:(first_name{f}#6,first[KEYWORD]) AND MATCH(last_name{f}#9,last[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_EsqlProject[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25, l
+     * anguages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
+     *     \_Subquery[]
+     *       \_Limit[1000[INTEGER],false]
+     *         \_Filter[languages{f}#19 &gt; 0[INTEGER] AND :(first_name{f}#17,first[KEYWORD]) AND MATCH(last_name{f}#20,last[KEYWORD])]
+     *           \_EsRelation[test1][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testPushDownConjunctiveFullTextFunctionPastUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | WHERE languages > 0)
+            | WHERE first_name:"first" and match(last_name, "last")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Limit childLimit = as(child1.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
+        MatchOperator matchOperator = as(and.left(), MatchOperator.class);
+        FieldAttribute first_name = as(matchOperator.field(), FieldAttribute.class);
+        assertEquals("first_name", first_name.name());
+        Literal right = as(matchOperator.query(), Literal.class);
+        assertEquals(new BytesRef("first"), right.value());
+        Match matchFunction = as(and.right(), Match.class);
+        FieldAttribute last_name = as(matchFunction.field(), FieldAttribute.class);
+        assertEquals("last_name", last_name.name());
+        right = as(matchFunction.query(), Literal.class);
+        assertEquals(new BytesRef("last"), right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        Subquery subquery = as(child2.child(), Subquery.class);
+        childLimit = as(subquery.child(), Limit.class);
+        childFilter = as(childLimit.child(), Filter.class);
+        and = as(childFilter.condition(), And.class);
+        GreaterThan greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        and = as(and.right(), And.class);
+        matchOperator = as(and.left(), MatchOperator.class);
+        first_name = as(matchOperator.field(), FieldAttribute.class);
+        assertEquals("first_name", first_name.name());
+        right = as(matchOperator.query(), Literal.class);
+        assertEquals(new BytesRef("first"), right.value());
+        matchFunction = as(and.right(), Match.class);
+        last_name = as(matchFunction.field(), FieldAttribute.class);
+        assertEquals("last_name", last_name.name());
+        right = as(matchFunction.query(), Literal.class);
+        assertEquals(new BytesRef("last"), right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   | \_Limit[1000[INTEGER],false]
+     *   |   \_Filter[:(first_name{f}#7,first[KEYWORD]) OR MatchPhrase(last_name{f}#10,last[KEYWORD])]
+     *   |     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     \_Subquery[]
+     *       \_Limit[1000[INTEGER],false]
+     *         \_Filter[languages{f}#20 &gt; 0[INTEGER] AND MATCH(gender{f}#19,F[KEYWORD]) AND :(first_name{f}#18,first[KEYWORD])
+     *         OR MatchPhrase(last_name{f}#21,last[KEYWORD])]
+     *           \_EsRelation[test1][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     */
+    public void testPushDownDisjunctiveFullTextFunctionPastUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var plan = planSubquery("""
+            FROM test, (FROM test1 | WHERE languages > 0 and match(gender , "F"))
+            | WHERE first_name:"first" or match_phrase(last_name, "last")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        EsqlProject child1 = as(unionAll.children().get(0), EsqlProject.class);
+        Limit childLimit = as(child1.child(), Limit.class);
+        Filter childFilter = as(childLimit.child(), Filter.class);
+        Or or = as(childFilter.condition(), Or.class);
+        MatchOperator matchOperator = as(or.left(), MatchOperator.class);
+        FieldAttribute first_name = as(matchOperator.field(), FieldAttribute.class);
+        assertEquals("first_name", first_name.name());
+        Literal right = as(matchOperator.query(), Literal.class);
+        assertEquals(new BytesRef("first"), right.value());
+        MatchPhrase matchPhrase = as(or.right(), MatchPhrase.class);
+        FieldAttribute last_name = as(matchPhrase.field(), FieldAttribute.class);
+        assertEquals("last_name", last_name.name());
+        right = as(matchPhrase.query(), Literal.class);
+        assertEquals(new BytesRef("last"), right.value());
+        EsRelation relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        EsqlProject child2 = as(unionAll.children().get(1), EsqlProject.class);
+        Subquery subquery = as(child2.child(), Subquery.class);
+        childLimit = as(subquery.child(), Limit.class);
+        childFilter = as(childLimit.child(), Filter.class);
+        And and = as(childFilter.condition(), And.class);
+        or = as(and.right(), Or.class);
+        matchOperator = as(or.left(), MatchOperator.class);
+        first_name = as(matchOperator.field(), FieldAttribute.class);
+        assertEquals("first_name", first_name.name());
+        right = as(matchOperator.query(), Literal.class);
+        assertEquals(new BytesRef("first"), right.value());
+        matchPhrase = as(or.right(), MatchPhrase.class);
+        last_name = as(matchPhrase.field(), FieldAttribute.class);
+        assertEquals("last_name", last_name.name());
+        right = as(matchPhrase.query(), Literal.class);
+        assertEquals(new BytesRef("last"), right.value());
+        and = as(and.left(), And.class);
+        Match matchFunction = as(and.right(), Match.class);
+        FieldAttribute gender = as(matchFunction.field(), FieldAttribute.class);
+        assertEquals("gender", gender.name());
+        right = as(matchFunction.query(), Literal.class);
+        assertEquals(new BytesRef("F"), right.value());
+        GreaterThan greaterThan = as(and.left(), GreaterThan.class);
+        FieldAttribute languages = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("languages", languages.name());
+        right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        relation = as(childFilter.child(), EsRelation.class);
+        assertEquals("test1", relation.indexPattern());
+    }
+
+    public void testFullTextFunctionCannotBePushedDownPastUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
+            FROM test, (FROM languages)
+            | WHERE match(language_name, "text")
+            """));
+        assertTrue(e.getMessage().startsWith("Found "));
+        final String header = "Found 2 problems\nline ";
+        // TODO improve the error message to indicate the field is missing from an index pattern under a subquery context
+        // FullTextFunction.checkCommandsBeforeExpression adds the first failure
+        // FullTextFunction.fieldVerifier adds the second failure
+        // resolveFork creates the reference attribute, provide a better source text for it
+        assertEquals(
+            "1:1: [MATCH] function cannot be used after FROM\n"
+                + "line 1:1: [MATCH] function cannot operate on [FROM test, (FROM languages)], which is not a field from an index mapping",
+            e.getMessage().substring(header.length())
+        );
     }
 }

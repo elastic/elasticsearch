@@ -948,3 +948,21 @@ k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.33  | prod            | 21
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 821                         | null
 k8s-downsampled | 2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
 ;
+
+subqueryInFromWithFullTextFunctionInMainQueryAndSubquery
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: match_function
+
+FROM books, (FROM books | WHERE author:"Faulkner" and ratings > 4)
+| WHERE match(title, "Faulkner")
+| KEEP book_no, title, author, ratings
+| SORT book_no
+;
+
+book_no:keyword | title:text                                                                                      | author:text      | ratings:double
+2713            | Collected Stories of William Faulkner                                                           | William Faulkner | 4.53000020980835
+2713            | Collected Stories of William Faulkner                                                           | William Faulkner | 4.53000020980835
+2883            | A Summer of Faulkner: As I Lay Dying/The Sound and the Fury/Light in August (Oprah's Book Club) | William Faulkner | 3.890000104904175
+5119            | William Faulkner                                                                                | William Faulkner | 4.0
+;

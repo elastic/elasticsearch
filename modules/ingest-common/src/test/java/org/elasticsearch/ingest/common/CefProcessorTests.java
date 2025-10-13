@@ -266,7 +266,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEmptyExtensionValue() throws IOException, URISyntaxException{
+    public void testEmptyExtensionValue() throws IOException, URISyntaxException {
         String message = readCefMessageFile("empty_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -296,7 +296,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testLeadingWhitespace() throws IOException, URISyntaxException{
+    public void testLeadingWhitespace() throws IOException, URISyntaxException {
         String message = readCefMessageFile("leading_whitespace.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);

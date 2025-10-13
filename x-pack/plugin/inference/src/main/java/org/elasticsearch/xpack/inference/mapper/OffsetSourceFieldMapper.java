@@ -147,11 +147,6 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean fieldHasValue(FieldInfos fieldInfos) {
-            return fieldInfos.fieldInfo(name()) != null;
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[offset_source] fields do not support sorting, scripting or aggregating");
         }

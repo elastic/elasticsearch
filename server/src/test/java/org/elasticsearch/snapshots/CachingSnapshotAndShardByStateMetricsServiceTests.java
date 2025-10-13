@@ -111,7 +111,7 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
 
         // Update SnapshotsInProgress
         final ClusterState newSnapshotsInProgress = ClusterState.builder(masterAgain)
-            .putCustom(SnapshotsInProgress.TYPE, createSnapshotsInProgress(indexName, repositoryName))
+            .putCustom(SnapshotsInProgress.TYPE, createSnapshotsInProgress(masterAgain, indexName, repositoryName))
             .incrementVersion()
             .build();
         when(clusterService.state()).thenReturn(newSnapshotsInProgress);
@@ -144,14 +144,13 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
                         new RepositoriesMetadata(List.of(new RepositoryMetadata(repositoryName, "fs", Settings.EMPTY)))
                     )
             )
-            .putCustom(SnapshotsInProgress.TYPE, createSnapshotsInProgress(indexName, repositoryName))
+            .putCustom(SnapshotsInProgress.TYPE, createSnapshotsInProgress(state, indexName, repositoryName))
             .incrementVersion()
             .build();
     }
 
-    private SnapshotsInProgress createSnapshotsInProgress(String indexName, String repositoryName) {
-        final ClusterState state = ClusterStateCreationUtils.state(indexName, randomIntBetween(1, 3), randomIntBetween(1, 2));
-        final IndexMetadata index = state.projectState(ProjectId.DEFAULT).metadata().index(indexName);
+    private SnapshotsInProgress createSnapshotsInProgress(ClusterState clusterState, String indexName, String repositoryName) {
+        final IndexMetadata index = clusterState.projectState(ProjectId.DEFAULT).metadata().index(indexName);
         return SnapshotsInProgress.EMPTY.withAddedEntry(createEntry(index, repositoryName));
     }
 

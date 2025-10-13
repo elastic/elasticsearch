@@ -353,6 +353,7 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
+<<<<<<< HEAD
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512
@@ -365,6 +366,8 @@ tests:
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/129534
+=======
+>>>>>>> 6257be71c27 (Fix snapshot upgrade test (#136433))
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517

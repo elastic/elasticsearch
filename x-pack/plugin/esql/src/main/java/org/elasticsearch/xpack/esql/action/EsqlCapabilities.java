@@ -1597,7 +1597,14 @@ public class EsqlCapabilities {
         /**
          * Support for requesting the "_tsid" metadata field.
          */
-        METADATA_TSID_FIELD;
+        METADATA_TSID_FIELD,
+
+        /**
+         * Pack dimension values in TS command
+         */
+        PACK_DIMENSIONS_IN_TS
+
+        ;
 
         private final boolean enabled;
 

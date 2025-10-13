@@ -421,7 +421,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     private static NodeStats statsForNode(DiscoveryNode node, long memory) {
         OsStats osStats = new OsStats(
             randomNonNegativeLong(),
-            new OsStats.Cpu(randomShort(), null),
+            new OsStats.Cpu(randomShort(), null, randomInt()),
             new OsStats.Mem(memory, randomLongBetween(0, memory), randomLongBetween(0, memory)),
             new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
             null

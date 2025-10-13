@@ -48,7 +48,8 @@
       }
     },
     "body": {
-      "description": "deleting expired data parameters"
+      "description": "deleting expired data parameters",
+      "required": false
     }
   }
 }

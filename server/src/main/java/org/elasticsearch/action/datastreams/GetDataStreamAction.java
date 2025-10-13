@@ -343,9 +343,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                    out.writeOptionalWriteable(timeSeries);
-                }
+                out.writeOptionalWriteable(timeSeries);
                 if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);

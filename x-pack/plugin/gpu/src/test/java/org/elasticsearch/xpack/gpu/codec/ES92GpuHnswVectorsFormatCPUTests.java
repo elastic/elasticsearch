@@ -26,21 +26,19 @@ public class ES92GpuHnswVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCa
 
     static Codec codec;
 
-    /** Format that only builds indices on the CPU never uses the GPU, because of the large tinySegmentThreshold. */
-    static class ES92GpuHnswVectorsFormatTinyOneMillion extends ES92GpuHnswVectorsFormat {
-        ES92GpuHnswVectorsFormatTinyOneMillion() {
-            super(
-                ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
-                ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                ThrowingCuVSResourceManager.supplier,
-                Integer.MAX_VALUE
-            );
-        }
+    static ES92GpuHnswVectorsFormat createES92GpuHnswVectorsFormat(int tinySegmentsThreshold) {
+        return new ES92GpuHnswVectorsFormat(
+            ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN,
+            ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+            ThrowingCuVSResourceManager.supplier,
+            tinySegmentsThreshold
+        );
     }
 
     @BeforeClass
     public static void beforeClass() {
-        codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswVectorsFormatTinyOneMillion());
+        // Create the format that builds indices on the CPU, because of the tinySegmentThreshold
+        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswVectorsFormat(Integer.MAX_VALUE));
     }
 
     @Override
@@ -49,21 +47,26 @@ public class ES92GpuHnswVectorsFormatCPUTests extends BaseKnnVectorsFormatTestCa
     }
 
     public void testKnnVectorsFormatToString() {
-        KnnVectorsFormat knnVectorsFormat = new ES92GpuHnswVectorsFormatTinyOneMillion();
+        KnnVectorsFormat format = createES92GpuHnswVectorsFormat(1_000_000);
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, tinySegmentsThreshold=1000000, flatVectorFormat=Lucene99FlatVectorsFormat)";
-        assertEquals(expectedStr, knnVectorsFormat.toString());
+        assertEquals(expectedStr, format.toString());
+
+        format = createES92GpuHnswVectorsFormat(Integer.MAX_VALUE);
+        expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=2147483647, flatVectorFormat=Lucene99FlatVectorsFormat)";
+        assertEquals(expectedStr, format.toString());
 
         // check the detail values
-        knnVectorsFormat = new ES92GpuHnswVectorsFormat();
+        format = new ES92GpuHnswVectorsFormat();
         expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=Lucene99FlatVectorsFormat)";
-        assertEquals(expectedStr, knnVectorsFormat.toString());
+        assertEquals(expectedStr, format.toString());
 
-        knnVectorsFormat = new ES92GpuHnswVectorsFormat(5, 6, ThrowingCuVSResourceManager.supplier, 7);
+        format = new ES92GpuHnswVectorsFormat(5, 6, ThrowingCuVSResourceManager.supplier, 7);
         expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=5, beamWidth=6, tinySegmentsThreshold=7, flatVectorFormat=Lucene99FlatVectorsFormat)";
-        assertEquals(expectedStr, knnVectorsFormat.toString());
+        assertEquals(expectedStr, format.toString());
     }
 
     @Override

@@ -43,7 +43,7 @@ public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTest
     @BeforeClass
     public static void beforeClass() {
         // Create the format that builds indices on the CPU, because of the tinySegmentThreshold
-        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswSQVectorsFormat(1_000_000));
+        codec = TestUtil.alwaysKnnVectorsFormat(createES92GpuHnswSQVectorsFormat(Integer.MAX_VALUE));
     }
 
     @Override
@@ -52,21 +52,26 @@ public class ES92GpuHnswSQVectorsFormatCPUTests extends BaseKnnVectorsFormatTest
     }
 
     public void testKnnVectorsFormatToString() {
-        KnnVectorsFormat knnVectorsFormat = createES92GpuHnswSQVectorsFormat(1000000);
+        KnnVectorsFormat format = createES92GpuHnswSQVectorsFormat(1000000);
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, tinySegmentsThreshold=1000000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+        assertThat(format.toString(), startsWith(expectedStr));
+
+        format = createES92GpuHnswSQVectorsFormat(Integer.MAX_VALUE);
+        expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
+            + "maxConn=16, beamWidth=128, tinySegmentsThreshold=2147483647, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+        assertThat(format.toString(), startsWith(expectedStr));
 
         // check the detail values
-        knnVectorsFormat = new ES92GpuHnswSQVectorsFormat();
+        format = new ES92GpuHnswSQVectorsFormat();
         expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=16, beamWidth=128, tinySegmentsThreshold=10000, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+        assertThat(format.toString(), startsWith(expectedStr));
 
-        knnVectorsFormat = new ES92GpuHnswSQVectorsFormat(5, 6, null, 7, false, ThrowingCuVSResourceManager.supplier, 8);
+        format = new ES92GpuHnswSQVectorsFormat(5, 6, null, 7, false, ThrowingCuVSResourceManager.supplier, 8);
         expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=5, beamWidth=6, tinySegmentsThreshold=8, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        assertThat(knnVectorsFormat.toString(), startsWith(expectedStr));
+        assertThat(format.toString(), startsWith(expectedStr));
     }
 
     @Override

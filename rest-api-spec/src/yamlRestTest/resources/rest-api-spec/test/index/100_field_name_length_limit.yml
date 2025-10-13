@@ -27,12 +27,14 @@ setup:
         body:
           foo:
             test_really_long_field_name_that_will_be_ignored: foo
+            field_name_not_ignored: 10
 
   - do:
       indices.get_mapping:
         index: test_index
 
   - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
 
   - do:
       get:
@@ -44,6 +46,7 @@ setup:
       _source:
         foo:
           test_really_long_field_name_that_will_be_ignored: foo
+          field_name_not_ignored: 10
   - match: { _ignored: [ "foo.test_really_long_field_name_that_will_be_ignored" ] }
 
 ---
@@ -70,12 +73,14 @@ setup:
         body:
           foo:
             test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+            field_name_not_ignored: [ 10, 20, 30 ]
 
   - do:
       indices.get_mapping:
         index: test_index
 
   - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
 
   - do:
       get:
@@ -88,6 +93,7 @@ setup:
       _source:
         foo:
           test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+          field_name_not_ignored: [ 10, 20, 30 ]
   - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
 
 ---
@@ -115,12 +121,14 @@ setup:
         body:
           foo:
             test_really_long_field_name_that_will_be_ignored: foo
+            field_name_not_ignored: 10
 
   - do:
       indices.get_mapping:
         index: test_index
 
   - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
 
   - do:
       get:
@@ -132,6 +140,7 @@ setup:
       _source:
         foo:
           test_really_long_field_name_that_will_be_ignored: foo
+          field_name_not_ignored: 10
   - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
 
 ---
@@ -159,12 +168,14 @@ setup:
         body:
           foo:
             test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+            field_name_not_ignored: [ 10, 20, 30 ]
 
   - do:
       indices.get_mapping:
         index: test_index
 
   - match: { test_index.mappings.properties.foo.properties.test_really_long_field_name_that_will_be_ignored: null }
+  - match: { test_index.mappings.properties.foo.properties.field_name_not_ignored.type: long }
 
   - do:
       get:
@@ -176,6 +187,7 @@ setup:
       _source:
         foo:
           test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
+          field_name_not_ignored: [ 10, 20, 30 ]
   - match: {_ignored:["foo.test_really_long_field_name_that_will_be_ignored"]}
 
 ---

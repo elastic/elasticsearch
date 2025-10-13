@@ -133,7 +133,8 @@ public class CachingSnapshotAndShardByStateMetricsServiceTests extends ESTestCas
     }
 
     private ClusterState createClusterStateWithSnapshotsInProgress(String indexName, String repositoryName) {
-        final ClusterState state = ClusterStateCreationUtils.state(indexName, randomIntBetween(1, 3), randomIntBetween(1, 2));
+        // Need to have at least 2 nodes, so we can test when another node is the master
+        final ClusterState state = ClusterStateCreationUtils.state(indexName, randomIntBetween(2, 5), randomIntBetween(1, 2));
         return ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
             .putProjectMetadata(

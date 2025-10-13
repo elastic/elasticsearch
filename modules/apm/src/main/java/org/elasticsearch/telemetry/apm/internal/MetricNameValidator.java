@@ -48,7 +48,6 @@ public class MetricNameValidator {
     // forbidden attributes known to cause issues due to mapping conflicts or high cardinality
     static final Predicate<String> FORBIDDEN_ATTRIBUTE_NAMES = Regex.simpleMatcher(
         "index",
-        "*_id",
         "*.timestamp",
         "*_timestamp",
         "created",

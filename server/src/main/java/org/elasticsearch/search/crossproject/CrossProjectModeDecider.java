@@ -11,7 +11,6 @@ package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 
 /**
  * Utility class to determine whether Cross-Project Search (CPS) applies to an inbound request.
@@ -35,6 +34,7 @@ import org.elasticsearch.core.Booleans;
  */
 public class CrossProjectModeDecider {
     private static final String CROSS_PROJECT_ENABLED_SETTING_KEY = "serverless.cross_project.enabled";
+    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(CrossProjectModeDecider.class);
     private final boolean crossProjectEnabled;
 
     public CrossProjectModeDecider(Settings settings) {
@@ -49,8 +49,7 @@ public class CrossProjectModeDecider {
         if (crossProjectEnabled == false) {
             return false;
         }
-        // TODO this needs to be based on the IndicesOptions flag instead, once available
-        final boolean indicesOptionsResolveCrossProject = Booleans.parseBoolean(System.getProperty("cps.resolve_cross_project", "false"));
-        return request.allowsCrossProject() && indicesOptionsResolveCrossProject;
+        // TODO: The following check can be an method on the request itself
+        return request.allowsCrossProject() && request.indicesOptions().resolveCrossProjectIndexExpression();
     }
 }

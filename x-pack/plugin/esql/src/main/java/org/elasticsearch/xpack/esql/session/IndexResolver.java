@@ -93,7 +93,9 @@ public class IndexResolver {
         boolean supportsDenseVector,
         ActionListener<IndexResolution> listener
     ) {
-        ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap((l, vr) -> l.onResponse(vr.inner()));
+        ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
+            (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
+        );
 
         resolveAsMergedMappingAndRetrieveMinimumVersion(
             indexWildcard,

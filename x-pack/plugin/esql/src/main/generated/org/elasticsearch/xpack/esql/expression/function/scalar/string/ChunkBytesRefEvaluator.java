@@ -87,41 +87,44 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (numChunksBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (numChunksBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (chunkSizeBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (numChunksBlock.getValueCount(p) != 1) {
-          if (numChunksBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (chunkSizeBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (chunkSizeBlock.getValueCount(p) != 1) {
-          if (chunkSizeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        int numChunks = numChunksBlock.getInt(numChunksBlock.getFirstValueIndex(p));
+        int chunkSize = chunkSizeBlock.getInt(chunkSizeBlock.getFirstValueIndex(p));
         try {
-          Chunk.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numChunksBlock.getInt(numChunksBlock.getFirstValueIndex(p)), chunkSizeBlock.getInt(chunkSizeBlock.getFirstValueIndex(p)));
+          Chunk.process(result, str, numChunks, chunkSize);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -136,8 +139,11 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        int numChunks = numChunksVector.getInt(p);
+        int chunkSize = chunkSizeVector.getInt(p);
         try {
-          Chunk.process(result, strVector.getBytesRef(p, strScratch), numChunksVector.getInt(p), chunkSizeVector.getInt(p));
+          Chunk.process(result, str, numChunks, chunkSize);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -1502,6 +1502,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
+         */
+        TEMPORAL_AMOUNT_M,
+
+        /**
          * Pack dimension values in TS command
          */
         PACK_DIMENSIONS_IN_TS

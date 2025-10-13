@@ -103,7 +103,7 @@ public class Knn extends FullTextFunction
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
             + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
         examples = { @Example(file = "knn-function", tag = "knn-function") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public Knn(
         Source source,
@@ -153,7 +153,7 @@ public class Knn extends FullTextFunction
                         + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-knn-query,knn query>> for more information.",
+                + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
         ) Expression options
     ) {

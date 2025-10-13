@@ -594,6 +594,9 @@ public enum FieldData {
 
     }
 
+    /**
+     * A {@link LongValues} instance that does not have a value for any document
+     */
     public static LongValues EMPTY = new LongValues() {
         @Override
         public long longValue() throws IOException {

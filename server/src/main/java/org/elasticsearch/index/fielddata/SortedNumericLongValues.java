@@ -16,8 +16,14 @@ import org.apache.lucene.search.LongValues;
 
 import java.io.IOException;
 
+/**
+ * A multivalued version of {@link LongValues}
+ */
 public abstract class SortedNumericLongValues {
 
+    /**
+     * A {@link SortedNumericLongValues} instance that does not have a value for any document
+     */
     public static SortedNumericLongValues EMPTY = new SortedNumericLongValues() {
         @Override
         public boolean advanceExact(int target) {
@@ -56,6 +62,10 @@ public abstract class SortedNumericLongValues {
      */
     public abstract int docValueCount();
 
+    /**
+     * Converts a {@link SortedNumericLongValues} values to a singly valued {@link LongValues}
+     * if possible
+     */
     public static LongValues unwrapSingleton(SortedNumericLongValues values) {
         if (values instanceof SingletonSortedNumericLongValues sv) {
             return sv.values;
@@ -63,6 +73,9 @@ public abstract class SortedNumericLongValues {
         return null;
     }
 
+    /**
+     * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
+     */
     public static SortedNumericLongValues singleton(LongValues values) {
         return new SingletonSortedNumericLongValues(values);
     }
@@ -91,6 +104,13 @@ public abstract class SortedNumericLongValues {
         }
     }
 
+    /**
+     * Converts a {@link SortedNumericDocValues} iterator to a {@link SortedNumericLongValues}
+     *
+     * Note that if the wrapped iterator can be unwrapped to a singleton {@link NumericDocValues}
+     * instance, then the returned {@link SortedNumericLongValues} can also be unwrapped to
+     * a {@link LongValues} instance via {@link #unwrapSingleton(SortedNumericLongValues)}
+     */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {

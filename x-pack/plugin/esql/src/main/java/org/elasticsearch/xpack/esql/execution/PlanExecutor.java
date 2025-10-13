@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -76,7 +75,6 @@ public class PlanExecutor {
         FoldContext foldContext,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
-        IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
         ActionListener<Result> listener
@@ -94,7 +92,6 @@ public class PlanExecutor {
             mapper,
             verifier,
             planTelemetry,
-            indicesExpressionGrouper,
             services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");

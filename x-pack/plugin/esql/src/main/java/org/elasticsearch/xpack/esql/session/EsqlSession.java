@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -29,11 +30,11 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -81,12 +82,14 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -126,7 +129,6 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
-    private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
@@ -148,7 +150,6 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanTelemetry planTelemetry,
-        IndicesExpressionGrouper indicesExpressionGrouper,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -163,7 +164,6 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
-        this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
@@ -453,8 +453,6 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
-
         SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
             .andThenApply(r -> {
                 if (r.indices.isValid()
@@ -708,34 +706,44 @@ public class EsqlSession {
             ThreadPool.Names.SYSTEM_READ
         );
         if (preAnalysis.indexPattern() != null) {
-            if (executionInfo.clusterAliases().isEmpty()) {
-                // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-                listener.onResponse(
-                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
-                indexResolver.resolveAsMergedMapping(
-                    preAnalysis.indexPattern().indexPattern(),
-                    result.fieldNames,
-                    // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    switch (preAnalysis.indexMode()) {
-                        case IndexMode.TIME_SERIES -> {
-                            var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                            yield requestFilter != null
-                                ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                                : indexModeFilter;
-                        }
-                        default -> requestFilter;
-                    },
-                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
-                    preAnalysis.supportsAggregateMetricDouble(),
-                    preAnalysis.supportsDenseVector(),
-                    listener.delegateFailureAndWrap((l, indexResolution) -> {
-                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
-                        l.onResponse(result.withIndices(indexResolution));
-                    })
-                );
-            }
+            indexResolver.resolveAsMergedMapping(
+                preAnalysis.indexPattern().indexPattern(),
+                result.fieldNames,
+                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                switch (preAnalysis.indexMode()) {
+                    case IndexMode.TIME_SERIES -> {
+                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                        yield requestFilter != null
+                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                            : indexModeFilter;
+                    }
+                    default -> requestFilter;
+                },
+                preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                preAnalysis.supportsAggregateMetricDouble(),
+                preAnalysis.supportsDenseVector(),
+                ActionListener.wrap(indexResolution -> {
+
+                    // TODO this could be removed when allow_empty=true is properly handled
+                    if (Objects.equals(indexResolution, IndexResolution.notFound(preAnalysis.indexPattern().indexPattern()))
+                        && Arrays.stream(Strings.commaDelimitedListToStringArray(preAnalysis.indexPattern().indexPattern()))
+                            .map(RemoteClusterAware::parseClusterAlias)
+                            .allMatch(remote -> remote.contains("*"))) {
+                        indexResolution = IndexResolution.empty(preAnalysis.indexPattern().indexPattern());
+                    }
+
+                    EsqlCCSUtils.initCrossClusterState(indexResolution, executionInfo, verifier.licenseState());
+                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
+                    listener.onResponse(result.withIndices(indexResolution));
+                }, failure -> {
+                    if (failure instanceof NoSuchRemoteClusterException
+                        && EsqlLicenseChecker.isCcsAllowed(verifier.licenseState()) == false) {
+                        listener.onFailure(EsqlLicenseChecker.invalidLicenseForCcsException(verifier.licenseState()));
+                    } else {
+                        listener.onFailure(failure);
+                    }
+                })
+            );
         } else {
             // occurs when dealing with local relations (row a = 1)
             listener.onResponse(result.withIndices(IndexResolution.invalid("[none specified]")));

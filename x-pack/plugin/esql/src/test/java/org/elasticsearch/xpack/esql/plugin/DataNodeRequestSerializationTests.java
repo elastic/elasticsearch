@@ -306,7 +306,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution(), emptyInferenceResolution()),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, TEST_CFG)));
+        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
     }
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {

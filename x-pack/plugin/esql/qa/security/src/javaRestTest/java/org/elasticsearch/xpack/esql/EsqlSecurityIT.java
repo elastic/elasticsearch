@@ -27,6 +27,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -299,37 +300,38 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testUnauthorizedIndices() throws IOException {
-        ResponseException error;
-        error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
-        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-
-        error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
-        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-
-        error = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"));
-        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-
-        error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"));
-        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-    }
-
-    public void testInsufficientPrivilege() {
-        ResponseException error = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)")
+        expectThrowsResponseException(
+            () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString("unauthorized for user [test-admin] run as [user1] with effective roles [user1] on indices [index-user2]")
         );
-        logger.info("error", error);
-        assertThat(
-            error.getMessage(),
+        expectThrowsResponseException(
+            () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString("unauthorized for user [test-admin] run as [user2] with effective roles [user2] on indices [index-user1]")
+        );
+        expectThrowsResponseException(
+            () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(
+                "unauthorized for user [test-admin] run as [alias_user2] with effective roles [alias_user2] on indices [index-user2]"
+            )
+        );
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"),
+            HttpStatus.SC_FORBIDDEN,
             containsString(
                 "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
             )
         );
-        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testInsufficientPrivilege() {
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("metadata1_read2", "index-user1"))
+        );
     }
 
     public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
@@ -922,7 +924,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         testLookupJoinIndexForbiddenHelper(true);
     }
 
-    private void testLookupJoinIndexForbiddenHelper(boolean useExpressionJoin) throws Exception {
+    private void testLookupJoinIndexForbiddenHelper(boolean useExpressionJoin) {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
@@ -931,44 +933,56 @@ public class EsqlSecurityIT extends ESRestTestCase {
         String query1 = useExpressionJoin
             ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
             : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x";
-        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query1));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", query1),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("metadata1_read2", "lookup-user1"))
+        );
 
         String query2 = useExpressionJoin
             ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x"
             : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x";
-        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query2));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", query2),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("metadata1_read2", "lookup-first-alias"))
+        );
 
         String query3 = useExpressionJoin
             ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
             : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
-        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query3));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", query3),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("metadata1_read2", "lookup-user1"))
+        );
 
         String query4 = useExpressionJoin
             ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
             : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
-        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", query4));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        expectThrowsResponseException(
+            () -> runESQLCommand("alias_user1", query4),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("alias_user1", "lookup-user1"))
+        );
     }
 
-    public void testFromLookupIndexForbidden() throws Exception {
-        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-
-        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-first-alias"));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-
-        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", "FROM lookup-user1"));
-        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
-        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    public void testFromLookupIndexForbidden() {
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("metadata1_read2", "lookup-user1"))
+        );
+        expectThrowsResponseException(
+            () -> runESQLCommand("metadata1_read2", "FROM lookup-first-alias"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("metadata1_read2", "lookup-first-alias"))
+        );
+        expectThrowsResponseException(
+            () -> runESQLCommand("alias_user1", "FROM lookup-user1"),
+            HttpStatus.SC_FORBIDDEN,
+            containsString(unauthorizedErrorMessage("alias_user1", "lookup-user1"))
+        );
     }
 
     public void testListQueryAllowed() throws Exception {
@@ -1219,5 +1233,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
               ]
             }""");
         assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
+    }
+
+    private static void expectThrowsResponseException(ThrowingRunnable runnable, int status, Matcher<String> messageMatcher) {
+        var exception = expectThrows(ResponseException.class, runnable);
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(status));
+        assertThat(exception.getMessage(), messageMatcher);
+    }
+
+    private static String unauthorizedErrorMessage(String user, String index) {
+        return String.format("unauthorized for user [test-admin] run as [%s] with effective roles [%s] on indices [%s]", user, user, index);
     }
 }

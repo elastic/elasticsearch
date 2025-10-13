@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,15 +39,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readLong(); // memoryInBytes
-            in.readLong(); // termsMemoryInBytes
-            in.readLong(); // storedFieldsMemoryInBytes
-            in.readLong(); // termVectorsMemoryInBytes
-            in.readLong(); // normsMemoryInBytes
-            in.readLong(); // pointsMemoryInBytes
-            in.readLong(); // docValuesMemoryInBytes
-        }
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
@@ -221,15 +211,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeLong(0L); // memoryInBytes
-            out.writeLong(0L); // termsMemoryInBytes
-            out.writeLong(0L); // storedFieldsMemoryInBytes
-            out.writeLong(0L); // termVectorsMemoryInBytes
-            out.writeLong(0L); // normsMemoryInBytes
-            out.writeLong(0L); // pointsMemoryInBytes
-            out.writeLong(0L); // docValuesMemoryInBytes
-        }
         out.writeLong(indexWriterMemoryInBytes);
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);

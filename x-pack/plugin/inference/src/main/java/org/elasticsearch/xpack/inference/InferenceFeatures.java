@@ -53,6 +53,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
+    public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -98,7 +99,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
-                ModelStats.SEMANTIC_TEXT_USAGE
+                ModelStats.SEMANTIC_TEXT_USAGE,
+                SEARCH_USAGE_EXTENDED_DATA
             )
         );
         testFeatures.addAll(getFeatures());

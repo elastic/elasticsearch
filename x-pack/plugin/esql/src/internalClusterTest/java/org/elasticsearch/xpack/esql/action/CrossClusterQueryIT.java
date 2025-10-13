@@ -353,7 +353,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);// TODO this must contain the remote cluster alias
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there is a concrete index that does not match

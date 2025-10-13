@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -100,9 +101,14 @@ public class IndexResolver {
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             ActionListener.wrap(response -> {
                 LOGGER.debug("minimum transport version {}", response.minTransportVersion());
-                listener.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
-                );
+                var missingIndices = missingRequiredIndices(response.caps().getFailures());
+                if (missingIndices.isEmpty()) {
+                    listener.onResponse(
+                        mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
+                    );
+                } else {
+                    listener.onResponse(IndexResolution.notFound(String.join(",", missingIndices)));
+                }
             }, failure -> {
                 var cause = ExceptionsHelper.unwrapCause(failure);
                 if (cause instanceof IndexNotFoundException e) {
@@ -112,6 +118,12 @@ public class IndexResolver {
                 }
             })
         );
+    }
+
+    private static List<String> missingRequiredIndices(List<FieldCapabilitiesFailure> failures) {
+        return failures.stream()
+            .flatMap(f -> Arrays.stream(f.getIndices()))
+            .toList();
     }
 
     public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}

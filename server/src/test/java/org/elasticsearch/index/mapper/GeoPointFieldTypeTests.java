@@ -281,7 +281,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     ) {
         return new GeoPointFieldMapper.GeoPointFieldType(
             "potato",
-            new IndexType(false, true, true, false, hasDocValues, false),
+            hasDocValues ? IndexType.docValuesOnly() : IndexType.NONE,
             isStored,
             null,
             null,

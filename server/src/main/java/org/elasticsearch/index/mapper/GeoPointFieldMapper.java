@@ -580,7 +580,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
      * This implies that we need to load the value from _source. This however is very slow, especially when synthetic source is enabled.
      * We're better off reading from doc_values and converting to BytesRef to satisfy the checker. This is what this block loader is for.
      */
-    static class BytesRefFromLongsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    static final class BytesRefFromLongsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
         private final String fieldName;
         private final Function<GeoPoint, BytesRef> geoPointToBytesRef;  // converts GeoPoint -> BytesRef
@@ -611,7 +611,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
     }
 
-    private static class BytesRefsFromLong extends BlockDocValuesReader {
+    private static final class BytesRefsFromLong extends BlockDocValuesReader {
 
         private final SortedNumericDocValues numericDocValues;
         private final Function<Long, BytesRef> longsToBytesRef;

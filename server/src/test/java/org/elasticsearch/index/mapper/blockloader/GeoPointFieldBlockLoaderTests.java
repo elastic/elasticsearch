@@ -36,14 +36,14 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             default -> throw new IllegalStateException("Unexpected null_value format");
         };
 
-        // DOC_VALUES preference
+        // read from doc_values
         boolean preferToLoadFromDocValues = params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES;
         boolean noPreference = params.preference() == MappedFieldType.FieldExtractPreference.NONE;
         if (hasDocValues(fieldMapping, true)) {
             if (preferToLoadFromDocValues) {
                 return longValues(values, nullValue, testContext.isMultifield());
             } else if (noPreference && params.syntheticSource()) {
-                return bytesRefValues(values, nullValue, false);
+                return bytesRefWkbValues(values, nullValue, testContext.isMultifield());
             }
         }
 
@@ -68,10 +68,18 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return exactValuesFromSource(values, nullValue, false);
         }
 
+        // synthetic source and doc_values are present
+        if (hasDocValues(fieldMapping, true)) {
+            return bytesRefWkbValues(values, nullValue, false);
+        }
+
         // synthetic source is enabled, but no doc_values are present, so fallback to ignored source
         return exactValuesFromSource(values, nullValue, false);
     }
 
+    /**
+     * Use when values are stored as points encoded as longs.
+     */
     @SuppressWarnings("unchecked")
     private Object longValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
         if (values instanceof List<?> == false) {
@@ -88,8 +96,11 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
+    /**
+     * Use when values are stored as WKB encoded points.
+     */
     @SuppressWarnings("unchecked")
-    private Object bytesRefValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
+    private Object bytesRefWkbValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
         if (values instanceof List<?> == false) {
             return toWKB(normalize(convert(values, nullValue, needsMultifieldAdjustment)));
         }
@@ -162,6 +173,12 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         return point;
     }
 
+    /**
+     * Normalizes the given point by forcing it to be encoded and then decoded, similarly to how actual block loaders work when they read
+     * values. During encoding/decoding, some precision may be lost, so the lat/lon coordinates may change. Without this, the point returned
+     * by the block loader will be every so slightly different from the original point. This will cause the tests to fail. This method
+     * exists to essentially mimic what happens to the point when it gets stored and then later loaded back.
+     */
     private GeoPoint normalize(GeoPoint point) {
         if (point == null) {
             return null;
@@ -175,5 +192,13 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
 
         return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+    }
+
+    private BytesRef toString(GeoPoint point) {
+        if (point == null) {
+            return null;
+        }
+
+        return new BytesRef(point.toString());
     }
 }

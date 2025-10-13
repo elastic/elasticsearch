@@ -251,7 +251,7 @@ public class SamplingServiceTests extends ESTestCase {
         final ProjectId projectId = projectBuilder.getId();
         ProjectMetadata projectMetadata = projectBuilder.build();
         final IndexRequest indexRequest = new IndexRequest(indexName).id("_id")
-            .source(randomAsciiByteArrayOfLength(150), XContentType.JSON);
+            .source(randomAlphanumericOfLength(150).getBytes(), XContentType.JSON);
         for (int i = 0; i < maxSamples; i++) {
             samplingService.maybeSample(projectMetadata, indexRequest);
         }
@@ -353,16 +353,5 @@ public class SamplingServiceTests extends ESTestCase {
         final ProjectId projectId = ProjectId.DEFAULT;
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
         return new SamplingService(scriptService, clusterService, projectResolver, System::currentTimeMillis);
-    }
-
-    /*
-     * Returns an array containing random bytes that correspond to valid ascii characters
-     */
-    private static byte[] randomAsciiByteArrayOfLength(int size) {
-        byte[] bytes = new byte[size];
-        for (int i = 0; i < size; i++) {
-            bytes[i] = (byte) randomIntBetween(0, 127);
-        }
-        return bytes;
     }
 }

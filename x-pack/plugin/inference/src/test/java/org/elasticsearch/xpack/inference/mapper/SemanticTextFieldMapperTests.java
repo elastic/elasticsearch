@@ -563,7 +563,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Cannot merge [semantic_text] field [" + fieldName + "] because inference endpoint [" + newInferenceId + "] does not exist."
+                "Cannot update [semantic_text] field [" + fieldName + "] because inference endpoint [" + newInferenceId + "] does not exist."
             )
         );
     }
@@ -677,7 +677,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Cannot merge [semantic_text] field ["
+                "Cannot update [semantic_text] field ["
                     + fieldName
                     + "] because inference endpoint ["
                     + oldInferenceId
@@ -756,7 +756,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Cannot merge [semantic_text] field ["
+                "Cannot update [semantic_text] field ["
                     + fieldName
                     + "] because inference endpoint ["
                     + oldInferenceId
@@ -828,7 +828,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Cannot merge [semantic_text] field ["
+                "Cannot update [semantic_text] field ["
                     + fieldName
                     + "] because inference endpoint ["
                     + oldInferenceId
@@ -873,7 +873,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(
             exc.getMessage(),
             containsString(
-                "Cannot merge [semantic_text] field ["
+                "Cannot update [semantic_text] field ["
                     + fieldName
                     + "] because inference endpoint ["
                     + oldInferenceId

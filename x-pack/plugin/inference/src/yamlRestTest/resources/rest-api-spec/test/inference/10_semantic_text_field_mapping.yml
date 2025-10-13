@@ -1593,7 +1593,7 @@ setup:
   - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
 
   - do:
-      catch: /Cannot merge \[semantic_text\] field \[sparse_field\].*because inference endpoint \[sparse-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id\]/
+      catch: /Cannot update \[semantic_text\] field \[sparse_field\].*because inference endpoint \[sparse-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id\]/
       indices.put_mapping:
         index: test-index
         body:
@@ -1642,7 +1642,7 @@ setup:
           }
 
   - do:
-      catch: /Cannot merge \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
+      catch: /Cannot update \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
       indices.put_mapping:
         index: test-index
         body:
@@ -1691,7 +1691,7 @@ setup:
           }
 
   - do:
-      catch: /Cannot merge \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
+      catch: /Cannot update \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
       indices.put_mapping:
         index: test-index
         body:
@@ -1741,7 +1741,7 @@ setup:
           }
 
   - do:
-      catch: /Cannot merge \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
+      catch: /Cannot update \[semantic_text\] field \[dense_field\].*because inference endpoint \[dense-inference-id\].*is not compatible with new inference endpoint \[dense-inference-id-2\]/
       indices.put_mapping:
         index: test-index
         body:

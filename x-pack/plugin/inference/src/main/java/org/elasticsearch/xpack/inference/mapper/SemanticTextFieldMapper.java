@@ -331,18 +331,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             final boolean isInferenceIdUpdate = semanticMergeWith.fieldType().inferenceId.equals(inferenceId.get()) == false;
             final boolean hasExplicitModelSettings = modelSettings.get() != null;
 
+            MinimalServiceSettings updatedModelSettings = modelSettings.get();
             if (isInferenceIdUpdate && hasExplicitModelSettings) {
                 validateModelsAreCompatibleWhenInferenceIdIsUpdated(semanticMergeWith.fieldType().inferenceId, conflicts);
                 // As the mapper previously had explicit model settings, we need to apply to the new merged mapper
                 // the resolved model settings if not explicitly set.
-                semanticMergeWith = copyWithNewModelSettingsIfNotSet(
-                    semanticMergeWith,
-                    modelRegistry.getMinimalServiceSettings(semanticMergeWith.fieldType().inferenceId),
-                    mapperMergeContext
-                );
+                updatedModelSettings = modelRegistry.getMinimalServiceSettings(semanticMergeWith.fieldType().inferenceId);
             }
 
-            semanticMergeWith = copyModelSettingsIfNotSet(semanticMergeWith, mapperMergeContext);
+            semanticMergeWith = copyWithNewModelSettingsIfNotSet(semanticMergeWith, updatedModelSettings, mapperMergeContext);
 
             // We make sure to merge the inference field first to catch any model conflicts.
             // If inference_id is updated and there are no explicit model settings, we should be
@@ -371,7 +368,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             if (canMergeModelSettings(currentModelSettings, updatedModelSettings, conflicts) == false) {
                 throw new IllegalArgumentException(
-                    "Cannot merge ["
+                    "Cannot update ["
                         + CONTENT_TYPE
                         + "] field ["
                         + leafName()
@@ -553,18 +550,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
                 denseVectorIndexOptions.validate(modelSettings.elementType(), dims, true);
             }
-        }
-
-        /**
-         * As necessary, copy model settings from this builder to the passed-in mapper.
-         * Used to preserve {@link MinimalServiceSettings} when updating a semantic text mapping to one where the model settings
-         * are not specified.
-         *
-         * @param mapper The mapper
-         * @return A mapper with the copied settings applied
-         */
-        private SemanticTextFieldMapper copyModelSettingsIfNotSet(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
-            return copyWithNewModelSettingsIfNotSet(mapper, modelSettings.getValue(), mapperMergeContext);
         }
 
         /**
@@ -856,11 +841,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 );
             }
         }
-    }
-
-    @Override
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        super.checkIncomingMergeType(mergeWith);
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {

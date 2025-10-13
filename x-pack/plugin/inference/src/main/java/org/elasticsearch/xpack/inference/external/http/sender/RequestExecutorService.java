@@ -396,7 +396,10 @@ public class RequestExecutorService implements RequestExecutor {
 
         rejectRequest(
             task,
-            format("Failed to send request for inference id [%s] has shutdown prior to executing request", inferenceEntityId),
+            format(
+                "Failed to send request for inference id [%s] because the request executor service has been shutdown",
+                inferenceEntityId
+            ),
             format("Failed to notify request for inference id [%s] of rejection after executor service shutdown", inferenceEntityId)
         );
     }

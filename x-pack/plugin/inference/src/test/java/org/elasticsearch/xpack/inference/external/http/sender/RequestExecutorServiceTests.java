@@ -339,12 +339,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Failed to send request for inference id [id] has shutdown prior to executing request",
-                    requestManager.rateLimitGrouping().hashCode()
-                )
-            )
+            is("Failed to send request for inference id [id] because the request executor service has been shutdown")
         );
         assertTrue(thrownException.isExecutorShutdown());
         assertTrue(service.isTerminated());

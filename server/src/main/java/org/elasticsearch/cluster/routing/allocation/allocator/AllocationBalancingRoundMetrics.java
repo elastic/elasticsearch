@@ -56,8 +56,16 @@ public class AllocationBalancingRoundMetrics {
     public AllocationBalancingRoundMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
 
-        this.balancingRoundCounter = meterRegistry.registerLongCounter(NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME, "Current number of balancing rounds", "unit");
-        this.shardMovesCounter = meterRegistry.registerLongCounter(NUMBER_OF_SHARD_MOVES_METRIC_NAME, "Current number of shard moves", "{shard}");
+        this.balancingRoundCounter = meterRegistry.registerLongCounter(
+            NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME,
+            "Current number of balancing rounds",
+            "unit"
+        );
+        this.shardMovesCounter = meterRegistry.registerLongCounter(
+            NUMBER_OF_SHARD_MOVES_METRIC_NAME,
+            "Current number of shard moves",
+            "{shard}"
+        );
         this.nodeNameToWeightChangesRef.set(Map.of());
 
         meterRegistry.registerLongsGauge(NUMBER_OF_SHARDS_METRIC_NAME, "Current number of shards", "unit", this::getShardCount);

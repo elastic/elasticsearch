@@ -25,16 +25,11 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME;
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARD_MOVES_METRIC_NAME;
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARDS_METRIC_NAME;
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.DISK_USAGE_BYTES_METRIC_NAME;
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.WRITE_LOAD_METRIC_NAME;
-import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.TOTAL_WEIGHT_METRIC_NAME;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME;
 
 public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryServiceTests.class);
@@ -99,7 +94,11 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     public void testServiceDisabledByDefault() {
         var recordingMeterRegistry = new RecordingMeterRegistry();
         var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
-        var service = new AllocationBalancingRoundSummaryService(testThreadPool, disabledDefaultEmptyClusterSettings, balancingRoundMetrics);
+        var service = new AllocationBalancingRoundSummaryService(
+            testThreadPool,
+            disabledDefaultEmptyClusterSettings,
+            balancingRoundMetrics
+        );
 
         try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
             /**
@@ -123,7 +122,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
             assertEquals(measurements.size(), 0);
         }
     }
@@ -175,7 +175,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
 
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
             assertEquals(measurements.size(), 2);
         }
     }
@@ -207,7 +208,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
 
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
             assertEquals(measurements.size(), 2);
         }
     }
@@ -259,7 +261,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
 
-            List<Measurement> measurements = recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME);
             assertEquals(measurements.size(), 0);
         }
     }

@@ -80,7 +80,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
-import org.elasticsearch.xpack.esql.plugin.EsqlQueryClusterSettings;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -118,7 +118,7 @@ public class EsqlSession {
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
     private final String sessionId;
-    private final EsqlQueryClusterSettings clusterSettings;
+    private final AnalyzerSettings clusterSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
@@ -142,7 +142,7 @@ public class EsqlSession {
 
     public EsqlSession(
         String sessionId,
-        EsqlQueryClusterSettings clusterSettings,
+        AnalyzerSettings clusterSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,

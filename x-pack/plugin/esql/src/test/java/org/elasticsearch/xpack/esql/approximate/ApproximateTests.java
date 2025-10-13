@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -161,8 +162,8 @@ public class ApproximateTests extends ESTestCase {
 
     public void testVerify_incompatibleAggregation() {
         assertError(
-            "FROM test | SORT emp_no STATS MIN(emp_no) | LIMIT 100",
-            equalTo("line 1:19: aggregation function [MIN] cannot be approximated")
+            "FROM test | SORT emp_no | STATS MIN(emp_no) | LIMIT 100",
+            equalTo("line 1:33: aggregation function [MIN] cannot be approximated")
         );
         assertError(
             "FROM test | STATS SUM(emp_no), VALUES(emp_no), TOP(emp_no, 2, \"ASC\"), COUNT()",
@@ -309,7 +310,7 @@ public class ApproximateTests extends ESTestCase {
     private Approximate createApproximate(String query) throws Exception {
         SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        LogicalPlan plan = parser.createStatement(query, TEST_CFG);
+        LogicalPlan plan = parser.createStatement(query, new QueryParams());
         plan = analyzer.analyze(plan);
         plan.setAnalyzed();
         preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));

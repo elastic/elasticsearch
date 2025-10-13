@@ -1501,6 +1501,9 @@ public class EsqlCapabilities {
          */
         DOTS_IN_FUSE,
 
+        DATE_RANGE_FIELD_TYPE;
+        DOTS_IN_FUSE,
+
         /**
          * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
          */

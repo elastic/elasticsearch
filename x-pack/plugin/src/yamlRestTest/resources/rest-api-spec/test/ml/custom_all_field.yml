@@ -148,7 +148,7 @@ setup:
 
   - do:
       search:
-        index: .ml-anomalies*
+        index: .ml-anomalies-custom-all-test-1,.ml-anomalies-custom-all-test-2
         expand_wildcards: all
         rest_total_hits_as_int: true
         body: { query: { bool: { must: [

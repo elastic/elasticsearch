@@ -276,7 +276,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var deviceGraph = index.getGraph();
                 var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
                 if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
-                    try (var hostGraph = index.getGraph().toHost()) {
+                    try (var hostGraph = deviceGraph.toHost()) {
                         resourcesHolder.close();
                         graph = writeGraph(hostGraph, graphLevelNodeOffsets);
                     }

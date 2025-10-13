@@ -67,7 +67,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
             """;
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(query));
 
-        assertThat(re.getMessage(), containsString("Inference endpoint not found"));
+        assertThat(re.getMessage(), containsString("Inference endpoint [inexistent] not found"));
         assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
     }
 

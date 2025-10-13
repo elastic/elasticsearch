@@ -93,13 +93,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
-    public void testStoreModel() throws Exception {
+    public void testStoreModel() {
         String inferenceEntityId = "test-store-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         ModelRegistryTests.assertStoreModel(modelRegistry, model);
     }
 
-    public void testStoreModelWithUnknownFields() throws Exception {
+    public void testStoreModelWithUnknownFields() {
         String inferenceEntityId = "test-store-model-unknown-field";
         Model model = buildModelWithUnknownField(inferenceEntityId);
         ElasticsearchStatusException statusException = expectThrows(
@@ -145,7 +145,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertEquals(model, roundTripModel);
     }
 
-    public void testStoreModelFailsWhenModelExists() throws Exception {
+    public void testStoreModelFailsWhenModelExists() {
         String inferenceEntityId = "test-put-trained-model-config-exists";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         ModelRegistryTests.assertStoreModel(modelRegistry, model);
@@ -175,7 +175,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint [model1] not found"));
     }
 
     public void testNonExistentDeleteModel_DoesNotThrowAnException() {

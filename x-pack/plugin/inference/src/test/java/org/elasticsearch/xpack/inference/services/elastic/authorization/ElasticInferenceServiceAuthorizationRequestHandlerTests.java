@@ -80,10 +80,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
-            assertFalse(authResponse.isAuthorized());
+            var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), containsString("The Elastic Inference Service URL is not configured."));
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(2)).debug(loggerArgsCaptor.capture());
@@ -102,10 +100,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
-            var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
-            assertFalse(authResponse.isAuthorized());
+            var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), containsString("The Elastic Inference Service URL is not configured."));
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(2)).debug(loggerArgsCaptor.capture());

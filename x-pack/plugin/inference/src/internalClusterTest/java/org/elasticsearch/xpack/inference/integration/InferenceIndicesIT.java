@@ -167,7 +167,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
 
         var proxyResponse = sendInferenceProxyRequest(inferenceId);
         var exception = expectThrows(ElasticsearchException.class, () -> proxyResponse.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(exception.toString(), containsString("Failed to load inference endpoint with secrets [test-index-id-2]"));
+        assertThat(exception.toString(), containsString("Failed to load inference endpoint [test-index-id-2]"));
 
         var causeException = exception.getCause();
         assertThat(causeException, instanceOf(SearchPhaseExecutionException.class));
@@ -196,7 +196,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         var proxyResponse = sendInferenceProxyRequest(inferenceId);
 
         var exception = expectThrows(ElasticsearchException.class, () -> proxyResponse.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(exception.toString(), containsString("Failed to load inference endpoint with secrets [test-secrets-index-id]"));
+        assertThat(exception.toString(), containsString("Failed to load inference endpoint [test-secrets-index-id]"));
 
         var causeException = exception.getCause();
 

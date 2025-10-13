@@ -121,9 +121,7 @@ public class IndexResolver {
     }
 
     private static List<String> missingRequiredIndices(List<FieldCapabilitiesFailure> failures) {
-        return failures.stream()
-            .flatMap(f -> Arrays.stream(f.getIndices()))
-            .toList();
+        return failures.stream().flatMap(f -> Arrays.stream(f.getIndices())).toList();
     }
 
     public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}

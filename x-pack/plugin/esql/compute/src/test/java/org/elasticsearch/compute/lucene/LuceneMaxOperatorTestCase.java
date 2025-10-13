@@ -117,7 +117,7 @@ public abstract class LuceneMaxOperatorTestCase extends SourceOperatorTestCase {
             query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD_NAME, Long.MIN_VALUE, Long.MAX_VALUE);
         }
         return new LuceneMaxFactory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             dataPartitioning,
             between(1, 8),

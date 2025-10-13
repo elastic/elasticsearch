@@ -206,6 +206,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     try (var dataset = builder.build()) {
                         flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap);
                     }
+                } finally {
+                    cuVSResourceManager.release(cuVSResources);
                 }
             }
             var elapsed = started - System.nanoTime();
@@ -274,7 +276,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
                     // If the graph is "small enough", copy it entirely to host memory so we can
                     // release the associated resource early and increase parallelism.
-                    try (var hostGraph = index.getGraph().toHost()) {
+                    try (var hostGraph = deviceGraph.toHost()) {
                         resourcesHolder.close();
                         graph = writeGraph(hostGraph, graphLevelNodeOffsets);
                     }

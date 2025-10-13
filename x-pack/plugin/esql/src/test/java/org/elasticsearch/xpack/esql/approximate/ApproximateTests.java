@@ -162,8 +162,8 @@ public class ApproximateTests extends ESTestCase {
 
     public void testVerify_incompatibleAggregation() {
         assertError(
-            "FROM test | SORT emp_no STATS MIN(emp_no) | LIMIT 100",
-            equalTo("line 1:19: aggregation function [MIN] cannot be approximated")
+            "FROM test | SORT emp_no | STATS MIN(emp_no) | LIMIT 100",
+            equalTo("line 1:33: aggregation function [MIN] cannot be approximated")
         );
         assertError(
             "FROM test | STATS SUM(emp_no), VALUES(emp_no), TOP(emp_no, 2, \"ASC\"), COUNT()",

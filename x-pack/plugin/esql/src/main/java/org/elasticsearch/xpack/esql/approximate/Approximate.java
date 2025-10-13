@@ -229,7 +229,7 @@ public class Approximate {
 
     public Approximate(LogicalPlan logicalPlan) {
         this.logicalPlan = logicalPlan;
-        this.preservesRows = verifyPlan();
+        this.preservesRows = verifyPlan(logicalPlan);
     }
 
     /**
@@ -245,7 +245,7 @@ public class Approximate {
      * @return whether the part of the query until the STATS command preserves all rows
      * @throws VerificationException if the plan is not suitable for approximation
      */
-    private boolean verifyPlan() throws VerificationException {
+    public static boolean verifyPlan(LogicalPlan logicalPlan) throws VerificationException {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }

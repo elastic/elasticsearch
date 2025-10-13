@@ -68,13 +68,13 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "double", }, description = "...")
     public ConfidenceInterval(
         Source source,
-        @Param(name = "bestEstimate", type = { "double", "int", "long" }) Expression bestEstimate,
-        @Param(name = "estimates", type = { "double", "int", "long" }) Expression estimates,
-        @Param(name = "trialCount", type = { "int" }) Expression trialCount,
-        @Param(name = "bucketCount", type = { "int" }) Expression bucketCount,
+        @Param(name = "bestEstimate", type = { "double", "integer", "long" }) Expression bestEstimate,
+        @Param(name = "estimates", type = { "double", "integer", "long" }) Expression estimates,
+        @Param(name = "trialCount", type = { "integer" }) Expression trialCount,
+        @Param(name = "bucketCount", type = { "integer" }) Expression bucketCount,
         @Param(name = "confidenceLevel", type = { "double" }) Expression confidenceLevel
     ) {
-        super(source, List.of(bestEstimate, estimates));
+        super(source, List.of(bestEstimate, estimates, trialCount, bucketCount, confidenceLevel));
         this.bestEstimate = bestEstimate;
         this.estimates = estimates;
         this.trialCount = trialCount;

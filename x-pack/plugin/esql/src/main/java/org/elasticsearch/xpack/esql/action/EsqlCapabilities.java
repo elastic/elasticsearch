@@ -1504,7 +1504,12 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
+         */
+        TEMPORAL_AMOUNT_M;
 
         private final boolean enabled;
 

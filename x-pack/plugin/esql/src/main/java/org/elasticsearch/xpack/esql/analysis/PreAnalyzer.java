@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -57,7 +56,7 @@ public class PreAnalyzer {
                 indexMode.set(p.indexMode());
                 if (mainAndSubqueryIndices.isEmpty()) { // the index pattern from main query is always the first to be seen
                     mainAndSubqueryIndices.add(p.indexPattern());
-                } else if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) { // collect subquery index patterns
+                } else { // collect subquery index patterns
                     collectSubqueryIndexPattern(p, mainAndSubqueryIndices);
                 }
             } else {

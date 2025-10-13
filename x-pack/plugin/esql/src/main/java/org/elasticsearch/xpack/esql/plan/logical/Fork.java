@@ -103,6 +103,10 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return new Fork(source(), subPlans, output);
     }
 
+    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+        return new Fork(source(), subPlans, output);
+    }
+
     @Override
     public List<Attribute> output() {
         return output;

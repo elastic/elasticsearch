@@ -907,9 +907,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
 
-            return fork instanceof UnionAll unionAll
-                ? new UnionAll(unionAll.source(), newSubPlans, newOutput)
-                : new Fork(fork.source(), newSubPlans, newOutput);
+            return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
@@ -2287,42 +2285,55 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * 4. Update the attributes referencing the updated UnionAll output
      */
     private static class ResolveUnionTypesInUnionAll extends Rule<LogicalPlan, LogicalPlan> {
-        // The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output
-        private Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes;
-        // The list of attributes in the UnionAll output that have been updated. The parent plans
-        // that reference these attributes need to be updated accordingly
-        private List<Attribute> updatedUnionAllOutput;
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            convertFunctionsToAttributes = new HashMap<>();
-            updatedUnionAllOutput = new ArrayList<>();
+            /* The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output,
+             * if the conversion functions in the main query are pushed down into the UnionAll branches, a new ReferenceAttribute
+             *   is created for the corresponding output of UnionAll, the value is the new ReferenceAttribute
+             */
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes = new HashMap<>();
+            /* The list of attributes in the UnionAll output that have been updated. The parent plans that reference these attributes
+             * need to be updated accordingly.
+             */
+            List<Attribute> updatedUnionAllOutput = new ArrayList<>();
+
             // First push down the conversion functions into the UnionAll branches
             LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
                 UnionAll.class,
-                unionAll -> maybePushDownConvertFunctions(unionAll, plan)
+                unionAll -> maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes)
             );
 
             // Then replace the conversion functions with the corresponding attributes in the UnionAll output
-            LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(planWithConvertFunctionsPushedDown);
+            LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(
+                planWithConvertFunctionsPushedDown,
+                convertFunctionsToAttributes
+            );
 
             // Next implicitly cast the outputs of the UnionAll branches to the common type if necessary
             LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
                 UnionAll.class,
-                unionAll -> unionAll.resolved() ? implicitCastingUnionAllOutput(unionAll, plan) : unionAll
+                unionAll -> unionAll.resolved() ? implicitCastingUnionAllOutput(unionAll, plan, updatedUnionAllOutput) : unionAll
             );
 
             // Finally update the attributes referencing the updated UnionAll output
             return updatedUnionAllOutput.isEmpty()
                 ? planWithImplicitCasting
-                : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting);
+                : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting, updatedUnionAllOutput);
         }
 
-        private LogicalPlan maybePushDownConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
-            // collect all conversion functions in the plan that convert the unionAll outputs to a different type
+        private LogicalPlan maybePushDownConvertFunctions(
+            UnionAll unionAll,
+            LogicalPlan plan,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            /* Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
+             * the keys are the name of the old/existing attributes in the unionAll output, the values are the conversion functions.
+             * The values of convertFunctionsToAttributes are the new ReferenceAttributes created for the updated unionAll
+             *  output after pushing down the conversion functions.
+             */
             Map<String, AbstractConvertFunction> convertFunctions = collectConvertFunctions(unionAll, plan);
-            if (convertFunctions.isEmpty()) {
-                // nothing to push down
+            if (convertFunctions.isEmpty()) { // nothing to push down
                 return unionAll;
             }
 
@@ -2353,7 +2364,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
             }
 
-            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, convertFunctions) : unionAll;
+            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, convertFunctions, convertFunctionsToAttributes) : unionAll;
         }
 
         private Map<String, AbstractConvertFunction> collectConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
@@ -2379,7 +2390,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan rebuildUnionAllOutput(
             UnionAll unionAll,
             List<LogicalPlan> newChildren,
-            Map<String, AbstractConvertFunction> convertFunctions
+            Map<String, AbstractConvertFunction> convertFunctions,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
         ) {
             List<Attribute> newOutput = new ArrayList<>();
             for (Attribute oldAttr : unionAll.output()) {
@@ -2405,7 +2417,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new UnionAll(unionAll.source(), newChildren, newOutput);
         }
 
-        private LogicalPlan replaceConvertFunctions(LogicalPlan plan) {
+        private LogicalPlan replaceConvertFunctions(
+            LogicalPlan plan,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
             if (convertFunctionsToAttributes.isEmpty()) {
                 return plan;
             }
@@ -2415,7 +2430,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private LogicalPlan implicitCastingUnionAllOutput(UnionAll unionAll, LogicalPlan plan) {
+        private LogicalPlan implicitCastingUnionAllOutput(UnionAll unionAll, LogicalPlan plan, List<Attribute> updatedUnionAllOutput) {
             // build a map of UnionAll output to a list of LogicalPlan that reference this output
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
@@ -2456,7 +2471,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Update common types with overrides
             indexToCommonType.forEach(commonTypes::set);
 
-            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes) : unionAll;
+            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes, updatedUnionAllOutput) : unionAll;
         }
 
         private Map<Attribute, List<LogicalPlan>> outputToPlans(UnionAll unionAll, LogicalPlan plan) {
@@ -2575,7 +2590,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return dataTypes;
         }
 
-        private UnionAll rebuildUnionAllOutput(UnionAll unionAll, List<LogicalPlan> newChildren, List<DataType> commonTypes) {
+        private UnionAll rebuildUnionAllOutput(
+            UnionAll unionAll,
+            List<LogicalPlan> newChildren,
+            List<DataType> commonTypes,
+            List<Attribute> updatedUnionAllOutput
+        ) {
             // Rebuild the newUnionAll's output to ensure the correct attributes are used
             List<Attribute> oldOutput = unionAll.output();
             List<Attribute> newOutput = new ArrayList<>(oldOutput.size());
@@ -2604,7 +2624,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new UnionAll(unionAll.source(), newChildren, newOutput);
         }
 
-        private LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(LogicalPlan plan) {
+        private LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(LogicalPlan plan, List<Attribute> updatedUnionAllOutput) {
             Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());

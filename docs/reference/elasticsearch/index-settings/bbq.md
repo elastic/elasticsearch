@@ -141,7 +141,7 @@ When you set a dense vector field’s `index_options` parameter to `type: bbq_di
 
 Instead of keeping the entire index in memory, DiskBBQ groups similar vectors into clusters on disk and searches only within the most relevant clusters. During a query, it identifies which clusters are closest to the query vector and compares only the vectors within those clusters. This approach reduces memory requirements while maintaining strong search relevance and speed.
 
-DiskBBQ typically achieves up to 95% recall. For use cases that require higher recall (99%+), consider using [bbq_hnsw](#bbq-hnsw) instead.
+DiskBBQ is well suited when the recall desired is 95%. For use cases that require exceptionally high recall (99%+) many vector clusters might have to be visited, negatively impacting performance. In very high recall cases, [bbq_hnsw](#bbq-hnsw), or one of the other `HNSW` formats might prove best depending on memory requirements.
 
 The following example creates an index with a `dense_vector` field configured to use the `bbq_disk` algorithm.
 

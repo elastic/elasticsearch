@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testConcurrentUnlimited() {
-        ClusterState clusterState = setupConcurrentRelocations(initializeMetadata(5), nodeFactory(), 5);
+        ClusterState clusterState = setupConcurrentRelocations(5);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -85,7 +85,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testFrozenConcurrentUnlimited() {
-        ClusterState clusterState = setupConcurrentRelocations(initializeFrozenMetadata(5), frozenNodeFactory(), 5);
+        ClusterState clusterState = setupConcurrentFrozenRelocations(5);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 0)
@@ -120,7 +120,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testThrottleDecision() {
-        ClusterState clusterState = setupConcurrentRelocations(initializeMetadata(2), nodeFactory(), 2);
+        ClusterState clusterState = setupConcurrentRelocations(2);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
@@ -145,7 +145,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
     }
 
     public void testFrozenThrottleDecision() {
-        ClusterState clusterState = setupConcurrentRelocations(initializeFrozenMetadata(2), frozenNodeFactory(), 2);
+        ClusterState clusterState = setupConcurrentFrozenRelocations(2);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 0)
@@ -281,6 +281,14 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
         };
     }
 
+    private ClusterState setupConcurrentRelocations(int relocations) {
+        return setupConcurrentRelocationsInternal(initializeMetadata(relocations), nodeFactory(), relocations);
+    }
+
+    private ClusterState setupConcurrentFrozenRelocations(int relocations) {
+        return setupConcurrentRelocationsInternal(initializeFrozenMetadata(relocations), frozenNodeFactory(), relocations);
+    }
+
     /**
      * Set up a cluster state so that a specified number of concurrent relocations are in progress
      *
@@ -288,7 +296,9 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
      * each on their own node. The primaries are all started, then the replicas are set up to all
      * relocate to new nodes.
      */
-    private ClusterState setupConcurrentRelocations(Metadata metadata, Supplier<DiscoveryNode> nodeFactory, int numberOfRelocations) {
+    private ClusterState setupConcurrentRelocationsInternal(Metadata metadata, Supplier<DiscoveryNode> nodeFactory, int relocations) {
+        assert relocations > 1 : "logic only works for 2 or more relocations as the replica needs to initialize elsewhere then relocate";
+
         AllocationService allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", -1)
@@ -303,7 +313,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         var nodeBuilder = DiscoveryNodes.builder();
-        for (int i = 0; i < numberOfRelocations; i++) {
+        for (int i = 0; i < relocations; i++) {
             nodeBuilder = nodeBuilder.add(nodeFactory.get());
         }
 
@@ -316,7 +326,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
         // add a bunch of nodes to create relocation chaos
         var clusterStateBuilder = ClusterState.builder(clusterState);
         nodeBuilder = DiscoveryNodes.builder(clusterStateBuilder.nodes());
-        for (int i = 0; i < numberOfRelocations; i++) {
+        for (int i = 0; i < relocations; i++) {
             nodeBuilder = nodeBuilder.add(nodeFactory.get());
         }
         clusterState = clusterStateBuilder.nodes(nodeBuilder).build();

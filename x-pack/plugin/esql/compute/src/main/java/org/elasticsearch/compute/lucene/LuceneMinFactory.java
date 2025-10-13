@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.data.Block;
@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -94,8 +95,8 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             }
         };
 
-        public final NumericDocValues multiValueMode(SortedNumericDocValues sortedNumericDocValues) {
-            return MultiValueMode.MIN.select(sortedNumericDocValues);
+        public final LongValues multiValueMode(SortedNumericDocValues sortedNumericDocValues) {
+            return MultiValueMode.MIN.select(SortedNumericLongValues.wrap(sortedNumericDocValues));
         }
 
         public final long fromPointValues(PointValues pointValues) throws IOException {

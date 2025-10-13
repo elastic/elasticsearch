@@ -44,14 +44,14 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Holder<IndexMode> indexMode = new Holder<>();
-        Holder<IndexPattern> index = new Holder<>();
+        Holder<IndexPattern> indexPattern = new Holder<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
                 lookupIndices.add(p.indexPattern());
             } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
                 indexMode.set(p.indexMode());
-                index.set(p.indexPattern());
+                indexPattern.set(p.indexPattern());
             } else {
                 throw new IllegalStateException("index mode is already set");
             }
@@ -92,7 +92,7 @@ public class PreAnalyzer {
 
         return new PreAnalysis(
             indexMode.get(),
-            index.get(),
+            indexPattern.get(),
             unresolvedEnriches,
             lookupIndices,
             indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),

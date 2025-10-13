@@ -157,7 +157,6 @@ PUT /index_double
   }
 }
 ```
-%  TEST[continued]
 
 ```console
 PUT /index_long
@@ -201,7 +200,6 @@ PUT /index_double
   }
 }
 ```
-% TEST[continued]
 
 ```console
 PUT /index_long

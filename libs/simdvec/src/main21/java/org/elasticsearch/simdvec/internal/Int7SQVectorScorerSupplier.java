@@ -14,6 +14,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
+import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -23,7 +24,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 import static org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity.fromVectorSimilarity;
 
-public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier {
+public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier, QuantizedByteVectorValuesAccess {
 
     static final byte BITS = 7;
 
@@ -105,6 +106,11 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 this.ord = node;
             }
         };
+    }
+
+    @Override
+    public QuantizedByteVectorValues get() {
+        return values;
     }
 
     public static final class EuclideanSupplier extends Int7SQVectorScorerSupplier {

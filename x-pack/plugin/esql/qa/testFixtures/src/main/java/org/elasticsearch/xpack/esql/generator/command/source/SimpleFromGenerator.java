@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.generator.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.source;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -14,12 +14,11 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
-public class SampleGenerator implements CommandGenerator {
+public class SimpleFromGenerator implements CommandGenerator {
 
-    public static final String SAMPLE = "sample";
-    public static final CommandGenerator INSTANCE = new SampleGenerator();
+    public static final SimpleFromGenerator INSTANCE = new SimpleFromGenerator();
 
     @Override
     public CommandDescription generate(
@@ -28,9 +27,11 @@ public class SampleGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        double n = randomDoubleBetween(0.0, 1.0, false);
-        String cmd = " | SAMPLE " + n;
-        return new CommandDescription(SAMPLE, this, cmd, Map.of());
+        List<String> availableIndices = schema.baseIndices();
+        String idx = availableIndices.get(randomIntBetween(0, availableIndices.size() - 1));
+
+        String query = "from " + idx;
+        return new CommandDescription("from", this, query, Map.of());
     }
 
     @Override
@@ -43,6 +44,6 @@ public class SampleGenerator implements CommandGenerator {
         List<List<Object>> output,
         boolean deterministic
     ) {
-        return CommandGenerator.expectSameColumns(previousColumns, columns);
+        return VALIDATION_OK;
     }
 }

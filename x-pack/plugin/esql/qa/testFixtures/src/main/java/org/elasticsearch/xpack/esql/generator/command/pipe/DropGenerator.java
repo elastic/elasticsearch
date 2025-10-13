@@ -73,7 +73,8 @@ public class DropGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
@@ -86,8 +87,17 @@ public class DropGenerator implements CommandGenerator {
                 return new ValidationResult(false, "Column [" + droppedColumn + "] was not dropped");
             }
         }
-        // TODO awaits fix https://github.com/elastic/elasticsearch/issues/120272
-        // return CommandGenerator.expectSameRowCount(previousOutput, output);
+
+        if (deterministic) {
+            for (int columnIdx = 0; columnIdx < columns.size(); columnIdx++) {
+                Column c = columns.get(columnIdx);
+                int previousColumnIdx = previousColumns.indexOf(c);
+                if (previousColumnIdx == -1) {
+                    return new ValidationResult(false, "Column [" + c + "] not in previous output");
+                }
+                CommandGenerator.expectSameData(previousOutput, previousColumnIdx, output, columnIdx);
+            }
+        }
         return VALIDATION_OK;
     }
 

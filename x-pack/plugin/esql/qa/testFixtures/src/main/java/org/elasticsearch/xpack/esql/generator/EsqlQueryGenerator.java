@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.SimpleFromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 
 import java.util.List;
@@ -49,7 +50,9 @@ public class EsqlQueryGenerator {
     /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
-    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+    public static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+
+    public static List<CommandGenerator> SIMPLIFIED_SOURCE_COMMANDS = List.of(SimpleFromGenerator.INSTANCE);
 
     /**
      * Commands at the beginning of queries that begin queries on time series indices, eg. TS
@@ -59,7 +62,7 @@ public class EsqlQueryGenerator {
     /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
-    static List<CommandGenerator> PIPE_COMMANDS = List.of(
+    public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
         DropGenerator.INSTANCE,
@@ -82,6 +85,25 @@ public class EsqlQueryGenerator {
         WhereGenerator.INSTANCE
     );
 
+    /**
+     * Same as PIPE_COMMANDS but without the more complex commands (Fork, Enrich, Join).
+     * This is needed in CSV tests, that don't support the full ES capabilities
+     */
+    public static List<CommandGenerator> SIMPLIFIED_PIPE_COMMANDS = List.of(
+        ChangePointGenerator.INSTANCE,
+        DissectGenerator.INSTANCE,
+        DropGenerator.INSTANCE,
+        EvalGenerator.INSTANCE,
+        GrokGenerator.INSTANCE,
+        KeepGenerator.INSTANCE,
+        LimitGenerator.INSTANCE,
+        MvExpandGenerator.INSTANCE,
+        RenameGenerator.INSTANCE,
+        SortGenerator.INSTANCE,
+        StatsGenerator.INSTANCE,
+        WhereGenerator.INSTANCE
+    );
+
     static List<CommandGenerator> TIME_SERIES_PIPE_COMMANDS = Stream.concat(
         PIPE_COMMANDS.stream(),
         Stream.of(TimeSeriesStatsGenerator.INSTANCE)
@@ -89,6 +111,10 @@ public class EsqlQueryGenerator {
 
     public static CommandGenerator sourceCommand() {
         return randomFrom(SOURCE_COMMANDS);
+    }
+
+    public static CommandGenerator simplifiedSourceCommand() {
+        return randomFrom(SIMPLIFIED_SOURCE_COMMANDS);
     }
 
     public static CommandGenerator timeSeriesSourceCommand() {
@@ -117,6 +143,7 @@ public class EsqlQueryGenerator {
     public static void generatePipeline(
         final int depth,
         CommandGenerator commandGenerator,
+        List<CommandGenerator> pipelineGenerators,
         final CommandGenerator.QuerySchema schema,
         Executor executor,
         boolean isTimeSeries,
@@ -137,7 +164,7 @@ public class EsqlQueryGenerator {
             while (commandAllowed == false) {
                 commandGenerator = isTimeSeries && canGenerateTimeSeries
                     ? randomMetricsPipeCommandGenerator()
-                    : randomPipeCommandGenerator();
+                    : randomFrom(pipelineGenerators);
                 if (isTimeSeries == false) {
                     commandAllowed = true;
                 } else {
@@ -155,6 +182,7 @@ public class EsqlQueryGenerator {
                     }
                 }
             }
+
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;

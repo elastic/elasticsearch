@@ -106,7 +106,8 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         // TODO validate columns
         return VALIDATION_OK;

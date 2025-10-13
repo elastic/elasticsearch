@@ -41,13 +41,24 @@ public class LimitGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         int limit = (int) commandDescription.context().get(LIMIT);
 
         if (output.size() > limit) {
             return new ValidationResult(false, "Expecting at most [" + limit + "] records, got [" + output.size() + "]");
         }
-        return CommandGenerator.expectSameColumns(previousColumns, columns);
+
+        ValidationResult result = CommandGenerator.expectSameColumns(previousColumns, columns);
+        if (result.success() == false) {
+            return result;
+        }
+        if (deterministic) {
+            for (int i = 0; i < columns.size(); i++) {
+                CommandGenerator.expectSameData(previousOutput.subList(0, Math.min(previousOutput.size(), limit)), i, output, i);
+            }
+        }
+        return VALIDATION_OK;
     }
 }

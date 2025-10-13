@@ -69,7 +69,8 @@ public class KeepGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
@@ -79,6 +80,16 @@ public class KeepGenerator implements CommandGenerator {
             return new ValidationResult(false, "Expecting at most [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
 
+        if (deterministic) {
+            for (int columnIdx = 0; columnIdx < columns.size(); columnIdx++) {
+                Column c = columns.get(columnIdx);
+                int previousColumnIdx = previousColumns.indexOf(columns.get(columnIdx));
+                if (previousColumnIdx == -1) {
+                    return new ValidationResult(false, "Column [" + c + "] not in previous output");
+                }
+                CommandGenerator.expectSameData(previousOutput, previousColumnIdx, output, columnIdx);
+            }
+        }
         return VALIDATION_OK;
     }
 

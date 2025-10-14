@@ -71,7 +71,7 @@ public class RestPutSampleConfigurationAction extends BaseRestHandler {
         PutSampleConfigurationAction.Request putRequest;
 
         XContentParser parser = request.contentParser();
-        SamplingConfiguration samplingConfig = SamplingConfiguration.fromXContent(parser);
+        SamplingConfiguration samplingConfig = SamplingConfiguration.fromXContentUserData(parser);
         putRequest = new PutSampleConfigurationAction.Request(samplingConfig, getMasterNodeTimeout(request), getAckTimeout(request));
 
         // Set the target index

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -53,7 +54,9 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
 
     public void testMinimumSupportedVersion() {
         TransportVersion min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random())));
+        assertTrue(
+            min.onOrBefore(TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_7_0, TransportVersion.current()))
+        );
     }
 
     public void testcontext() {

@@ -18,6 +18,10 @@
         }
       }
     },
+    "region": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
     "event": {
       "type": "keyword"
     },

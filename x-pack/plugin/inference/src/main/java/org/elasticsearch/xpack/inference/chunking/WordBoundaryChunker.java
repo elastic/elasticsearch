@@ -11,6 +11,7 @@ import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +49,7 @@ public class WordBoundaryChunker implements Chunker {
     @Override
     public List<ChunkOffset> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof WordBoundaryChunkingSettings wordBoundaryChunkerSettings) {
-            return chunk(input, wordBoundaryChunkerSettings.maxChunkSize, wordBoundaryChunkerSettings.overlap);
+            return chunk(input, wordBoundaryChunkerSettings.maxChunkSize(), wordBoundaryChunkerSettings.overlap());
         } else {
             throw new IllegalArgumentException(
                 Strings.format("WordBoundaryChunker can't use ChunkingSettings with strategy [%s]", chunkingSettings.getChunkingStrategy())

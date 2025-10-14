@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -17,7 +17,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -100,7 +100,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
+        Integer maxChunkSize = InferenceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
             MAX_CHUNK_SIZE_LOWER_LIMIT,
@@ -110,7 +110,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
 
         Integer overlap = null;
         if (maxChunkSize != null) {
-            overlap = ServiceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(
+            overlap = InferenceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(
                 map,
                 ChunkingSettingsOptions.OVERLAP.toString(),
                 maxChunkSize / 2,

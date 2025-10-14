@@ -11,8 +11,8 @@ package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
 
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.elasticsearch.gradle.internal.transport.TransportVersionResourcesService.IdAndDefinition;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  * Validates that each defined transport version constant is referenced by at least one project.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionResourcesTask extends DefaultTask implements VerificationTask {
+public abstract class ValidateTransportVersionResourcesTask extends PrecommitTask implements VerificationTask {
 
     @InputDirectory
     @Optional

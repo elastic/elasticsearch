@@ -46,6 +46,9 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.field_name_length.limit`
 :   Setting for the maximum length of a field name. This setting isn’t really something that addresses mappings explosion but might still be useful if you want to limit the field length. It usually shouldn’t be necessary to set this setting. The default is okay unless a user starts to add a huge number of fields with really long names. Default is `Long.MAX_VALUE` (no limit).
 
+`index.mapping.field_name_length.ignore_dynamic_beyond_limit` {applies_to}`stack: ga 9.3`
+:   This setting determines what happens when a the name of a dynamically mapped field would exceed the configured maximum length. When set to `false` (the default), the index request of the document that tries to add a dynamic field to the mapping will fail with the message `Field name [x] is longer than the limit of [y] characters`. When set to `true`, the index request will not fail. Instead, fields that would exceed the limit are not added to the mapping, similar to [`dynamic: false`](/reference/elasticsearch/mapping-reference/dynamic.md). The fields that were not added to the mapping will be added to the [`_ignored` field](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md). The default value is `false`.
+
 `index.mapping.dimension_fields.limit`
 :   (Dynamic, integer) Maximum number of [time series dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) for the index. Defaults to `32768`.
 

@@ -1,0 +1,5 @@
+pr: 132757
+summary: Late materialization after TopN (Node level)
+area: ES|QL
+type: feature
+issues: []

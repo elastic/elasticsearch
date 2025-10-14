@@ -11,6 +11,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -276,11 +277,19 @@ public class LocalAllocateDangledIndices {
 
     public static class AllocateDangledResponse extends TransportResponse {
 
-        private AllocateDangledResponse(StreamInput in) throws IOException {}
+        private AllocateDangledResponse(StreamInput in) throws IOException {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+                in.readBoolean();
+            }
+        }
 
         private AllocateDangledResponse() {}
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+                out.writeBoolean(true);
+            }
+        }
     }
 }

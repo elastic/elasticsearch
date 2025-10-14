@@ -175,7 +175,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             this.inferenceTimeout = in.readTimeValue();
-            textInput = in.readOptionalStringCollectionAsList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                textInput = in.readOptionalStringCollectionAsList();
+            } else {
+                textInput = null;
+            }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
             }
@@ -260,7 +264,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
             out.writeTimeValue(inferenceTimeout);
-            out.writeOptionalStringCollection(textInput);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                out.writeOptionalStringCollection(textInput);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }

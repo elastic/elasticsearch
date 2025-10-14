@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.Sorter;
@@ -17,9 +16,9 @@ import org.apache.lucene.util.Sorter;
 import java.util.function.LongConsumer;
 
 /**
- * Base class for building {@link SortedNumericDocValues} instances based on unsorted content.
+ * Base class for building {@link SortedNumericLongValues} instances based on unsorted content.
  */
-public abstract class SortingNumericDocValues extends SortedNumericDocValues {
+public abstract class SortingNumericLongValues extends SortedNumericLongValues {
 
     private int count;
     protected long[] values;
@@ -27,11 +26,11 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     private final Sorter sorter;
     private final LongConsumer circuitBreakerConsumer;
 
-    protected SortingNumericDocValues() {
+    protected SortingNumericLongValues() {
         this(l -> {});
     }
 
-    protected SortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
+    protected SortingNumericLongValues(LongConsumer circuitBreakerConsumer) {
         values = new long[1];
         valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -265,8 +264,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     /**
      * Convert the values in <code>dvs</code> using the provided <code>converter</code>.
      */
-    protected static SortedNumericDocValues convertNumeric(SortedNumericDocValues values, LongUnaryOperator converter) {
-        return new AbstractSortedNumericDocValues() {
+    protected static SortedNumericLongValues convertNumeric(SortedNumericLongValues values, LongUnaryOperator converter) {
+        return new SortedNumericLongValues() {
 
             @Override
             public boolean advanceExact(int target) throws IOException {
@@ -281,11 +280,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             @Override
             public int docValueCount() {
                 return values.docValueCount();
-            }
-
-            @Override
-            public int nextDoc() throws IOException {
-                return values.nextDoc();
             }
         };
     }

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
@@ -21,9 +22,9 @@ import java.io.IOException;
  */
 final class SortableLongBitsToNumericDoubleValues extends NumericDoubleValues {
 
-    private final NumericDocValues values;
+    private final LongValues values;
 
-    SortableLongBitsToNumericDoubleValues(NumericDocValues values) {
+    SortableLongBitsToNumericDoubleValues(LongValues values) {
         this.values = values;
     }
 
@@ -38,7 +39,7 @@ final class SortableLongBitsToNumericDoubleValues extends NumericDoubleValues {
     }
 
     /** Return the wrapped values. */
-    public NumericDocValues getLongValues() {
+    public LongValues getLongValues() {
         return values;
     }
 

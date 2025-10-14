@@ -185,7 +185,7 @@ events:double      | pod:keyword | time_bucket:datetime
 15.746543778801843 | one         | 2024-05-10T00:00:00.000Z
 15.396284829721363 | three       | 2024-05-10T00:00:00.000Z
 15.045454545454547 | three       | 2024-05-10T00:10:00.000Z
-14.199942045783832 | two         | 2024-05-10T00:00:00.000Z
+14.19994204578383  | two         | 2024-05-10T00:00:00.000Z
 11.5               | two         | 2024-05-10T00:20:00.000Z
 ;
 
@@ -235,13 +235,13 @@ sum:double        | pod:keyword | time_bucket:datetime
 
 avg_over_time_nested_expression_in_grouping_with_alias
 required_capability: ts_command_v0
-TS k8s | STATS min = min(avg_over_time(network.bytes_in)) by time_bucket = bucket(date_trunc(2 minutes, @timestamp), 5 minutes) | SORT time_bucket  | LIMIT 5;
+TS k8s | STATS min = min(avg_over_time(network.bytes_in)) by time_bucket = bucket(@timestamp, 5 minutes) | SORT time_bucket  | LIMIT 5;
 
 min:double        | time_bucket:datetime
-382.0416666666667 | 2024-05-10T00:00:00.000Z
-382.0416666666667 | 2024-05-10T00:05:00.000Z
-382.0416666666667 | 2024-05-10T00:10:00.000Z
-382.0416666666667 | 2024-05-10T00:15:00.000Z
-382.0416666666667 | 2024-05-10T00:20:00.000Z
+307.6666666666667 | 2024-05-10T00:00:00.000Z
+194.5             | 2024-05-10T00:05:00.000Z
+46.75             | 2024-05-10T00:10:00.000Z
+260.0             | 2024-05-10T00:15:00.000Z
+174.2             | 2024-05-10T00:20:00.000Z
 
 ;

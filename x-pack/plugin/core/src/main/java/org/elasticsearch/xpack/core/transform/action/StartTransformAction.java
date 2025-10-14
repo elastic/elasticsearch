@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -50,7 +51,11 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            from = in.readOptionalInstant();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                from = in.readOptionalInstant();
+            } else {
+                from = null;
+            }
         }
 
         public String getId() {
@@ -65,7 +70,9 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            out.writeOptionalInstant(from);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                out.writeOptionalInstant(from);
+            }
         }
 
         @Override

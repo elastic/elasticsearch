@@ -666,7 +666,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error,
             containsString(
                 "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
-                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 days]"
             )
         );
 

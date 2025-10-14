@@ -57,13 +57,20 @@ public class RestResolveIndexAction extends BaseRestHandler {
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
         String modeParam = request.param("mode");
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        final boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS);
+        if (crossProjectEnabled) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             indices,
-            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS),
+            indicesOptions,
             modeParam == null
                 ? null
                 : Arrays.stream(modeParam.split(","))

@@ -264,4 +264,9 @@ public class TRangeTests extends AbstractScalarFunctionTestCase {
         assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return List.of(params.get(1), params.get(2));
     }
+
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
 }

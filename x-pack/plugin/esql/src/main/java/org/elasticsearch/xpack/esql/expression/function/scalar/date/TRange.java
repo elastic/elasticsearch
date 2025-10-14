@@ -8,34 +8,28 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -52,11 +46,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class TRange extends EsqlScalarFunction implements OptionalArgument, TranslationAware.SingleValueTranslationAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Trange", TRange::new);
+public class TRange extends EsqlScalarFunction implements OptionalArgument, SurrogateExpression {
+    public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_INTERVAL_PARAM_NAME = "start_time_or_interval";
     public static final String END_TIME_PARAM_NAME = "end_time";
@@ -100,26 +93,19 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
         this.endTime = endTime;
     }
 
-    private TRange(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
-        );
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(timestamp);
-        out.writeNamedWriteable(startTime);
-        out.writeOptionalNamedWriteable(endTime);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        throw new UnsupportedOperationException("should be rewritten");
     }
 
     @Override
@@ -195,6 +181,29 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
     }
 
     @Override
+    public Expression surrogate() {
+        long[] range = getRange(FoldContext.small());
+
+        // Create literal expressions for the bounds based on timestamp data type
+        Expression startLiteral;
+        Expression endLiteral;
+
+        if (timestamp.dataType() == DataType.DATE_NANOS) {
+            startLiteral = new Literal(source(), range[0], DataType.DATE_NANOS);
+            endLiteral = new Literal(source(), range[1], DataType.DATE_NANOS);
+        } else {
+            startLiteral = new Literal(source(), range[0], DataType.DATETIME);
+            endLiteral = new Literal(source(), range[1], DataType.DATETIME);
+        }
+
+        return new And(
+            source(),
+            new GreaterThanOrEqual(source(), timestamp, startLiteral),
+            new LessThanOrEqual(source(), timestamp, endLiteral)
+        );
+    }
+
+    @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, TRange::new, timestamp, startTime, endTime);
     }
@@ -202,11 +211,6 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
     @Override
     public Nullability nullable() {
         return Nullability.FALSE;
-    }
-
-    @Override
-    public Expression singleValueField() {
-        return timestamp;
     }
 
     public Expression getStartTime() {
@@ -217,45 +221,21 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
         return endTime;
     }
 
-    @Override
-    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return Translatable.YES;
-    }
-
-    @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        long[] range = getRange(FoldContext.small());
-        return new RangeQuery(source(), Expressions.name(timestamp), range[0], true, range[1], true, UTC);
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        long[] range = getRange(toEvaluator.foldCtx());
-        return new TRangeEvaluator.Factory(source(), toEvaluator.apply(timestamp), range[0], range[1]);
-    }
-
-    @Evaluator
-    static boolean process(long timestamp, @Fixed long startTimestamp, @Fixed long endTimestamp) {
-        return timestamp >= startTimestamp && timestamp <= endTimestamp;
-    }
-
     private long[] getRange(FoldContext foldContext) {
-        long beginningOfRangeInMillis;
-        long endOfRangeInMillis;
+        Instant endOfRange;
+        Instant beginningOfRange;
 
         if (endTime == null) {
-            // Single parameter mode
+            // Single parameter mode - fold the startTime to get its value
             Object start = startTime.fold(foldContext);
             if (start == null) {
                 throw new InvalidArgumentException("start_time_or_interval can not be null in [{}]", sourceText());
             }
 
-            Instant now = Instant.now();
-            beginningOfRangeInMillis = getBeginningOfRangeInMillis(start, now, START_TIME_OR_INTERVAL_PARAM_NAME);
-            endOfRangeInMillis = now.toEpochMilli();
+            endOfRange = Instant.now();
+            beginningOfRange = calculateStartTime(start, endOfRange, START_TIME_OR_INTERVAL_PARAM_NAME);
         } else {
-            // Two parameter mode
-
+            // Two parameter mode - fold both startTime and endTime to get their values
             Object start = startTime.fold(foldContext);
             if (start == null) {
                 throw new InvalidArgumentException("start_time_or_interval can not be null in [{}]", sourceText());
@@ -271,38 +251,35 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
             }
 
             try {
-                beginningOfRangeInMillis = getTimeValueInMillis(start, START_TIME_OR_INTERVAL_PARAM_NAME);
-                endOfRangeInMillis = getTimeValueInMillis(end, END_TIME_PARAM_NAME);
+                beginningOfRange = parseToInstant(start, START_TIME_OR_INTERVAL_PARAM_NAME);
+                endOfRange = parseToInstant(end, END_TIME_PARAM_NAME);
             } catch (InvalidArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
             }
         }
 
-        if (beginningOfRangeInMillis >= endOfRangeInMillis) {
-            throw new InvalidArgumentException(
-                "TRANGE start time [{}] must be before end time [{}]",
-                beginningOfRangeInMillis,
-                endOfRangeInMillis
-            );
+        if (beginningOfRange.isAfter(endOfRange) || beginningOfRange.equals(endOfRange)) {
+            throw new InvalidArgumentException("TRANGE start time [{}] must be before end time [{}]", beginningOfRange, endOfRange);
         }
 
-        long beginningOfRange = beginningOfRangeInMillis;
-        long endOfRange = endOfRangeInMillis;
+        long beginningOfRangeValue = beginningOfRange.toEpochMilli();
+        long endOfRangeValue = endOfRange.toEpochMilli();
+
         if (timestamp.dataType() == DataType.DATE_NANOS) {
-            beginningOfRange = DateUtils.toNanoSeconds(beginningOfRangeInMillis);
-            endOfRange = DateUtils.toNanoSeconds(endOfRangeInMillis);
+            beginningOfRangeValue = DateUtils.toNanoSeconds(beginningOfRangeValue);
+            endOfRangeValue = DateUtils.toNanoSeconds(endOfRangeValue);
         }
 
-        return new long[] { beginningOfRange, endOfRange };
+        return new long[] { beginningOfRangeValue, endOfRangeValue };
     }
 
-    private long getBeginningOfRangeInMillis(Object value, Instant endOfRange, String paramName) {
+    private Instant calculateStartTime(Object value, Instant endOfRange, String paramName) {
         if (value instanceof Duration duration) {
-            return endOfRange.minus(duration.abs()).toEpochMilli();
+            return endOfRange.minus(duration.abs());
         }
         if (value instanceof Period period) {
             period = period.isNegative() ? period.negated() : period;
-            return endOfRange.minus(period).toEpochMilli();
+            return endOfRange.minus(period);
         }
         throw new InvalidArgumentException(
             "Unsupported time value type [{}] for parameter [{}]",
@@ -311,22 +288,22 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
         );
     }
 
-    private long getTimeValueInMillis(Object value, String paramName) {
+    private Instant parseToInstant(Object value, String paramName) {
         if (value instanceof BytesRef bytesRef) {
             try {
-                return dateTimeToLong(bytesRef.utf8ToString());
+                long millis = dateTimeToLong(bytesRef.utf8ToString());
+                return Instant.ofEpochMilli(millis);
             } catch (Exception e) {
                 throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);
             }
         }
 
-        // ms since Epoch
         if (value instanceof Long longValue) {
-            return longValue;
+            return Instant.ofEpochMilli(longValue);
         }
 
         if (value instanceof Integer intValue) {
-            return intValue.longValue();
+            return Instant.ofEpochMilli(intValue.longValue());
         }
 
         throw new InvalidArgumentException(

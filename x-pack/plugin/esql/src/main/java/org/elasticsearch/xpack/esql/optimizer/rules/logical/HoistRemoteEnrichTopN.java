@@ -48,9 +48,9 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
     protected LogicalPlan rule(Enrich en) {
         if (en.mode() == Enrich.Mode.REMOTE) {
             LogicalPlan plan = en.child();
+            List<Attribute> outputs = en.output();
             // This loop only takes care of one TopN. Repeated TopNs may be a problem, we can't handle them here.
             while (true) {
-                var outputs = en.output();
                 if (plan instanceof TopN topN && topN.local() == false) {
                     Set<Attribute> missingAttributes = checkOrderInOutputs(topN.order(), outputs);
 

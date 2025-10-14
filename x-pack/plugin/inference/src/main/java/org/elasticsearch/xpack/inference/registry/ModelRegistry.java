@@ -727,7 +727,10 @@ public class ModelRegistry implements ClusterStateListener {
     ) {
         return ActionListener.wrap(bulkItemResponses -> {
             var docIdToInferenceId = models.stream()
-                .collect(Collectors.toMap(m -> Model.documentId(m.getInferenceEntityId()), Model::getInferenceEntityId, (id1, id2) -> id1));
+                .collect(Collectors.toMap(m -> Model.documentId(m.getInferenceEntityId()), Model::getInferenceEntityId, (id1, id2) -> {
+                    logger.warn("Encountered duplicate inference ids when storing endpoints: [{}]", id1);
+                    return id1;
+                }));
             var inferenceIdToModel = models.stream()
                 .collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity(), (id1, id2) -> id1));
 

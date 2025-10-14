@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
@@ -336,8 +337,8 @@ public class RequestExecutorService implements RequestExecutor {
         endpoint.enqueue(task);
     }
 
-    private static boolean rateLimitingEnabled(RateLimitSettings rateLimitSettings) {
-        return rateLimitSettings != null && rateLimitSettings.isEnabled();
+    private static boolean isEmbeddingsIngestInput(InferenceInputs inputs) {
+        return inputs instanceof EmbeddingsInput embeddingsInput && InputType.isIngest(embeddingsInput.getInputType());
     }
 
     private void cleanup(CleanupStrategy cleanupStrategy) {
@@ -478,7 +479,7 @@ public class RequestExecutorService implements RequestExecutor {
             return;
         }
 
-        if (rateLimitingEnabled(requestManager.rateLimitSettings())) {
+        if (isEmbeddingsIngestInput(inferenceInputs)) {
             submitTaskToRateLimitedExecutionPath(task);
         } else {
             boolean taskAccepted = requestQueue.offer(task);
@@ -592,7 +593,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         private TimeValue executeEnqueuedTaskInternal() {
-            if (rateLimitingEnabled(rateLimitSettings)) {
+            if (rateLimitSettings.isEnabled()) {
                 var timeBeforeAvailableToken = rateLimiter.timeToReserve(1);
                 if (shouldExecuteImmediately(timeBeforeAvailableToken) == false) {
                     return timeBeforeAvailableToken;

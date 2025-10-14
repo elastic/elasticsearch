@@ -183,14 +183,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         service.execute(
             RequestManagerTests.createMockWithRateLimitingEnabled(),
-            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
             null,
             new PlainActionFuture<>()
         );
 
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled("id");
         var listener = new PlainActionFuture<InferenceServiceResults>();
-        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -411,7 +411,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         service.execute(
             RequestManagerTests.createMockWithRateLimitingEnabled(requestSender),
-            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
             null,
             new PlainActionFuture<>()
         );
@@ -419,7 +419,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id");
-        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -524,13 +524,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var service = new RequestExecutorService(threadPool, null, settings, requestSender);
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
-        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, new PlainActionFuture<>());
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, new PlainActionFuture<>());
         assertThat(service.queueSize(), is(1));
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         service.execute(
             RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id"),
-            new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
             null,
             listener
         );
@@ -656,7 +656,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, listener);
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, listener);
 
         when(mockRateLimiter.timeToReserve(anyInt())).thenReturn(TimeValue.timeValueDays(1)).thenReturn(TimeValue.timeValueDays(0));
 

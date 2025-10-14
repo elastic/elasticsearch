@@ -27,7 +27,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("top", ElementType.INT),
-      new IntermediateStateDesc("extra", ElementType.FLOAT)  );
+      new IntermediateStateDesc("output", ElementType.FLOAT)  );
 
   private final TopIntFloatAggregator.GroupingState state;
 
@@ -67,24 +67,24 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock vBlock = page.getBlock(channels.get(0));
-    FloatBlock extraBlock = page.getBlock(channels.get(1));
+    FloatBlock outputValueBlock = page.getBlock(channels.get(1));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, vBlock, extraBlock);
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock, outputValueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, vBlock, extraBlock);
+          addRawInput(positionOffset, groupIds, vBlock, outputValueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, vBlock, extraBlock);
+          addRawInput(positionOffset, groupIds, vBlock, outputValueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, vBlock, extraBlock);
+          addRawInput(positionOffset, groupIds, vBlock, outputValueBlock);
         }
 
         @Override
@@ -92,23 +92,23 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
         }
       };
     }
-    FloatVector extraVector = extraBlock.asVector();
-    if (extraVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, vBlock, extraBlock);
+    FloatVector outputValueVector = outputValueBlock.asVector();
+    if (outputValueVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock, outputValueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, vBlock, extraBlock);
+          addRawInput(positionOffset, groupIds, vBlock, outputValueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, vBlock, extraBlock);
+          addRawInput(positionOffset, groupIds, vBlock, outputValueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, vBlock, extraBlock);
+          addRawInput(positionOffset, groupIds, vBlock, outputValueBlock);
         }
 
         @Override
@@ -119,17 +119,17 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, vVector, extraVector);
+        addRawInput(positionOffset, groupIds, vVector, outputValueVector);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, vVector, extraVector);
+        addRawInput(positionOffset, groupIds, vVector, outputValueVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, vVector, extraVector);
+        addRawInput(positionOffset, groupIds, vVector, outputValueVector);
       }
 
       @Override
@@ -139,7 +139,7 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock vBlock,
-      FloatBlock extraBlock) {
+      FloatBlock outputValueBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -148,7 +148,7 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       if (vBlock.isNull(valuesPosition)) {
         continue;
       }
-      if (extraBlock.isNull(valuesPosition)) {
+      if (outputValueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
@@ -159,11 +159,11 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           int vValue = vBlock.getInt(vOffset);
-          int extraStart = extraBlock.getFirstValueIndex(valuesPosition);
-          int extraEnd = extraStart + extraBlock.getValueCount(valuesPosition);
-          for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-            float extraValue = extraBlock.getFloat(extraOffset);
-            TopIntFloatAggregator.combine(state, groupId, vValue, extraValue);
+          int outputValueStart = outputValueBlock.getFirstValueIndex(valuesPosition);
+          int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(valuesPosition);
+          for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+            float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
+            TopIntFloatAggregator.combine(state, groupId, vValue, outputValueValue);
           }
         }
       }
@@ -171,7 +171,7 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector vVector,
-      FloatVector extraVector) {
+      FloatVector outputValueVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -182,8 +182,8 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int vValue = vVector.getInt(valuesPosition);
-        float extraValue = extraVector.getFloat(valuesPosition);
-        TopIntFloatAggregator.combine(state, groupId, vValue, extraValue);
+        float outputValueValue = outputValueVector.getFloat(valuesPosition);
+        TopIntFloatAggregator.combine(state, groupId, vValue, outputValueValue);
       }
     }
   }
@@ -197,12 +197,12 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       return;
     }
     IntBlock top = (IntBlock) topUncast;
-    Block extraUncast = page.getBlock(channels.get(1));
-    if (extraUncast.areAllValuesNull()) {
+    Block outputUncast = page.getBlock(channels.get(1));
+    if (outputUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock extra = (FloatBlock) extraUncast;
-    assert top.getPositionCount() == extra.getPositionCount();
+    FloatBlock output = (FloatBlock) outputUncast;
+    assert top.getPositionCount() == output.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -212,13 +212,13 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        TopIntFloatAggregator.combineIntermediate(state, groupId, top, extra, valuesPosition);
+        TopIntFloatAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock vBlock,
-      FloatBlock extraBlock) {
+      FloatBlock outputValueBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -227,7 +227,7 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       if (vBlock.isNull(valuesPosition)) {
         continue;
       }
-      if (extraBlock.isNull(valuesPosition)) {
+      if (outputValueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
@@ -238,11 +238,11 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           int vValue = vBlock.getInt(vOffset);
-          int extraStart = extraBlock.getFirstValueIndex(valuesPosition);
-          int extraEnd = extraStart + extraBlock.getValueCount(valuesPosition);
-          for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-            float extraValue = extraBlock.getFloat(extraOffset);
-            TopIntFloatAggregator.combine(state, groupId, vValue, extraValue);
+          int outputValueStart = outputValueBlock.getFirstValueIndex(valuesPosition);
+          int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(valuesPosition);
+          for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+            float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
+            TopIntFloatAggregator.combine(state, groupId, vValue, outputValueValue);
           }
         }
       }
@@ -250,7 +250,7 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector vVector,
-      FloatVector extraVector) {
+      FloatVector outputValueVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -261,8 +261,8 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int vValue = vVector.getInt(valuesPosition);
-        float extraValue = extraVector.getFloat(valuesPosition);
-        TopIntFloatAggregator.combine(state, groupId, vValue, extraValue);
+        float outputValueValue = outputValueVector.getFloat(valuesPosition);
+        TopIntFloatAggregator.combine(state, groupId, vValue, outputValueValue);
       }
     }
   }
@@ -276,12 +276,12 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       return;
     }
     IntBlock top = (IntBlock) topUncast;
-    Block extraUncast = page.getBlock(channels.get(1));
-    if (extraUncast.areAllValuesNull()) {
+    Block outputUncast = page.getBlock(channels.get(1));
+    if (outputUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock extra = (FloatBlock) extraUncast;
-    assert top.getPositionCount() == extra.getPositionCount();
+    FloatBlock output = (FloatBlock) outputUncast;
+    assert top.getPositionCount() == output.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -291,19 +291,19 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        TopIntFloatAggregator.combineIntermediate(state, groupId, top, extra, valuesPosition);
+        TopIntFloatAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntVector groups, IntBlock vBlock,
-      FloatBlock extraBlock) {
+      FloatBlock outputValueBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       if (vBlock.isNull(valuesPosition)) {
         continue;
       }
-      if (extraBlock.isNull(valuesPosition)) {
+      if (outputValueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupId = groups.getInt(groupPosition);
@@ -311,24 +311,24 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        int extraStart = extraBlock.getFirstValueIndex(valuesPosition);
-        int extraEnd = extraStart + extraBlock.getValueCount(valuesPosition);
-        for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-          float extraValue = extraBlock.getFloat(extraOffset);
-          TopIntFloatAggregator.combine(state, groupId, vValue, extraValue);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(valuesPosition);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(valuesPosition);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
+          TopIntFloatAggregator.combine(state, groupId, vValue, outputValueValue);
         }
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntVector groups, IntVector vVector,
-      FloatVector extraVector) {
+      FloatVector outputValueVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       int vValue = vVector.getInt(valuesPosition);
-      float extraValue = extraVector.getFloat(valuesPosition);
-      TopIntFloatAggregator.combine(state, groupId, vValue, extraValue);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopIntFloatAggregator.combine(state, groupId, vValue, outputValueValue);
     }
   }
 
@@ -341,25 +341,25 @@ public final class TopIntFloatGroupingAggregatorFunction implements GroupingAggr
       return;
     }
     IntBlock top = (IntBlock) topUncast;
-    Block extraUncast = page.getBlock(channels.get(1));
-    if (extraUncast.areAllValuesNull()) {
+    Block outputUncast = page.getBlock(channels.get(1));
+    if (outputUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock extra = (FloatBlock) extraUncast;
-    assert top.getPositionCount() == extra.getPositionCount();
+    FloatBlock output = (FloatBlock) outputUncast;
+    assert top.getPositionCount() == output.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      TopIntFloatAggregator.combineIntermediate(state, groupId, top, extra, valuesPosition);
+      TopIntFloatAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
     }
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock vBlock,
-      FloatBlock extraBlock) {
+      FloatBlock outputValueBlock) {
     if (vBlock.mayHaveNulls()) {
       state.enableGroupIdTracking(seenGroupIds);
     }
-    if (extraBlock.mayHaveNulls()) {
+    if (outputValueBlock.mayHaveNulls()) {
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

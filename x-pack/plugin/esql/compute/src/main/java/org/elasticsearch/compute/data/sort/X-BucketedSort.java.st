@@ -104,7 +104,7 @@ $endif$
     public void collect($type$ value, $if(hasExtra)$$Extratype$ extraValue, $endif$int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex)$if(hasExtra)$, extraValue, extraValues.get(rootIndex)$endif$)) {
+            if (betterThan(value, values.get(rootIndex))) {
                 values.set(rootIndex, value);
 $if(hasExtra)$
                 extraValues.set(rootIndex, extraValue);
@@ -182,8 +182,10 @@ $if(hasExtra)$
     public void toBlocks(BlockFactory blockFactory, Block[] blocks, int offset, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
         if (allSelectedGroupsAreEmpty(selected)) {
-            blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
-            blocks[offset + 1] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            Block constantNullBlock = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            constantNullBlock.incRef();
+            blocks[offset] = constantNullBlock;
+            blocks[offset + 1] = constantNullBlock;
             return;
         }
 
@@ -318,15 +320,8 @@ $endif$
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan($type$ lhs, $type$ rhs$if(hasExtra)$, $Extratype$ lhsExtra, $Extratype$ rhsExtra$endif$) {
-        int res = $Wrapper$.compare(lhs, rhs);
-$if(hasExtra)$
-        if (res != 0) {
-            return getOrder().reverseMul() * res < 0;
-        }
-        res = $ExtraWrapper$.compare(lhsExtra, rhsExtra);
-$endif$
-        return getOrder().reverseMul() * res < 0;
+    private boolean betterThan($type$ lhs, $type$ rhs) {
+        return getOrder().reverseMul() * $Wrapper$.compare(lhs, rhs) < 0;
     }
 
     /**
@@ -443,23 +438,13 @@ $endif$
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex)$if(hasExtra)$, extraValues.get(worstIndex), extraValues.get(leftIndex)$endif$)) {
+                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-$if(hasExtra)$
-                if (rightChild < heapSize
-                    && betterThan(
-                        values.get(worstIndex),
-                        values.get(rightIndex),
-                        extraValues.get(worstIndex),
-                        extraValues.get(rightIndex)
-                    )) {
-$else$
                 if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
-$endif$
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

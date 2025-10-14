@@ -39,7 +39,6 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.TransportVersions.ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
@@ -147,12 +146,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
         this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
-        this.replicateFor = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)
-            ? in.readOptionalTimeValue()
-            : null;
+        this.replicateFor = in.readOptionalTimeValue();
     }
 
-    boolean isForceMergeIndex() {
+    public boolean isForceMergeIndex() {
         return forceMergeIndex;
     }
 
@@ -597,9 +594,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
-        if (out.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)) {
-            out.writeOptionalTimeValue(replicateFor);
-        }
+        out.writeOptionalTimeValue(replicateFor);
     }
 
     @Override

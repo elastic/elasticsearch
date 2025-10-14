@@ -879,9 +879,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
@@ -896,12 +894,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -918,7 +915,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -935,7 +932,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("hostname");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -953,11 +950,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -975,11 +972,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -997,11 +994,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
+            assertTrue(mapper.fieldType().indexType().hasTerms());
         }
     }
 
@@ -1018,7 +1015,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -1037,11 +1034,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
         if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
             assertTrue(mapper.fieldType().hasDocValuesSkipper());
         } else {
             assertFalse(mapper.fieldType().hasDocValuesSkipper());
+            assertTrue(mapper.fieldType().indexType().hasOnlyDocValues());
         }
     }
 
@@ -1060,7 +1057,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValues());
-        assertFalse(mapper.fieldType().isIndexed());
+        assertThat(mapper.fieldType().indexType(), equalTo(IndexType.NONE));
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
@@ -1125,8 +1122,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // then
 
-        // since synthetic source is disabled, the fallback field name shouldn't exist
-        assertThat(mapper.fieldType().syntheticSourceFallbackFieldName(), Matchers.nullValue());
         // despite exceeding ignore_above, because synthetic source is disabled, we don't expect to store anything
         assertThat(doc.rootDoc().getField(mapper.fieldType() + "_original"), Matchers.nullValue());
     }

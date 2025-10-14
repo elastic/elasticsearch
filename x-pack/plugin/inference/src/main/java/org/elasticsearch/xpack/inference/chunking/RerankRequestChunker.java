@@ -12,6 +12,7 @@ import com.ibm.icu.text.BreakIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.ArrayList;
@@ -53,10 +54,13 @@ public class RerankRequestChunker {
         return chunkedInputs;
     }
 
-    public ActionListener<InferenceServiceResults> parseChunkedRerankResultsListener(ActionListener<InferenceServiceResults> listener) {
+    public ActionListener<InferenceServiceResults> parseChunkedRerankResultsListener(
+        ActionListener<InferenceServiceResults> listener,
+        boolean returnDocuments
+    ) {
         return ActionListener.wrap(results -> {
             if (results instanceof RankedDocsResults rankedDocsResults) {
-                listener.onResponse(parseRankedDocResultsForChunks(rankedDocsResults));
+                listener.onResponse(parseRankedDocResultsForChunks(rankedDocsResults, returnDocuments));
 
             } else {
                 listener.onFailure(new IllegalArgumentException("Expected RankedDocsResults but got: " + results.getClass()));
@@ -65,7 +69,7 @@ public class RerankRequestChunker {
         }, listener::onFailure);
     }
 
-    private RankedDocsResults parseRankedDocResultsForChunks(RankedDocsResults rankedDocsResults) {
+    private RankedDocsResults parseRankedDocResultsForChunks(RankedDocsResults rankedDocsResults, boolean returnDocuments) {
         List<RankedDocsResults.RankedDoc> topRankedDocs = new ArrayList<>();
         Set<Integer> docIndicesSeen = new HashSet<>();
 
@@ -80,7 +84,7 @@ public class RerankRequestChunker {
                 RankedDocsResults.RankedDoc updatedRankedDoc = new RankedDocsResults.RankedDoc(
                     docIndex,
                     rankedDoc.relevanceScore(),
-                    inputs.get(docIndex)
+                    returnDocuments ? inputs.get(docIndex) : null
                 );
                 topRankedDocs.add(updatedRankedDoc);
                 docIndicesSeen.add(docIndex);

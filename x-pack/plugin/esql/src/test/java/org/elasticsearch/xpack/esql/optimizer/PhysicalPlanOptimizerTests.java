@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -136,6 +137,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -247,6 +249,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
 
     private final Configuration config;
+    private PlannerSettings plannerSettings;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
 
@@ -360,6 +363,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             functionRegistry,
             enrichResolution
         );
+        this.plannerSettings = TEST_PLANNER_SETTINGS;
     }
 
     TestDataSource makeTestDataSource(
@@ -7874,11 +7878,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null, TEST_PLANNER_SETTINGS),
-            List.of()
+            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS)
         );
 
-        return planner.plan("test", FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -7974,10 +7977,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
-        TopNExec reductionTopN = as(reduction, TopNExec.class);
-        assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
+        var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topN = as(reductionPlan, TopNExec.class);
+        assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
     }
 
     public void testReductionPlanForAggs() {
@@ -7986,7 +7988,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats x = sum(salary) BY first_name
             """);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
@@ -7994,7 +7996,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testReductionPlanForLimit() {
         var plan = physicalPlan("FROM test | LIMIT 10");
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(2276));
     }
@@ -8270,7 +8272,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query, config)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);

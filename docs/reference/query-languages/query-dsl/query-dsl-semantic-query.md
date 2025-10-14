@@ -9,6 +9,10 @@ applies_to:
 
 # Semantic query [query-dsl-semantic-query]
 
+::::{note}
+We don't recommend this legacy query type for _new_ projects. Use the match query (with [QueryDSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ESQL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match)) instead. The semantic query remains available to support existing implementations.
+::::
+
 The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field.
 
 
@@ -25,6 +29,7 @@ GET my-index-000001/_search
   }
 }
 ```
+%  TEST[skip: Requires inference endpoints]
 
 
 ## Top-level parameters for `semantic` [semantic-query-params]
@@ -69,6 +74,7 @@ POST my-index/_search
   }
 }
 ```
+%  TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of [Reciprocal Rank Fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) to make ranking relevant results easier:
 
@@ -104,4 +110,5 @@ GET my-index/_search
   }
 }
 ```
+%  TEST[skip: Requires inference endpoints]
 

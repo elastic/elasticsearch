@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -321,6 +322,9 @@ public class ClusterModule extends AbstractModule {
 
         // Streams
         registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
+
+        // Actions
+        entries.addAll(ActionModule.getNamedWriteables());
 
         return entries;
     }

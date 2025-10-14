@@ -152,6 +152,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
     public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
 
+    private static final TransportVersion INDEX_RESHARDING_METADATA = TransportVersion.fromName("index_resharding_metadata");
+
     @Nullable
     public String getDownsamplingInterval() {
         return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
@@ -1597,8 +1599,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
-    private static final TransportVersion SETTING_DIFF_VERSION = TransportVersions.V_8_5_0;
-
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
@@ -1694,13 +1694,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             settingsVersion = in.readVLong();
             aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
-            if (in.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
-                settings = null;
-                settingsDiff = Settings.readSettingsDiffFromStream(in);
-            } else {
-                settings = Settings.readSettingsFromStream(in);
-                settingsDiff = null;
-            }
+            settings = null;
+            settingsDiff = Settings.readSettingsDiffFromStream(in);
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
@@ -1745,7 +1740,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+            if (in.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
                 reshardingMetadata = in.readOptionalWriteable(IndexReshardingMetadata::new);
             } else {
                 reshardingMetadata = null;
@@ -1763,11 +1758,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeByte(state.id);
             assert settings != null
                 : "settings should always be non-null since this instance is not expected to have been read from another node";
-            if (out.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
-                settingsDiff.writeTo(out);
-            } else {
-                settings.writeTo(out);
-            }
+            settingsDiff.writeTo(out);
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
@@ -1788,7 +1779,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
             eventIngestedRange.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+            if (out.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
                 out.writeOptionalWriteable(reshardingMetadata);
             }
         }
@@ -1895,7 +1886,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
         builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+        if (in.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
             builder.reshardingMetadata(in.readOptionalWriteable(IndexReshardingMetadata::new));
         }
         return builder.build(true);
@@ -1947,7 +1938,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
         eventIngestedRange.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+        if (out.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
             out.writeOptionalWriteable(reshardingMetadata);
         }
     }

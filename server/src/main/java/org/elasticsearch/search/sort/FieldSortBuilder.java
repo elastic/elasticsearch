@@ -395,7 +395,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.isIndexed() == false) {
+        if (fieldType.indexType().supportsSortShortcuts() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -551,7 +551,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.getFieldType(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.isIndexed() == false)) {
+        if (reader == null || (fieldType == null || fieldType.indexType().supportsSortShortcuts() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {

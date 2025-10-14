@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
@@ -38,7 +39,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
@@ -2295,6 +2295,9 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
+        if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
+            checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");
+        }
     }
 
     /**
@@ -2689,6 +2692,25 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoDimensionsInAggsOnlyInByClause() {
+        assertThat(
+            error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(host)]. "
+                    + "Dimension fields can only be used for grouping in a BY clause. "
+                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+            )
+        );
+        assertThat(
+            error("TS test | STATS count(count_over_time(host)) BY bucket(@timestamp, 1 minute)", tsdb),
+            equalTo(
+                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(count_over_time(host))]. "
+                    + "Dimension fields can only be used for grouping in a BY clause. "
+                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+            )
+        );
+    }
+
     public void testSortInTimeSeries() {
         assertThat(
             error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),
@@ -2712,7 +2734,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
-        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
             equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
@@ -2730,7 +2751,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
-        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", defaultAnalyzer, "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
@@ -2756,7 +2776,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query, TEST_CFG));
+        analyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {
@@ -2787,7 +2807,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters), TEST_CFG))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
         );
         assertThat(e, instanceOf(exception));
 

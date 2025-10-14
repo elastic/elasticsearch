@@ -10,7 +10,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -41,6 +40,7 @@ import java.util.Set;
 public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "project_state_secrets";
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private final SecureClusterStateSettings settings;
 
@@ -73,7 +73,7 @@ public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MULTI_PROJECT;
+        return MULTI_PROJECT;
     }
 
     @Override

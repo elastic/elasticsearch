@@ -325,7 +325,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             if (asyncPrefetchLimit > 0) {
                 return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, asyncPrefetchLimit);
             } else {
-                return in.openInput(name, context);
+                return super.openInput(name, context);
             }
         }
     }

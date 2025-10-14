@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -36,6 +37,7 @@ import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
@@ -74,6 +76,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     private final MutableSearchResponse searchResponse;
 
+    private final AsyncTaskIndexService<AsyncSearchResponse> store;
+
+    private static final TimeValue STORE_FETCH_TIMEOUT = TimeValue.timeValueSeconds(30);
+
     /**
      * Creates an instance of {@link AsyncSearchTask}.
      *
@@ -100,7 +106,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         AsyncExecutionId searchId,
         Client client,
         ThreadPool threadPool,
-        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory
+        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory,
+        AsyncTaskIndexService<AsyncSearchResponse> store
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
@@ -112,6 +119,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         this.progressListener = new Listener();
         setProgressListener(progressListener);
         searchResponse = new MutableSearchResponse(threadPool.getThreadContext());
+        this.store = store;
     }
 
     /**
@@ -203,7 +211,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
+            try {
+                AsyncSearchResponse resp = getResponseWithHeaders();
+                ActionListener.respondAndRelease(listener, resp);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
         return true; // unused
     }
@@ -246,7 +259,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
+
+                            try {
+                                AsyncSearchResponse resp = getResponseWithHeaders();
+                                ActionListener.respondAndRelease(listener, resp);
+                            } catch (Exception e) {
+                                listener.onFailure(e);
+                            }
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -263,7 +282,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            ActionListener.respondAndRelease(listener, getResponseWithHeaders());
+            try {
+                AsyncSearchResponse resp = getResponseWithHeaders();
+                ActionListener.respondAndRelease(listener, resp);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
     }
 
@@ -314,7 +338,24 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        AsyncSearchResponse finalResponse = getResponse();
+        AsyncSearchResponse finalResponse;
+
+        try {
+            // do NOT restore headers here; we’re on the search action thread already
+            finalResponse = getResponse(); // must NOT propagate
+        } catch (Exception e) {
+            ElasticsearchException ex = (e instanceof ElasticsearchException)
+                ? (ElasticsearchException) e
+                : ExceptionsHelper.convertToElastic(e);
+
+            finalResponse = AsyncSearchResponse.failure(
+                searchId.getEncoded(),
+                getStartTime(),
+                expirationTimeMillis,
+                ex
+            );
+        }
+
         try {
             for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
                 consumer.accept(finalResponse);
@@ -344,9 +385,27 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         assert mutableSearchResponse != null;
         checkCancellation();
         AsyncSearchResponse asyncSearchResponse;
+
+        // Fallback: in-memory state was released → read from .async-search
         if (mutableSearchResponse.tryIncRef() == false) {
-            throw new ElasticsearchStatusException("async-search result, no longer available", RestStatus.GONE);
+            PlainActionFuture<AsyncSearchResponse> future = new PlainActionFuture<>();
+            try {
+                store.getResponse(searchId, restoreResponseHeaders, future);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+
+            try {
+                return future.actionGet(STORE_FETCH_TIMEOUT);
+            } catch (Exception e) {
+                RestStatus st = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e));
+                if (st == RestStatus.NOT_FOUND || st == RestStatus.GONE) {
+                    throw new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, e);
+                }
+                throw ExceptionsHelper.convertToElastic(e);
+            }
         }
+
         try {
             asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
         } catch (Exception e) {

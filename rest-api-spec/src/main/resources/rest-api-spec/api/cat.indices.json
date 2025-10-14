@@ -2,7 +2,7 @@
   "cat.indices": {
     "documentation": {
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices",
-      "description": "Get index information. Document counts come directly from Lucene, so they include hidden nested documents (for example, those created by semantic_text fields). Use the cat count or count APIs to retrieve the top-level Elasticsearch document count."
+      "description": "Get index information"
     },
     "stability": "stable",
     "visibility": "public",

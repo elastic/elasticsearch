@@ -1,6 +1,6 @@
 pr: 136467
-summary: "ESQL: Fix connection closed in inline stats after pruned aggregates"
+summary: "ESQL: Fix double release in inline stats when `LocalRelation` is reused"
 area: ES|QL
 type: bug
 issues:
-  - 136349
+  - 135679

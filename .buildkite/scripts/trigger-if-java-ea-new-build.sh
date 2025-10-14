@@ -13,7 +13,7 @@
 RECENT_TIME_WINDOW=${RECENT_TIME_WINDOW:-24}
 
 # Extract current JDK major version from bundled_jdk in version.properties
-CURRENT_JDK=$(grep "^bundled_jdk =" build-tools-internal/version.properties | cut -d'=' -f2 | tr -d ' ' | cut -d'.' -f1)
+CURRENT_JDK=$(grep "^bundled_jdk =" build-tools-internal/version.properties | cut -d'=' -f2 | tr -d ' ' | cut -d'+' -f1)
 TARGET_JDK=$((CURRENT_JDK + 1))
 
 echo "Current JDK major version: $CURRENT_JDK"
@@ -98,5 +98,7 @@ steps:
     env:
       EFFECTIVE_START_DATE: "$EFFECTIVE_START_DATE"
       EXECUTION_MODE: "start-run"
+      JDK_MAJOR: "$TARGET_JDK"
+      JDK_IDENTIFIER: "$JDK_IDENTIFIER"
 EOF
 fi

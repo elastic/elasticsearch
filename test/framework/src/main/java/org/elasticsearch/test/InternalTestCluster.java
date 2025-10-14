@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportClearVoting
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -176,6 +177,20 @@ import static org.junit.Assert.fail;
  * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
  * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
  * </p>
+ * <h2>{@link NodeConfigurationSource#nodeSettings} ordinals</h2>
+ * The supplied node ordinal for this node settings getter is generated as follows:
+ * <ol>
+ *     <li>
+ *         The first indices correspond to the dedicated master nodes, enabled with the {@code randomlyAddDedicatedMasters} setting.
+ *         Its amount can't currently be configured.
+ *     </li>
+ *     <li>
+ *         Then, the data nodes, controlled by the @{code minNumDataNodes} and @{code maxNumDataNodes} settings.
+ *     </li>
+ *     <li>
+ *         Finally, the coordinating-only, configured with the {@code numClientNodes} setting.
+ *     </li>
+ * </ol>
  */
 public final class InternalTestCluster extends TestCluster {
 
@@ -2064,8 +2079,15 @@ public final class InternalTestCluster extends TestCluster {
             throw new AssertionError("Unable to get master name, no node found");
         }
         try {
-            ClusterServiceUtils.awaitClusterState(logger, state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
+            final ClusterState state = client(viaNode).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setBlocks(true)
+                .setNodes(true)
+                .get()
+                .getState();
             final DiscoveryNode masterNode = state.nodes().getMasterNode();
             if (masterNode == null) {
                 throw new AssertionError("Master is not stable but the method expects a stable master node");
@@ -2423,7 +2445,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getProject().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard("id", routing, null, null)) {
+                    if (shard == indexRouting.indexShard(new IndexRequest().id("id").routing(routing))) {
                         return routing;
                     }
                 }

@@ -174,6 +174,7 @@ public class Constants {
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
         "cluster:admin/xpack/enrich/reindex",
+        "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
         "cluster:admin/xpack/inference/delete",
         "cluster:admin/xpack/inference/put",
         "cluster:admin/xpack/inference/update",
@@ -326,7 +327,9 @@ public class Constants {
         "cluster:admin/xpack/watcher/watch/put",
         "cluster:internal/remote_cluster/nodes",
         "cluster:internal/xpack/inference",
+        "cluster:internal/xpack/inference/rerankwindowsize/get",
         "cluster:internal/xpack/inference/unified",
+        "cluster:internal/xpack/ml/auditor/reset",
         "cluster:internal/xpack/ml/coordinatedinference",
         "cluster:internal/xpack/ml/datafeed/isolate",
         "cluster:internal/xpack/ml/datafeed/running_state",
@@ -450,6 +453,7 @@ public class Constants {
         "cluster:monitor/xpack/rollup/get/caps",
         "cluster:monitor/xpack/searchable_snapshots/stats",
         "cluster:monitor/xpack/security/saml/metadata",
+        "cluster:monitor/xpack/security/stats",
         "cluster:monitor/xpack/spatial/stats",
         "cluster:monitor/xpack/sql/async/status", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_STATUS_ACTION_NAME
         "cluster:monitor/xpack/sql/stats/dist",
@@ -486,6 +490,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/universal_profiling",
         "cluster:monitor/xpack/usage/voting_only",
         "cluster:monitor/xpack/usage/watcher",
+        "cluster:monitor/xpack/usage/time_series",
         "cluster:monitor/xpack/watcher/stats/dist",
         "cluster:monitor/xpack/watcher/watch/get",
         "cluster:monitor/xpack/watcher/watch/query",
@@ -609,6 +614,7 @@ public class Constants {
         "indices:data/write/delete",
         "indices:data/write/delete/byquery",
         "indices:data/write/index",
+        "indices:data/write/otlp/metrics",
         "indices:data/write/reindex",
         "indices:data/write/update",
         "indices:data/write/update/byquery",
@@ -652,6 +658,9 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate"
+        "internal:admin/repository/verify/coordinate",
+        "indices:admin/sample",
+        "indices:admin/sample/config/update",
+        "indices:admin/sample/stats"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

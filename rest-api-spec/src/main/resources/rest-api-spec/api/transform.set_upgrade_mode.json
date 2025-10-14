@@ -1,32 +1,36 @@
 {
-  "transform.set_upgrade_mode":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-set-upgrade-mode.html",
-      "description":"Sets a cluster wide upgrade_mode setting that prepares transform indices for an upgrade."
+  "transform.set_upgrade_mode": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-set-upgrade-mode",
+      "description": "Set upgrade_mode for transform indices"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_transform/set_upgrade_mode",
-          "methods":[
+          "path": "/_transform/set_upgrade_mode",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "enabled":{
-        "type":"boolean",
-        "description":"Whether to enable upgrade_mode Transform setting or not. Defaults to false."
+    "params": {
+      "enabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to enable upgrade_mode Transform setting or not. Defaults to false."
       },
-      "timeout":{
-        "type":"time",
-        "description":"Controls the time to wait before action times out. Defaults to 30 seconds"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Controls the time to wait before action times out. Defaults to 30 seconds"
       }
     }
   }

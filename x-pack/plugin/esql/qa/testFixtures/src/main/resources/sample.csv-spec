@@ -246,3 +246,13 @@ emp_no:integer
 10081
 // end::sampleForDocs-result[]
 ;
+
+
+sampleStatsEval
+required_capability: fix_no_columns
+required_capability: sample_v3
+FROM employees | SAMPLE 0.5 | LIMIT 10 | STATS count = COUNT() | EVAL is_expected = count > 0;
+
+count:long | is_expected:boolean
+10         | true
+;

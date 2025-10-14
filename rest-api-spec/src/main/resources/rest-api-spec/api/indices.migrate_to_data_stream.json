@@ -1,38 +1,42 @@
 {
-  "indices.migrate_to_data_stream":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Migrates an alias to a data stream"
+  "indices.migrate_to_data_stream": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-migrate-to-data-stream",
+      "description": "Convert an index alias to a data stream"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_data_stream/_migrate/{name}",
-          "methods":[
+          "path": "/_data_stream/_migrate/{name}",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"The name of the alias to migrate"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the alias to migrate"
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "description":"Specify timeout for acknowledging the cluster state update"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for acknowledging the cluster state update"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     }
   }

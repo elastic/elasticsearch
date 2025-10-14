@@ -22,7 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -46,7 +46,7 @@ public final class QueryPragmas implements Writeable {
      * the enum {@link DataPartitioning} which has more documentation. Not an
      * {@link Setting#enumSetting} because those can't have {@code null} defaults.
      * {@code null} here means "use the default from the cluster setting
-     * named {@link PhysicalSettings#DEFAULT_DATA_PARTITIONING}."
+     * named {@link PlannerSettings#DEFAULT_DATA_PARTITIONING}."
      */
     public static final Setting<String> DATA_PARTITIONING = Setting.simpleString("data_partitioning");
 
@@ -79,6 +79,20 @@ public final class QueryPragmas implements Writeable {
         "field_extract_preference",
         MappedFieldType.FieldExtractPreference.NONE
     );
+
+    /**
+     * The maximum number of rounding points to push down to Lucene for the {@code roundTo} function at query level.
+     * {@code ReplaceRoundToWithQueryAndTags} checks this threshold before rewriting {@code RoundTo} to range queries.
+     *
+     * There is also a cluster level ESQL_ROUNDTO_PUSHDOWN_THRESHOLD defined in {@code EsqlFlags}.
+     * The query level threshold defaults to -1, which means this query level setting is not set and cluster level upper limit will be used.
+     * The cluster level threshold defaults to 127, it is the same as the maximum number of buckets used in {@code Rounding}.
+     * If query level threshold is set to greater than or equals to 0, the query level threshold will be used, and it overrides the cluster
+     * level threshold.
+     *
+     * If the query level threshold is set to 0, no {@code RoundTo} pushdown will be performed.
+     */
+    public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -195,6 +209,10 @@ public final class QueryPragmas implements Writeable {
      */
     public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
         return FIELD_EXTRACT_PREFERENCE.get(settings);
+    }
+
+    public int roundToPushDownThreshold() {
+        return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
     }
 
     public boolean isEmpty() {

@@ -109,13 +109,23 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
+        return new SingletonIntBuilder(expectedCount, factory);
+    }
+
+    @Override
+    public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
+        return new SingletonDoubleBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BlockLoader.Builder nulls(int expectedCount) {
         return ElementType.NULL.newBlockBuilder(expectedCount, factory);
     }
 
     @Override
-    public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
-        return new SingletonOrdinalsBuilder(factory, ordinals, count);
+    public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
+        return new SingletonOrdinalsBuilder(factory, ordinals, count, isDense);
     }
 
     @Override

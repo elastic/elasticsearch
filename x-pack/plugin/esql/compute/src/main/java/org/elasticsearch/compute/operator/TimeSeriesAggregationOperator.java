@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -31,7 +30,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     public record Factory(
         Rounding.Prepared timeBucket,
-        boolean sortedInput,
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
@@ -40,18 +38,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         @Override
         public Operator get(DriverContext driverContext) {
             // TODO: use TimeSeriesBlockHash when possible
-            return new TimeSeriesAggregationOperator(timeBucket, aggregators, () -> {
-                if (sortedInput && groups.size() == 2) {
-                    return new TimeSeriesBlockHash(groups.get(0).channel(), groups.get(1).channel(), driverContext.blockFactory());
-                } else {
-                    return BlockHash.build(
-                        groups,
-                        driverContext.blockFactory(),
-                        maxPageSize,
-                        true // we can enable optimizations as the inputs are vectors
-                    );
-                }
-            }, driverContext);
+            return new TimeSeriesAggregationOperator(
+                timeBucket,
+                aggregators,
+                () -> BlockHash.build(
+                    groups,
+                    driverContext.blockFactory(),
+                    maxPageSize,
+                    true // we can enable optimizations as the inputs are vectors
+                ),
+                driverContext
+            );
         }
 
         @Override

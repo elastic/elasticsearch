@@ -32,6 +32,7 @@ public class ToGeoShapeErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "geo_point or geo_shape or string"));
+        String expectedTypes = "geo_point or geo_shape or geohash or geohex or geotile or string";
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> expectedTypes));
     }
 }

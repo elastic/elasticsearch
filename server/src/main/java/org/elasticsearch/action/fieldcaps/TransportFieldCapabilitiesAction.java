@@ -129,47 +129,26 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        executeRequest(
-            task,
-            request,
-            (transportService, conn, fieldCapabilitiesRequest, responseHandler) -> transportService.sendRequest(
-                conn,
-                REMOTE_TYPE.name(),
-                fieldCapabilitiesRequest,
-                TransportRequestOptions.EMPTY,
-                responseHandler
-            ),
-            listener
-        );
+        executeRequest(task, request, listener);
     }
 
-    public void executeRequest(
-        Task task,
-        FieldCapabilitiesRequest request,
-        LinkedRequestExecutor linkedRequestExecutor,
-        ActionListener<FieldCapabilitiesResponse> listener
-    ) {
+    public void executeRequest(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
     }
 
-    private void doExecuteForked(
-        Task task,
-        FieldCapabilitiesRequest request,
-        LinkedRequestExecutor linkedRequestExecutor,
-        ActionListener<FieldCapabilitiesResponse> listener
-    ) {
+    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
+        final Executor singleThreadedExecutor = buildSingleThreadedExecutor(searchCoordinationExecutor, LOGGER);
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
-            .groupIndices(request.indicesOptions(), request.indices());
+            .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {
@@ -322,24 +301,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
                     ).delegateFailure(
-                        (responseListener, conn) -> linkedRequestExecutor.executeRemoteRequest(
-                            transportService,
+                        (responseListener, conn) -> transportService.sendRequest(
                             conn,
+                            REMOTE_TYPE.name(),
                             remoteRequest,
+                            TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(responseListener, FieldCapabilitiesResponse::new, singleThreadedExecutor)
                         )
                     )
                 );
 
                 boolean ensureConnected = forceConnectTimeoutSecs != null
-                    || transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+                    || transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias).orElse(true) == false;
                 transportService.getRemoteClusterService()
                     .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }
         }
     }
 
-    private Executor buildSingleThreadedExecutor() {
+    public static Executor buildSingleThreadedExecutor(Executor searchCoordinationExecutor, Logger logger) {
         final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
         return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
             @Override
@@ -362,16 +342,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         });
     }
 
-    public interface LinkedRequestExecutor {
-        void executeRemoteRequest(
-            TransportService transportService,
-            Transport.Connection conn,
-            FieldCapabilitiesRequest remoteRequest,
-            ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
-        );
-    }
-
-    private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
+    public static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
         var blocks = projectState.blocks();
         var projectId = projectState.projectId();
         if (blocks.global(projectId).isEmpty() && blocks.indices(projectId).isEmpty()) {
@@ -421,7 +392,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private static FieldCapabilitiesRequest prepareRemoteRequest(
+    public static FieldCapabilitiesRequest prepareRemoteRequest(
         String clusterAlias,
         FieldCapabilitiesRequest request,
         OriginalIndices originalIndices,
@@ -469,7 +440,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, fieldsBuilder, request, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
@@ -477,9 +448,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         task.ensureNotCancelled();
         Map<String, Map<String, FieldCapabilities>> fields = Maps.newMapWithExpectedSize(fieldsBuilder.size());
         if (request.includeUnmapped()) {
-            collectFieldsIncludingUnmapped(indices, fieldsBuilder, fields);
+            collectFieldsIncludingUnmapped(indices, fieldsBuilder, fields, request.includeIndices());
         } else {
-            collectFields(fieldsBuilder, fields);
+            collectFields(fieldsBuilder, fields, request.includeIndices());
         }
 
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
@@ -509,7 +480,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void collectFieldsIncludingUnmapped(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder,
-        Map<String, Map<String, FieldCapabilities>> fieldsMap
+        Map<String, Map<String, FieldCapabilities>> fieldsMap,
+        boolean includeIndices
     ) {
         final Set<String> mappedScratch = new HashSet<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : fieldsBuilder.entrySet()) {
@@ -523,7 +495,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             var unmapped = getUnmappedFields(indices, entry.getKey(), mappedScratch);
 
             final int resSize = typeMapBuilder.size() + (unmapped == null ? 0 : 1);
-            final Map<String, FieldCapabilities> res = capabilities(resSize, typeMapBuilder);
+            final Map<String, FieldCapabilities> res = capabilities(resSize, typeMapBuilder, includeIndices);
             if (unmapped != null) {
                 res.put("unmapped", unmapped.apply(resSize > 1));
             }
@@ -533,19 +505,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private static void collectFields(
         Map<String, Map<String, FieldCapabilities.Builder>> fieldsBuilder,
-        Map<String, Map<String, FieldCapabilities>> fields
+        Map<String, Map<String, FieldCapabilities>> fields,
+        boolean includeIndices
     ) {
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : fieldsBuilder.entrySet()) {
             var typeMapBuilder = entry.getValue().entrySet();
-            fields.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder)));
+            fields.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder, includeIndices)));
         }
     }
 
-    private static Map<String, FieldCapabilities> capabilities(int resSize, Set<Map.Entry<String, FieldCapabilities.Builder>> builders) {
+    private static Map<String, FieldCapabilities> capabilities(
+        int resSize,
+        Set<Map.Entry<String, FieldCapabilities.Builder>> builders,
+        boolean includeIndices
+    ) {
         boolean multiTypes = resSize > 1;
+        boolean withIndices = multiTypes || includeIndices;
         final Map<String, FieldCapabilities> res = Maps.newHashMapWithExpectedSize(resSize);
         for (Map.Entry<String, FieldCapabilities.Builder> e : builders) {
-            res.put(e.getKey(), e.getValue().build(multiTypes));
+            res.put(e.getKey(), e.getValue().build(withIndices));
         }
         return res;
     }
@@ -582,15 +560,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
-            response.getOriginVersion(),
-            response.get(),
-            request.filters(),
-            request.types()
-        );
+        Map<String, IndexFieldCapabilities> fields = response.get();
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();
@@ -614,10 +586,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
      * This collector can contain a failure for an index even if one of its shards was successful. When building the final
      * list, these failures will be skipped because they have no affect on the final response.
      */
-    private static final class FailureCollector {
+    public static final class FailureCollector {
         private final Map<String, Exception> failuresByIndex = new HashMap<>();
 
-        List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
+        public List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
             Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
@@ -646,15 +618,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return new ArrayList<>(indexFailures.values());
         }
 
-        void collect(String index, Exception e) {
+        public void collect(String index, Exception e) {
             failuresByIndex.putIfAbsent(index, e);
         }
 
-        void clear() {
+        public void clear() {
             failuresByIndex.clear();
         }
 
-        boolean isEmpty() {
+        public boolean isEmpty() {
             return failuresByIndex.isEmpty();
         }
     }
@@ -717,8 +689,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
-        ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
+    public static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
+        public ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
             super(executor, forceExecution, delegate);
         }
 

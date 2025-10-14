@@ -1,0 +1,74 @@
+---
+setup:
+  - do:
+      indices.delete:
+        index: my-std-index
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: my-ts-index
+        ignore_unavailable: true
+
+# Only run this test if the cluster supports time series indexing.
+# If your project uses a different feature flag name, adjust it here.
+---
+"resolve index returns mode for standard and time_series indices":
+  - requires:
+      cluster_features: ["gte_v8.5.0", "resolve_index_returns_mode"]
+      reason: "Requires time series indexing support introduced in v8.5.0 & Node must support returning 'mode' in indices.resolve_index response"
+
+  # Create a standard index
+  - do:
+      indices.create:
+        index: my-std-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # Create a time-series index
+  - do:
+      indices.create:
+        index: my-ts-index
+        body:
+          settings:
+            index.mode: time_series
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing_path: ["host"]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: keyword
+              value:
+                type: double
+
+  # Resolve standard index and verify mode
+  - do:
+      indices.resolve_index:
+        name: my-std-index
+  - match: { indices.0.name: "my-std-index" }
+  - match: { indices.0.mode: "standard" }
+
+  # Resolve time-series index and verify mode
+  - do:
+      indices.resolve_index:
+        name: my-ts-index
+  - match: { indices.0.name: "my-ts-index" }
+  - match: { indices.0.mode: "time_series" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: my-std-index
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: my-ts-index
+        ignore_unavailable: true

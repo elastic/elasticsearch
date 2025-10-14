@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -470,6 +471,7 @@ public class BigArrays {
 
     @Nullable
     final PageCacheRecycler recycler;
+    final BytesRefRecycler bytesRefRecycler;
     @Nullable
     private final CircuitBreakerService breakerService;
     @Nullable
@@ -491,6 +493,7 @@ public class BigArrays {
     ) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
+        this.bytesRefRecycler = recycler != null ? new BytesRefRecycler(recycler) : BytesRefRecycler.NON_RECYCLING_INSTANCE;
         this.breakerService = breakerService;
         if (breakerService != null) {
             breaker = breakerService.getBreaker(breakerName);
@@ -586,6 +589,10 @@ public class BigArrays {
             }
         }
         return array;
+    }
+
+    public BytesRefRecycler bytesRefRecycler() {
+        return bytesRefRecycler;
     }
 
     /**

@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -89,9 +90,11 @@ public class RestVectorTileAction extends BaseRestHandler {
     static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
     private final SearchUsageHolder searchUsageHolder;
+    private final Settings settings;
 
-    public RestVectorTileAction(SearchUsageHolder searchUsageHolder) {
+    public RestVectorTileAction(SearchUsageHolder searchUsageHolder, Settings settings) {
         this.searchUsageHolder = searchUsageHolder;
+        this.settings = settings;
     }
 
     @Override
@@ -106,6 +109,11 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            restRequest.param("project_routing");
+        }
+
         // This will allow to cancel the search request if the http channel is closed
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
         final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest, searchUsageHolder::updateUsage);

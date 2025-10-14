@@ -240,8 +240,7 @@ public class IntBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(int lhs, int rhs) {
-        int res = Integer.compare(lhs, rhs);
-        return getOrder().reverseMul() * res < 0;
+        return getOrder().reverseMul() * Integer.compare(lhs, rhs) < 0;
     }
 
     /**

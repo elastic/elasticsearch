@@ -95,7 +95,7 @@ public class DoubleLongBucketedSort implements Releasable {
     public void collect(double value, long extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex), extraValue, extraValues.get(rootIndex))) {
+            if (betterThan(value, values.get(rootIndex))) {
                 values.set(rootIndex, value);
                 extraValues.set(rootIndex, extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -168,8 +168,10 @@ public class DoubleLongBucketedSort implements Releasable {
     public void toBlocks(BlockFactory blockFactory, Block[] blocks, int offset, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
         if (allSelectedGroupsAreEmpty(selected)) {
-            blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
-            blocks[offset + 1] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            Block constantNullBlock = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            constantNullBlock.incRef();
+            blocks[offset] = constantNullBlock;
+            blocks[offset + 1] = constantNullBlock;
             return;
         }
 
@@ -255,13 +257,8 @@ public class DoubleLongBucketedSort implements Releasable {
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan(double lhs, double rhs, long lhsExtra, long rhsExtra) {
-        int res = Double.compare(lhs, rhs);
-        if (res != 0) {
-            return getOrder().reverseMul() * res < 0;
-        }
-        res = Long.compare(lhsExtra, rhsExtra);
-        return getOrder().reverseMul() * res < 0;
+    private boolean betterThan(double lhs, double rhs) {
+        return getOrder().reverseMul() * Double.compare(lhs, rhs) < 0;
     }
 
     /**
@@ -374,19 +371,13 @@ public class DoubleLongBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex), extraValues.get(worstIndex), extraValues.get(leftIndex))) {
+                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        values.get(worstIndex),
-                        values.get(rightIndex),
-                        extraValues.get(worstIndex),
-                        extraValues.get(rightIndex)
-                    )) {
+                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

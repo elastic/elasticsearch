@@ -11,6 +11,6 @@
 `order`
 :   The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.
 
-`mapToField`
-:   The extra field that the result of the TOP call is mapped to.
+`outputField`
+:   The extra field that, if present, will be the output of the TOP call instead of `field`. 
 

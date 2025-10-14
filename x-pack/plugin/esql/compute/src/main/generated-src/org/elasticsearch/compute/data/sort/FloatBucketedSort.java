@@ -240,8 +240,7 @@ public class FloatBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(float lhs, float rhs) {
-        int res = Float.compare(lhs, rhs);
-        return getOrder().reverseMul() * res < 0;
+        return getOrder().reverseMul() * Float.compare(lhs, rhs) < 0;
     }
 
     /**

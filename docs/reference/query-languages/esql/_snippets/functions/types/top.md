@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| field | limit | order | mapToField | result |
+| field | limit | order | outputField | result |
 | --- | --- | --- | --- | --- |
 | boolean | integer | keyword | | boolean |
 | boolean | integer | | | boolean |

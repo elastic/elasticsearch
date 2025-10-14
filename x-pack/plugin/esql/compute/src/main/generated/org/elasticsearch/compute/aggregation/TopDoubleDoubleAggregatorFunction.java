@@ -24,7 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class TopDoubleDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("top", ElementType.DOUBLE),
-      new IntermediateStateDesc("extra", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("output", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
@@ -72,78 +72,79 @@ public final class TopDoubleDoubleAggregatorFunction implements AggregatorFuncti
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
-    DoubleBlock extraBlock = page.getBlock(channels.get(1));
+    DoubleBlock outputValueBlock = page.getBlock(channels.get(1));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
-      addRawBlock(vBlock, extraBlock, mask);
+      addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
-    DoubleVector extraVector = extraBlock.asVector();
-    if (extraVector == null) {
-      addRawBlock(vBlock, extraBlock, mask);
+    DoubleVector outputValueVector = outputValueBlock.asVector();
+    if (outputValueVector == null) {
+      addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
-    addRawVector(vVector, extraVector, mask);
+    addRawVector(vVector, outputValueVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
-    DoubleBlock extraBlock = page.getBlock(channels.get(1));
+    DoubleBlock outputValueBlock = page.getBlock(channels.get(1));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
-      addRawBlock(vBlock, extraBlock);
+      addRawBlock(vBlock, outputValueBlock);
       return;
     }
-    DoubleVector extraVector = extraBlock.asVector();
-    if (extraVector == null) {
-      addRawBlock(vBlock, extraBlock);
+    DoubleVector outputValueVector = outputValueBlock.asVector();
+    if (outputValueVector == null) {
+      addRawBlock(vBlock, outputValueBlock);
       return;
     }
-    addRawVector(vVector, extraVector);
+    addRawVector(vVector, outputValueVector);
   }
 
-  private void addRawVector(DoubleVector vVector, DoubleVector extraVector) {
+  private void addRawVector(DoubleVector vVector, DoubleVector outputValueVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
-      double extraValue = extraVector.getDouble(valuesPosition);
-      TopDoubleDoubleAggregator.combine(state, vValue, extraValue);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopDoubleDoubleAggregator.combine(state, vValue, outputValueValue);
     }
   }
 
-  private void addRawVector(DoubleVector vVector, DoubleVector extraVector, BooleanVector mask) {
+  private void addRawVector(DoubleVector vVector, DoubleVector outputValueVector,
+      BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
       double vValue = vVector.getDouble(valuesPosition);
-      double extraValue = extraVector.getDouble(valuesPosition);
-      TopDoubleDoubleAggregator.combine(state, vValue, extraValue);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopDoubleDoubleAggregator.combine(state, vValue, outputValueValue);
     }
   }
 
-  private void addRawBlock(DoubleBlock vBlock, DoubleBlock extraBlock) {
+  private void addRawBlock(DoubleBlock vBlock, DoubleBlock outputValueBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (vBlock.isNull(p)) {
         continue;
       }
-      if (extraBlock.isNull(p)) {
+      if (outputValueBlock.isNull(p)) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        int extraStart = extraBlock.getFirstValueIndex(p);
-        int extraEnd = extraStart + extraBlock.getValueCount(p);
-        for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-          double extraValue = extraBlock.getDouble(extraOffset);
-          TopDoubleDoubleAggregator.combine(state, vValue, extraValue);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(p);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(p);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          double outputValueValue = outputValueBlock.getDouble(outputValueOffset);
+          TopDoubleDoubleAggregator.combine(state, vValue, outputValueValue);
         }
       }
     }
   }
 
-  private void addRawBlock(DoubleBlock vBlock, DoubleBlock extraBlock, BooleanVector mask) {
+  private void addRawBlock(DoubleBlock vBlock, DoubleBlock outputValueBlock, BooleanVector mask) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -151,18 +152,18 @@ public final class TopDoubleDoubleAggregatorFunction implements AggregatorFuncti
       if (vBlock.isNull(p)) {
         continue;
       }
-      if (extraBlock.isNull(p)) {
+      if (outputValueBlock.isNull(p)) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
-        int extraStart = extraBlock.getFirstValueIndex(p);
-        int extraEnd = extraStart + extraBlock.getValueCount(p);
-        for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-          double extraValue = extraBlock.getDouble(extraOffset);
-          TopDoubleDoubleAggregator.combine(state, vValue, extraValue);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(p);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(p);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          double outputValueValue = outputValueBlock.getDouble(outputValueOffset);
+          TopDoubleDoubleAggregator.combine(state, vValue, outputValueValue);
         }
       }
     }
@@ -178,13 +179,13 @@ public final class TopDoubleDoubleAggregatorFunction implements AggregatorFuncti
     }
     DoubleBlock top = (DoubleBlock) topUncast;
     assert top.getPositionCount() == 1;
-    Block extraUncast = page.getBlock(channels.get(1));
-    if (extraUncast.areAllValuesNull()) {
+    Block outputUncast = page.getBlock(channels.get(1));
+    if (outputUncast.areAllValuesNull()) {
       return;
     }
-    DoubleBlock extra = (DoubleBlock) extraUncast;
-    assert extra.getPositionCount() == 1;
-    TopDoubleDoubleAggregator.combineIntermediate(state, top, extra);
+    DoubleBlock output = (DoubleBlock) outputUncast;
+    assert output.getPositionCount() == 1;
+    TopDoubleDoubleAggregator.combineIntermediate(state, top, output);
   }
 
   @Override

@@ -54,11 +54,15 @@ public record StoredFieldsSpec(
      */
     public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
+    /**
+     * @return a stored field spec that requires source only for the specified source paths.
+     *         This is more efficient than using {@link #NEEDS_SOURCE}.
+     */
     public static StoredFieldsSpec withSourcePaths(IgnoredSourceFormat ignoredSourceFormat, Set<String> sourcePaths) {
         // The fields in source paths might also be in ignored source, so include source paths there as well.
         IgnoredFieldsSpec ignoredFieldsSpec = ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE
-            ? new IgnoredFieldsSpec(sourcePaths, ignoredSourceFormat)
-            : IgnoredFieldsSpec.NONE;
+            ? IgnoredFieldsSpec.NONE
+            : new IgnoredFieldsSpec(sourcePaths, ignoredSourceFormat);
         return new StoredFieldsSpec(true, false, Set.of(), ignoredFieldsSpec, sourcePaths);
     }
 

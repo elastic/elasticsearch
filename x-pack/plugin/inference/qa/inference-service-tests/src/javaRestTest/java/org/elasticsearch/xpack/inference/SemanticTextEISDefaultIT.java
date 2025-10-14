@@ -35,10 +35,7 @@ public class SemanticTextEISDefaultIT extends BaseMockEISAuthServerTest {
         createIndex(indexName, settings, mapping);
 
         Map<String, Object> mappingAsMap = getIndexMappingAsMap(indexName);
-        String populatedInferenceId = (String) XContentMapValues.extractValue(
-            "properties.semantic_text_field.inference_id",
-            mappingAsMap
-        );
+        String populatedInferenceId = (String) XContentMapValues.extractValue("properties.semantic_text_field.inference_id", mappingAsMap);
 
         assertThat(
             "semantic_text field should default to ELSER on EIS when available",

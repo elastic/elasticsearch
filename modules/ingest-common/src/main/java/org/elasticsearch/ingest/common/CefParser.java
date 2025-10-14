@@ -397,7 +397,7 @@ final class CefParser {
                 throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN);
             }
             // desanitize the value
-            value = desanitizeExtensionVal(value);
+            value = unescapeExtensionValue(value);
             // Only trim the last value
             // Trimming after desanitization to unescape any trailing newline ,tab characters
             if (i == allMatches.size() - 1) {
@@ -557,12 +557,16 @@ final class CefParser {
         map.values().removeIf(Strings::isEmpty);
     }
 
-    private static String desanitizeExtensionVal(String value) {
-        String desanitized = value;
+    private static String unescapeExtensionValue(String value) {
+        String unescaped = value;
+        // Protect escaped backslashes
+        unescaped = unescaped.replace("\\\\", "\u0000"); // Use null char as placeholder
         for (Map.Entry<String, String> entry : EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.entrySet()) {
-            desanitized = desanitized.replace(entry.getKey(), entry.getValue());
+            unescaped = unescaped.replace(entry.getKey(), entry.getValue());
         }
-        return desanitized;
+        // Restore single backslashes
+        unescaped = unescaped.replace("\u0000", "\\");
+        return unescaped;
     }
 
     static class CefEvent implements AutoCloseable {

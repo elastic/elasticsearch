@@ -74,14 +74,22 @@ public record StatelessCompoundCommit(
     PrimaryTermAndGeneration primaryTermAndGeneration,
     long translogRecoveryStartFile,
     String nodeEphemeralId,
+    // the commit's required files, that are either located in previous CCs (referenced) or inside this CC as additional internal files
     Map<String, BlobLocation> commitFiles,
-    // the size of the compound commit including codec, header, checksums, replicated content and all internal files
+    // the size of the compound commit including codec, header, checksums, replicated content and all internal files and extra content
     long sizeInBytes,
+    // the additional internal files that are part of this commit
     Set<String> internalFiles,
     long headerSizeInBytes,
     InternalFilesReplicatedRanges internalFilesReplicatedRanges,
+    // extra content (e.g., replicated referenced files) that is appended after the internal files of this CC
+    Map<String, BlobLocation> extraContent,
     boolean hollow
 ) implements Writeable {
+
+    public static final TransportVersion COMPOUND_COMMITS_WITH_EXTRA_CONTENT = TransportVersion.fromName(
+        "compound_commits_with_extra_content"
+    );
 
     public static long HOLLOW_TRANSLOG_RECOVERY_START_FILE = Long.MAX_VALUE;
 
@@ -99,6 +107,8 @@ public record StatelessCompoundCommit(
                 + " (currently "
                 + translogRecoveryStartFile
                 + ")";
+        assert extraContent != null;
+        assert extraContent.isEmpty() || hollow : "only hollow commits can currently have extra content (currently " + extraContent + ")";
     }
 
     /**
@@ -113,7 +123,8 @@ public record StatelessCompoundCommit(
         long sizeInBytes,
         Set<String> internalFiles,
         long headerSizeInBytes,
-        InternalFilesReplicatedRanges internalFilesReplicatedRanges
+        InternalFilesReplicatedRanges internalFilesReplicatedRanges,
+        Map<String, BlobLocation> extraContent
     ) {
         this(
             shardId,
@@ -125,6 +136,7 @@ public record StatelessCompoundCommit(
             internalFiles,
             headerSizeInBytes,
             internalFilesReplicatedRanges,
+            extraContent,
             translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE
         );
     }
@@ -139,7 +151,8 @@ public record StatelessCompoundCommit(
         long sizeInBytes,
         Set<String> internalFiles,
         long headerSizeInBytes,
-        InternalFilesReplicatedRanges internalFilesReplicatedRanges
+        InternalFilesReplicatedRanges internalFilesReplicatedRanges,
+        Map<String, BlobLocation> extraContent
     ) {
         return new StatelessCompoundCommit(
             shardId,
@@ -151,6 +164,7 @@ public record StatelessCompoundCommit(
             internalFiles,
             headerSizeInBytes,
             internalFilesReplicatedRanges,
+            extraContent,
             true
         );
     }
@@ -192,7 +206,17 @@ public record StatelessCompoundCommit(
     }
 
     public String toLongDescription() {
-        return shardId + toShortDescription() + '[' + translogRecoveryStartFile + "][" + nodeEphemeralId + "][" + commitFiles + ']';
+        return shardId
+            + toShortDescription()
+            + '['
+            + translogRecoveryStartFile
+            + "]["
+            + nodeEphemeralId
+            + "]["
+            + commitFiles
+            + "]["
+            + extraContent
+            + ']';
     }
 
     @Override
@@ -208,7 +232,9 @@ public record StatelessCompoundCommit(
         out.writeStringCollection(internalFiles);
         out.writeVLong(headerSizeInBytes);
         out.writeCollection(internalFilesReplicatedRanges.replicatedRanges());
-
+        if (out.getTransportVersion().supports(COMPOUND_COMMITS_WITH_EXTRA_CONTENT)) {
+            out.writeMap(extraContent, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        }
     }
 
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
@@ -225,7 +251,10 @@ public record StatelessCompoundCommit(
         replicatedRanges = InternalFilesReplicatedRanges.from(
             in.readCollectionAsImmutableList(InternalFilesReplicatedRanges.InternalFileReplicatedRange::fromStream)
         );
-
+        Map<String, BlobLocation> extraContent = Map.of();
+        if (in.getTransportVersion().supports(COMPOUND_COMMITS_WITH_EXTRA_CONTENT)) {
+            extraContent = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        }
         return new StatelessCompoundCommit(
             shardId,
             primaryTermAndGeneration,
@@ -235,7 +264,8 @@ public record StatelessCompoundCommit(
             sizeInBytes,
             internalFiles,
             headerSizeInBytes,
-            replicatedRanges
+            replicatedRanges,
+            extraContent
         );
     }
 
@@ -266,27 +296,28 @@ public record StatelessCompoundCommit(
     }
 
     /**
-     * Returns the blob location with the minimum offset within the current term and generation.
+     * Returns the blob location of the internal files with the minimum offset within the current term and generation.
      */
-    public BlobLocation getMinOffsetInCurrentGeneration() {
-        return getBoundaryOffsetInCurrentGeneration(Comparator.naturalOrder());
+    public BlobLocation getMinInternalFilesOffsetInCurrentGeneration() {
+        return getInternalFilesBoundaryOffsetInCurrentGeneration(Comparator.naturalOrder());
     }
 
     /**
-     * Returns the blob location with the maximum offset within the current term and generation.
+     * Returns the blob location of the internal files with the maximum offset within the current term and generation.
      */
-    public BlobLocation getMaxOffsetInCurrentGeneration() {
-        return getBoundaryOffsetInCurrentGeneration(Comparator.reverseOrder());
+    public BlobLocation getMaxInternalFilesOffsetInCurrentGeneration() {
+        return getInternalFilesBoundaryOffsetInCurrentGeneration(Comparator.reverseOrder());
     }
 
     /**
-    * Returns the "first" blob location after comparing all the offsets in the current term and generation using the provided comparator.
-    *
-    * @param offsetComparator If {@link Comparator#naturalOrder()} (i.e. lower offset first) is used will find the minimum offset;
+     * Returns the "first" blob location of the internal files after comparing all the offsets in the current term and
+     * generation using the provided comparator.
+     *
+     * @param offsetComparator If {@link Comparator#naturalOrder()} (i.e. lower offset first) is used will find the minimum offset;
      *                         otherwise, for reverse order (i.e, highest offset first), finds the maximum offset.
-    * @return The {@link BlobLocation} with offset at the boundary (lower or upper) of the commit.
-    */
-    private BlobLocation getBoundaryOffsetInCurrentGeneration(Comparator<Long> offsetComparator) {
+     * @return The {@link BlobLocation} with offset at the boundary (lower or upper) of the commit.
+     */
+    private BlobLocation getInternalFilesBoundaryOffsetInCurrentGeneration(Comparator<Long> offsetComparator) {
         BlobLocation commitBoundary = null;
         for (String currentGenFile : internalFiles) {
             BlobLocation location = commitFiles.get(currentGenFile);
@@ -318,7 +349,8 @@ public record StatelessCompoundCommit(
         InternalFilesReplicatedRanges internalFilesReplicatedRanges,
         int version,
         PositionTrackingOutputStreamStreamOutput positionTracking,
-        boolean useInternalFilesReplicatedContent
+        boolean useInternalFilesReplicatedContent,
+        Iterable<InternalFile> extraContent
     ) throws IOException {
         assert version == CURRENT_VERSION
             : "writing to object store must use the current version [" + CURRENT_VERSION + "], got [" + version + "]";
@@ -357,6 +389,13 @@ public record StatelessCompoundCommit(
                 if (useInternalFilesReplicatedContent) {
                     internalFilesReplicatedRanges.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }
+                b.startArray("extra_content");
+                {
+                    for (InternalFile f : extraContent) {
+                        f.toXContent(b, ToXContent.EMPTY_PARAMS);
+                    }
+                }
+                b.endArray();
             }
             b.endObject();
         }
@@ -443,7 +482,8 @@ public record StatelessCompoundCommit(
                     offset,
                     headerSize,
                     totalSizeInBytes,
-                    bccGenSupplier
+                    bccGenSupplier,
+                    List.of()
                 );
             } else {
                 assert version == VERSION_WITH_XCONTENT_ENCODING;
@@ -492,23 +532,29 @@ public record StatelessCompoundCommit(
             String nodeEphemeralId,
             Map<String, BlobLocation> referencedBlobLocations,
             List<InternalFile> internalFiles,
-            InternalFilesReplicatedRanges replicatedContentMetadata
+            InternalFilesReplicatedRanges replicatedContentMetadata,
+            List<InternalFile> extraContent
         ) {
             @SuppressWarnings("unchecked")
             private static final ConstructingObjectParser<XContentStatelessCompoundCommit, Void> PARSER = new ConstructingObjectParser<>(
                 "stateless_compound_commit",
                 true,
-                args -> new XContentStatelessCompoundCommit(
-                    (ShardId) args[0],
-                    (long) args[1],
-                    (long) args[2],
-                    args[3] == null ? 0 : (long) args[3],
-                    (String) args[4],
-                    (Map<String, BlobLocation>) args[5],
-                    (List<InternalFile>) args[6],
-                    // args[7] is null if the xcontent does not contain replicated ranges
-                    InternalFilesReplicatedRanges.from((List<InternalFilesReplicatedRanges.InternalFileReplicatedRange>) args[7])
-                )
+                args -> {
+                    // args[8] is null if the blob is from before we introduced extra content
+                    final var extraContent = (List<InternalFile>) args[8];
+                    return new XContentStatelessCompoundCommit(
+                        (ShardId) args[0],
+                        (long) args[1],
+                        (long) args[2],
+                        args[3] == null ? 0 : (long) args[3],
+                        (String) args[4],
+                        (Map<String, BlobLocation>) args[5],
+                        (List<InternalFile>) args[6],
+                        // args[7] is null if the xcontent does not contain replicated ranges
+                        InternalFilesReplicatedRanges.from((List<InternalFilesReplicatedRanges.InternalFileReplicatedRange>) args[7]),
+                        extraContent == null ? List.of() : extraContent
+                    );
+                }
             );
             static {
                 PARSER.declareObject(constructorArg(), SHARD_ID_PARSER, new ParseField("shard_id"));
@@ -527,15 +573,16 @@ public record StatelessCompoundCommit(
                     InternalFilesReplicatedRanges.InternalFileReplicatedRange.PARSER,
                     new ParseField("internal_files_replicated_ranges")
                 );
+                PARSER.declareObjectArray(optionalConstructorArg(), InternalFile.PARSER, new ParseField("extra_content"));
             }
         }
 
         try (XContentParser parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, is)) {
             XContentStatelessCompoundCommit c = XContentStatelessCompoundCommit.PARSER.parse(parser, null);
             assert headerSize > 0;
-            long totalSizeInBytes = headerSize + c.replicatedContentMetadata.dataSizeInBytes() + c.internalFiles.stream()
-                .mapToLong(InternalFile::length)
-                .sum();
+            long internalFilesLength = c.internalFiles.stream().mapToLong(InternalFile::length).sum();
+            long extraContentLength = c.extraContent.stream().mapToLong(InternalFile::length).sum();
+            long totalSizeInBytes = headerSize + c.replicatedContentMetadata.dataSizeInBytes() + internalFilesLength + extraContentLength;
             return statelessCompoundCommit(
                 c.shardId,
                 c.generation,
@@ -548,12 +595,14 @@ public record StatelessCompoundCommit(
                 offset,
                 headerSize,
                 totalSizeInBytes,
-                bccGenSupplier
+                bccGenSupplier,
+                c.extraContent
             );
         }
     }
 
-    private static StatelessCompoundCommit statelessCompoundCommit(
+    // visible for testing
+    static StatelessCompoundCommit statelessCompoundCommit(
         ShardId shardId,
         long generation,
         long primaryTerm,
@@ -565,52 +614,73 @@ public record StatelessCompoundCommit(
         long internalFilesOffset,
         long headerSizeInBytes,
         long totalSizeInBytes,
-        Function<Long, Long> bccGenSupplier
+        Function<Long, Long> bccGenSupplier,
+        List<InternalFile> extraContent
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
         var blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
-        Map<String, BlobLocation> commitFiles = combineCommitFiles(
+        final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,
             internalFiles,
             referencedBlobLocations,
             internalFilesOffset,
-            headerSizeInBytes
+            headerSizeInBytes,
+            extraContent
         );
+
         return new StatelessCompoundCommit(
             shardId,
             new PrimaryTermAndGeneration(primaryTerm, generation),
             translogRecoveryStartFile,
             nodeEphemeralId,
-            Collections.unmodifiableMap(commitFiles),
+            combinedCommitFilesResult.commitFiles,
             totalSizeInBytes,
             internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet()),
             headerSizeInBytes,
-            replicatedContentRanges
+            replicatedContentRanges,
+            combinedCommitFilesResult.extraContent
         );
     }
 
-    // This method combines the pre-existing blob locations with the files internally uploaded in this commit
-    // to one map of commit file locations.
-    // visible for testing
-    static Map<String, BlobLocation> combineCommitFiles(
+    record CombinedCommitFilesResult(
+        // all files that are part of this commit, either referenced or internal
+        Map<String, BlobLocation> commitFiles,
+        // the extra content of the commit
+        Map<String, BlobLocation> extraContent
+    ) {}
+
+    /**
+     * This method combines the referenced blob locations with the files uploaded in this commit, and returns the commit files.
+     * Additionally, calculates the extra content files of the commit and returns them separately.
+     */
+    static CombinedCommitFilesResult combineCommitFiles(
         BlobFile blobFile,
         InternalFilesReplicatedRanges replicatedContentRanges,
         List<InternalFile> internalFiles,
         Map<String, BlobLocation> referencedBlobFiles,
-        long internalFilesOffset,
-        long headerSizeInBytes
+        long offset,
+        long headerSizeInBytes,
+        List<InternalFile> extraContent
     ) {
         var commitFiles = Maps.<String, BlobLocation>newHashMapWithExpectedSize(referencedBlobFiles.size() + internalFiles.size());
         commitFiles.putAll(referencedBlobFiles);
 
-        long currentOffset = internalFilesOffset + headerSizeInBytes + replicatedContentRanges.dataSizeInBytes();
+        long currentOffset = offset + headerSizeInBytes + replicatedContentRanges.dataSizeInBytes();
         for (InternalFile internalFile : internalFiles) {
             commitFiles.put(internalFile.name(), new BlobLocation(blobFile, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();
         }
 
-        return commitFiles;
+        Map<String, BlobLocation> extraContentMap = extraContent.isEmpty()
+            ? Map.of()
+            : Maps.newHashMapWithExpectedSize(extraContent.size());
+        for (InternalFile extraFile : extraContent) {
+            extraContentMap.put(extraFile.name(), new BlobLocation(blobFile, currentOffset, extraFile.length()));
+            currentOffset += extraFile.length();
+        }
+
+        return new CombinedCommitFilesResult(Collections.unmodifiableMap(commitFiles), Collections.unmodifiableMap(extraContentMap));
     }
 
     private static void shardIdXContent(ShardId shardId, XContentBuilder b) throws IOException {

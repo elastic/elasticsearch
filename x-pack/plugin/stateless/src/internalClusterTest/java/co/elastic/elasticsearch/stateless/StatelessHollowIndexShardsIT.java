@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -25,6 +26,7 @@ import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -139,6 +141,7 @@ import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SET
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils.flushHollow;
+import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -408,7 +411,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         Index index,
         String indexName,
         String indexNodeA,
+        StatelessSharedBlobCacheService indexNodeACacheService,
         String indexNodeB,
+        StatelessSharedBlobCacheService indexNodeBCacheService,
         Settings indexNodeSettings,
         int numDocs,
         int maxShardSegments
@@ -418,11 +423,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         return startNodesAndHollowShards(1);
     }
 
-    private HollowShardsInfo startNodesAndHollowShards(int roundsOfDocsAndRefreshes) throws Exception {
+    private HollowShardsInfo startNodesAndHollowShards(int minimumNumberOfSegments) throws Exception {
+        return startNodesAndHollowShards(Settings.EMPTY, minimumNumberOfSegments);
+    }
+
+    private HollowShardsInfo startNodesAndHollowShards(Settings nodeSettings, int minimumNumberOfSegments) throws Exception {
         startMasterOnlyNode();
         var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(nodeSettings)
             .build();
         String indexNodeA = startIndexNode(indexNodeSettings);
 
@@ -433,11 +443,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var index = resolveIndex(indexName);
 
         int numDocs = 0;
-        for (int i = 0; i < roundsOfDocsAndRefreshes; i++) {
+        for (int i = 0; i < minimumNumberOfSegments; i++) {
             int docs = randomIntBetween(16, 64);
             numDocs += docs;
             indexDocs(indexName, docs);
-            refresh(indexName);
+            if (randomBoolean()) {
+                refresh(indexName);
+            } else {
+                flush(indexName);
+            }
         }
         flush(indexName);
         var statelessCommitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
@@ -449,11 +463,17 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             assertFalse(statelessCommitServiceA.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().hollow());
             assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
         }
+        final var indexNodeACacheService = getCacheService(
+            BlobStoreCacheDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
+        );
 
         String indexNodeB = startIndexNode(indexNodeSettings);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
         ensureGreen(indexName);
+        final var indexNodeBCacheService = getCacheService(
+            BlobStoreCacheDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
+        );
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
         final var maxShardSegments = new AtomicInteger(0);
@@ -480,7 +500,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             index,
             indexName,
             indexNodeA,
+            indexNodeACacheService,
             indexNodeB,
+            indexNodeBCacheService,
             indexNodeSettings,
             numDocs,
             maxShardSegments.get()
@@ -488,7 +510,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     }
 
     public void testRecoverHollowShard() throws Exception {
-        var clusterInfo = startNodesAndHollowShards();
+        var clusterInfo = startNodesAndHollowShards(randomIntBetween(1, 4));
 
         logger.info("--> stopping node A");
         internalCluster().stopNode(clusterInfo.indexNodeA);
@@ -503,6 +525,54 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             final var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
             internalCluster().getInstance(HollowShardsService.class, clusterInfo.indexNodeB).ensureHollowShard(indexShard.shardId(), true);
+        }
+    }
+
+    public void testHollowShardReplicatesReferencedSegmentInfos() throws Exception {
+        var clusterInfo = startNodesAndHollowShards(randomIntBetween(2, 4)); // important to be more than 1 to produce replicated .si files
+
+        final var objectStoreService = getCurrentMasterObjectStoreService();
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            final var indexShard = findIndexShard(clusterInfo.index, i);
+            final var bcc = internalCluster().getInstance(StatelessCommitService.class, clusterInfo.indexNodeB)
+                .getLatestUploadedBcc(indexShard.shardId());
+            final var blobContainer = objectStoreService.getProjectBlobContainer(
+                indexShard.shardId(),
+                bcc.primaryTermAndGeneration().primaryTerm()
+            );
+            final var blobName = StatelessCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
+
+            final var cc = bcc.lastCompoundCommit();
+            assert cc.hollow();
+            assert cc.extraContent().size() > 0 : "expected replicated files in hollow commit due to multiple segments";
+
+            for (var replicatedFile : cc.extraContent().entrySet()) {
+                try (
+                    var replicatedInputStream = blobContainer.readBlob(
+                        OperationPurpose.INDICES,
+                        blobName,
+                        replicatedFile.getValue().offset(),
+                        replicatedFile.getValue().fileLength()
+                    )
+                ) {
+                    final var referencedFile = cc.commitFiles().get(replicatedFile.getKey());
+                    final var referencedBcc = referencedFile.getBatchedCompoundCommitTermAndGeneration();
+                    final var referencedBlobContainer = objectStoreService.getProjectBlobContainer(
+                        indexShard.shardId(),
+                        referencedBcc.primaryTerm()
+                    );
+                    try (
+                        var referencedInputStream = referencedBlobContainer.readBlob(
+                            OperationPurpose.INDICES,
+                            referencedFile.blobName(),
+                            referencedFile.offset(),
+                            referencedFile.fileLength()
+                        )
+                    ) {
+                        assertArrayEquals(replicatedInputStream.readAllBytes(), referencedInputStream.readAllBytes());
+                    }
+                }
+            }
         }
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -82,6 +83,15 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
 
     public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
         return blobFile.termAndGeneration();
+    }
+
+    /**
+     * Returns true if this BlobLocation fully contains the given BlobLocation.
+     */
+    public boolean contains(BlobLocation blobLocation) {
+        return Objects.equals(blobLocation.blobFile(), blobFile())
+            && blobLocation.offset() >= offset()
+            && blobLocation.offset() + blobLocation.fileLength() <= offset() + fileLength();
     }
 
     /**

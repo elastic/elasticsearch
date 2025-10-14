@@ -52,6 +52,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.COMPOUND_COMMITS_WITH_EXTRA_CONTENT;
+
 /**
  * Functionality around the hollowing of inactive shards to reduce their memory footprint.
  *
@@ -172,10 +174,12 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     public boolean isHollowableIndexShard(IndexShard indexShard, boolean checkPrimaryPermits) {
+        // TODO remove this gate and the transport version, once hollow shards have been rolled out / enabled across the fleet (ES-11519)
+        boolean clusterUpToDate = clusterService.state().getMinTransportVersion().supports(COMPOUND_COMMITS_WITH_EXTRA_CONTENT);
         boolean noActiveOperations = checkPrimaryPermits ? indexShard.getActiveOperationsCount() == 0 : true;
         // TODO consider that ingestion is not blocked. We should not hollow a shard that is being unhollowed due to new blocked ingestion.
         boolean ingestionNotBlocked = isHollowShard(indexShard.shardId()) == false;
-        if (featureEnabled && indexShard.isSystem() == false && noActiveOperations && ingestionNotBlocked) {
+        if (clusterUpToDate && featureEnabled && indexShard.isSystem() == false && noActiveOperations && ingestionNotBlocked) {
             final var engine = indexShard.getEngineOrNull();
             if (engine instanceof IndexEngine indexEngine) {
                 final var index = indexShard.shardId().getIndex();

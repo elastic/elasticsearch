@@ -73,9 +73,7 @@ public class ExponentialHistogramSumAggregatorTests extends ExponentialHistogram
             .map(histo -> Map.entry(histo, randomBoolean()))
             .toList();
 
-        boolean anyMatch = histogramsWithFilter.stream()
-            .filter(entry -> entry.getKey().valueCount() > 0)
-            .anyMatch(Map.Entry::getValue);
+        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().valueCount() > 0).anyMatch(Map.Entry::getValue);
         double filteredSum = histogramsWithFilter.stream().filter(Map.Entry::getValue).mapToDouble(entry -> entry.getKey().sum()).sum();
 
         testCase(

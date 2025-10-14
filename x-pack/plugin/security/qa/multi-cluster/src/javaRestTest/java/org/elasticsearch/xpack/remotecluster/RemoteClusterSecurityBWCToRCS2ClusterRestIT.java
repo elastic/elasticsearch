@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -39,6 +40,8 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
             .setting("xpack.ml.enabled", "false")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
+            .setting("cluster.remote.signing.certificate_authorities", "signing.crt")
+            .configFile("signing.crt", Resource.fromClasspath("signing/signing.crt"))
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
@@ -54,6 +57,10 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .configFile("signing.crt", Resource.fromClasspath("signing/signing.crt"))
+            .setting("cluster.remote.my_remote_cluster.signing.certificate", "signing.crt")
+            .configFile("signing.key", Resource.fromClasspath("signing/signing.key"))
+            .setting("cluster.remote.my_remote_cluster.signing.key", "signing.key")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""

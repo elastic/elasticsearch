@@ -12,10 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.Strings;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -405,14 +405,14 @@ public abstract class ItemSetMapReduceValueSource {
 
         @Override
         ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
-            final SortedNumericDocValues values = source.longValues(ctx);
-            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            final SortedNumericLongValues values = source.longValues(ctx);
+            final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
             final Field field = getField();
             final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
             return singleton != null ? getValueCollector(singleton, empty, field) : getValueCollector(values, empty, field);
         }
 
-        private ValueCollector getValueCollector(SortedNumericDocValues values, Tuple<Field, List<Object>> empty, Field field) {
+        private ValueCollector getValueCollector(SortedNumericLongValues values, Tuple<Field, List<Object>> empty, Field field) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
@@ -438,7 +438,7 @@ public abstract class ItemSetMapReduceValueSource {
             };
         }
 
-        private ValueCollector getValueCollector(NumericDocValues values, Tuple<Field, List<Object>> empty, Field field) {
+        private ValueCollector getValueCollector(LongValues values, Tuple<Field, List<Object>> empty, Field field) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     final long v = values.longValue();

@@ -217,19 +217,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireDataStream = false;
         }
 
-        if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                in.readZLong(); // obsolete normalisedBytesParsed
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                in.readBoolean(); // obsolete originatesFromUpdateByScript
-                in.readBoolean(); // obsolete originatesFromUpdateByDoc
-            }
-        }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            includeSourceOnError = in.readBoolean();
-        } // else default value is true
+        includeSourceOnError = in.readBoolean();
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
@@ -808,18 +796,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireDataStream);
         }
 
-        if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeZLong(-1);  // obsolete normalisedBytesParsed
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
-                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            out.writeBoolean(includeSourceOnError);
-        }
+        out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }

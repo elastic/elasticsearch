@@ -51,10 +51,12 @@
     "params": {
       "from": {
         "type": "int",
+        "default": 0,
         "description": "Skips a number of documents"
       },
       "size": {
         "type": "int",
+        "default": 100,
         "description": "The default number of documents returned in queries as a string."
       },
       "start": {
@@ -71,11 +73,13 @@
       },
       "desc": {
         "type": "boolean",
+        "default": false,
         "description": "True if the results should be sorted in descending order"
       }
     },
     "body": {
-      "description": "Model snapshot selection criteria"
+      "description": "Model snapshot selection criteria",
+      "required": false
     }
   }
 }

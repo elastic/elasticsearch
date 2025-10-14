@@ -25,23 +25,17 @@ import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.VectorScorer;
-import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
-import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
@@ -61,17 +55,13 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     @Override
-    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99FlatVectorsWriter(state, vectorsScorer);
-    }
-
-    static boolean canUseDirectIO(SegmentReadState state) {
-        return FsDirectoryFactory.isHybridFs(state.directory);
+    protected FlatVectorsReader createReader(SegmentReadState state) throws IOException {
+        return new Lucene99FlatVectorsReader(state, vectorsScorer);
     }
 
     @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return fieldsReader(state, false);
+    public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
     @Override
@@ -96,41 +86,6 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
             );
         } else {
             return new Lucene99FlatVectorsReader(state, vectorsScorer);
-        }
-    }
-
-    static class DirectIOContext implements IOContext {
-
-        final Set<FileOpenHint> hints;
-
-        DirectIOContext(Set<FileOpenHint> hints) {
-            // always add DirectIOHint to the hints given
-            this.hints = Sets.union(hints, Set.of(DirectIOHint.INSTANCE));
-        }
-
-        @Override
-        public Context context() {
-            return Context.DEFAULT;
-        }
-
-        @Override
-        public MergeInfo mergeInfo() {
-            return null;
-        }
-
-        @Override
-        public FlushInfo flushInfo() {
-            return null;
-        }
-
-        @Override
-        public Set<FileOpenHint> hints() {
-            return hints;
-        }
-
-        @Override
-        public IOContext withHints(FileOpenHint... hints) {
-            return new DirectIOContext(Set.of(hints));
         }
     }
 

@@ -112,7 +112,12 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
         }
         BytesRef sourceIp = sourceIpBlock.getBytesRef(sourceIpBlock.getFirstValueIndex(p), sourceIpScratch);
         BytesRef destinationIp = destinationIpBlock.getBytesRef(destinationIpBlock.getFirstValueIndex(p), destinationIpScratch);
-        NetworkDirection.process(result, this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock);
+        try {
+          NetworkDirection.process(result, this.scratch, this.netScratch, sourceIp, destinationIp, p, networksBlock);
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

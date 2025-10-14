@@ -776,3 +776,38 @@ ip0:ip    | ip1:ip  | direction:keyword
 127.0.0.1 | 5.6.7.8 | outbound
 // end::networkDirectionFromRowWithInlineNetworks-result[]
 ;
+
+networkDirectionFromIpPrefix
+required_capability: network_direction
+
+ROW ip0 = "192.168.1.123"::ip, ip1 = "8.8.8.8"::ip
+| EVAL direction = NETWORK_DIRECTION(IP_PREFIX(ip0, 24, 0), ip1, ["private"])
+| KEEP ip0, ip1, direction
+;
+
+ip0:ip          | ip1:ip  | direction:keyword
+192.168.1.123   | 8.8.8.8 | outbound
+;
+
+networkDirectionBadIp
+required_capability: network_direction
+
+ROW ip0 = null::ip, ip1 = "8.8.8.8"::ip
+| EVAL direction = NETWORK_DIRECTION(TO_IP(ip0), ip1, ["loopback"])
+;
+
+ip0:ip | ip1:ip  | direction:keyword
+null   | 8.8.8.8 | null
+;
+
+networkDirectionBadNetworksArray
+required_capability: network_direction
+
+ROW ip0 = "127.0.0.1"::ip, ip1 = "8.8.8.8"::ip 
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["invalid_network"]);
+warning:Line 2:20: evaluation of [NETWORK_DIRECTION(ip0, ip1, [\"invalid_network\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not an IP string literal.
+
+ip0:ip      |ip1:ip    |direction:keyword
+127.0.0.1   |8.8.8.8   |null
+;

@@ -132,7 +132,7 @@ public class NetworkDirection extends EsqlScalarFunction {
         );
     }
 
-    @Evaluator()
+    @Evaluator(warnExceptions = IllegalArgumentException.class)
     static void process(
         BytesRefBlock.Builder builder,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch,

@@ -495,10 +495,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
                     if (samplingConfiguration.creationTime() + samplingConfiguration.timeToLive().millis() < now) {
                         logger.debug(
                             "Configuration created at "
-                                + ZonedDateTime.ofInstant(
-                                    Instant.ofEpochMilli(samplingConfiguration.creationTime()),
-                                    ZoneOffset.UTC
-                                )
+                                + ZonedDateTime.ofInstant(Instant.ofEpochMilli(samplingConfiguration.creationTime()), ZoneOffset.UTC)
                                 + " is older than "
                                 + samplingConfiguration.timeToLive()
                                 + " because it is now "

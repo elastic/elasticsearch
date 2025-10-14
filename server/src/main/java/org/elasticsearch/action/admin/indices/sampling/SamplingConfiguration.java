@@ -77,7 +77,7 @@ public record SamplingConfiguration(
 
     private static final ConstructingObjectParser<SamplingConfiguration, Map<String, Boolean>> PARSER = new ConstructingObjectParser<
         SamplingConfiguration,
-        Map<String, Boolean>>(TYPE, false, args -> {
+        Map<String, Boolean>>(TYPE, false, (args, context) -> {
             Double rate = (Double) args[0];
             Integer maxSamples = (Integer) args[1];
             ByteSizeValue humanReadableMaxSize = (ByteSizeValue) args[2];
@@ -86,6 +86,16 @@ public record SamplingConfiguration(
             TimeValue rawTimeToLive = (TimeValue) args[5];
             String condition = (String) args[6];
             Long rawCreationTime = (Long) args[8];
+
+            if (context.get(IS_USER_DATA_CONTEXT_KEY)) {
+                validateInputs(
+                    rate,
+                    maxSamples,
+                    determineValue(humanReadableMaxSize, rawMaxSize),
+                    determineValue(humanReadableTimeToLive, rawTimeToLive),
+                    condition
+                );
+            }
 
             return new SamplingConfiguration(
                 rate,
@@ -138,7 +148,7 @@ public record SamplingConfiguration(
     }
 
     /**
-     * Constructor with validation and defaulting for optional fields.
+     * Constructor with defaulting for optional fields.
      *
      * @param rate The fraction of documents to sample (must be between 0 and 1)
      * @param maxSamples The maximum number of documents to sample (optional, defaults to {@link #DEFAULT_MAX_SAMPLES})
@@ -156,8 +166,6 @@ public record SamplingConfiguration(
         String condition,
         Long creationTime
     ) {
-        validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
-
         this.rate = rate;
         this.maxSamples = maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples;
         this.maxSize = maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize;
@@ -222,9 +230,7 @@ public record SamplingConfiguration(
     }
 
     public static SamplingConfiguration fromXContentUserData(XContentParser parser) throws IOException {
-        Map<String, Boolean> context = new HashMap<>();
-        context.put(IS_USER_DATA_CONTEXT_KEY, true);
-        return PARSER.parse(parser, context);
+        return PARSER.parse(parser, Map.of(IS_USER_DATA_CONTEXT_KEY, true));
     }
 
     /**

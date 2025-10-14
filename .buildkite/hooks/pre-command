@@ -152,12 +152,12 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
       if BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null) && [ "$BUILD_SCAN_URL" != "null" ] && [ -n "$BUILD_SCAN_URL" ]; then
         BUILD_SCAN_ID=$(echo "$BUILD_SCAN_URL" | sed 's|.*/s/||')
         DEVELOCITY_FAILED_TEST_API_URL="https://gradle-enterprise.elastic.co/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
-        
+
         if ! curl --request GET \
           --url $DEVELOCITY_FAILED_TEST_API_URL \
           --header 'accept: application/json' \
           --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
-          --header 'content-type: application/json' 2>/dev/null | gunzip | jq '.' &> failed-tests.json; then
+          --header 'content-type: application/json' 2>/dev/null | gunzip | jq '.' &> .failed-test-history.json; then
           echo "Warning: Failed to fetch failed tests from Develocity API"
         fi
       else

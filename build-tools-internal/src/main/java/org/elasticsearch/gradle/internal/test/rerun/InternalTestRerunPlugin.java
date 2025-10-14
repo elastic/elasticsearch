@@ -34,12 +34,6 @@ import javax.inject.Inject;
 public class InternalTestRerunPlugin implements Plugin<Project> {
 
     public static final String FAILED_TEST_HISTORY_FILENAME = ".failed-test-history.json";
-    private final ObjectFactory objectFactory;
-
-    @Inject
-    InternalTestRerunPlugin(ObjectFactory objectFactory) {
-        this.objectFactory = objectFactory;
-    }
 
     @Override
     public void apply(Project project) {

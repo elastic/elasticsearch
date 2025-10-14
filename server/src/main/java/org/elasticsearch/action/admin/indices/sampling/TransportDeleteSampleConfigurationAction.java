@@ -31,11 +31,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Transport action for updating sampling configurations in cluster metadata.
+ * Transport action for deleting sampling configurations from cluster metadata.
  * <p>
- * This action handles the cluster state update required to store sampling configurations
- * for the specified indices. It validates the request, resolves index names, and updates
- * the cluster metadata with the new sampling configuration.
+ * This action handles the cluster state update required to remove sampling configurations
+ * for the specified indices. It validates the request, resolves index names, and deletes
+ * the sampling configuration from the cluster metadata.
  * </p>
  */
 public class TransportDeleteSampleConfigurationAction extends AcknowledgedTransportMasterNodeAction<

@@ -347,12 +347,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return (float) writeLoadForecaster.getForecastedWriteLoad(projectMetadata.index(index.indexName)).orElse(0.0);
         }
 
-        // This method is used only by NodeSorter#minWeightDelta to compute the node weight delta.
-        // Hence, we can return 0 when disk usage is ignored. Any future usage of this method should review whether this still holds.
         private float maxShardSizeBytes(ProjectIndex index) {
-            if (balancingWeights.diskUsageIgnored()) {
-                return 0;
-            }
             final var indexMetadata = indexMetadata(index);
             if (indexMetadata.ignoreDiskWatermarks()) {
                 // disk watermarks are ignored for partial searchable snapshots
@@ -1675,7 +1670,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float minWeightDelta() {
-            return function.minWeightDelta(balancer.getShardWriteLoad(index), balancer.maxShardSizeBytes(index));
+            return function.minWeightDelta(
+                balancer.getShardWriteLoad(index),
+                balancer.balancingWeights.diskUsageIgnored() ? 0 : balancer.maxShardSizeBytes(index)
+            );
         }
 
         @Override

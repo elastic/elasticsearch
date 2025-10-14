@@ -89,7 +89,7 @@ final class CefParser {
         entry("\\t", "\t"),
         entry("\\r", "\r"),
         entry("\\\\", "\\")
-        );
+    );
 
     private static final Map<String, ExtensionMapping> EXTENSION_MAPPINGS = Map.<String, ExtensionMapping>ofEntries(
         entry("agt", new ExtensionMapping("agentAddress", IPType, "agent.ip")),

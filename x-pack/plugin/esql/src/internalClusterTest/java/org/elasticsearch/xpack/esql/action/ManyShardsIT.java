@@ -248,9 +248,13 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 "from test-* | SORT tags | LIMIT 1000"
             );
             for (String q : queries) {
-                QueryPragmas pragmas = randomPragmas();
+                var pragmas = randomPragmas();
+                // For queries involving TopN, the node-reduce driver may hold on to contexts for longer (due to late materialization, which
+                // is only turned when the NODE_LEVEL_REDUCTION is turned on), so we don't check against the limit.
+                boolean nodeLevelReduction = QueryPragmas.NODE_LEVEL_REDUCTION.get(pragmas.getSettings());
+                int maxAllowed = q.contains("SORT tags") && nodeLevelReduction ? Integer.MAX_VALUE : pragmas.maxConcurrentShardsPerNode();
                 for (SearchService searchService : searchServices) {
-                    SearchContextCounter counter = new SearchContextCounter(pragmas.maxConcurrentShardsPerNode());
+                    SearchContextCounter counter = new SearchContextCounter(maxAllowed);
                     var mockSearchService = (MockSearchService) searchService;
                     mockSearchService.setOnCreateSearchContext(r -> counter.onNewContext());
                     mockSearchService.setOnRemoveContext(r -> counter.onContextReleased());

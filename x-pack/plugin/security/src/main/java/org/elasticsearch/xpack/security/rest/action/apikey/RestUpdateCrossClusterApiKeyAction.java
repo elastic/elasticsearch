@@ -15,7 +15,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
@@ -36,7 +39,8 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         a -> new Payload(
             (CrossClusterApiKeyRoleDescriptorBuilder) a[0],
             (Map<String, Object>) a[1],
-            TimeValue.parseTimeValue((String) a[2], null, "expiration")
+            TimeValue.parseTimeValue((String) a[2], null, "expiration"),
+            (CertificateIdentity) a[3]
         )
     );
 
@@ -44,6 +48,12 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         PARSER.declareObject(optionalConstructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? new CertificateIdentity(null) : new CertificateIdentity(p.text()),
+            new ParseField("certificate_identity"),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
     }
 
     public RestUpdateCrossClusterApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
@@ -67,7 +77,13 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
 
         return channel -> client.execute(
             UpdateCrossClusterApiKeyAction.INSTANCE,
-            new UpdateCrossClusterApiKeyRequest(apiKeyId, payload.builder, payload.metadata, payload.expiration),
+            new UpdateCrossClusterApiKeyRequest(
+                apiKeyId,
+                payload.builder,
+                payload.metadata,
+                payload.expiration,
+                payload.certificateIdentity
+            ),
             new RestToXContentListener<>(channel)
         );
     }
@@ -81,5 +97,10 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         }
     }
 
-    record Payload(CrossClusterApiKeyRoleDescriptorBuilder builder, Map<String, Object> metadata, TimeValue expiration) {}
+    record Payload(
+        CrossClusterApiKeyRoleDescriptorBuilder builder,
+        Map<String, Object> metadata,
+        TimeValue expiration,
+        CertificateIdentity certificateIdentity
+    ) {}
 }

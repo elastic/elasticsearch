@@ -80,11 +80,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
     }
 
     @Override
@@ -103,13 +99,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeByte(versionType.getValue());
         out.writeLong(version);
         out.writeOptionalWriteable(fetchSourceContext);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
     }
 
     /**

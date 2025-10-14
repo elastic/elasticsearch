@@ -18,6 +18,10 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.Methods.TypeMatcher;
+import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.BlockArgument;
+import org.elasticsearch.compute.gen.argument.PositionArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,8 +34,6 @@ import java.util.stream.Stream;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
@@ -87,6 +89,7 @@ public class AggregatorImplementer {
 
     public AggregatorImplementer(
         Elements elements,
+        javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions
@@ -108,7 +111,15 @@ public class AggregatorImplementer {
             requireName("combine"),
             requireArgsStartsWith(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
         );
-        this.aggParams = combine.getParameters().stream().skip(1).map(AggregationParameter::create).toList();
+        this.aggParams = combine.getParameters().stream().skip(1).flatMap(v -> {
+            Argument a = Argument.fromParameter(types, v);
+            return switch (a) {
+                case StandardArgument sa -> Stream.of(new AggregationParameter(sa.name(), sa.type(), false));
+                case BlockArgument ba -> Stream.of(new AggregationParameter(ba.name(), Types.elementType(ba.type()), true));
+                case PositionArgument pa -> Stream.of();
+                default -> throw new IllegalArgumentException("unsupported argument [" + declarationType + "][" + a + "]");
+            };
+        }).toList();
 
         this.createParameters = init.getParameters()
             .stream()
@@ -417,7 +428,8 @@ public class AggregatorImplementer {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
             for (AggregationParameter p : aggParams) {
-                builder.beginControlFlow("if ($L.isNull(p))", p.blockName());
+                builder.addStatement("int $LValueCount = $L.getValueCount(p)", p.name(), p.blockName());
+                builder.beginControlFlow("if ($LValueCount == 0)", p.name());
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
@@ -426,29 +438,17 @@ public class AggregatorImplementer {
                 if (aggParams.size() > 1) {
                     throw new IllegalArgumentException("array mode not supported for multiple args");
                 }
-                builder.addStatement("int start = $L.getFirstValueIndex(p)", aggParams.getFirst().blockName());
-                builder.addStatement("int end = start + $L.getValueCount(p)", aggParams.getFirst().blockName());
-                // TODO move this to the top of the loop
-                builder.addStatement(
-                    "$L[] valuesArray = new $L[end - start]",
-                    aggParams.getFirst().arrayType(),
-                    aggParams.getFirst().arrayType()
+                warningsBlock(
+                    builder,
+                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, aggParams.getFirst().blockName())
                 );
-                builder.beginControlFlow("for (int i = start; i < end; i++)");
-                builder.addStatement(
-                    "valuesArray[i-start] = $L.get$L(i)",
-                    aggParams.getFirst().blockName(),
-                    capitalize(aggParams.getFirst().arrayType())
-                );
-                builder.endControlFlow();
-                combineRawInputForArray(builder, "valuesArray");
             } else {
                 if (first == null && aggState.hasSeen()) {
                     builder.addStatement("state.seen(true)");
                 }
                 for (AggregationParameter p : aggParams) {
                     builder.addStatement("int $L = $L.getFirstValueIndex(p)", p.startName(), p.blockName());
-                    builder.addStatement("int $L = $L + $L.getValueCount(p)", p.endName(), p.startName(), p.blockName());
+                    builder.addStatement("int $L = $L + $LValueCount", p.endName(), p.startName(), p.name());
                     builder.beginControlFlow(
                         "for (int $L = $L; $L < $L; $L++)",
                         p.offsetName(),
@@ -536,10 +536,6 @@ public class AggregatorImplementer {
         }
         pattern.append(")");
         builder.addStatement(pattern.toString(), params.toArray());
-    }
-
-    private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
-        warningsBlock(builder, () -> builder.addStatement("$T.combine(state, $L)", declarationType, arrayVariable));
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {
@@ -768,14 +764,6 @@ public class AggregatorImplementer {
     }
 
     public record AggregationParameter(String name, TypeName type, boolean isArray) {
-        public static AggregationParameter create(VariableElement v) {
-            return new AggregationParameter(
-                v.getSimpleName().toString(),
-                TypeName.get(v.asType()),
-                Objects.equals(v.asType().getKind(), TypeKind.ARRAY)
-            );
-        }
-
         public String blockName() {
             return name + "Block";
         }

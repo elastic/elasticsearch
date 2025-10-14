@@ -1185,6 +1185,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
                                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
+                                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dummy_path")
                                     .build()
                             )
                             .build()

@@ -67,19 +67,20 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongBlock dateNanosBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (dateNanosBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (dateNanosBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (dateNanosBlock.getValueCount(p) != 1) {
-          if (dateNanosBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        long dateNanos = dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Sub.processDateNanos(dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p)), this.temporalAmount));
+          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -92,8 +93,9 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongVector dateNanosVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long dateNanos = dateNanosVector.getLong(p);
         try {
-          result.appendLong(Sub.processDateNanos(dateNanosVector.getLong(p), this.temporalAmount));
+          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();

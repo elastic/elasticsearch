@@ -16,6 +16,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
@@ -41,6 +42,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED;
@@ -419,18 +421,18 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         assertEquals(description, clientStats.forwardedFor(), xcontentMap.get("x_forwarded_for"));
         assertEquals(description, clientStats.opaqueId(), xcontentMap.get("x_opaque_id"));
 
-        assertEquals(description, clientStats.openedTimeMillis(), xcontentMap.get("opened_time_millis"));
-        assertEquals(description, Instant.ofEpochMilli(clientStats.openedTimeMillis()).toString(), xcontentMap.get("opened_time"));
+        final BiConsumer<Long, String> timestampFieldAsserter = (timestampMillis, fieldName) -> {
+            assertEquals(description, timestampMillis, xcontentMap.get(fieldName + "_millis"));
+            assertEquals(
+                description,
+                XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(timestampMillis)),
+                xcontentMap.get(fieldName)
+            );
+        };
 
-        assertEquals(description, clientStats.closedTimeMillis(), xcontentMap.get("closed_time_millis"));
-        assertEquals(description, Instant.ofEpochMilli(clientStats.closedTimeMillis()).toString(), xcontentMap.get("closed_time"));
-
-        assertEquals(description, clientStats.lastRequestTimeMillis(), xcontentMap.get("last_request_time_millis"));
-        assertEquals(
-            description,
-            Instant.ofEpochMilli(clientStats.lastRequestTimeMillis()).toString(),
-            xcontentMap.get("last_request_time")
-        );
+        timestampFieldAsserter.accept(clientStats.openedTimeMillis(), "opened_time");
+        timestampFieldAsserter.accept(clientStats.closedTimeMillis(), "closed_time");
+        timestampFieldAsserter.accept(clientStats.lastRequestTimeMillis(), "last_request_time");
 
         assertEquals(description, clientStats.requestCount(), (long) xcontentMap.get("request_count"));
         assertEquals(description, clientStats.requestSizeBytes(), (long) xcontentMap.get("request_size_bytes"));

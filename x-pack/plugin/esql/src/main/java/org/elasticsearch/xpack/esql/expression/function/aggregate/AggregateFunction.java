@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -27,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -61,10 +64,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : emptyList()
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -105,17 +106,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeNamedWriteable(filter);
-            out.writeNamedWriteableCollection(parameters);
-        } else {
-            deprecatedWriteParams(out);
-        }
-    }
-
-    @Deprecated(since = "8.16", forRemoval = true)
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        //
+        out.writeNamedWriteable(filter);
+        out.writeNamedWriteableCollection(parameters);
     }
 
     public Expression field() {
@@ -150,6 +142,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return this;
         }
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
+    }
+
+    /**
+     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
+     */
+    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        if (hasFilter()) {
+            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
+        } else {
+            return references();
+        }
     }
 
     @Override

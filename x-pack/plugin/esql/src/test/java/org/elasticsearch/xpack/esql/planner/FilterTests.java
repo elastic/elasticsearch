@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.TransportVersions.V_8_17_0;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -321,17 +320,6 @@ public class FilterTests extends ESTestCase {
         assertThat(filter, nullValue());
     }
 
-    public void testLikeList() {
-        String query = LoggerMessageFormat.format(null, """
-             FROM test
-            |WHERE {} LIKE ("a+", "b+")
-            """, LAST_NAME);
-        var plan = plan(query, null);
-        // test with an older version, so like list is not supported
-        var filter = filterQueryForTransportNodes(V_8_17_0, plan);
-        assertNull(filter);
-    }
-
     /**
      * Tests that we <strong>can</strong> extract a filter if the transport
      * version is {@code null}. This isn't run in the "filter for transport nodes"
@@ -382,7 +370,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, QueryBuilder restFilter) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("physical\n" + physical);

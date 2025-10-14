@@ -272,7 +272,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData(),
             query -> {
                 throw new UnsupportedOperationException();
-            }
+            },
+            null
         );
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateContext(null);

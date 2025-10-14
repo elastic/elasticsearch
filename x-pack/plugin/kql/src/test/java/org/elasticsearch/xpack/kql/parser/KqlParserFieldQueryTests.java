@@ -187,8 +187,13 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
                 parseKqlQuery(kqlFieldQuery(fieldName, "NOT OR")),
                 subQuery -> assertMatchQueryBuilder(subQuery, fieldName, "OR")
             );
-            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "ballon d'or")), fieldName, "ballon d'or");
-
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "ballon d or")), fieldName, "ballon d or");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "and just like that")), fieldName, "and just like that");
+            assertMatchQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "whatever people say i am that s what i m not")),
+                fieldName,
+                "whatever people say i am that s what i m not"
+            );
             // Check we can use quoted field name as well
             assertThat(
                 parseKqlQuery(kqlFieldQuery(fieldName, "foo")),

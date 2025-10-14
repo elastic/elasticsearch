@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,14 +52,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         super(Source.readFrom((PlanStreamInput) in));
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
-            this.estimatedRowSize = in.readVInt();
-        } else {
-            this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                in.readOptionalNamedWriteable(PhysicalPlan.class); // for old reducer
-            }
-        }
+        this.estimatedRowSize = in.readVInt();
     }
 
     @Override
@@ -68,14 +60,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
-            out.writeVInt(estimatedRowSize);
-        } else {
-            out.writeOptionalVInt(estimatedRowSize());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalNamedWriteable(null);// for old reducer
-            }
-        }
+        out.writeVInt(estimatedRowSize);
     }
 
     @Override

@@ -265,7 +265,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasTerms() || hasDocValues();
         }
 
         @Override
@@ -365,7 +365,7 @@ public class BooleanFieldMapper extends FieldMapper {
             }
 
             ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            BlockSourceReader.LeafIteratorLookup lookup = isIndexed() || isStored()
+            BlockSourceReader.LeafIteratorLookup lookup = indexType.hasTerms() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
@@ -450,7 +450,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else {
                 return SortedNumericDocValuesField.newSlowExactQuery(name(), docValueForSearch(value));
@@ -460,7 +460,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return super.termsQuery(values, context);
             } else {
                 Set<?> dedupe = new HashSet<>(values);
@@ -481,7 +481,7 @@ public class BooleanFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasTerms()) {
                 return new TermRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

@@ -62,19 +62,20 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleBlock valueBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valueBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valueBlock.getValueCount(p) != 1) {
-          if (valueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log.process(valueBlock.getDouble(valueBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log.process(value));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -87,8 +88,9 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleVector valueVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double value = valueVector.getDouble(p);
         try {
-          result.appendDouble(Log.process(valueVector.getDouble(p)));
+          result.appendDouble(Log.process(value));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -1,0 +1,5 @@
+pr: 135247
+summary: Fix alias id when drop all aggregates
+area: ES|QL
+type: bug
+issues: []

@@ -1,0 +1,211 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "*test*"
+        ignore_unavailable: true
+        allow_no_indices: true
+
+---
+"Test Put sampling configuration with JSON body":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-index
+        body:
+          rate: 0.5
+          max_samples: 100
+          max_size: "10mb"
+          time_to_live: "1h"
+
+  - match: { acknowledged: true }
+
+---
+"Put sampling configuration with condition":
+  - do:
+      indices.create:
+        index: test-condition-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-condition-index
+        body:
+          rate: 1.0
+          max_samples: 50
+          if: "ctx?.field == 'sample_me'"
+
+  - match: { acknowledged: true }
+
+---
+"Put sampling configuration with minimal parameters":
+  - do:
+      indices.create:
+        index: test-minimal-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-minimal-index
+        body:
+          rate: 0.1
+
+  - match: { acknowledged: true }
+
+---
+"Put sampling configuration overwrites existing":
+  - do:
+      indices.create:
+        index: test-overwrite-index
+
+  # First configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-overwrite-index
+        body:
+          rate: 0.3
+          max_samples: 25
+
+  - match: { acknowledged: true }
+
+  # Overwrite with new configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-overwrite-index
+        body:
+          rate: 0.8
+          max_samples: 75
+          max_size: "5mb"
+
+  - match: { acknowledged: true }
+
+---
+"Put sampling configuration for non-existent index":
+  - do:
+      catch: missing
+      indices.put_sample_configuration:
+        index: non-existent-index
+        body:
+          rate: 0.6
+          max_samples: 150
+
+---
+"Put sampling configuration with timeout parameters":
+  - do:
+      indices.create:
+        index: test-timeout-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-timeout-index
+        master_timeout: "30s"
+        timeout: "10s"
+        body:
+          rate: 0.4
+          max_samples: 80
+
+  - match: { acknowledged: true }
+
+---
+"Put sampling configuration with invalid rate fails":
+  - do:
+      indices.create:
+        index: test-invalid-rate-index
+
+  - do:
+      catch: bad_request
+      indices.put_sample_configuration:
+        index: test-invalid-rate-index
+        body:
+          rate: 1.5  # Invalid rate > 1.0
+          max_samples: 100
+
+---
+"Put sampling configuration with missing rate fails":
+  - do:
+      indices.create:
+        index: test-missing-rate-index
+
+  - do:
+      catch: bad_request
+      indices.put_sample_configuration:
+        index: test-missing-rate-index
+        body:
+          max_samples: 100  # Missing required rate parameter
+
+---
+"Put sampling configuration with human readable values":
+  - do:
+      indices.create:
+        index: test-human-readable-index
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-human-readable-index
+        body:
+          rate: ".05"
+          max_samples: 1000
+          max_size: "10mb"
+          time_to_live: "1d"
+
+  - match: { acknowledged: true }
+
+---
+"Put sampling configuration rejects multiple indices":
+  - do:
+      indices.create:
+        index: test-multi-index-1
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.create:
+        index: test-multi-index-2
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      catch: bad_request
+      indices.put_sample_configuration:
+        index: "test-multi-index-1,test-multi-index-2"
+        body:
+          rate: 0.5
+          max_samples: 100
+
+  - match: { error.type: "action_request_validation_exception" }
+
+---
+"Put sampling configuration rejects wildcard matching multiple indices":
+  - do:
+      indices.create:
+        index: wildcard-test-1
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      indices.create:
+        index: wildcard-test-2
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      catch: missing
+      indices.put_sample_configuration:
+        index: "wildcard-test-*"
+        body:
+          rate: 0.3
+          max_samples: 50

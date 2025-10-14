@@ -21,7 +21,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -56,6 +60,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BIT, indexType });
         }
 
         // Remove flat index types, as knn does not do a top k for flat
@@ -129,6 +134,33 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDenseVectorQueryParams() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0);
+        EsqlQueryRequest queryRequest = new EsqlQueryRequest();
+        QueryParams queryParams = new QueryParams(
+            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.VALUE))
+        );
+
+        queryRequest.params(queryParams);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s) OR id > 100
+            | KEEP id, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
     public void testKnnNonPushedDown() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
@@ -187,17 +219,17 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString(
-                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
-                    + "mode [lookup]"
-            )
+            // TODO revert this when we have proper versioned type resolutions
+            // containsString(
+            // "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
+            // + "mode [lookup]"
+            // )
+            containsString("line 3:13: Cannot use field [lookup_vector] with unsupported type [dense_vector]")
         );
     }
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
-
         var indexName = "test";
         var client = client().admin().indices();
         XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -234,14 +266,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
-                    case FLOAT:
-                        vector.add(randomFloatBetween(0F, 1F, true));
-                        break;
-                    case BYTE:
-                        vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                    case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                    default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }
             }
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", String.valueOf(i), "vector", vector);

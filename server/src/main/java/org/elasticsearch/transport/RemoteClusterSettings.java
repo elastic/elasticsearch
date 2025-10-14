@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -70,7 +71,7 @@ public class RemoteClusterSettings {
         (ns, key) -> boolSetting(
             key,
             DEFAULT_SKIP_UNAVAILABLE,
-            new RemoteConnectionEnabled<>(ns, key),
+            new UnsupportedInCPSValidator<>(ns, key),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope
         )
@@ -337,6 +338,9 @@ public class RemoteClusterSettings {
         String linkedProjectAlias,
         Settings settings
     ) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(linkedProjectAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
         final var strategy = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(linkedProjectAlias).get(settings);
         final var builder = switch (strategy) {
             case SNIFF -> SniffConnectionStrategySettings.readSettings(
@@ -385,6 +389,10 @@ public class RemoteClusterSettings {
         private RemoteConnectionEnabled(String clusterAlias, String key) {
             this.clusterAlias = clusterAlias;
             this.key = key;
+        }
+
+        protected String getKey() {
+            return key;
         }
 
         @Override
@@ -478,6 +486,27 @@ public class RemoteClusterSettings {
             );
             Stream<Setting<?>> settingStream = Stream.of(concrete);
             return settingStream.iterator();
+        }
+    }
+
+    private static class UnsupportedInCPSValidator<T> extends RemoteConnectionEnabled<T> {
+        private final Setting<Boolean> cpsSetting = Setting.boolSetting("serverless.cross_project.enabled", false);
+
+        private UnsupportedInCPSValidator(String clusterAlias, String key) {
+            super(clusterAlias, key);
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && (Boolean) settings.get(cpsSetting)) {
+                throw new IllegalArgumentException("setting [" + getKey() + "] is unavailable when CPS is enabled");
+            }
+            super.validate(value, settings, isPresent);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Iterators.concat(super.settings(), Iterators.single(cpsSetting));
         }
     }
 }

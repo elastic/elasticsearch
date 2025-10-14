@@ -129,9 +129,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeField(field, producer, -1, null);
     }
 
-    private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue) {
+    private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue, long numValues) {
         return maxDoc > 1
             && field.number == primarySortFieldNumber
+            && numDocsWithValue == numValues // Only single valued fields can be supported with range encoded ordinals format
             && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
     }
 
@@ -167,13 +168,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 if (maxOrd == 1) {
                     // Special case for maxOrd of 1, signal -1 that no blocks will be written
                     meta.writeInt(-1);
-                } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue)) {
+                } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue, numValues)) {
+                    assert offsetsAccumulator == null;
                     // When a field is sorted, use ordinal range encode for long runs of the same ordinal.
                     meta.writeInt(-2);
                     meta.writeVInt(Math.toIntExact(maxOrd));
                     meta.writeByte((byte) ES819TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_BLOCK_SHIFT);
                     values = valuesProducer.getSortedNumeric(field);
-                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
+                    if (valuesProducer.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
                     DirectMonotonicWriter startDocs = DirectMonotonicWriter.getInstance(
@@ -187,9 +189,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                         if (disiAccumulator != null) {
                             disiAccumulator.addDocId(doc);
-                        }
-                        if (offsetsAccumulator != null) {
-                            offsetsAccumulator.addDoc(1);
                         }
                         final long nextOrd = values.nextValue();
                         if (nextOrd != lastOrd) {
@@ -212,7 +211,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
-                    if (enableOptimizedMerge && numDocsWithValue < maxDoc) {
+                    if (valuesProducer.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                     }
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

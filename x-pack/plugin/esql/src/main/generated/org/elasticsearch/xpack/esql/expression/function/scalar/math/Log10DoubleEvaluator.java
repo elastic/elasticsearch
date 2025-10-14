@@ -62,19 +62,20 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log10.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log10.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -87,8 +88,9 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Log10.process(valVector.getDouble(p)));
+          result.appendDouble(Log10.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

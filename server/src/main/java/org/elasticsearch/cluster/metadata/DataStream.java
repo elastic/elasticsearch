@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
@@ -87,8 +86,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
+    private static final TransportVersion MAPPINGS_IN_DATA_STREAMS = TransportVersion.fromName("mappings_in_data_streams");
+
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
-    public static final boolean LOGS_STREAM_FEATURE_FLAG = new FeatureFlag("logs_stream").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
@@ -298,8 +299,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var hidden = in.readBoolean();
         var replicated = in.readBoolean();
         var system = in.readBoolean();
-        var allowCustomRouting = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false;
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
+        var allowCustomRouting = in.readBoolean();
+        var indexMode = in.readOptionalEnum(IndexMode.class);
         var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
@@ -334,14 +335,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
         final Settings settings;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+        if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings = Settings.readSettingsFromStream(in);
         } else {
             settings = Settings.EMPTY;
         }
         CompressedXContent mappings;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
+        if (in.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {
             mappings = CompressedXContent.readCompressedString(in);
         } else {
             mappings = EMPTY_MAPPINGS;
@@ -1449,12 +1449,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(allowCustomRouting);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalEnum(indexMode);
-        }
+        out.writeBoolean(allowCustomRouting);
+        out.writeOptionalEnum(indexMode);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }
@@ -1479,11 +1475,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+        if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
+        if (out.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {
             mappings.writeTo(out);
         }
     }

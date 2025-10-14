@@ -14,13 +14,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 public class SearchRequestCacheDisablingInterceptor implements RequestInterceptor {
 
@@ -44,7 +44,7 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && hasRemoteIndices(searchRequest)
             && (isDlsLicensed || isFlsLicensed)) {
-            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
             if (indicesAccessControl.getFieldAndDocumentLevelSecurityUsage() != IndicesAccessControl.DlsFlsUsage.NONE) {
                 searchRequest.requestCache(false);
             }

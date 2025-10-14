@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.hamcrest.Matchers.is;
 
 public class BlobCacheMetricsTests extends ESTestCase {
@@ -46,27 +47,28 @@ public class BlobCacheMetricsTests extends ESTestCase {
             cachePopulationReason,
             cachePopulationSource
         );
+        String threadName = NON_ES_EXECUTOR_TO_RECORD;
 
         // throughput histogram
         Measurement throughputMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, "es.blob_cache.population.throughput.histogram")
             .get(0);
         assertEquals(throughputMeasurement.getDouble(), (double) mebiBytesSent / secondsTaken, 0.0);
-        assertExpectedAttributesPresent(throughputMeasurement, cachePopulationReason, cachePopulationSource, fileExtension);
+        assertExpectedAttributesPresent(throughputMeasurement, cachePopulationReason, cachePopulationSource, fileExtension, threadName);
 
         // bytes counter
         Measurement totalBytesMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.bytes.total")
             .get(0);
         assertEquals(totalBytesMeasurement.getLong(), ByteSizeValue.ofMb(mebiBytesSent).getBytes());
-        assertExpectedAttributesPresent(totalBytesMeasurement, cachePopulationReason, cachePopulationSource, fileExtension);
+        assertExpectedAttributesPresent(totalBytesMeasurement, cachePopulationReason, cachePopulationSource, fileExtension, threadName);
 
         // time counter
         Measurement totalTimeMeasurement = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.population.time.total")
             .get(0);
         assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(secondsTaken));
-        assertExpectedAttributesPresent(totalTimeMeasurement, cachePopulationReason, cachePopulationSource, fileExtension);
+        assertExpectedAttributesPresent(totalTimeMeasurement, cachePopulationReason, cachePopulationSource, fileExtension, threadName);
 
         // let us check for 0, avoid div by 0.
         checkReadsAndMisses(0, 0, 1);
@@ -107,10 +109,12 @@ public class BlobCacheMetricsTests extends ESTestCase {
         Measurement measurement,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         CachePopulationSource cachePopulationSource,
-        String fileExtension
+        String fileExtension,
+        String threadName
     ) {
         assertThat(measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY), is(cachePopulationReason.name()));
         assertThat(measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY), is(cachePopulationSource.name()));
         assertThat(measurement.attributes().get(BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY), is(fileExtension));
+        assertThat(measurement.attributes().get(BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE_KEY), is(threadName));
     }
 }

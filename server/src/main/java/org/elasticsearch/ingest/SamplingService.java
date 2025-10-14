@@ -105,7 +105,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     );
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private SchedulerEngine.Job scheduledJob;
-    private volatile TimeValue pollInterval = TimeValue.timeValueSeconds(1);
+    private volatile TimeValue pollInterval;
     private final Settings settings;
     private final Clock clock = Clock.systemUTC();
     /*
@@ -115,8 +115,26 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
      */
     private final Map<ProjectIndex, SoftReference<SampleInfo>> samples = new ConcurrentHashMap<>();
 
-    @SuppressWarnings("this-escape")
-    public SamplingService(ScriptService scriptService, ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
+    /*
+     * This creates a new SamplingService, and configures various listeners on it.
+     */
+    public static SamplingService create(
+        ScriptService scriptService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Settings settings
+    ) {
+        SamplingService samplingService = new SamplingService(scriptService, clusterService, projectResolver, settings);
+        samplingService.configureListeners();
+        return samplingService;
+    }
+
+    private SamplingService(
+        ScriptService scriptService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Settings settings
+    ) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -127,6 +145,9 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
         );
         this.settings = settings;
         this.pollInterval = TTL_POLL_INTERVAL_SETTING.get(settings);
+    }
+
+    private void configureListeners() {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(TTL_POLL_INTERVAL_SETTING, (v) -> {
             pollInterval = v;
@@ -511,8 +532,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {

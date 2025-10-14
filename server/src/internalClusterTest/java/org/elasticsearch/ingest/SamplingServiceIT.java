@@ -48,16 +48,7 @@ public class SamplingServiceIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < 20; i++) {
             IndexRequest indexRequest = new IndexRequest(indexName);
-            indexRequest.source(
-                Map.of(
-                    "@timestamp",
-                    randomTimeValue().toHumanReadableString(2),
-                    "foo",
-                    randomBoolean() ? 3L : randomLong(),
-                    "bar",
-                    randomBoolean() ? true : randomBoolean()
-                )
-            );
+            indexRequest.source(Map.of("foo", randomBoolean() ? 3L : randomLong(), "bar", randomBoolean()));
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client().execute(TransportBulkAction.TYPE, bulkRequest).actionGet();

@@ -511,8 +511,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {

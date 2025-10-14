@@ -55,6 +55,8 @@ public class TopNOperator implements Operator, Accountable {
     static final class Row implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
 
+        private final CircuitBreaker breaker;
+
         /**
          * The sort key.
          */
@@ -81,15 +83,9 @@ public class TopNOperator implements Operator, Accountable {
         @Nullable
         RefCounted shardRefCounter;
 
-        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
-            if (this.shardRefCounter != null) {
-                this.shardRefCounter.decRef();
-            }
-            this.shardRefCounter = shardRefCounter;
-            this.shardRefCounter.mustIncRef();
-        }
-
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
+            this.breaker = breaker;
             boolean success = false;
             try {
                 keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
@@ -111,7 +107,7 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public void close() {
             clearRefCounters();
-            Releasables.closeExpectNoException(keys, values, bytesOrder);
+            Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values, bytesOrder);
         }
 
         public void clearRefCounters() {
@@ -119,6 +115,14 @@ public class TopNOperator implements Operator, Accountable {
                 shardRefCounter.decRef();
             }
             shardRefCounter = null;
+        }
+
+        void setShardRefCounted(RefCounted shardRefCounted) {
+            if (this.shardRefCounter != null) {
+                this.shardRefCounter.decRef();
+            }
+            this.shardRefCounter = shardRefCounted;
+            this.shardRefCounter.mustIncRef();
         }
     }
 
@@ -195,15 +199,7 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        /**
-         * Fill a {@link Row} for {@code position}.
-         */
-        void row(int position, Row destination) {
-            writeKey(position, destination);
-            writeValues(position, destination);
-        }
-
-        private void writeKey(int position, Row row) {
+        void writeKey(int position, Row row) {
             int orderByCompositeKeyCurrentPosition = 0;
             for (int i = 0; i < keyFactories.length; i++) {
                 int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
@@ -213,11 +209,11 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        private void writeValues(int position, Row destination) {
+        void writeValues(int position, Row destination) {
             for (ValueExtractor e : valueExtractors) {
                 var refCounted = e.getRefCountedForShard(position);
                 if (refCounted != null) {
-                    destination.setShardRefCountersAndShard(refCounted);
+                    destination.setShardRefCounted(refCounted);
                 }
                 e.writeValue(destination.values, position);
             }
@@ -412,15 +408,28 @@ public class TopNOperator implements Operator, Accountable {
                     spare.values.clear();
                     spare.clearRefCounters();
                 }
-                rowFiller.row(i, spare);
+                rowFiller.writeKey(i, spare);
 
                 // When rows are very long, appending the values one by one can lead to lots of allocations.
                 // To avoid this, pre-allocate at least as much size as in the last seen row.
                 // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
-                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
 
-                spare = inputQueue.insertWithOverflow(spare);
+                // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
+                if (inputQueue.size() < inputQueue.topCount) {
+                    // Heap not yet full, just add elements
+                    rowFiller.writeValues(i, spare);
+                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                    inputQueue.add(spare);
+                    spare = null;
+                } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
+                    // Heap full AND this node fit in it.
+                    Row nextSpare = inputQueue.top();
+                    rowFiller.writeValues(i, spare);
+                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                    inputQueue.updateTop(spare);
+                    spare = nextSpare;
+                }
             }
         } finally {
             page.releaseBlocks();
@@ -473,6 +482,7 @@ public class TopNOperator implements Operator, Accountable {
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
                             size
+
                         );
                     }
                     p = 0;
@@ -496,7 +506,6 @@ public class TopNOperator implements Operator, Accountable {
 
                     BytesRef values = row.values.bytesRefView();
                     for (ResultBuilder builder : builders) {
-                        builder.setNextRefCounted(row.shardRefCounter);
                         builder.decodeValue(values);
                     }
                     if (values.length != 0) {
@@ -675,8 +684,12 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
-            Releasables.close(Releasables.wrap(this), () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount)));
-
+            Releasables.close(
+                // Release all entries in the topn
+                Releasables.wrap(this),
+                // Release the array itself
+                () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
+            );
         }
 
         public static long sizeOf(int topCount) {

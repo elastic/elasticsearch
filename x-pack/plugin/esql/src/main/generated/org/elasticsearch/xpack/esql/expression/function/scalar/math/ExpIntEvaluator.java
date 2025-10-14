@@ -63,18 +63,19 @@ public final class ExpIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, IntBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Exp.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+        int val = valBlock.getInt(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Exp.process(val));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class ExpIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleVector eval(int positionCount, IntVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Exp.process(valVector.getInt(p)));
+        int val = valVector.getInt(p);
+        result.appendDouble(p, Exp.process(val));
       }
       return result.build();
     }

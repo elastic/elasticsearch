@@ -3,5 +3,5 @@
 **Parameters**
 
 `string`
-:   URL encoded string to decode.
+:   The URL-encoded string to decode.
 

@@ -120,11 +120,11 @@ class TSDataGenerationHelper {
                         (ignored) -> {
                             var res = new HashMap<String, Object>();
                             res.put("counterl_hdd.bytes.read", Randomness.get().nextLong(0, 1000L));
+                            res.put("gaugel_hdd.bytes.used", Randomness.get().nextLong(0, 1000000L));
                             // Counter metrics
-                            switch (ESTestCase.randomIntBetween(0, 2)) {
+                            switch (ESTestCase.randomIntBetween(0, 1)) {
                                 case 0 -> res.put("counterd_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
-                                case 1 -> res.put("gaugel_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
-                                case 2 -> res.put("gauged_cpu.percent", Randomness.get().nextDouble(0, 100));
+                                case 1 -> res.put("gauged_cpu.percent", Randomness.get().nextDouble(0, 100));
                             }
                             return res;
                         }

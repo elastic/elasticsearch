@@ -110,3 +110,43 @@ FROM employees
 p_true:boolean    | p_false:boolean
 true              | false
 ;
+
+PRESENT with per-agg filter with toInteger
+required_capability: fn_present
+
+FROM employees
+| STATS p_true = TO_INTEGER(PRESENT(salary)) WHERE gender == "M",
+        p_false = TO_INTEGER(PRESENT(salary)) WHERE gender == "X"
+;
+
+p_true:integer    | p_false:integer
+1                 | 0
+;
+
+TO_INTEGER(PRESENT) with filter returns 1
+required_capability: fn_present
+
+FROM employees
+| WHERE emp_no IN (10019, 10020)
+| STATS is_present = TO_INTEGER(PRESENT(languages))
+;
+
+is_present:integer
+1
+;
+
+TO_INTEGER(PRESENT) with filter returns 0
+required_capability: fn_present
+
+// tag::present-as-integer[]
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_present = TO_INTEGER(PRESENT(languages))
+// end::present-as-integer[]
+;
+
+// tag::present-as-integer-result[]
+is_present:integer
+0
+// end::present-as-integer-result[]
+;

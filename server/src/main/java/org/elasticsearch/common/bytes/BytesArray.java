@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -59,90 +60,9 @@ public final class BytesArray extends AbstractBytesReference {
 
     @Override
     public int indexOf(byte marker, int from) {
-        final int len = length - from;
-        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
-        final int offsetAsLocal = offset;
-        int off = offsetAsLocal + from;
-        final int toIndex = offsetAsLocal + length;
-        final byte[] bytesAsLocal = bytes;
-        // First, try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below.
-        // The idea for this logic is taken from Netty's io.netty.buffer.ByteBufUtil.firstIndexOf and optimized for little endian hardware.
-        // See e.g. https://richardstartin.github.io/posts/finding-bytes for the idea behind this optimization.
-        final int byteCount = len & 7;
-        if (byteCount > 0) {
-            final int index = unrolledFirstIndexOf(bytesAsLocal, off, byteCount, marker);
-            if (index != -1) {
-                return index - offsetAsLocal;
-            }
-            off += byteCount;
-            if (off == toIndex) {
-                return -1;
-            }
-        }
-        final int longCount = len >>> 3;
-        // faster SWAR (SIMD Within A Register) loop
-        final long pattern = compilePattern(marker);
-        for (int i = 0; i < longCount; i++) {
-            int index = findInLong(ByteUtils.readLongLE(bytesAsLocal, off), pattern);
-            if (index < Long.BYTES) {
-                return off + index - offsetAsLocal;
-            }
-            off += Long.BYTES;
-        }
-        return -1;
-    }
-
-    private static long compilePattern(byte byteToFind) {
-        return (byteToFind & 0xFFL) * 0x101010101010101L;
-    }
-
-    private static int findInLong(long word, long pattern) {
-        long input = word ^ pattern;
-        long tmp = (input & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL;
-        tmp = ~(tmp | input | 0x7F7F7F7F7F7F7F7FL);
-        final int binaryPosition = Long.numberOfTrailingZeros(tmp);
-        return binaryPosition >>> 3;
-    }
-
-    private static int unrolledFirstIndexOf(byte[] buffer, int fromIndex, int byteCount, byte value) {
-        if (buffer[fromIndex] == value) {
-            return fromIndex;
-        }
-        if (byteCount == 1) {
-            return -1;
-        }
-        if (buffer[fromIndex + 1] == value) {
-            return fromIndex + 1;
-        }
-        if (byteCount == 2) {
-            return -1;
-        }
-        if (buffer[fromIndex + 2] == value) {
-            return fromIndex + 2;
-        }
-        if (byteCount == 3) {
-            return -1;
-        }
-        if (buffer[fromIndex + 3] == value) {
-            return fromIndex + 3;
-        }
-        if (byteCount == 4) {
-            return -1;
-        }
-        if (buffer[fromIndex + 4] == value) {
-            return fromIndex + 4;
-        }
-        if (byteCount == 5) {
-            return -1;
-        }
-        if (buffer[fromIndex + 5] == value) {
-            return fromIndex + 5;
-        }
-        if (byteCount == 6) {
-            return -1;
-        }
-        if (buffer[fromIndex + 6] == value) {
-            return fromIndex + 6;
+        int idx = ESVectorUtil.indexOf(bytes, offset + from, length - from, marker);
+        if (idx >= 0) {
+            return from + idx;
         }
         return -1;
     }

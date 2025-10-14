@@ -117,6 +117,6 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
         return field.foldable()
             ? new MvMedian(s, new ToDouble(s, field))
-            : new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
+            : new Percentile(source(), field(), filter(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
     }
 }

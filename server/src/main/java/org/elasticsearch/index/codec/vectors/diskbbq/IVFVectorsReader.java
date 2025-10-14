@@ -22,20 +22,27 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -46,14 +53,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
-    private final FlatVectorsReader rawVectorsReader;
+    private final GenericFlatVectorReaders genericReaders;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
+    protected IVFVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader loadReader) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
-        this.rawVectorsReader = rawVectorsReader;
         this.fields = new IntObjectHashMap<>();
+        this.genericReaders = new GenericFlatVectorReaders();
         String meta = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -73,7 +80,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
-                readFields(ivfMeta);
+                readFields(ivfMeta, versionMeta, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -101,7 +108,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidIterator getCentroidIterator(
+    public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
@@ -145,17 +152,28 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    private void readFields(ChecksumIndexInput meta) throws IOException {
+    private void readFields(
+        ChecksumIndexInput meta,
+        int versionMeta,
+        GenericFlatVectorReaders genericFields,
+        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+    ) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
-            fields.put(info.number, readField(meta, info));
+
+            FieldEntry fieldEntry = readField(meta, info, versionMeta);
+            genericFields.loadField(fieldNumber, fieldEntry, loadReader);
+
+            fields.put(info.number, fieldEntry);
         }
     }
 
-    private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
+    private FieldEntry readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
+        final String rawVectorFormat = input.readString();
+        final boolean useDirectIOReads = versionMeta >= VERSION_DIRECT_IO && input.readByte() == 1;
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -182,6 +200,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
         return new FieldEntry(
+            rawVectorFormat,
+            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -212,26 +232,34 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public final void checkIntegrity() throws IOException {
-        rawVectorsReader.checkIntegrity();
+        for (var reader : genericReaders.allReaders()) {
+            reader.checkIntegrity();
+        }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
+    private FlatVectorsReader getReaderForField(String field) {
+        FieldInfo info = fieldInfos.fieldInfo(field);
+        if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
+        return genericReaders.getReaderForField(info.number);
+    }
+
     @Override
     public final FloatVectorValues getFloatVectorValues(String field) throws IOException {
-        return rawVectorsReader.getFloatVectorValues(field);
+        return getReaderForField(field).getFloatVectorValues(field);
     }
 
     @Override
     public final ByteVectorValues getByteVectorValues(String field) throws IOException {
-        return rawVectorsReader.getByteVectorValues(field);
+        return getReaderForField(field).getByteVectorValues(field);
     }
 
     @Override
-    public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
-            rawVectorsReader.search(field, target, knnCollector, acceptDocs);
+            getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
         if (fieldInfo.getVectorDimension() != target.length) {
@@ -239,11 +267,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        float percentFiltered = 1f;
-        if (acceptDocs instanceof BitSet bitSet) {
-            percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
-        }
-        int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
+        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
+        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -272,7 +297,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             postListSlice,
             visitRatio
         );
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocs);
+        Bits acceptDocsBits = acceptDocs.bits();
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -291,7 +317,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
         }
-        if (acceptDocs != null) {
+        if (acceptDocsBits != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
@@ -307,9 +333,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     @Override
-    public final void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-        final ByteVectorValues values = rawVectorsReader.getByteVectorValues(field);
+        final ByteVectorValues values = getReaderForField(field).getByteVectorValues(field);
         for (int i = 0; i < values.size(); i++) {
             final float score = fieldInfo.getVectorSimilarityFunction().compare(target, values.vectorValue(i));
             knnCollector.collect(values.ordToDoc(i), score);
@@ -320,11 +346,31 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        var raw = getReaderForField(fieldInfo.name).getOffHeapByteSize(fieldInfo);
+        FieldEntry fe = fields.get(fieldInfo.number);
+        if (fe == null) {
+            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
+            return raw;
+        }
+        return raw;  // for now just return the size of raw
+
+        // TODO: determine desired off off-heap requirements
+        // var centroids = Map.of(EXTENSION, fe.xxxLength());
+        // var clusters = Map.of(EXTENSION, fe.yyyLength());
+        // return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroids, clusters);
+    }
+
+    @Override
     public void close() throws IOException {
-        IOUtils.close(rawVectorsReader, ivfCentroids, ivfClusters);
+        List<Closeable> closeables = new ArrayList<>(genericReaders.allReaders());
+        Collections.addAll(closeables, ivfCentroids, ivfClusters);
+        IOUtils.close(closeables);
     }
 
     protected record FieldEntry(
+        String rawVectorFormatName,
+        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -334,7 +380,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListLength,
         float[] globalCentroid,
         float globalCentroidDp
-    ) {
+    ) implements GenericFlatVectorReaders.Field {
         IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
@@ -344,20 +390,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
+    public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
-    record CentroidOffsetAndLength(long offset, long length) {}
+    public record CentroidOffsetAndLength(long offset, long length) {}
 
-    interface CentroidIterator {
+    public interface CentroidIterator {
         boolean hasNext();
 
         CentroidOffsetAndLength nextPostingListOffsetAndLength() throws IOException;
     }
 
-    interface PostingVisitor {
-        // TODO maybe we can not specifically pass the centroid...
-
+    public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(long offset) throws IOException;
 

@@ -11,6 +11,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -36,9 +37,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final Settings settings;
 
-    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.settings = settings;
     }
 
     @Override
@@ -58,6 +61,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
+
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(

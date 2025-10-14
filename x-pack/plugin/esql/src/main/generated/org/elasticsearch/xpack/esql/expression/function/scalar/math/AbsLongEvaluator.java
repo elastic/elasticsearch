@@ -61,18 +61,19 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(Abs.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p))));
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        result.appendLong(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Abs.process(fieldValVector.getLong(p)));
+        long fieldVal = fieldValVector.getLong(p);
+        result.appendLong(p, Abs.process(fieldVal));
       }
       return result.build();
     }

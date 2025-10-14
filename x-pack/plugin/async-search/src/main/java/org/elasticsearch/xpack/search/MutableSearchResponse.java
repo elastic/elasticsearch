@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,6 +41,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse extends AbstractRefCounted {
+
     private int totalShards;
     private int skippedShards;
     private Clusters clusters;
@@ -489,6 +492,7 @@ class MutableSearchResponse extends AbstractRefCounted {
 
     @Override
     protected synchronized void closeInternal() {
+
         if (finalResponse != null) {
             finalResponse.decRef();
             finalResponse = null;

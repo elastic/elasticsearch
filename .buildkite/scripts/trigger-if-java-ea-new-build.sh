@@ -80,6 +80,13 @@ echo "SHOULD_TRIGGER: $SHOULD_TRIGGER"
 
 if [[ "$SHOULD_TRIGGER" == "true" ]]; then
   EFFECTIVE_START_DATE=$(date -u -d "@$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -r "$BUILD_TIME" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "")
+  
+  # Use "master" branch for elasticsearch-performance-esbench-jdk when BUILDKITE_BRANCH is "main"
+  TRIGGER_BRANCH="$BUILDKITE_BRANCH"
+  if [[ "$BUILDKITE_BRANCH" == "main" ]]; then
+    TRIGGER_BRANCH="master"
+  fi
+  
   echo "Triggering performance-esbench-jdk for new jdk build $JDK_IDENTIFIER"
   cat << EOF | buildkite-agent pipeline upload
 steps:
@@ -87,7 +94,7 @@ steps:
   label: Triggering performance-esbench-jdk for new jdk build $JDK_IDENTIFIER
   async: true
   build:
-    branch: "$BUILDKITE_BRANCH"
+    branch: "$TRIGGER_BRANCH"
     env:
       EFFECTIVE_START_DATE: "$EFFECTIVE_START_DATE"
       EXECUTION_MODE: "start-run"

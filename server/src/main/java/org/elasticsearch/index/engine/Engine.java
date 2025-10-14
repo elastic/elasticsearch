@@ -68,7 +68,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -301,26 +300,20 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            boolean trackPostingsMemoryEnabled = isStateless;
-            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
+            if (isStateless) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    if (trackPostingsMemoryEnabled) {
-                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                        );
-                        if (postingBytes != null) {
-                            totalPostingBytes += Long.parseLong(postingBytes);
-                        }
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
                     }
-                    if (trackLiveDocsMemoryEnabled) {
-                        var liveDocs = segmentReader.getLiveDocs();
-                        if (liveDocs != null) {
-                            assert validateLiveDocsClass(liveDocs);
-                            long liveDocsBytes = getLiveDocsBytes(liveDocs);
-                            totalLiveDocsBytes += liveDocsBytes;
-                        }
+                    var liveDocs = segmentReader.getLiveDocs();
+                    if (liveDocs != null) {
+                        assert validateLiveDocsClass(liveDocs);
+                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                        totalLiveDocsBytes += liveDocsBytes;
                     }
                 }
             }
@@ -404,7 +397,7 @@ public abstract class Engine implements Closeable {
                 if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorsReader = fieldsReader.getFieldReader(info.name);
                 }
-                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
                 offHeapStats.put(info.name, offHeap);
             }
         }
@@ -1005,6 +998,11 @@ public abstract class Engine implements Closeable {
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
+    // Allows subclasses to wrap the DirectoryReader before it is used to create Searchers
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return reader;
+    }
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
@@ -1019,6 +1017,7 @@ public abstract class Engine implements Closeable {
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            DirectoryReader wrappedDirectoryReader = wrapDirectoryReader(acquire);
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -1026,7 +1025,7 @@ public abstract class Engine implements Closeable {
                     onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        acquire,
+                        wrappedDirectoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),

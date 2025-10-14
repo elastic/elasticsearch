@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +34,10 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
         ElasticInferenceServiceRateLimitServiceSettings {
 
     public static final String NAME = "elastic_inference_service_completion_service_settings";
+
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
 
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -68,7 +71,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     public ElasticInferenceServiceCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
-        if (in.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             new RateLimitSettings(in);
         }
     }
@@ -89,7 +92,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -114,7 +117,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        if (out.getTransportVersion().before(TransportVersions.INFERENCE_API_DISABLE_EIS_RATE_LIMITING)) {
+        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             rateLimitSettings.writeTo(out);
         }
     }

@@ -63,19 +63,20 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, IntBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        int val = valBlock.getInt(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log10.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log10.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,8 +89,9 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, IntVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        int val = valVector.getInt(p);
         try {
-          result.appendDouble(Log10.process(valVector.getInt(p)));
+          result.appendDouble(Log10.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

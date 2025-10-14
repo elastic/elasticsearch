@@ -58,7 +58,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -217,16 +216,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, String[] gFields) throws IOException {
+    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) throws IOException {
         return doGet(
             id,
-            gFields,
+            new String[] { RoutingFieldMapper.NAME },
             true,
             Versions.MATCH_ANY,
             VersionType.INTERNAL,
             ifSeqNo,
             ifPrimaryTerm,
-            FetchSourceContext.FETCH_ALL_SOURCE,
+            fetchSourceContext,
             false,
             indexShard::get
         );
@@ -290,14 +289,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         // check first if stored fields to be loaded don't contain an object field
         MappingLookup mappingLookup = mapperService.mappingLookup();
         final Set<String> storedFieldSet = new HashSet<>();
-        boolean hasInferenceMetadataFields = false;
         if (storedFields != null) {
             for (String field : storedFields) {
-                if (field.equals(InferenceMetadataFieldsMapper.NAME)
-                    && InferenceMetadataFieldsMapper.isEnabled(indexShard.mapperService().mappingLookup())) {
-                    hasInferenceMetadataFields = true;
-                    continue;
-                }
                 Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper == null) {
                     if (mappingLookup.objectMappers().get(field) != null) {
@@ -313,10 +306,15 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
 
-        var res = maybeExcludeSyntheticVectorFields(mappingLookup, indexSettings, fetchSourceContext, null);
+        var res = maybeExcludeVectorFields(mappingLookup, indexSettings, fetchSourceContext, null);
         if (res.v1() != fetchSourceContext) {
             fetchSourceContext = res.v1();
         }
+
+        if (mappingLookup.inferenceFields().isEmpty() == false && shouldExcludeInferenceFieldsFromSource(fetchSourceContext) == false) {
+            storedFieldSet.add(InferenceMetadataFieldsMapper.NAME);
+        }
+
         var sourceFilter = res.v2();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(
@@ -389,7 +387,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 source = source.filter(filter);
             }
 
-            if (hasInferenceMetadataFields) {
+            if (storedFieldSet.contains(InferenceMetadataFieldsMapper.NAME)) {
                 /**
                  * Adds the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
                  * to the original _source if it has been requested.
@@ -417,10 +415,42 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * Returns {@code true} if vector fields are explicitly marked to be excluded and {@code false} otherwise.
      */
     public static boolean shouldExcludeVectorsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
-        if (fetchSourceContext == null || fetchSourceContext.excludeVectors() == null) {
-            return INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
+        var explicit = shouldExcludeVectorsFromSourceExplicit(fetchSourceContext);
+        return explicit != null ? explicit : INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
+    }
+
+    private static Boolean shouldExcludeVectorsFromSourceExplicit(FetchSourceContext fetchSourceContext) {
+        return fetchSourceContext != null ? fetchSourceContext.excludeVectors() : null;
+    }
+
+    public static boolean shouldExcludeInferenceFieldsFromSource(FetchSourceContext fetchSourceContext) {
+        if (fetchSourceContext != null) {
+            if (fetchSourceContext.fetchSource() == false) {
+                // Source is disabled
+                return true;
+            }
+
+            var filter = fetchSourceContext.filter();
+            if (filter != null) {
+                if (filter.isPathFiltered(InferenceMetadataFieldsMapper.NAME, true)) {
+                    return true;
+                } else if (filter.isExplicitlyIncluded(InferenceMetadataFieldsMapper.NAME)) {
+                    return false;
+                }
+            }
+
+            Boolean excludeInferenceFieldsExplicit = shouldExcludeInferenceFieldsFromSourceExplicit(fetchSourceContext);
+            if (excludeInferenceFieldsExplicit != null) {
+                return excludeInferenceFieldsExplicit;
+            }
         }
-        return fetchSourceContext.excludeVectors();
+
+        // We always default to excluding the inference metadata field, unless the fetch source context says otherwise
+        return true;
+    }
+
+    private static Boolean shouldExcludeInferenceFieldsFromSourceExplicit(FetchSourceContext fetchSourceContext) {
+        return fetchSourceContext != null ? fetchSourceContext.excludeInferenceFields() : null;
     }
 
     /**
@@ -428,7 +458,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * unless vectors are explicitly requested to be included in the source.
      * Returns {@code null} when vectors should not be filtered out.
      */
-    public static Tuple<FetchSourceContext, SourceFilter> maybeExcludeSyntheticVectorFields(
+    public static Tuple<FetchSourceContext, SourceFilter> maybeExcludeVectorFields(
         MappingLookup mappingLookup,
         IndexSettings indexSettings,
         FetchSourceContext fetchSourceContext,
@@ -448,8 +478,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             )
             : null;
 
+        SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
+
         List<String> lateExcludes = new ArrayList<>();
         var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+            // Keep the vector fields that are explicitly included and not explicitly excluded
+            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
+                return filter.isPathFiltered(f.name(), false);
+            }
             // Exclude the field specified by the `fields` option
             if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
                 lateExcludes.add(f.name());
@@ -457,7 +493,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
             // Exclude vectors from semantic text fields, as they are processed separately
             return inferenceFieldsAut == null || inferenceFieldsAut.run(f.name()) == false;
-        }).map(f -> f.name()).collect(Collectors.toList());
+        }).map(MappedFieldType::name).toList();
 
         var sourceFilter = excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
         if (lateExcludes.size() > 0) {
@@ -466,15 +502,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
              * This ensures that vector fields are available to sub-fetch phases, but excluded during the {@link FetchSourcePhase}.
              */
             if (fetchSourceContext != null && fetchSourceContext.excludes() != null) {
-                for (var exclude : fetchSourceContext.excludes()) {
-                    lateExcludes.add(exclude);
-                }
+                lateExcludes.addAll(Arrays.asList(fetchSourceContext.excludes()));
             }
             var newFetchSourceContext = fetchSourceContext == null
                 ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
                 : FetchSourceContext.of(
                     fetchSourceContext.fetchSource(),
                     fetchSourceContext.excludeVectors(),
+                    fetchSourceContext.excludeInferenceFields(),
                     fetchSourceContext.includes(),
                     lateExcludes.toArray(String[]::new)
                 );

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ai21;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -26,10 +26,8 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -55,7 +53,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -143,7 +141,7 @@ public class Ai21Service extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -178,14 +176,7 @@ public class Ai21Service extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            Ai21Model model = createModel(
-                modelId,
-                taskType,
-                serviceSettingsMap,
-                serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
-            );
+            Ai21Model model = createModel(modelId, taskType, serviceSettingsMap, serviceSettingsMap, ConfigurationParseContext.REQUEST);
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -208,13 +199,7 @@ public class Ai21Service extends SenderService {
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
-        );
+        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, secretSettingsMap);
     }
 
     @Override
@@ -222,7 +207,7 @@ public class Ai21Service extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
+        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null);
     }
 
     @Override
@@ -240,14 +225,13 @@ public class Ai21Service extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
         switch (taskType) {
             case CHAT_COMPLETION, COMPLETION:
                 return new Ai21ChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
             default:
-                throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+                throw createInvalidTaskTypeException(modelId, NAME, taskType, context);
         }
     }
 
@@ -255,17 +239,9 @@ public class Ai21Service extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage
+        Map<String, Object> secretSettings
     ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            secretSettings,
-            failureMessage,
-            ConfigurationParseContext.PERSISTENT
-        );
+        return createModel(inferenceEntityId, taskType, serviceSettings, secretSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     /**

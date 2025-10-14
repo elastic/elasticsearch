@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -74,13 +75,16 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -88,6 +92,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -127,30 +132,36 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
-        entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
-        entry(BOOLEAN, ToBoolean::new),
-        entry(CARTESIAN_POINT, ToCartesianPoint::new),
-        entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        entry(DATETIME, ToDatetime::new),
-        entry(DATE_NANOS, ToDateNanos::new),
+    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION;
+
+    static {
+        Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> typeToConverter = new HashMap<>();
+        typeToConverter.put(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new);
+        typeToConverter.put(BOOLEAN, ToBoolean::new);
+        typeToConverter.put(CARTESIAN_POINT, ToCartesianPoint::new);
+        typeToConverter.put(CARTESIAN_SHAPE, ToCartesianShape::new);
+        typeToConverter.put(DATETIME, ToDatetime::new);
+        typeToConverter.put(DATE_NANOS, ToDateNanos::new);
         // ToDegrees, typeless
-        entry(DOUBLE, ToDouble::new),
-        entry(GEO_POINT, ToGeoPoint::new),
-        entry(GEO_SHAPE, ToGeoShape::new),
-        entry(GEOHASH, ToGeohash::new),
-        entry(GEOTILE, ToGeotile::new),
-        entry(GEOHEX, ToGeohex::new),
-        entry(INTEGER, ToInteger::new),
-        entry(IP, ToIpLeadingZerosRejected::new),
-        entry(LONG, ToLong::new),
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
+        typeToConverter.put(DOUBLE, ToDouble::new);
+        typeToConverter.put(GEO_POINT, ToGeoPoint::new);
+        typeToConverter.put(GEO_SHAPE, ToGeoShape::new);
+        typeToConverter.put(GEOHASH, ToGeohash::new);
+        typeToConverter.put(GEOTILE, ToGeotile::new);
+        typeToConverter.put(GEOHEX, ToGeohex::new);
+        typeToConverter.put(INTEGER, ToInteger::new);
+        typeToConverter.put(IP, ToIpLeadingZerosRejected::new);
+        typeToConverter.put(LONG, ToLong::new);
         // ToRadians, typeless
-        entry(KEYWORD, ToString::new),
-        entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        entry(VERSION, ToVersion::new),
-        entry(DATE_PERIOD, ToDatePeriod::new),
-        entry(TIME_DURATION, ToTimeDuration::new)
-    );
+        typeToConverter.put(KEYWORD, ToString::new);
+        typeToConverter.put(UNSIGNED_LONG, ToUnsignedLong::new);
+        typeToConverter.put(VERSION, ToVersion::new);
+        typeToConverter.put(DATE_PERIOD, ToDatePeriod::new);
+        typeToConverter.put(TIME_DURATION, ToTimeDuration::new);
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
+        TYPE_TO_CONVERTER_FUNCTION = Collections.unmodifiableMap(typeToConverter);
+    }
 
     public enum INTERVALS {
         // TIME_DURATION,
@@ -164,6 +175,7 @@ public class EsqlDataTypeConverter {
         MINUTE,
         MINUTES,
         MIN,
+        M,
         HOUR,
         HOURS,
         H,
@@ -197,6 +209,7 @@ public class EsqlDataTypeConverter {
         INTERVALS.MINUTE,
         INTERVALS.MINUTES,
         INTERVALS.MIN,
+        INTERVALS.M,
         INTERVALS.HOUR,
         INTERVALS.HOURS,
         INTERVALS.H
@@ -271,6 +284,9 @@ public class EsqlDataTypeConverter {
             }
             if (to == DataType.DATE_PERIOD) {
                 return EsqlConverter.STRING_TO_DATE_PERIOD;
+            }
+            if (to == DENSE_VECTOR) {
+                return EsqlConverter.STRING_TO_DENSE_VECTOR;
             }
         }
         Converter converter = DataTypeConverter.converterFor(from, to);
@@ -442,8 +458,8 @@ public class EsqlDataTypeConverter {
             return KEYWORD;
         }
         if (left.isNumeric() && right.isNumeric()) {
-            int lsize = left.estimatedSize().orElseThrow();
-            int rsize = right.estimatedSize().orElseThrow();
+            int lsize = left.estimatedSize();
+            int rsize = right.estimatedSize();
             // if one is int
             if (left.isWholeNumber()) {
                 // promote the highest int
@@ -474,7 +490,7 @@ public class EsqlDataTypeConverter {
             return switch (INTERVALS.valueOf(temporalUnit.toUpperCase(Locale.ROOT))) {
                 case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
                 case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
-                case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
+                case MINUTE, MINUTES, MIN, M -> Duration.ofMinutes(safeToLong(value));
                 case HOUR, HOURS, H -> Duration.ofHours(safeToLong(value));
 
                 case DAY, DAYS, D -> Period.ofDays(safeToInt(safeToLong(value)));
@@ -732,6 +748,19 @@ public class EsqlDataTypeConverter {
         return n instanceof BigInteger || n.longValue() != 0;
     }
 
+    public static List<Float> stringToDenseVector(String field) {
+        try {
+            byte[] bytes = HexFormat.of().parseHex(field);
+            List<Float> vector = new ArrayList<>(bytes.length);
+            for (byte value : bytes) {
+                vector.add((float) value);
+            }
+            return vector;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "%s is not a valid hex string: %s", field, e.getMessage()));
+        }
+    }
+
     public static long booleanToUnsignedLong(boolean number) {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
@@ -783,22 +812,24 @@ public class EsqlDataTypeConverter {
         Double max = null;
         Double sum = null;
         Integer count = null;
+
+        s = s.replace("\\,", ",");
         String[] values = s.substring(1, s.length() - 1).split(",");
         for (String v : values) {
             var pair = v.split(":");
             String type = pair[0];
             String number = pair[1];
             switch (type) {
-                case "min":
+                case "min", "\"min\"":
                     min = Double.parseDouble(number);
                     break;
-                case "max":
+                case "max", "\"max\"":
                     max = Double.parseDouble(number);
                     break;
-                case "sum":
+                case "sum", "\"sum\"":
                     sum = Double.parseDouble(number);
                     break;
-                case "value_count":
+                case "value_count", "\"value_count\"":
                     count = Integer.parseInt(number);
                     break;
                 default:
@@ -827,7 +858,8 @@ public class EsqlDataTypeConverter {
         STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x))),
         STRING_TO_GEOHASH(x -> Geohash.longEncode(BytesRefs.toString(x))),
         STRING_TO_GEOTILE(x -> GeoTileUtils.longEncode(BytesRefs.toString(x))),
-        STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x)));
+        STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x))),
+        STRING_TO_DENSE_VECTOR(x -> EsqlDataTypeConverter.stringToDenseVector(BytesRefs.toString(x)));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

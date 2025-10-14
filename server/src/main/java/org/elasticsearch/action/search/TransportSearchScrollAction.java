@@ -60,7 +60,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                    searchResponseMetrics.recordTookTimeForSearchScroll(searchResponse.getTookInMillis());
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {

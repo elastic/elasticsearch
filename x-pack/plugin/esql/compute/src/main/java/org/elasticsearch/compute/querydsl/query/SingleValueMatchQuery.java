@@ -8,9 +8,11 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -107,19 +110,31 @@ public final class SingleValueMatchQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
+                final LeafFieldData lfd = fieldData.load(ctx);
+                // If field is singleton, then it is safe to cache this query, because no warning will ever be emitted.
+                if (lfd instanceof LeafNumericFieldData n) {
+                    if (SortedNumericLongValues.unwrapSingleton(n.getLongValues()) != null) {
+                        return true;
+                    }
+                } else if (lfd instanceof LeafOrdinalsFieldData o) {
+                    if (DocValues.unwrapSingleton(o.getOrdinalsValues()) != null) {
+                        return true;
+                    }
+                }
                 // don't cache so we can emit warnings
                 return false;
             }
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                SortedNumericDocValues sortedNumerics,
+                SortedNumericLongValues sortedNumerics,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedNumerics) != null) {
+                if (SortedNumericLongValues.unwrapSingleton(sortedNumerics) != null) {
                     // check for dense field
+                    // TODO: check doc values skippers
                     final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
                     if (points != null && points.getDocCount() == maxDoc) {
                         return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
@@ -149,6 +164,7 @@ public final class SingleValueMatchQuery extends Query {
                 final int maxDoc = context.reader().maxDoc();
                 if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
                     // check for dense field
+                    // TODO: check doc values skippers
                     final Terms terms = context.reader().terms(fieldData.getFieldName());
                     if (terms != null && terms.getDocCount() == maxDoc) {
                         return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
@@ -209,19 +225,37 @@ public final class SingleValueMatchQuery extends Query {
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
+            final LeafReader reader = context.reader();
+            final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                final PointValues pointValues = context.reader().getPointValues(fieldData.getFieldName());
-                if (pointValues == null
-                    || pointValues.getDocCount() != context.reader().maxDoc()
-                    || pointValues.size() != pointValues.getDocCount()) {
-                    return super.rewrite(indexSearcher);
+                NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
+                // TODO: check doc values skippers
+                final PointValues points = reader.getPointValues(fieldData.getFieldName());
+                if (points != null && points.getDocCount() == maxDoc && points.size() == points.getDocCount()) {
+                    continue;
+                }
+                return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
-                final Terms terms = context.reader().terms(fieldData.getFieldName());
-                if (terms == null || terms.getDocCount() != context.reader().maxDoc() || terms.getSumDocFreq() != terms.getDocCount()) {
-                    return super.rewrite(indexSearcher);
+                SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
+                // TODO: check doc values skippers
+                Terms terms = reader.terms(fieldData.getFieldName());
+                if (terms != null && terms.getDocCount() == maxDoc && terms.getSumDocFreq() == terms.getDocCount()) {
+                    continue;
+                }
+                return super.rewrite(indexSearcher);
             } else {
                 return super.rewrite(indexSearcher);
             }

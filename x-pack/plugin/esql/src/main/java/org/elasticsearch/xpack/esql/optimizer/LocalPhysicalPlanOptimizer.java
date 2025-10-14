@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ParallelizeTimeSeriesSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
@@ -88,8 +87,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             Limiter.ONCE,
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundsExtraction(),
-            new ParallelizeTimeSeriesSource()
+            new SpatialShapeBoundsExtraction()
         );
         return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }

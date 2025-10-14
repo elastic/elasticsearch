@@ -6,19 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
@@ -26,7 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -78,21 +72,10 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         final PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
         final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
         final String policyName = in.readString();
-        final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "match";
+        final String matchType = in.readString();
         final String policyMatchField = in.readString();
-        final Map<String, String> concreteIndices;
-        final Enrich.Mode mode;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            mode = in.readEnum(Enrich.Mode.class);
-            concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            mode = Enrich.Mode.ANY;
-            EsIndex esIndex = EsIndex.readFrom(in);
-            if (esIndex.concreteIndices().size() != 1) {
-                throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
-            }
-            concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
-        }
+        final Enrich.Mode mode = in.readEnum(Enrich.Mode.class);
+        final Map<String, String> concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         return new EnrichExec(
             source,
             child,
@@ -112,22 +95,10 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(matchField());
         out.writeString(policyName());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeString(matchType());
-        }
+        out.writeString(matchType());
         out.writeString(policyMatchField());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeEnum(mode());
-            out.writeMap(concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            if (concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
-                String enrichIndex = concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Map.of(enrichIndex, IndexMode.STANDARD));
-                esIndex.writeTo(out);
-            } else {
-                throw new IllegalStateException("expected a single concrete enrich index; got " + concreteIndices());
-            }
-        }
+        out.writeEnum(mode());
+        out.writeMap(concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
         out.writeNamedWriteableCollection(enrichFields());
     }
 

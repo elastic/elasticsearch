@@ -46,6 +46,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
         assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, inferRequest.getRequestModelType());
     }
 
+    @Override
     public ActionResponse createResponse(float[] array, TextEmbeddingQueryVectorBuilder builder) {
         double[] embedding = new double[array.length];
         for (int i = 0; i < embedding.length; i++) {

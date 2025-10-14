@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomNodeEphemeralId;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
@@ -56,7 +57,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
     @Override
     protected StatelessCompoundCommit mutateInstance(StatelessCompoundCommit instance) throws IOException {
-        return switch (randomInt(8)) {
+        return switch (randomInt(9)) {
             case 0 -> new StatelessCompoundCommit(
                 randomValueOtherThan(instance.shardId(), StatelessCompoundCommitTestUtils::randomShardId),
                 instance.primaryTermAndGeneration(),
@@ -66,7 +67,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 instance.sizeInBytes(),
                 instance.internalFiles(),
                 instance.headerSizeInBytes(),
-                instance.internalFilesReplicatedRanges()
+                instance.internalFilesReplicatedRanges(),
+                instance.extraContent()
             );
             case 1 -> new StatelessCompoundCommit(
                 instance.shardId(),
@@ -80,20 +82,22 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 instance.sizeInBytes(),
                 instance.internalFiles(),
                 instance.headerSizeInBytes(),
-                instance.internalFilesReplicatedRanges()
+                instance.internalFilesReplicatedRanges(),
+                instance.extraContent()
             );
             case 2 -> instance.hollow() ?
                 // unhollowed commit
                 new StatelessCompoundCommit(
                     instance.shardId(),
                     instance.primaryTermAndGeneration(),
-                    randomNonZeroPositiveLong(),
+                    randomValueOtherThan(HOLLOW_TRANSLOG_RECOVERY_START_FILE, StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong),
                     randomNodeEphemeralId(),
                     instance.commitFiles(),
                     instance.sizeInBytes(),
                     instance.internalFiles(),
                     instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges()
+                    instance.internalFilesReplicatedRanges(),
+                    Map.of()
                 ) : randomBoolean() ?
                 // hollowed commit
                     StatelessCompoundCommit.newHollowStatelessCompoundCommit(
@@ -103,7 +107,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                         instance.sizeInBytes(),
                         instance.internalFiles(),
                         instance.headerSizeInBytes(),
-                        instance.internalFilesReplicatedRanges()
+                        instance.internalFilesReplicatedRanges(),
+                        instance.extraContent()
                     ) :
                 // different unhollowed commit
                 new StatelessCompoundCommit(
@@ -115,20 +120,22 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.sizeInBytes(),
                     instance.internalFiles(),
                     instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges()
+                    instance.internalFilesReplicatedRanges(),
+                    Map.of()
                 );
             case 3 -> instance.hollow() ?
                 // unhollowed commit
                 new StatelessCompoundCommit(
                     instance.shardId(),
                     instance.primaryTermAndGeneration(),
-                    randomNonZeroPositiveLong(),
+                    randomValueOtherThan(HOLLOW_TRANSLOG_RECOVERY_START_FILE, StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong),
                     randomNodeEphemeralId(),
                     instance.commitFiles(),
                     instance.sizeInBytes(),
                     instance.internalFiles(),
                     instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges()
+                    instance.internalFilesReplicatedRanges(),
+                    Map.of()
                 ) : randomBoolean() ?
                 // hollowed commit
                     StatelessCompoundCommit.newHollowStatelessCompoundCommit(
@@ -138,7 +145,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                         instance.sizeInBytes(),
                         instance.internalFiles(),
                         instance.headerSizeInBytes(),
-                        instance.internalFilesReplicatedRanges()
+                        instance.internalFilesReplicatedRanges(),
+                        instance.extraContent()
                     ) :
                 // different unhollowed commit
                 new StatelessCompoundCommit(
@@ -150,7 +158,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.sizeInBytes(),
                     instance.internalFiles(),
                     instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges()
+                    instance.internalFilesReplicatedRanges(),
+                    Map.of()
                 );
             case 4 -> {
                 var commitFiles = randomValueOtherThan(instance.commitFiles(), StatelessCompoundCommitTestUtils::randomCommitFiles);
@@ -163,7 +172,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.sizeInBytes(),
                     Set.copyOf(randomSubsetOf(commitFiles.keySet())),
                     instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges()
+                    instance.internalFilesReplicatedRanges(),
+                    instance.extraContent()
                 );
             }
             case 5 -> new StatelessCompoundCommit(
@@ -175,7 +185,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 randomValueOtherThan(instance.sizeInBytes(), StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong),
                 instance.internalFiles(),
                 instance.headerSizeInBytes(),
-                instance.internalFilesReplicatedRanges()
+                instance.internalFilesReplicatedRanges(),
+                instance.extraContent()
             );
             case 6 -> {
                 Map<String, BlobLocation> commitFiles = instance.commitFiles().isEmpty()
@@ -190,7 +201,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.sizeInBytes(),
                     randomValueOtherThan(instance.internalFiles(), () -> Set.copyOf(randomSubsetOf(commitFiles.keySet()))),
                     instance.headerSizeInBytes(),
-                    instance.internalFilesReplicatedRanges()
+                    instance.internalFilesReplicatedRanges(),
+                    instance.extraContent()
                 );
             }
             case 7 -> new StatelessCompoundCommit(
@@ -202,7 +214,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 instance.sizeInBytes(),
                 instance.internalFiles(),
                 randomValueOtherThan(instance.headerSizeInBytes(), StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong),
-                instance.internalFilesReplicatedRanges()
+                instance.internalFilesReplicatedRanges(),
+                instance.extraContent()
             );
             case 8 -> new StatelessCompoundCommit(
                 instance.shardId(),
@@ -216,8 +229,25 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 randomValueOtherThan(
                     instance.internalFilesReplicatedRanges(),
                     StatelessCompoundCommitTestUtils::randomInternalFilesReplicatedRanges
-                )
+                ),
+                instance.extraContent()
             );
+            case 9 -> {
+                final Map<String, BlobLocation> extraContent = randomValueOtherThan(
+                    instance.extraContent(),
+                    () -> rarely() ? Map.of() : StatelessCompoundCommitTestUtils.randomCommitFiles()
+                );
+                yield StatelessCompoundCommit.newHollowStatelessCompoundCommit(
+                    instance.shardId(),
+                    instance.primaryTermAndGeneration(),
+                    instance.commitFiles(),
+                    instance.sizeInBytes(),
+                    instance.internalFiles(),
+                    instance.headerSizeInBytes(),
+                    instance.internalFilesReplicatedRanges(),
+                    extraContent
+                );
+            }
             default -> throw new AssertionError("Unexpected value");
         };
     }
@@ -268,7 +298,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 internalFiles,
                 referencedCommitBlobsWithoutBlobLength,
                 0,
-                headerOffset
+                headerOffset,
+                List.of()
             );
             // StatelessCompoundCommit.VERSION_WITH_COMMIT_FILES, StatelessCompoundCommit.VERSION_WITH_BLOB_LENGTH do not support
             // translogRecoveryVersion. So the deserialized value will always be 0
@@ -277,11 +308,12 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 testInstance.primaryTermAndGeneration(),
                 0,
                 testInstance.nodeEphemeralId(),
-                expectedCommitFiles,
+                expectedCommitFiles.commitFiles(),
                 totalSize,
                 internalFiles.stream().map(StatelessCompoundCommit.InternalFile::name).collect(Collectors.toSet()),
                 headerOffset,
-                InternalFilesReplicatedRanges.EMPTY
+                InternalFilesReplicatedRanges.EMPTY,
+                Map.of()
             );
 
             try (StreamInput in = output.bytes().streamInput()) {
@@ -348,7 +380,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 InternalFilesReplicatedRanges.EMPTY,
                 StatelessCompoundCommit.CURRENT_VERSION,
                 new PositionTrackingOutputStreamStreamOutput(output),
-                randomBoolean()
+                randomBoolean(),
+                List.of()
             );
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());
@@ -385,7 +418,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 InternalFilesReplicatedRanges.EMPTY,
                 StatelessCompoundCommit.CURRENT_VERSION,
                 new PositionTrackingOutputStreamStreamOutput(output),
-                writerFeatureFlag
+                writerFeatureFlag,
+                List.of()
             );
             bytes = BytesReference.toBytes(output.bytes());
         }
@@ -402,7 +436,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         }
     }
 
-    public void testGetBoundaryOffsetInCurrentTermWithMixedFiles() {
+    public void testGetInternalFilesBoundaryOffsetInCurrentTermWithMixedFiles() {
         PrimaryTermAndGeneration previosGeneration = new PrimaryTermAndGeneration(4L, 4L);
         PrimaryTermAndGeneration currentGeneration = new PrimaryTermAndGeneration(5L, 5L);
 
@@ -433,10 +467,12 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             700L,
             Set.of("currentMin", "inBetween", "currentMax"),
             50L,
-            InternalFilesReplicatedRanges.EMPTY
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of()
         );
 
-        assertThat(commit.getMaxOffsetInCurrentGeneration(), equalTo(currentMax));
-        assertThat(commit.getMinOffsetInCurrentGeneration(), equalTo(currentMin));
+        assertThat(commit.getMaxInternalFilesOffsetInCurrentGeneration(), equalTo(currentMax));
+        assertThat(commit.getMinInternalFilesOffsetInCurrentGeneration(), equalTo(currentMin));
     }
+
 }

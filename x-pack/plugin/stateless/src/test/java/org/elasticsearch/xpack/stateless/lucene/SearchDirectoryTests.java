@@ -262,7 +262,8 @@ public class SearchDirectoryTests extends ESTestCase {
                         blobLength,
                         files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet()),
                         0L,
-                        InternalFilesReplicatedRanges.EMPTY
+                        InternalFilesReplicatedRanges.EMPTY,
+                        Map.of()
                     )
                 );
                 generation += 1L;
@@ -425,7 +426,8 @@ public class SearchDirectoryTests extends ESTestCase {
             commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
             commitFiles.keySet(),
             0L,
-            InternalFilesReplicatedRanges.EMPTY
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of()
         );
     }
 
@@ -441,7 +443,8 @@ public class SearchDirectoryTests extends ESTestCase {
             commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
             commitFiles.keySet(),
             0L,
-            InternalFilesReplicatedRanges.EMPTY
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of()
         );
     }
 

@@ -66,7 +66,8 @@ public final class StatelessCompoundCommitTestUtils {
                 randomNonZeroPositiveLong(),
                 Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
                 randomNonZeroPositiveLong(),
-                randomInternalFilesReplicatedRanges()
+                randomInternalFilesReplicatedRanges(),
+                randomCommitFiles()
             );
         } else {
             return new StatelessCompoundCommit(
@@ -78,7 +79,8 @@ public final class StatelessCompoundCommitTestUtils {
                 randomNonZeroPositiveLong(),
                 Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
                 randomNonZeroPositiveLong(),
-                randomInternalFilesReplicatedRanges()
+                randomInternalFilesReplicatedRanges(),
+                Map.of()
             );
         }
     }

@@ -461,7 +461,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 0L,
                 Set.of(),
                 0L,
-                InternalFilesReplicatedRanges.EMPTY
+                InternalFilesReplicatedRanges.EMPTY,
+                Map.of()
             )
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -575,7 +576,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 0L,
                 Set.of(),
                 0L,
-                InternalFilesReplicatedRanges.EMPTY
+                InternalFilesReplicatedRanges.EMPTY,
+                Map.of()
             )
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));

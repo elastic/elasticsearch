@@ -470,7 +470,8 @@ public class IndexDirectoryTests extends ESTestCase {
             commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
             files,
             0L,
-            InternalFilesReplicatedRanges.EMPTY
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of()
         );
     }
 }

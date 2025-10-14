@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
@@ -21,11 +22,13 @@ import org.elasticsearch.transport.RemoteTransportException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,6 +36,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
@@ -265,5 +269,36 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
                 assertThat(response.get().keySet(), not(hasItems("@timestamp", "field1", "field2")));
             }
         }
+    }
+
+    public void testResolvedTo() {
+        String localIndex = "index-local";
+        String remoteIndex = "index-remote";
+        String remoteClusterAlias = "remote_cluster";
+        populateIndices(localIndex, remoteIndex, remoteClusterAlias, false);
+        String remoteIndexWithCluster = String.join(":", remoteClusterAlias, remoteIndex);
+        FieldCapabilitiesResponse response = client().prepareFieldCaps(localIndex, remoteIndexWithCluster)
+            .setFields("*")
+            .setIncludeResolvedTo(true)
+            .get();
+
+        assertThat(response.getIndices(), arrayContainingInAnyOrder(localIndex, remoteIndexWithCluster));
+
+        ResolvedIndexExpressions local = response.getResolvedLocally();
+        assertThat(local, notNullValue());
+        assertThat(local.expressions(), hasSize(1));
+
+        List<String> localIndicesList = local.getLocalIndicesList();
+        assertThat(localIndicesList, hasSize(1));
+        assertThat(localIndicesList, containsInAnyOrder(localIndex));
+
+        Map<String, ResolvedIndexExpressions> remote = response.getResolvedRemotely();
+        assertThat(remote, notNullValue());
+        assertThat(remote, aMapWithSize(1));
+        assertThat(remote.keySet(), contains(remoteClusterAlias));
+
+        List<String> remoteIndicesList = remote.get(remoteClusterAlias).getLocalIndicesList();
+        assertThat(remoteIndicesList, hasSize(1));
+        assertThat(remoteIndicesList, containsInAnyOrder(remoteIndex));
     }
 }

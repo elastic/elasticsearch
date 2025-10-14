@@ -76,7 +76,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "time-series aggregation inside function * doesn't support type *"
+        "implicit time-series aggregation function .* doesn't support type .*"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

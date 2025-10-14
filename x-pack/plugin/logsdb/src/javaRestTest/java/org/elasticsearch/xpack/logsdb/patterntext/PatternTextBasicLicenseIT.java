@@ -16,7 +16,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
 
-public class PatternTextBasicLicenseTests extends DataStreamLicenseChangeTestCase {
+public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
     @Before
     public void checkClusterFeature() {
         assumeTrue("[patterned_text] must be available", clusterHasFeature("mapper.patterned_text"));

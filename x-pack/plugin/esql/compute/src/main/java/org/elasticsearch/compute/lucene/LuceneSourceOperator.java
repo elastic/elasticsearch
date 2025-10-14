@@ -60,12 +60,12 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final int minPageSize;
 
     public static class Factory extends LuceneOperator.Factory {
-        protected final List<? extends RefCounted> contexts;
+        protected final IndexedByShardId<? extends RefCounted> refCounteds;
         protected final int maxPageSize;
         protected final Limiter limiter;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> shardContexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             DataPartitioning.AutoStrategy autoStrategy,
@@ -75,7 +75,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             boolean needsScore
         ) {
             super(
-                contexts,
+                shardContexts,
                 queryFunction,
                 dataPartitioning,
                 dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
@@ -86,7 +86,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 needsScore,
                 shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
             );
-            this.contexts = contexts;
+            this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
@@ -94,7 +94,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
         }
 
         public int maxPageSize() {
@@ -221,7 +221,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
-        List<? extends RefCounted> shardContextCounters,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
@@ -229,7 +229,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         Limiter limiter,
         boolean needsScore
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue);
+        super(refCounteds, blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
@@ -337,7 +337,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
-                    blocks[b++] = new DocVector(currentScorerShardRefCounted(), shard, leaf, docs, true).asBlock();
+                    blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;

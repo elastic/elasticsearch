@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -379,7 +379,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
             // TODO allow configuration of value mode
-            NumericDocValues metricValues = MultiValueMode.AVG.select(valuesSource.longValues(ctx));
+            LongValues metricValues = MultiValueMode.AVG.select(valuesSource.longValues(ctx));
             return (index, doc) -> {
                 if (false == metricValues.advanceExact(doc)) {
                     empty.markMissing(index);

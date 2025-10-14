@@ -2696,15 +2696,17 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: time-series aggregation inside function [count(host)] doesn't support type [keyword]; "
-                    + "only numeric types are supported, use the FROM command instead of the TS command"
+                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
+                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
             )
         );
         assertThat(
-            error("TS test | STATS count(name) BY bucket(@timestamp, 1 minute)", tsdb),
+            error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: time-series aggregation inside function [count(name)] doesn't support type [keyword]; "
-                    + "only numeric types are supported, use the FROM command instead of the TS command"
+                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
+                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
             )
         );
     }

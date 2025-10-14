@@ -183,8 +183,8 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
 
         /**
          * Calculates ILM-policy-specific statistics that help us get a better understanding on the phases that use downsampling and on
-         * how the force merge step in the downsample action is used. More specifically, we are tracking for downsampling we are tracking:
-         * - if users explicitly enabled or disable it.
+         * how the force merge step in the downsample action is used. More specifically, for downsampling we are tracking:
+         * - if users explicitly enabled or disabled force-merge after downsampling.
          * - if the force merge could be skipped with minimal impact, when the force merge flag is undefined.
          * @return a IlmPolicyStats record that contains these counters.
          */

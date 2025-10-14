@@ -246,7 +246,6 @@ class MutableSearchResponse extends AbstractRefCounted {
             // We have a final response, use it.
             searchResponse = finalResponse;
             searchResponse.mustIncRef();
-            // System.out.println("Thread:" + Thread.currentThread().getName() + " finalResponse=" + finalResponse);
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;

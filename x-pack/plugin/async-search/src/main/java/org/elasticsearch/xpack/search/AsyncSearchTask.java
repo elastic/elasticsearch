@@ -345,7 +345,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         AsyncSearchResponse finalResponse;
 
         try {
-            finalResponse = getResponse(); 
+            finalResponse = getResponse();
         } catch (Exception e) {
             ElasticsearchException ex = (e instanceof ElasticsearchException)
                 ? (ElasticsearchException) e

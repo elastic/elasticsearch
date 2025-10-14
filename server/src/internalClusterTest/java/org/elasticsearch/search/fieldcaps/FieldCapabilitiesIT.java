@@ -102,6 +102,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -911,6 +912,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             actualIndexModes.put(indexResp.getIndexName(), indexResp.getIndexMode());
         }
         assertThat(actualIndexModes, equalTo(indexModes));
+    }
+
+    public void testNoneExpressionIndices() {
+        // The auth code injects the pattern ["*", "-*"] which effectively means a request that requests no indices
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("*", "-*").setFields("*").get();
+
+        assertThat(response.getIndices().length, is(0));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

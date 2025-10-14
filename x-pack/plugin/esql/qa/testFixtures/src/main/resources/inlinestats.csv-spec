@@ -4053,7 +4053,7 @@ QaoRGYyf:long
 ;
 
 
-inlineStatsAfterPruningAggregate4
+inlineStatsAfterPruningAggregate5
 required_capability: inline_stats
 required_capability: inline_stats_after_pruning_aggregate
 required_capability: join_lookup_v12
@@ -4080,7 +4080,7 @@ null                 | 0
 ;
 
 
-inlineStatsAfterPruningAggregate5
+inlineStatsAfterPruningAggregate6
 required_capability: inline_stats
 required_capability: inline_stats_after_pruning_aggregate
 required_capability: join_lookup_v12
@@ -4109,7 +4109,7 @@ null             | null                            | null            | null     
 ;
 
 
-inlineStatsAfterPruningAggregate6
+inlineStatsAfterPruningAggregate7
 required_capability: inline_stats
 required_capability: inline_stats_after_pruning_aggregate
 required_capability: join_lookup_v12
@@ -4136,7 +4136,7 @@ VizcTbjMnBlQ:long | wXPJguff:double
 ;
 
 
-inlineStatsAfterPruningAggregate7
+inlineStatsAfterPruningAggregate8
 required_capability: inline_stats
 required_capability: inline_stats_after_pruning_aggregate
 
@@ -4157,7 +4157,7 @@ zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | Q
 ;
 
 
-inlineStatsAfterPruningAggregate8
+inlineStatsAfterPruningAggregate9
 required_capability: inline_stats
 required_capability: inline_stats_after_pruning_aggregate
 

@@ -120,12 +120,7 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     public void testLongGaugeWithInvalidAttribute() {
-        registry.registerLongGauge(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            () -> new LongWithAttributes(1, Map.of("index", "index1"))
-        );
+        registry.registerLongGauge("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), equalTo("invalid metric attributes"));

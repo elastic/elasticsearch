@@ -102,12 +102,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
     }
 
     public void testLongWithInvalidAttribute() {
-        registry.registerLongAsyncCounter(
-            "es.test.name.total",
-            "desc",
-            "unit",
-            () -> new LongWithAttributes(1, Map.of("index", "index1"))
-        );
+        registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), equalTo("invalid metric attributes"));

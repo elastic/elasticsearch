@@ -175,7 +175,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -579,9 +578,7 @@ public class EsqlFunctionRegistry {
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(Hamming.class, Hamming::new, "v_hamming") },
-            // random functions
-            new FunctionDefinition[] { def(Random.class, uni(Random::new), "random") } };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

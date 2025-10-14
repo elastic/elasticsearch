@@ -668,7 +668,6 @@ To count only top-level documents, excluding the nested documents that store emb
 * `GET /<index>/_count`
 * `GET _cat/count/<index>`
 
-Both APIs count only the root documents you indexed, ignoring the internal chunk documents.
 
 
 ## Cross-cluster search (CCS) [ccs]

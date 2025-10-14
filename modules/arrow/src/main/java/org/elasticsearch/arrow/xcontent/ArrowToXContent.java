@@ -10,10 +10,8 @@
 package org.elasticsearch.arrow.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
@@ -85,7 +83,7 @@ public class ArrowToXContent {
 
     // Reusable buffer to transfer strings and byte values of length smaller than MAX_BUFFER_SIZE
     private final ReusableByteArray bytesBuffer = new ReusableByteArray();
-    private static final int MAX_BUFFER_SIZE = 1024*1024;
+    private static final int MAX_BUFFER_SIZE = 1024 * 1024;
 
     private ReusableByteArray getBuffer(int length) {
         return length > MAX_BUFFER_SIZE ? new ReusableByteArray() : bytesBuffer;
@@ -158,7 +156,7 @@ public class ArrowToXContent {
 
         Void x = switch (vector.getMinorType()) {
 
-            //---- Numbers
+            // ---- Numbers
             // Performance: we could have cast the vector to the common BaseIntVector/FloatingPoint interface,
             // but this would cause more costly casts and polymorphic dispatch to access the value, whereas
             // concrete classes are final, allowing better optimizations or even inlining.
@@ -230,30 +228,30 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            //---- Booleans
+            // ---- Booleans
 
             case BIT -> {
                 generator.writeBoolean(((BitVector) vector).get(position) != 0);
                 yield null;
             }
 
-            //---- Strings
+            // ---- Strings
 
             case VARCHAR, LARGEVARCHAR, VIEWVARCHAR -> {
                 var bytesVector = (VariableWidthFieldVector) vector;
                 var buffer = getBuffer(bytesVector.getValueLength(position));
                 bytesVector.read(position, buffer);
-                generator.writeUTF8String(buffer.getBuffer(), 0, (int)buffer.getLength());
+                generator.writeUTF8String(buffer.getBuffer(), 0, (int) buffer.getLength());
                 yield null;
             }
 
-            //---- Binary
+            // ---- Binary
 
             case VARBINARY, LARGEVARBINARY, VIEWVARBINARY -> {
                 var bytesVector = (VariableWidthFieldVector) vector;
                 var buffer = getBuffer(bytesVector.getValueLength(position));
                 bytesVector.read(position, buffer);
-                generator.writeBinary(buffer.getBuffer(), 0, (int)buffer.getLength());
+                generator.writeBinary(buffer.getBuffer(), 0, (int) buffer.getLength());
                 yield null;
             }
 
@@ -261,11 +259,11 @@ public class ArrowToXContent {
                 var bytesVector = (FixedSizeBinaryVector) vector;
                 var buffer = getBuffer(bytesVector.getByteWidth());
                 bytesVector.read(position, buffer);
-                generator.writeBinary(buffer.getBuffer(), 0, (int)buffer.getLength());
+                generator.writeBinary(buffer.getBuffer(), 0, (int) buffer.getLength());
                 yield null;
             }
 
-            //----- Timestamps
+            // ----- Timestamps
             //
             // Timestamp values are relative to the Unix epoch in UTC, with an optional timezone.
             // The ES date type has no timezone, so we drop this information.
@@ -286,7 +284,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            //---- Date
+            // ---- Date
             //
             // Time since the epoch, in days or millis evenly divisible by 86_400_000
             // Stored as millis
@@ -303,7 +301,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            //----- Time
+            // ----- Time
             //
             // Time since midnight, either a 32-bit or 64-bit signed integer.
             // There is no equivalent in ES, but we still convert to millis or nanos
@@ -333,7 +331,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            //---- Other fixed size types
+            // ---- Other fixed size types
 
             case DURATION -> {
                 var dVector = (DurationVector) vector;
@@ -348,7 +346,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            //---- Structured types
+            // ---- Structured types
 
             case LIST, FIXED_SIZE_LIST, LISTVIEW -> {
                 var listVector = (BaseListVector) vector;
@@ -426,18 +424,17 @@ public class ArrowToXContent {
             }
 
             case NULL -> {
-                // Should  have been handled at the beginning of this method,
+                // Should have been handled at the beginning of this method,
                 // but keep it to have exhaustive coverage of enum values.
                 generator.writeNull();
                 yield null;
             }
 
-
             case INTERVALYEAR, INTERVALDAY, INTERVALMONTHDAYNANO, // ES doesn't have any interval types
-                 LARGELIST, LARGELISTVIEW // 64-bit vector support is incomplete
+                LARGELIST, LARGELISTVIEW // 64-bit vector support is incomplete
                 -> throw new JsonParseException(
-                "Arrow type [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
-            );
+                    "Arrow type [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
+                );
 
             case RUNENDENCODED -> {
                 var reVector = (RunEndEncodedVector) vector;
@@ -450,7 +447,7 @@ public class ArrowToXContent {
             }
 
             case EXTENSIONTYPE -> throw new JsonParseException(
-                    "Arrow extension [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
+                "Arrow extension [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
             );
         };
     }
@@ -461,12 +458,9 @@ public class ArrowToXContent {
         }
         // Parse directly from the Arrow buffer wrapped in a ByteBuffer
         var pointer = ((VariableWidthFieldVector) vector).getDataPointer(position);
-        var buf = pointer.getBuf().nioBuffer(pointer.getOffset(), (int)pointer.getLength());
+        var buf = pointer.getBuf().nioBuffer(pointer.getOffset(), (int) pointer.getLength());
 
-        var parser = XContentType.JSON.xContent().createParser(
-            XContentParserConfiguration.EMPTY,
-            new ByteBufferBackedInputStream(buf)
-        );
+        var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, new ByteBufferBackedInputStream(buf));
 
         generator.copyCurrentStructure(parser);
     }

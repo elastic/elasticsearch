@@ -11,7 +11,6 @@ package org.elasticsearch.arrow.xcontent;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.util.Float16;
-import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -191,7 +190,7 @@ public class ArrowToXContentTests extends ESTestCase {
             // "A narrowing conversion of a signed integer to an integral type T simply
             // discards all but the n lowest order bits"
             // https://docs.oracle.com/javase/specs/jls/se11/html/jls-5.html#jls-5.1.3
-            vector.set(1, (int)x);
+            vector.set(1, (int) x);
 
             vector.setValueCount(2);
             checkPosition(vector, 0, "{\"intField\":123}");
@@ -400,14 +399,14 @@ public class ArrowToXContentTests extends ESTestCase {
             vector.allocateNew(1);
             vector.set(0, days);
             vector.setValueCount(1);
-            checkPosition(vector, 0, "{\"field\":"+ millis + "}");
+            checkPosition(vector, 0, "{\"field\":" + millis + "}");
         }
 
         try (var vector = new DateMilliVector("field", allocator)) {
             vector.allocateNew(1);
             vector.set(0, millis);
             vector.setValueCount(1);
-            checkPosition(vector, 0, "{\"field\":"+  millis + "}");
+            checkPosition(vector, 0, "{\"field\":" + millis + "}");
         }
     }
 
@@ -448,9 +447,7 @@ public class ArrowToXContentTests extends ESTestCase {
     public void testDuration() throws IOException {
         var millis = randomLongBetween(-1_000_000L, 1_000_000L);
 
-        try (var vector = new DurationVector(
-            new Field("field", FieldType.nullable(Types.MinorType.DURATION.getType()), null), allocator)
-        ) {
+        try (var vector = new DurationVector(new Field("field", FieldType.nullable(Types.MinorType.DURATION.getType()), null), allocator)) {
             vector.allocateNew(1);
             vector.set(0, millis / 1000L);
             vector.setValueCount(1);
@@ -483,7 +480,6 @@ public class ArrowToXContentTests extends ESTestCase {
 
     }
 
-
     public void testList() throws Exception {
         try (var vector = ListVector.empty("listField", allocator)) {
             var w = vector.getWriter();
@@ -504,8 +500,6 @@ public class ArrowToXContentTests extends ESTestCase {
             checkPosition(vector, 1, "{\"listField\":[3,4,5]}");
         }
     }
-
-
 
     public void testMap() throws Exception {
         try (var vector = MapVector.empty("mapField", allocator, false)) {

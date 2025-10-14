@@ -135,8 +135,9 @@ public class ArrowBulkAction extends BaseRestHandler {
                     bulkRequest::add
                 );
             } catch (Exception e) {
-                return channel -> new RestToXContentListener<>(channel)
-                    .onFailure(new ElasticsearchParseException("Failed to parse Arrow format", e));
+                return channel -> new RestToXContentListener<>(channel).onFailure(
+                    new ElasticsearchParseException("Failed to parse Arrow format", e)
+                );
             }
             return channel -> {
                 // FIXME: review ref counting and release in nominal and failure mode
@@ -171,7 +172,8 @@ public class ArrowBulkAction extends BaseRestHandler {
     }
 
     private record ArrowResponseListener(RestChannel channel, boolean arrowResponse, ActionListener<BulkResponse> parent)
-        implements ActionListener<BulkResponse> {
+        implements
+            ActionListener<BulkResponse> {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {

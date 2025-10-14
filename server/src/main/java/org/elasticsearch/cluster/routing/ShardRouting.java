@@ -9,10 +9,12 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -345,7 +347,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
-        role = Role.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            role = Role.readFrom(in);
+        } else {
+            role = Role.DEFAULT;
+        }
         targetRelocatingShard = initializeTargetRelocatingShard();
     }
 
@@ -374,7 +380,13 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             out.writeLong(expectedShardSize);
         }
 
-        role.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            role.writeTo(out);
+        } else if (role != Role.DEFAULT) {
+            throw new IllegalStateException(
+                Strings.format("cannot send role [%s] to node with version [%s]", role, out.getTransportVersion().toReleaseVersion())
+            );
+        }
     }
 
     @Override

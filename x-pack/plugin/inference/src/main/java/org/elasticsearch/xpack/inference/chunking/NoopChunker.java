@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;

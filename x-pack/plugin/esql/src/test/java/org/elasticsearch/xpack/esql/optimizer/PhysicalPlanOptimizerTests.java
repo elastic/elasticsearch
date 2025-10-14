@@ -262,6 +262,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             return new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion()));
         }
 
+        /**
+         * A physical optimizer configured for the same minimum transport version as the analyzer.
+         */
         PhysicalPlanOptimizer physicalOptimizer() {
             return new PhysicalPlanOptimizer(new PhysicalOptimizerContext(analyzer.context().configuration(), minimumVersion()));
         }

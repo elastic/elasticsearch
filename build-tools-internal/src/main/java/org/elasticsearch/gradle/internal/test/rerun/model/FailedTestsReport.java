@@ -13,6 +13,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
 
+/**
+ * This reflects the model provided by develocity api call
+ * `api/tests/build/<buildId>?testOutcomes=failed`
+ * */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FailedTestsReport {
     private List<WorkUnit> workUnits;

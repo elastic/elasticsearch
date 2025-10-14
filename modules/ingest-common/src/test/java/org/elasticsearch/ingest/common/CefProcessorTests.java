@@ -522,28 +522,8 @@ public class CefProcessorTests extends ESTestCase {
         source.put("message", message);
         document = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
-        processor.execute(document);
-        assertMapsEqual(
-            document.getSource(),
-            Map.ofEntries(
-                entry(
-                    "cef",
-                    Map.ofEntries(
-                        entry("version", "0"),
-                        entry(
-                            "device",
-                            Map.of("vendor", "security", "product", "threatmanager", "version", "1.0", "event_class_id", "100")
-                        ),
-                        entry("name", "message has tabs"),
-                        entry("severity", "10")
-                    )
-                ),
-                entry("event", Map.of("code", "100")),
-                entry("observer", Map.of("product", "threatmanager", "vendor", "security", "version", "1.0")),
-                entry("source", Map.of("port", 1232, "ip", "127.0.0.1")),
-                entry("message", "Tab is not a separator")
-            )
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+        assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
     public void testEscapedMessage() throws IOException, URISyntaxException {

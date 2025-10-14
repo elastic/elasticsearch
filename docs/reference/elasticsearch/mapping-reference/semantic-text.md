@@ -660,7 +660,7 @@ semantic search for `semantic_text` fields.
 
 ### Document count discrepancy in `_cat/indices`
 
-When an index contains a `semantic_text` field, the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may show a higher `docs.count` than the logical number of documents you indexed.  
+When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed. 
 This is expected. `semantic_text` automatically stores additional *chunk* documents (one per passage) to hold embeddings, and `_cat/indices` counts **all** Lucene documents, including these hidden chunk documents.
 
 To retrieve the logical document count (excluding chunk documents) use one of the following APIs:

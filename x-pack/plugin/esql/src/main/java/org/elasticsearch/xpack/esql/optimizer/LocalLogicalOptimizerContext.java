@@ -30,7 +30,7 @@ public final class LocalLogicalOptimizerContext extends LogicalOptimizerContext 
      * The minimum transport version is not sent to data nodes, so this is currently unsupported.
      * <p>
      * This can be changed in the future if e.g. lookup joins need to become aware of the minimum transport version.
-     * (Lookup joins are remote, so planning for the current version is limiting.)
+     * (Lookup joins are remote, and for now we have to plan as if the remote node was on the oldest compatible version, which is limiting.)
      */
     @Override
     public TransportVersion minimumVersion() {

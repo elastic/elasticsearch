@@ -185,7 +185,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.lifecycle = null;
         }
-        dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+            dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
+        } else {
+            // We default to no data stream options since failure store is behind a feature flag up to this version
+            this.dataStreamOptions = ResettableValue.undefined();
+        }
     }
 
     @Nullable
@@ -246,7 +251,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
                 out.writeOptionalWriteable(lifecycle);
             }
         }
-        ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+            ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
+        }
     }
 
     @Override

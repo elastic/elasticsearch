@@ -67,4 +67,5 @@ GET seats/_search
   }
 }
 ```
+% TEST[setup:seats]
 

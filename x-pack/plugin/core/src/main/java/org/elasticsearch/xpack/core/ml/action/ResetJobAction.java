@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -61,7 +62,11 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             skipJobStateValidation = in.readBoolean();
-            deleteUserAnnotations = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                deleteUserAnnotations = in.readBoolean();
+            } else {
+                deleteUserAnnotations = false;
+            }
         }
 
         @Override
@@ -69,7 +74,9 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(skipJobStateValidation);
-            out.writeBoolean(deleteUserAnnotations);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                out.writeBoolean(deleteUserAnnotations);
+            }
         }
 
         public void setSkipJobStateValidation(boolean skipJobStateValidation) {

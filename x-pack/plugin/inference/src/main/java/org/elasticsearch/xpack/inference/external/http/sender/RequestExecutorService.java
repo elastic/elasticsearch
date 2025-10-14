@@ -169,7 +169,7 @@ public class RequestExecutorService implements RequestExecutor {
         if (shutdown.compareAndSet(false, true)) {
             if (requestQueueTask != null) {
                 // Wakes up the queue in processRequestQueue
-                requestQueue.offer(NoopTask);
+                requestQueue.offer(NOOP_TASK);
             }
 
             if (cancellableCleanupTask.get() != null) {
@@ -267,7 +267,7 @@ public class RequestExecutorService implements RequestExecutor {
             while (isShutdown() == false) {
                 var task = requestQueue.take();
 
-                if (task == NoopTask) {
+                if (task == NOOP_TASK) {
                     if (isShutdown()) {
                         logger.debug("Shutdown requested, exiting request queue processing");
                         break;
@@ -401,7 +401,7 @@ public class RequestExecutorService implements RequestExecutor {
 
         for (var request : requests) {
             // NoopTask does not implement being rejected, therefore we need to skip it
-            if (request != NoopTask) {
+            if (request != NOOP_TASK) {
                 rejectNonRateLimitedRequest(request);
             }
         }
@@ -715,7 +715,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
     }
 
-    private static final RejectableTask NoopTask = new RejectableTask() {
+    private static final RejectableTask NOOP_TASK = new RejectableTask() {
         @Override
         public void onRejection(Exception e) {
             throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");

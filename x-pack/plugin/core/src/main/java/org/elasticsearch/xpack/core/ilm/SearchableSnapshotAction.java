@@ -149,7 +149,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.replicateFor = in.readOptionalTimeValue();
     }
 
-    boolean isForceMergeIndex() {
+    public boolean isForceMergeIndex() {
         return forceMergeIndex;
     }
 

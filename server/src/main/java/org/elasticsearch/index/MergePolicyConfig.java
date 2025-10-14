@@ -398,26 +398,18 @@ public final class MergePolicyConfig {
             return new CompoundFileThreshold(1.0d);
         } else if (noCFSRatio.equalsIgnoreCase("false")) {
             return new CompoundFileThreshold(0.0d);
-        } else {
-            try {
-                try {
-                    return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
-                } catch (NumberFormatException ex) {
-                    throw new IllegalArgumentException(
-                        "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
-                            + noCFSRatio
-                            + "]",
-                        ex
-                    );
-                }
-            } catch (IllegalArgumentException e) {
-                try {
-                    return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
-                } catch (RuntimeException e2) {
-                    e.addSuppressed(e2);
-                }
-                throw e;
-            }
+        } else if (noCFSRatio.endsWith("b") || noCFSRatio.endsWith("B")) {
+            return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
+        }
+        try {
+            return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(
+                "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
+                    + noCFSRatio
+                    + "]",
+                ex
+            );
         }
     }
 

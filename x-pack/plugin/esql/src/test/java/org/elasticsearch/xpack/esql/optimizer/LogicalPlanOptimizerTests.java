@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.ConstantNullBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -2629,6 +2630,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Test for <code>PruneColumns</code>
      * <pre>{@code
      * EsqlProject[[c{r}#8]]
      * \_Limit[1000[INTEGER],false]
@@ -2650,9 +2652,66 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var inlineJoin = as(limit.child(), InlineJoin.class);
         var localRelation = as(inlineJoin.left(), LocalRelation.class);
         var copyingLocalSupplier = as(localRelation.supplier(), CopyingLocalSupplier.class);
-        as(copyingLocalSupplier.get().getBlock(0), ConstantNullBlock.class);
+        Page page = copyingLocalSupplier.get();
+        assertEquals(1, page.getBlockCount());
+        as(page.getBlock(0), ConstantNullBlock.class);
         var right = as(inlineJoin.right(), Aggregate.class);
         var StubRelation = as(right.child(), StubRelation.class);
+    }
+
+    /**
+     * Test for <code>PropagateEmptyRelation</code>
+     * <pre>{@code
+     * Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[],[]]
+     *   |_LocalRelation[[b{r}#6],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@3fe]
+     *   \_Aggregate[[],[COUNT(b{r}#6,true[BOOLEAN]) AS c#9]]
+     *     \_StubRelation[[b{r}#6]]
+     * }</pre>
+     */
+    public void testInlineStatsAfterPruningAggregate2() {
+        var plan = optimizedPlan("""
+            row a = 12
+            | where false
+            | stats b = max(a)
+            | inline stats c = count(b)
+            """);
+        var limit = asLimit(plan, 1000, false);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+        var localRelation = as(inlineJoin.left(), LocalRelation.class);
+        var copyingLocalSupplier = as(localRelation.supplier(), CopyingLocalSupplier.class);
+        Page page = copyingLocalSupplier.get();
+        assertEquals(1, page.getBlockCount());
+        as(page.getBlock(0), IntArrayBlock.class);
+        var right = as(inlineJoin.right(), Aggregate.class);
+        var stubRelation = as(right.child(), StubRelation.class);
+    }
+
+    /**
+     * Test for <code>ReplaceStatsFilteredAggWithEval</code>
+     * <pre>{@code
+     * Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[],[]]
+     *   |_LocalRelation[[b{r}#6],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@3fe]
+     *   \_Aggregate[[],[MAX(b{r}#6,true[BOOLEAN]) AS c#9]]
+     *     \_StubRelation[[b{r}#6]]
+     * }</pre>
+     */
+    public void testInlineStatsAfterPruningAggregate3() {
+        var plan = optimizedPlan("""
+            row a= 12
+            | stats b = sum(a) where false
+            | inline stats c = max(b)
+            """);
+        var limit = asLimit(plan, 1000, false);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+        var localRelation = as(inlineJoin.left(), LocalRelation.class);
+        var copyingLocalSupplier = as(localRelation.supplier(), CopyingLocalSupplier.class);
+        Page page = copyingLocalSupplier.get();
+        assertEquals(1, page.getBlockCount());
+        as(page.getBlock(0), ConstantNullBlock.class);
+        var right = as(inlineJoin.right(), Aggregate.class);
+        var stubRelation = as(right.child(), StubRelation.class);
     }
 
     /**

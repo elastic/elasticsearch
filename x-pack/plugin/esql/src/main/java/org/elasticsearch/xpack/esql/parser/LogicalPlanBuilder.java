@@ -216,12 +216,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
+            List<String> patterns = ctx.string().stream().map(stringContext ->
+                BytesRefs.toString(visitString(stringContext).fold(FoldContext.small() /* TODO remove me */))
+            ).toList();
+
+            String pattern = Grok.combinePatterns(patterns);
+
             Grok.Parser grokParser;
             try {
                 grokParser = Grok.pattern(source, pattern);
             } catch (SyntaxException e) {
-                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", patterns, e.getMessage());
             }
             validateGrokPattern(source, grokParser, pattern);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);

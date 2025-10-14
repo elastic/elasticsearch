@@ -71,6 +71,17 @@ public class Grok extends RegexExtract implements TelemetryAware {
         }
     }
 
+    public static Parser pattern(Source source, List<String> pattern) {
+        String combinedPattern = combinePatterns(pattern);
+        try {
+            var builtinPatterns = GrokBuiltinPatterns.get(true);
+            org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, combinedPattern, logger::warn);
+            return new Parser(combinedPattern, grok);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern [{}] for grok: {}", combinedPattern, e.getMessage());
+        }
+    }
+
     public static Parser pattern(Source source, String pattern) {
         try {
             var builtinPatterns = GrokBuiltinPatterns.get(true);
@@ -79,6 +90,28 @@ public class Grok extends RegexExtract implements TelemetryAware {
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid pattern [{}] for grok: {}", pattern, e.getMessage());
         }
+    }
+
+    public static String combinePatterns(List<String> patterns) {
+        String combinedPattern;
+        if (patterns.size() > 1) {
+            combinedPattern = "";
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
+                String valueWrap;
+                valueWrap = "(?:" + patterns.get(i) + ")";
+
+                if (combinedPattern.equals("")) {
+                    combinedPattern = valueWrap;
+                } else {
+                    combinedPattern = combinedPattern + "|" + valueWrap;
+                }
+            }
+        } else {
+            combinedPattern = patterns.get(0);
+        }
+
+        return combinedPattern;
     }
 
     private static final Logger logger = LogManager.getLogger(Grok.class);

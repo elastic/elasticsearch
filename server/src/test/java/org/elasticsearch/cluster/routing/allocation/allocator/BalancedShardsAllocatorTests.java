@@ -93,8 +93,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -750,18 +748,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var index = clusterState.metadata().getProject(ProjectId.DEFAULT).index(indexName);
 
         // A cluster info with shard sizes
-        final var clusterInfo = new ClusterInfo(
-            Map.of(),
-            Map.of(),
-            Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        final var clusterInfo = ClusterInfo.builder()
+            .shardSizes(Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()))
+            .build();
         allocator.allocate(
             new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, clusterInfo, null, 0L).mutableCloneForSimulation()
         );

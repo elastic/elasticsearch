@@ -2696,17 +2696,17 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(host)]. "
-                    + "Dimension fields can only be used for grouping in a BY clause. "
-                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
+                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
             )
         );
         assertThat(
-            error("TS test | STATS count(count_over_time(host)) BY bucket(@timestamp, 1 minute)", tsdb),
+            error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(count_over_time(host))]. "
-                    + "Dimension fields can only be used for grouping in a BY clause. "
-                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
+                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
             )
         );
     }

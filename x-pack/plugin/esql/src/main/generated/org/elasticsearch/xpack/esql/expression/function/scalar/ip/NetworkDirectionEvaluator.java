@@ -81,27 +81,27 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
       BytesRef destinationIpScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (sourceIpBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (sourceIpBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (sourceIpBlock.getValueCount(p) != 1) {
-          if (sourceIpBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (destinationIpBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (destinationIpBlock.getValueCount(p) != 1) {
-          if (destinationIpBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (destinationIpBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (!networksBlock.isNull(p)) {
           allBlocksAreNulls = false;

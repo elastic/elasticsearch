@@ -145,6 +145,10 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
+    public FieldExtractExec withAttributesToExtract(List<Attribute> attributesToExtract) {
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
+    }
+
     public List<Attribute> attributesToExtract() {
         return attributesToExtract;
     }

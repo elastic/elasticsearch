@@ -50,6 +50,7 @@ import java.util.function.LongSupplier;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.COMPOUND_COMMITS_WITH_EXTRA_CONTENT;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -259,6 +260,7 @@ public class HollowShardsServiceTests extends ESTestCase {
             when(projectMetadata.getIndicesLookup()).thenReturn(indicesLookup);
             final var clusterState = mock(ClusterState.class);
             when(clusterState.metadata()).thenReturn(metadata);
+            when(clusterState.getMinTransportVersion()).thenReturn(COMPOUND_COMMITS_WITH_EXTRA_CONTENT);
             final var clusterService = mock(ClusterService.class);
             when(clusterService.state()).thenReturn(clusterState);
 

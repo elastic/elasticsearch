@@ -430,7 +430,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 0,
                 commitFiles.keySet(),
                 0L,
-                ranges
+                ranges,
+                Map.of()
             );
 
             var blobFileRanges = BlobFileRangesTestUtils.computeBlobFileRanges(true, commit, 0, commit.internalFiles());
@@ -481,7 +482,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     0,
                     Set.of(),
                     0L,
-                    InternalFilesReplicatedRanges.EMPTY
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of()
                 );
 
                 // Warm the cache and verify the range is fetched with minimization as expected
@@ -539,7 +541,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 0,
                 Set.of(),
                 0L,
-                InternalFilesReplicatedRanges.EMPTY
+                InternalFilesReplicatedRanges.EMPTY,
+                Map.of()
             );
 
             // Warm the cache and verify the range is fetched with minimization as expected

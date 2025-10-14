@@ -321,7 +321,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
             var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
             StatelessCompoundCommit engineCurrentCommit = searchDirectory.getCurrentCommit();
 
-            BlobLocation maxOffsetInCurrentTerm = engineCurrentCommit.getMaxOffsetInCurrentGeneration();
+            BlobLocation maxOffsetInCurrentTerm = engineCurrentCommit.getMaxInternalFilesOffsetInCurrentGeneration();
             assertThat(
                 searchEngine.getMaxPrefetchedOffset().bccTermAndGen(),
                 is(maxOffsetInCurrentTerm.getBatchedCompoundCommitTermAndGeneration())

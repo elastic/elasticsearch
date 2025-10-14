@@ -1360,7 +1360,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 10,
                 Set.of("segments_2"),
                 0L,
-                InternalFilesReplicatedRanges.EMPTY
+                InternalFilesReplicatedRanges.EMPTY,
+                Map.of()
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)

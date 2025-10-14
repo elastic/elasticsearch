@@ -162,7 +162,7 @@ public class SearchCommitPrefetcher {
             // if we skip prefetching we want to mark the term/generation we skipped so when prefetching resumes (say because there are
             // searches in the system and the indices are not idle anymore) we can prefetch the latest commit only (without downloading what
             // could be very large historical commits).
-            BlobLocation maxOffsetInCurrentTerm = statelessCompoundCommit.getMaxOffsetInCurrentGeneration();
+            BlobLocation maxOffsetInCurrentTerm = statelessCompoundCommit.getMaxInternalFilesOffsetInCurrentGeneration();
             maxPrefetchedOffset.accumulateAndGet(
                 // update the max prefetched marker at the end of the current generation
                 new BCCPreFetchedOffset(
@@ -178,7 +178,7 @@ public class SearchCommitPrefetcher {
         if (maxPrefetchedOffset.get().equals(BCCPreFetchedOffset.ZERO)) {
             // if this is the first commit notification we receive, we want to avoid downloading all historical data, and instead just
             // prefetch the data added in the current term.
-            BlobLocation minOffsetInCurrentTerm = notification.compoundCommit().getMinOffsetInCurrentGeneration();
+            BlobLocation minOffsetInCurrentTerm = notification.compoundCommit().getMinInternalFilesOffsetInCurrentGeneration();
             maxPrefetchedOffset.accumulateAndGet(
                 // set the max prefetched marker at the beginning of the current generation, so we download the current generation only,
                 // and completely

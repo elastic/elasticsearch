@@ -25,7 +25,18 @@ import java.io.IOException;
 public class L2Norm extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L2Norm", L2Norm::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = L2Norm::calculateSimilarity;
+
+    public static final BlockLoaderSimilarityEvaluatorFunction SIMILARITY_FUNCTION = new BlockLoaderSimilarityEvaluatorFunction() {
+        @Override
+        public double calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+            return (float) Math.sqrt(VectorUtil.squareDistance(leftScratch, rightScratch));
+        }
+
+        @Override
+        public double calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            return (float) Math.sqrt(VectorUtil.squareDistance(leftScratch, rightScratch));
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -60,7 +71,7 @@ public class L2Norm extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 

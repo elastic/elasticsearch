@@ -25,7 +25,17 @@ import java.io.IOException;
 public class Hamming extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Hamming::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = Hamming::calculateSimilarity;
+    public static final BlockLoaderSimilarityEvaluatorFunction SIMILARITY_FUNCTION = new BlockLoaderSimilarityEvaluatorFunction() {
+        @Override
+        public double calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+            return Hamming.calculateSimilarity(leftScratch, rightScratch);
+        }
+
+        @Override
+        public double calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            throw new UnsupportedOperationException("Hamming distance is not supported for float vectors");
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -55,7 +65,7 @@ public class Hamming extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 
@@ -74,15 +84,7 @@ public class Hamming extends VectorSimilarityFunction {
         return ENTRY.name;
     }
 
-    public static float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-        byte[] a = new byte[leftScratch.length];
-        byte[] b = new byte[rightScratch.length];
-        for (int i = 0; i < leftScratch.length; i++) {
-            a[i] = (byte) leftScratch[i];
-        }
-        for (int i = 0; i < leftScratch.length; i++) {
-            b[i] = (byte) rightScratch[i];
-        }
-        return VectorUtil.xorBitCount(a, b);
+    public static float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+        return VectorUtil.xorBitCount(leftScratch, rightScratch);
     }
 }

@@ -24,7 +24,25 @@ import java.io.IOException;
 public class L1Norm extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L1Norm", L1Norm::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = L1Norm::calculateSimilarity;
+    public static final BlockLoaderSimilarityEvaluatorFunction SIMILARITY_FUNCTION = new BlockLoaderSimilarityEvaluatorFunction() {
+        @Override
+        public double calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+            float result = 0f;
+            for (int i = 0; i < leftScratch.length; i++) {
+                result += Math.absExact(leftScratch[i] - rightScratch[i]);
+            }
+            return result;
+        }
+
+        @Override
+        public double calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            float result = 0f;
+            for (int i = 0; i < leftScratch.length; i++) {
+                result += Math.abs(leftScratch[i] - rightScratch[i]);
+            }
+            return result;
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -59,7 +77,7 @@ public class L1Norm extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 
@@ -71,14 +89,6 @@ public class L1Norm extends VectorSimilarityFunction {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    public static float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-        float result = 0f;
-        for (int i = 0; i < leftScratch.length; i++) {
-            result += Math.abs(leftScratch[i] - rightScratch[i]);
-        }
-        return result;
     }
 
 }

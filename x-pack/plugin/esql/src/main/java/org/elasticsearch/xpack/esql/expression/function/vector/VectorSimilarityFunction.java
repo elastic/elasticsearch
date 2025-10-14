@@ -74,7 +74,11 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
      */
     @FunctionalInterface
     public interface SimilarityEvaluatorFunction {
-        float calculateSimilarity(float[] leftScratch, float[] rightScratch);
+        double calculateSimilarity(float[] leftScratch, float[] rightScratch);
+    }
+
+    public interface BlockLoaderSimilarityEvaluatorFunction extends SimilarityEvaluatorFunction {
+        double calculateSimilarity(byte[] leftScratch, byte[] rightScratch);
     }
 
     @Override
@@ -109,7 +113,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     /**
      * Returns the similarity function to be used for evaluating the similarity between two vectors.
      */
-    protected abstract SimilarityEvaluatorFunction getSimilarityFunction();
+    public abstract BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction();
 
     private record SimilarityEvaluatorFactory(
         VectorValueProviderFactory leftVectorProviderFactory,
@@ -177,7 +181,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
                                 dimsRight
                             );
                         }
-                        float result = similarityFunction.calculateSimilarity(leftVector, rightVector);
+                        double result = similarityFunction.calculateSimilarity(leftVector, rightVector);
                         builder.appendDouble(result);
                     }
                     return builder.build();

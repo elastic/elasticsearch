@@ -1592,7 +1592,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should NOT log allocation explain since all shards are assigned",
                         loggerName,
                         Level.DEBUG,
-                        "*unassigned shard * due to allocation decision *"
+                        "*"
                     )
                 );
                 computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
@@ -1654,8 +1654,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should NOT log allocation explain again for existing tracked unassigned shard",
                         loggerName,
                         Level.DEBUG,
-                        "*unassigned shard [[test-index][0], node[null], [P], * due to allocation decision *"
-                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                        "*"
                     )
                 );
                 computer.compute(newDesiredBalance, DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
@@ -1727,7 +1726,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should NOT log allocation explain since all shards are assigned",
                         loggerName,
                         Level.DEBUG,
-                        "*unassigned shard * due to allocation decision *"
+                        "*"
                     )
                 );
                 computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);

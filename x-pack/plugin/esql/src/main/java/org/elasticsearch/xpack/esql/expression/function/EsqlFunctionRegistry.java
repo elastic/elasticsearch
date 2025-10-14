@@ -1065,13 +1065,17 @@ public class EsqlFunctionRegistry {
                 if (children.size() > 4 || children.size() < 2) {
                     throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
                 }
+            } else if (ThreeOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 4 || children.isEmpty()) {
+                    throw new QlIllegalArgumentException("expects minimum one, maximum four arguments");
+                }
             } else if (children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
             }
             return ctorRef.build(
                 source,
                 children.get(0),
-                children.get(1),
+                children.size() > 1 ? children.get(1) : null,
                 children.size() > 2 ? children.get(2) : null,
                 children.size() > 3 ? children.get(3) : null
             );

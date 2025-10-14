@@ -30,7 +30,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -76,7 +78,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-public class SamplingService implements ClusterStateListener, SchedulerEngine.Listener {
+public class SamplingService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
     private static final String TTL_JOB_ID = "sampling_ttl";
@@ -105,6 +107,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
      */
     private final Map<ProjectIndex, SoftReference<SampleInfo>> samples = new ConcurrentHashMap<>();
 
+    @SuppressWarnings("this-escape")
     public SamplingService(ScriptService scriptService, ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
@@ -115,6 +118,12 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
             new UpdateSamplingConfigurationExecutor()
         );
         this.settings = settings;
+        this.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStop() {
+                cancelJob();
+            }
+        });
     }
 
     /**
@@ -411,7 +420,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
             }
         }
         // scheduler could be null if the node is shutting down
-        if (scheduler.get() != null) {
+        if (scheduler.get() != null && lifecycleState() == Lifecycle.State.STARTED) {
             scheduledJob = new SchedulerEngine.Job(TTL_JOB_ID, new TimeValueSchedule(pollInterval));
             scheduler.get().add(scheduledJob);
         }
@@ -483,6 +492,26 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
         checkTTLs();
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop() {
+        clusterService.removeListener(this);
+        logger.debug("Sampling service is stopping.");
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        logger.debug("Sampling service is closing.");
+        SchedulerEngine engine = scheduler.get();
+        if (engine != null) {
+            engine.stop();
+        }
     }
 
     private void checkTTLs() {

@@ -2925,6 +2925,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
 
         assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getRemote(), contains("P1:_all", "P2:_all", "P3:_all"));
 
         final var resolved = request.getResolvedIndexExpressions();
         assertThat(resolved, is(notNullValue()));

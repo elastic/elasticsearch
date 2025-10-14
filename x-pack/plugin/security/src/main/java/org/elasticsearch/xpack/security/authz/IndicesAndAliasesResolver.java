@@ -396,6 +396,7 @@ class IndicesAndAliasesResolver {
                         setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
+                    resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else if (crossProjectModeDecider.crossProjectEnabled()) {
                     setResolvedIndexExpressionsIfUnset(replaceable, ResolvedIndexExpressions.builder().build());
                 }

@@ -2807,6 +2807,10 @@ public class VerifierTests extends ESTestCase {
                 1:11: INLINE STATS [INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host] \
                 can only be used after STATS when used with TS command""")
         );
+
+        assertThat(error("TS test | INLINE STATS max(network.connections) | STATS max(network.connections) by host", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

@@ -53,9 +53,9 @@ public class NetworkDirectionUtils {
             case LINK_LOCAL_MULTICAST_NAMED_NETWORK -> isLinkLocalMulticast(address);
             case MULTICAST_NAMED_NETWORK -> isMulticast(address);
             case UNSPECIFIED_NAMED_NETWORK -> isUnspecified(address);
-            case PRIVATE_NAMED_NETWORK -> isPrivate(address.getHostAddress());
-            case PUBLIC_NAMED_NETWORK -> isPublic(address.getHostAddress());
-            default -> CIDRUtils.isInRange(address.getHostAddress(), network);
+            case PRIVATE_NAMED_NETWORK -> isPrivate(NetworkAddress.format(address));
+            case PUBLIC_NAMED_NETWORK -> isPublic(NetworkAddress.format(address));
+            default -> CIDRUtils.isInRange(NetworkAddress.format(address), network);
         };
     }
 

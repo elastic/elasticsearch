@@ -197,15 +197,14 @@ public class Approximate {
 
     /**
      * These multivalued aggregate functions work well with random sampling.
+     * However, confidence intervals make no sense anymore and are dropped.
      */
     private static final Set<Class<? extends AggregateFunction>> SUPPORTED_MULTIVALUED_AGGS = Set.of(
         org.elasticsearch.xpack.esql.expression.function.aggregate.Sample.class
     );
 
     /**
-     * These scalar functions produce multivalued output. When they are applied
-     * to an approximated field, confidence intervals make no sense anymore and
-     * are dropped.
+     * These scalar functions produce multivalued output.
      */
     private static final Set<Class<? extends EsqlScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(MvAppend.class);
 
@@ -422,7 +421,7 @@ public class Approximate {
      *     <li> Source command
      *     <li> {@code SAMPLE} with the provided sample probability
      *     <li> All commands before the {@code STATS} command
-     *     <li> {@code EVAL} adding a new column with a random bucket ID for each trial
+     *     <li> {@code EVAL} adding a new column with random bucket IDs for each trial
      *     <li> {@code STATS} command with:
      *          <ul>
      *              <li> Each aggregate function replaced by a sample-corrected version (if needed)

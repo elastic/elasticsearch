@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -113,7 +114,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.minimumCompatible(),
+            TransportVersions.V_8_2_0,
             TransportVersion.current()
         );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);

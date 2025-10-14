@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -112,6 +113,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
+        // cutoff_frequency has been removed
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            in.readOptionalFloat();
+        }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
@@ -130,6 +135,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
+        // cutoff_frequency has been removed
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            out.writeOptionalFloat(null);
+        }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 

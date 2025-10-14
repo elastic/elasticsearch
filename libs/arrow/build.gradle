@@ -14,7 +14,6 @@
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
 
 var arrowVersion = "18.3.0"
 

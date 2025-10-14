@@ -93,7 +93,7 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Tran
         this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), startTime, endTime);
     }
 
-    TRange(Source source, Expression timestamp, Expression startTime, Expression endTime) {
+    public TRange(Source source, Expression timestamp, Expression startTime, Expression endTime) {
         super(source, endTime != null ? List.of(startTime, endTime, timestamp) : List.of(startTime, timestamp));
         this.timestamp = timestamp;
         this.startTime = startTime;

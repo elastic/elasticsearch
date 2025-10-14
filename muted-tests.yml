@@ -636,9 +636,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSlmPolicyAndStats {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136399
-- class: org.elasticsearch.TransportVersionTests
-  method: testVersionComparison
-  issue: https://github.com/elastic/elasticsearch/issues/136410
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136437

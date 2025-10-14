@@ -23,7 +23,7 @@ public record AnalyzerContext(
     Map<String, IndexResolution> lookupResolution,
     EnrichResolution enrichResolution,
     InferenceResolution inferenceResolution,
-    TransportVersion minimumTransportVersion
+    TransportVersion minimumVersion
 ) {
 
     public AnalyzerContext(
@@ -33,7 +33,7 @@ public record AnalyzerContext(
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumTransportVersion
+        TransportVersion minimumVersion
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -41,12 +41,12 @@ public record AnalyzerContext(
         this.lookupResolution = lookupResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
-        this.minimumTransportVersion = minimumTransportVersion;
+        this.minimumVersion = minimumVersion;
 
-        assert minimumTransportVersion != null : "AnalyzerContext must have a minimum transport version";
-        assert minimumTransportVersion.onOrBefore(TransportVersion.current())
+        assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert minimumVersion.onOrBefore(TransportVersion.current())
             : "AnalyzerContext ["
-                + minimumTransportVersion
+                + minimumVersion
                 + "] is not on or before current transport version ["
                 + TransportVersion.current()
                 + "]";

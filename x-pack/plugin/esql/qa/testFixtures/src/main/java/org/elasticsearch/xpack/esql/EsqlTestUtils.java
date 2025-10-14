@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
@@ -432,6 +433,10 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
+    private static TransportVersion randomMinimumVersion() {
+        return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
+    }
+
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
     public static AnalyzerContext testAnalyzerContext(
         Configuration configuration,
@@ -461,12 +466,12 @@ public final class EsqlTestUtils {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
-            TransportVersionUtils.randomCompatibleVersion(ESTestCase.random())
+            randomMinimumVersion()
         );
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
-        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small());
+        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));

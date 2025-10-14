@@ -201,9 +201,6 @@ public class EsqlSession {
             clusterSettings.timeseriesResultTruncationDefaultSize()
         );
         FoldContext foldContext = configuration.newFoldContext();
-        var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext, inferenceService));
-        var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext));
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
 
         LogicalPlan plan = statement.plan();
         if (plan instanceof Explain explain) {
@@ -219,15 +216,20 @@ public class EsqlSession {
             new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
-                    // TODO: plug version into the subsequent planner steps.
-
                     assert ThreadPool.assertCurrentThreadPool(
                         ThreadPool.Names.SEARCH,
                         ThreadPool.Names.SEARCH_COORDINATION,
                         ThreadPool.Names.SYSTEM_READ
                     );
-                    SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan.inner(), logicalPlanPreOptimizer, l))
-                        .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p, logicalPlanOptimizer), l))
+
+                    LogicalPlan plan = analyzedPlan.inner();
+                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+
+                    var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion));
+                    var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, minimumVersion));
+
+                    SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, l))
+                        .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(new Versioned<>(optimizedPlan(p, logicalPlanOptimizer), minimumVersion), l))
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
@@ -236,7 +238,7 @@ public class EsqlSession {
                                 p,
                                 configuration,
                                 foldContext,
-                                physicalPlanOptimizer,
+                                minimumVersion,
                                 l
                             )
                         )
@@ -257,7 +259,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        PhysicalPlanOptimizer physicalPlanOptimizer,
+        TransportVersion minimumVersion,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -265,6 +267,10 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(
+            new PhysicalOptimizerContext(configuration, minimumVersion)
+        );
+
         if (explainMode) {// TODO: INLINE STATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer);
             String physicalPlanString = physicalPlan.toString();
@@ -912,8 +918,8 @@ public class EsqlSession {
         logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
     }
 
-    private PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
-        if (optimizedPlan.optimized() == false) {
+    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan) {
+        if (optimizedPlan.inner().optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
         optimizedLogicalPlanString = optimizedPlan.toString();
@@ -923,7 +929,7 @@ public class EsqlSession {
     }
 
     private PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan, PhysicalPlanOptimizer physicalPlanOptimizer) {
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
+        var plan = physicalPlanOptimizer.optimize(physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion())));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
     }

@@ -106,6 +106,30 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         System.out.println(plan);
     }
 
+    public void testTSAvgWithoutByDimension() {
+        // TS metrics-hostmetricsreceiver.otel-default
+        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
+        var plan = planPromql("""
+            TS k8s
+            | STATS avg(avg_over_time(network.bytes_in)) BY TBUCKET(1h)
+            | LIMIT 1000
+            """);
+
+        System.out.println(plan);
+    }
+
+    public void testPromqlAvgWithoutByDimension() {
+        // TS metrics-hostmetricsreceiver.otel-default
+        // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY TBUCKET(1h) | LIMIT 10000"
+        var plan = planPromql("""
+            TS k8s
+            | promql avg(avg_over_time(network.bytes_in[1h]))
+            | LIMIT 1000
+            """);
+
+        System.out.println(plan);
+    }
+
     public void testRangeSelector() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=\"{{from}}\"

@@ -38,6 +38,7 @@ import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
+import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.WITHIN_SERIES_AGGREGATION;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
@@ -200,22 +201,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }
             plan = new AcrossSeriesAggregate(source, child, name, List.of(), grouping, groupings);
-        }
-        else {
-            // range selector functions - implicit grouping
-            if (metadata.functionType().isRangeVector() == false) {
-                throw new ParsingException(
-                    source,
-                    "only aggregation functions supported for now, function [{}] not supported yet",
-                    name
-                );
-            }
-            if (child instanceof RangeSelector == false) {
-                throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
-            }
+        } else {
+            if (metadata.functionType() == ACROSS_SERIES_AGGREGATION) {
+                plan = new AcrossSeriesAggregate(source, child, name, List.of(), AcrossSeriesAggregate.Grouping.NONE, List.of());
+            } else if (metadata.functionType() == WITHIN_SERIES_AGGREGATION) {
+                if (child instanceof RangeSelector == false) {
+                    throw new ParsingException(source, "expected type range vector in call to function [{}], got instant vector", name);
+                }
 
-            plan = new WithinSeriesAggregate(source, child, name, List.of());
-            // instant selector function - definitely no grouping
+                plan = new WithinSeriesAggregate(source, child, name, List.of());
+                // instant selector function - definitely no grouping
+            }
         }
         //
         return plan;

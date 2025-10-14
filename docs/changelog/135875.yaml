@@ -1,6 +1,6 @@
 pr: 135875
 summary: "Allocation: introduce a new decider that balances the index shard count\
   \ among nodes"
-area: "Allocation, Distributed"
+area: Allocation
 type: enhancement
 issues: []

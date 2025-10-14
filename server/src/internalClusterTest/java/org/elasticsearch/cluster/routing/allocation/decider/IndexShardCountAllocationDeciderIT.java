@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.IndexShardCountConstraintSettings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -29,10 +30,8 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
     public void testIndexShardCountExceedsAverageAllocation() {
         var testHarness = setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed();
 
-        /**
-         * Exclude assignment of shards to the first data nodes via the {@link FilterAllocationDecider} settings.
-         * This triggers the balancer to work out a new routing.
-         */
+        // Exclude assignment of shards to the first data nodes via the {@link FilterAllocationDecider} settings.
+        // This triggers the balancer to work out a new routing.
         logger.info("---> Remove shard assignments of node " + testHarness.firstDataNodeName + " by excluding first data node.");
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", testHarness.firstDataNodeName));
 
@@ -118,7 +117,7 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
               ---> first node NAME %s and ID %s; second node NAME %s and ID %s; third node NAME %s and ID %s;
             """;
         logger.info(
-            String.format(
+            Strings.format(
                 format,
                 firstDataNodeName,
                 firstDataNodeId,
@@ -189,5 +188,5 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
         DiscoveryNode thirdDiscoveryNode,
         String indexName,
         int randomNumberOfShards
-    ) {};
+    ) {}
 }

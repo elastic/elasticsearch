@@ -280,6 +280,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
             PlannerSettings.LUCENE_TOPN_LIMIT,
             PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD

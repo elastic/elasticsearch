@@ -111,20 +111,24 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
         private final WeightFunction searchWeightFunction;
         private final WeightFunction indexingWeightFunction;
+        private final boolean diskUsageIgnored;
 
         private StatelessBalancingWeights() {
+            final float diskUsageBalanceFactor = balancerSettings.getDiskUsageBalanceFactor();
+            final float indexBalanceFactor = balancerSettings.getIndexBalanceFactor();
             this.searchWeightFunction = new WeightFunction(
                 searchTierShardBalanceFactor,
-                balancerSettings.getIndexBalanceFactor(),
+                indexBalanceFactor,
                 searchTierWriteLoadBalanceFactor,
-                balancerSettings.getDiskUsageBalanceFactor()
+                diskUsageBalanceFactor
             );
             this.indexingWeightFunction = new WeightFunction(
                 indexingTierShardBalanceFactor,
-                balancerSettings.getIndexBalanceFactor(),
+                indexBalanceFactor,
                 indexingTierWriteLoadBalanceFactor,
-                balancerSettings.getDiskUsageBalanceFactor()
+                diskUsageBalanceFactor
             );
+            this.diskUsageIgnored = diskUsageBalanceFactor == 0;
         }
 
         @Override
@@ -156,6 +160,11 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
         @Override
         public NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer) {
             return new ServerlessNodeSorters(modelNodes, balancer);
+        }
+
+        @Override
+        public boolean diskUsageIgnored() {
+            return diskUsageIgnored;
         }
 
         private class ServerlessNodeSorters implements NodeSorters {

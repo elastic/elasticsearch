@@ -84,11 +84,12 @@ final class CefParser {
     private static final int EUI64_HEX_LENGTH = 64 / 4;
     private static final int EUI64_HEX_WITH_SEPARATOR_MAX_LENGTH = EUI64_HEX_LENGTH + EUI64_HEX_LENGTH / 2 - 1;
     private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = Map.ofEntries(
-        entry("\\\\", "\\"),
         entry("\\=", "="),
-        entry("\\\n", "\n"),
-        entry("\\\r", "\r")
-    );
+        entry("\\n", "\n"),
+        entry("\\t", "\t"),
+        entry("\\r", "\r"),
+        entry("\\\\", "\\")
+        );
 
     private static final Map<String, ExtensionMapping> EXTENSION_MAPPINGS = Map.<String, ExtensionMapping>ofEntries(
         entry("agt", new ExtensionMapping("agentAddress", IPType, "agent.ip")),
@@ -392,14 +393,17 @@ final class CefParser {
             MatchResult match = allMatches.get(i);
             String key = match.group(1);
             String value = match.group(2);
-            // Only trim the last value
-            if (i == allMatches.size() - 1) {
-                value = value.trim();
-            }
             if (hasUnescapedEquals(value)) {
                 throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN);
             }
-            extensions.put(key, desanitizeExtensionVal(value));
+            // desanitize the value
+            value = desanitizeExtensionVal(value);
+            // Only trim the last value
+            // Trimming after desanitization to unescape any trailing newline ,tab characters
+            if (i == allMatches.size() - 1) {
+                value = value.trim();
+            }
+            extensions.put(key, value);
             lastEnd = match.end();
         }
         // If there's any remaining unparsed content, throw an exception

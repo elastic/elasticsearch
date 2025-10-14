@@ -576,7 +576,7 @@ public class CefProcessorTests extends ESTestCase {
                 entry("event", Map.of("code", "100")),
                 entry("observer", Map.of("product", "threat|->manager", "vendor", "security\\compliance", "version", "1.0")),
                 entry("source", Map.of("port", 1232)),
-                entry("message", "Newlines in messages\\nare allowed.\\r\\nAnd so are carriage feeds\\newlines\\=."),
+                entry("message", "Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."),
                 entry("destination", Map.of("port", 4432))
             )
         );

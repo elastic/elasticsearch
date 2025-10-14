@@ -27,7 +27,6 @@ import java.util.function.LongSupplier;
 class ServiceAccountAuthenticator implements Authenticator {
 
     public static final String ATTRIBUTE_SERVICE_ACCOUNT_ID = "es.security.service_account_id";
-    public static final String ATTRIBUTE_SERVICE_ACCOUNT_TOKEN_NAME = "es.security.service_account_token_name";
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountAuthenticator.class);
     private final ServiceAccountService serviceAccountService;
@@ -50,10 +49,7 @@ class ServiceAccountAuthenticator implements Authenticator {
         this.authenticationMetrics = new SecurityMetrics<>(
             SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
             meterRegistry,
-            serviceAccountToken -> Map.ofEntries(
-                Map.entry(ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal()),
-                Map.entry(ATTRIBUTE_SERVICE_ACCOUNT_TOKEN_NAME, serviceAccountToken.getTokenName())
-            ),
+            serviceAccountToken -> Map.of(ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal()),
             nanoTimeSupplier
         );
     }

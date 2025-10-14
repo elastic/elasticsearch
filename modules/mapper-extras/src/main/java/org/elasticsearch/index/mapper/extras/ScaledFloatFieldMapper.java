@@ -263,7 +263,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         )
     );
 
-    @SuppressWarnings("checkstyle:LineLength")
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
         private final double scalingFactor;

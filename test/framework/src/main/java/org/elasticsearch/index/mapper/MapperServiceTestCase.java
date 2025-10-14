@@ -187,11 +187,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }
 
-    public final MapperService createSyntheticVectorsSourceMapperService(XContentBuilder mappings) throws IOException {
-        var settings = Settings.builder().put("index.mapping.exclude_source_vectors", "true").build();
-        return createMapperService(getVersion(), settings, () -> true, mappings);
-    }
-
     protected IndexVersion getVersion() {
         return IndexVersion.current();
     }

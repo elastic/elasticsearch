@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -30,7 +29,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Locate any TopN that is "visible" under remote ENRICH, and make a copy of it above the ENRICH,
@@ -49,41 +47,38 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
     @Override
     protected LogicalPlan rule(Enrich en) {
         if (en.mode() == Enrich.Mode.REMOTE) {
-            Set<NamedExpression> generatedAttributes = new HashSet<>(en.generatedAttributes());
             LogicalPlan plan = en.child();
             // This loop only takes care of one TopN. Repeated TopNs may be a problem, we can't handle them here.
             while (true) {
-                if (plan instanceof GeneratingPlan<?> gen) {
-                    // We collect all generated attributes, for the case that one of them might override the fields used by TopN
-                    generatedAttributes.addAll(gen.generatedAttributes());
-                }
                 var outputs = en.output();
                 if (plan instanceof TopN topN && topN.local() == false) {
-                    Set<String> generatedFieldNames = generatedAttributes.stream().map(Expressions::name).collect(Collectors.toSet());
+                    Set<Attribute> missingAttributes = checkOrderInOutputs(topN.order(), outputs);
 
-                    AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
-                    List<Expression> rewrittenExpressions = new ArrayList<>();
-
-                    for (Expression expr : topN.order()) {
-                        rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
-                            if (generatedFieldNames.contains(attr.name())) {
-                                Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
-                                    String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
-                                    return new Alias(a.source(), tempName, a, null, true);
-                                });
-                                return renamedAttribute.toAttribute();
-                            }
-
-                            return attr;
-                        }));
-                    }
-                    var replacedAttributes = aliasesForReplacedAttributesBuilder.build();
                     // Do we need to do any aliasing because some of the fields were overridden by Enrich or other generating plans?
-                    if (replacedAttributes.isEmpty()) {
+                    if (missingAttributes.isEmpty()) {
                         // No need for aliasing - then it's simple, just copy the TopN on top of Enrich and mark the original as local
                         LogicalPlan transformedEnrich = en.transformDown(TopN.class, t -> t == topN ? topN.withLocal(true) : t);
                         return new TopN(topN.source(), transformedEnrich, topN.order(), topN.limit(), false);
                     } else {
+                        Set<String> missingNames = new HashSet<>(Expressions.names(missingAttributes));
+                        AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
+                        List<Expression> rewrittenExpressions = new ArrayList<>();
+
+                        // Replace the missing attributes in order expressions with their aliases
+                        for (Order expr : topN.order()) {
+                            rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
+                                if (missingNames.contains(attr.name())) {
+                                    Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
+                                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
+                                        return new Alias(a.source(), tempName, a, null, true);
+                                    });
+                                    return renamedAttribute.toAttribute();
+                                }
+
+                                return attr;
+                            }));
+                        }
+                        var replacedAttributes = aliasesForReplacedAttributesBuilder.build();
                         // We need to create a copy of attributes used by TonP, because Enrich or some command on the way overwrites them.
                         // Shadowed structure is going to look like this:
                         /*
@@ -114,20 +109,16 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
 
                         // Verify that the outputs of transformed Enrich contain all the fields TopN needs
                         // This can happen if there's a node that removes fields like Project and we didn't catch it above
-                        var newOutputs = new HashSet<>(transformedEnrich.output());
-                        newOrder.forEach(o -> {
-                            o.child().forEachDown(Attribute.class, a -> {
-                                if (newOutputs.contains(a) == false) {
-                                    throw new IllegalStateException(
-                                        "Attribute ["
-                                            + a
-                                            + "] required by TopN but is not in the outputs of Enrich ["
-                                            + Expressions.names(newOutputs)
-                                            + "]"
-                                    );
-                                }
-                            });
-                        });
+                        var missing = checkOrderInOutputs(newOrder, transformedEnrich.output());
+                        if (missing.isEmpty() == false) {
+                            throw new IllegalStateException(
+                                "Attribute ["
+                                    + Expressions.names(missing)
+                                    + "] required by TopN but is not in the outputs of Enrich ["
+                                    + Expressions.names(transformedEnrich.output())
+                                    + "]"
+                            );
+                        }
 
                         // Create a copy of TopN with the rewritten attributes on top on Enrich
                         var copyTop = new TopN(topN.source(), transformedEnrich, newOrder, topN.limit(), false);
@@ -155,5 +146,22 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
             }
         }
         return en;
+    }
+
+    /**
+     * Checks if all attributes used in the order expressions are present in outputs.
+     * Returns the set of missing attributes.
+     */
+    private Set<Attribute> checkOrderInOutputs(List<Order> orderList, List<Attribute> outputs) {
+        var outputsSet = new HashSet<>(outputs);
+        Set<Attribute> missingAttributes = new HashSet<>();
+        for (Order o : orderList) {
+            o.child().forEachDown(Attribute.class, a -> {
+                if (outputsSet.contains(a) == false) {
+                    missingAttributes.add(a);
+                }
+            });
+        }
+        return missingAttributes;
     }
 }

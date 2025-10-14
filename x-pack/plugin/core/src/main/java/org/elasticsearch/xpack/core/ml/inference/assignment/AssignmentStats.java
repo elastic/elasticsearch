@@ -454,7 +454,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         reason = in.readOptionalString();
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
         cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-        priority = in.readEnum(Priority.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            priority = in.readEnum(Priority.class);
+        } else {
+            priority = Priority.NORMAL;
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             deploymentId = in.readString();
         } else {
@@ -637,7 +641,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(allocationStatus);
         out.writeOptionalWriteable(cacheSize);
-        out.writeEnum(priority);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            out.writeEnum(priority);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeString(deploymentId);
         }

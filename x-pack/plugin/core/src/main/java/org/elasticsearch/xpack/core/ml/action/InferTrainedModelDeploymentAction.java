@@ -125,9 +125,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             docs = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                highPriority = in.readBoolean();
-            }
+            highPriority = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 textInput = in.readOptionalStringCollectionAsList();
             } else {
@@ -223,9 +221,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                out.writeBoolean(highPriority);
-            }
+            out.writeBoolean(highPriority);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
@@ -282,22 +278,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             super(in);
 
             // Multiple results added in 8.6.1
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_1)) {
-                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
-            } else {
-                results = List.of(in.readNamedWriteable(InferenceResults.class));
-            }
+            results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_1)) {
-                out.writeNamedWriteableCollection(results);
-            } else {
-                out.writeNamedWriteable(results.get(0));
-            }
+            out.writeNamedWriteableCollection(results);
         }
 
         public List<InferenceResults> getResults() {

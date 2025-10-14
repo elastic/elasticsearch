@@ -536,8 +536,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException {
 
-        long nanoTime = System.nanoTime();
-
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         CentroidAssignments centroidAssignments = buildCentroidAssignments(floatVectorValues, vectorPerCluster);
         float[][] centroids = centroidAssignments.centroids();
@@ -554,7 +552,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
             logger.debug("final centroid count: {}", centroids.length);
         }
         return centroidAssignments;

@@ -28,7 +28,7 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
 
     protected abstract FlatVectorsReader createReader(SegmentReadState state) throws IOException;
 
-    static boolean canUseDirectIO(SegmentReadState state) {
+    protected static boolean canUseDirectIO(SegmentReadState state) {
         return FsDirectoryFactory.isHybridFs(state.directory);
     }
 
@@ -54,11 +54,11 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
         }
     }
 
-    static class DirectIOContext implements IOContext {
+    protected static class DirectIOContext implements IOContext {
 
         final Set<FileOpenHint> hints;
 
-        DirectIOContext(Set<FileOpenHint> hints) {
+        public DirectIOContext(Set<FileOpenHint> hints) {
             // always add DirectIOHint to the hints given
             this.hints = Sets.union(hints, Set.of(DirectIOHint.INSTANCE));
         }

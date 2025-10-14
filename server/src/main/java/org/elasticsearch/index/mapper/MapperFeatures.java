@@ -54,6 +54,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
     static final NodeFeature DISKBBQ_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.diskbbq_on_disk_rescoring");
     static final NodeFeature PROVIDE_INDEX_SORT_SETTING_DEFAULTS = new NodeFeature("mapper.provide_index_sort_setting_defaults");
+    static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
+        "mapper.ignore_dynamic_field_names_beyond_limit"
+    );
     static final NodeFeature BBQ_HNSW_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.bbq_hnsw_on_disk_rescoring");
 
     @Override
@@ -95,6 +98,7 @@ public class MapperFeatures implements FeatureSpecification {
             PATTERN_TEXT_RENAME,
             DISKBBQ_ON_DISK_RESCORING,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             BBQ_HNSW_ON_DISK_RESCORING
         );
     }

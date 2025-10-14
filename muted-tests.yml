@@ -438,9 +438,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionTests
   method: testGetClusterStateWithDefaultProjectOnly
   issue: https://github.com/elastic/elasticsearch/issues/134450
-- class: org.elasticsearch.cluster.ClusterInfoServiceIT
-  method: testMaxQueueLatenciesInClusterInfo
-  issue: https://github.com/elastic/elasticsearch/issues/134500
 - class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/134512

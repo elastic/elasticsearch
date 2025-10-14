@@ -42,23 +42,52 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
                     createTestCase("CIDR1", "10.0.1.1", "192.168.1.2", "10.0.0.0/8", stringType, NetworkDirectionUtils.DIRECTION_OUTBOUND),
                     createTestCase("CIDR2", "192.168.1.2", "10.0.1.1", "10.0.0.0/8", stringType, NetworkDirectionUtils.DIRECTION_INBOUND),
                     // Unspecified tests
-                    createTestCase("Unspecified1", "0.0.0.0", "0.0.0.0", "unspecified", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
+                    createTestCase(
+                        "Unspecified1",
+                        "0.0.0.0",
+                        "0.0.0.0",
+                        "unspecified",
+                        stringType,
+                        NetworkDirectionUtils.DIRECTION_INTERNAL
+                    ),
                     createTestCase("Unspecified2", "::", "::", "unspecified", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
                     // Private network tests
                     createTestCase(
-                        "Private1", "192.168.1.1", "192.168.1.2", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL
+                        "Private1",
+                        "192.168.1.1",
+                        "192.168.1.2",
+                        "private",
+                        stringType,
+                        NetworkDirectionUtils.DIRECTION_INTERNAL
                     ),
                     createTestCase("Private2", "10.0.1.1", "192.168.1.2", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
-                    createTestCase("Private3", "192.168.1.1", "172.16.0.1", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
                     createTestCase(
-                        "Private4", "192.168.1.1", "fd12:3456:789a:1::1", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL
+                        "Private3",
+                        "192.168.1.1",
+                        "172.16.0.1",
+                        "private",
+                        stringType,
+                        NetworkDirectionUtils.DIRECTION_INTERNAL
+                    ),
+                    createTestCase(
+                        "Private4",
+                        "192.168.1.1",
+                        "fd12:3456:789a:1::1",
+                        "private",
+                        stringType,
+                        NetworkDirectionUtils.DIRECTION_INTERNAL
                     ),
                     // Public tests
                     createTestCase("Public1", "192.168.1.1", "192.168.1.2", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL),
                     createTestCase("Public2", "10.0.1.1", "192.168.1.2", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL),
                     createTestCase("Public3", "192.168.1.1", "172.16.0.1", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL),
                     createTestCase(
-                        "Public4", "192.168.1.1", "fd12:3456:789a:1::1", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL
+                        "Public4",
+                        "192.168.1.1",
+                        "fd12:3456:789a:1::1",
+                        "public",
+                        stringType,
+                        NetworkDirectionUtils.DIRECTION_EXTERNAL
                     )
                 )
             );

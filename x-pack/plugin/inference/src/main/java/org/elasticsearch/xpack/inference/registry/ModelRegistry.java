@@ -1183,16 +1183,6 @@ public class ModelRegistry implements ClusterStateListener {
     private static class AddModelMetadataTask extends MetadataTask {
         private final List<ModelAndSettings> models = new ArrayList<>();
 
-        AddModelMetadataTask(
-            ProjectId projectId,
-            String inferenceEntityId,
-            MinimalServiceSettings settings,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
-            super(projectId, listener);
-            this.models.add(new ModelAndSettings(inferenceEntityId, settings));
-        }
-
         AddModelMetadataTask(ProjectId projectId, List<ModelAndSettings> models, ActionListener<AcknowledgedResponse> listener) {
             super(projectId, listener);
             this.models.addAll(models);

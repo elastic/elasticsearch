@@ -671,7 +671,7 @@ public class ModelRegistry implements ClusterStateListener {
                     new ElasticsearchStatusException(
                         "Inference endpoint [{}] already exists",
                         RestStatus.BAD_REQUEST,
-                        failureItem.failureCause,
+                        failureItem.failureCause(),
                         failureItem.inferenceId
                     )
                 );
@@ -752,12 +752,12 @@ public class ModelRegistry implements ClusterStateListener {
 
             if (updateClusterState) {
                 updateClusterState(
-                    responseInfo.v2(),
-                    listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.v1())),
+                    responseInfo.successfullyStoredModels(),
+                    listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.responses())),
                     timeout
                 );
             } else {
-                listener.onResponse(responseInfo.v1());
+                listener.onResponse(responseInfo.responses());
             }
         }, e -> {
             String errorMessage = format(
@@ -769,13 +769,15 @@ public class ModelRegistry implements ClusterStateListener {
         });
     }
 
-    private static Tuple<List<ModelStoreResponse>, List<Model>> getResponseInfo(
+    private record ResponseInfo(List<ModelStoreResponse> responses, List<Model> successfullyStoredModels) {}
+
+    private static ResponseInfo getResponseInfo(
         BulkResponse bulkResponse,
         Map<String, String> docIdToInferenceId,
         Map<String, Model> inferenceIdToModel
     ) {
         var responses = new ArrayList<ModelStoreResponse>();
-        var modelsSuccessfullyStored = new ArrayList<Model>();
+        var successfullyStoredModels = new ArrayList<Model>();
 
         var bulkItems = bulkResponse.getItems();
         for (int i = 0; i < bulkItems.length; i += 2) {
@@ -787,9 +789,9 @@ public class ModelRegistry implements ClusterStateListener {
                 logger.error("Expected an even number of bulk response items, got [{}]", bulkResponse.getItems().length);
                 responses.add(configStoreResponse);
                 if (configStoreResponse.failed() == false && modelFromBulkItem != null) {
-                    modelsSuccessfullyStored.add(modelFromBulkItem);
+                    successfullyStoredModels.add(modelFromBulkItem);
                 }
-                return new Tuple<>(responses, modelsSuccessfullyStored);
+                return new ResponseInfo(responses, successfullyStoredModels);
             }
 
             var secretsItem = bulkItems[i + 1];
@@ -802,12 +804,12 @@ public class ModelRegistry implements ClusterStateListener {
             } else {
                 responses.add(configStoreResponse);
                 if (modelFromBulkItem != null) {
-                    modelsSuccessfullyStored.add(modelFromBulkItem);
+                    successfullyStoredModels.add(modelFromBulkItem);
                 }
             }
         }
 
-        return new Tuple<>(responses, modelsSuccessfullyStored);
+        return new ResponseInfo(responses, successfullyStoredModels);
     }
 
     private static ModelStoreResponse createModelStoreResponse(BulkItemResponse item, Map<String, String> docIdToInferenceId) {

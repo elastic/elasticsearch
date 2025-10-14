@@ -40,10 +40,15 @@ public class RuleQueryRankDoc extends RankDoc {
 
     public RuleQueryRankDoc(StreamInput in) throws IOException {
         super(in);
-        List<String> inRulesetIds = in.readOptionalStringCollectionAsList();
-        this.rulesetIds = inRulesetIds == null ? null : Collections.unmodifiableList(inRulesetIds);
-        boolean matchCriteriaExists = in.readBoolean();
-        this.matchCriteria = matchCriteriaExists ? in.readGenericMap() : null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            List<String> inRulesetIds = in.readOptionalStringCollectionAsList();
+            this.rulesetIds = inRulesetIds == null ? null : Collections.unmodifiableList(inRulesetIds);
+            boolean matchCriteriaExists = in.readBoolean();
+            this.matchCriteria = matchCriteriaExists ? in.readGenericMap() : null;
+        } else {
+            rulesetIds = in.readStringCollectionAsImmutableList();
+            matchCriteria = in.readGenericMap();
+        }
     }
 
     @Override
@@ -58,10 +63,15 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringCollection(rulesetIds);
-        out.writeBoolean(matchCriteria != null);
-        if (matchCriteria != null) {
-            out.writeGenericMap(matchCriteria);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            out.writeOptionalStringCollection(rulesetIds);
+            out.writeBoolean(matchCriteria != null);
+            if (matchCriteria != null) {
+                out.writeGenericMap(matchCriteria);
+            }
+        } else {
+            out.writeStringCollection(rulesetIds == null ? Collections.emptyList() : rulesetIds);
+            out.writeGenericMap(matchCriteria == null ? Collections.emptyMap() : matchCriteria);
         }
     }
 

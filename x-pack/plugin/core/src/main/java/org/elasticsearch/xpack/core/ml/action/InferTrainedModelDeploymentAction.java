@@ -278,14 +278,22 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             super(in);
 
             // Multiple results added in 8.6.1
-            results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_1)) {
+                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
+            } else {
+                results = List.of(in.readNamedWriteable(InferenceResults.class));
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
 
-            out.writeNamedWriteableCollection(results);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_1)) {
+                out.writeNamedWriteableCollection(results);
+            } else {
+                out.writeNamedWriteable(results.get(0));
+            }
         }
 
         public List<InferenceResults> getResults() {

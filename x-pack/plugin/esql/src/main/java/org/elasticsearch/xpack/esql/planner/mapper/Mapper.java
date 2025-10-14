@@ -56,8 +56,8 @@ import java.util.List;
 public class Mapper {
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
-        // We ignore the version for now, but it's fine to use later for plans that only
-        // work on a certain version and up.
+        // We ignore the version for now, but it's fine to use later for plans that work
+        // differently from some version and up.
         return mapInner(versionedPlan.inner());
     }
 

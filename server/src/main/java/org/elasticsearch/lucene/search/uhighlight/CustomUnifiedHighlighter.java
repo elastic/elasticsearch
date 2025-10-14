@@ -64,14 +64,17 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  */
 public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private static boolean isKnnQuery(Query q) {
+        // TODO: bug https://github.com/elastic/elasticsearch/issues/136427
+        // AbstractKnnVectorQuery is not public, so we need to list concrete classes
+        // currently there is a bug in Lucene that causes things that use
+        // AbstractKnnVectorQuery to throw NPEs in weight matches highlighting
         return q instanceof KnnScoreDocQuery
             || q instanceof RescoreKnnVectorQuery
             || q instanceof VectorSimilarityQuery
             || q instanceof ESKnnFloatVectorQuery
             || q instanceof ESKnnByteVectorQuery
             || q instanceof ESDiversifyingChildrenByteKnnVectorQuery
-            || q instanceof ESDiversifyingChildrenFloatKnnVectorQuery
-            || q instanceof IVFKnnFloatVectorQuery;
+            || q instanceof ESDiversifyingChildrenFloatKnnVectorQuery;
     }
 
     public static final char MULTIVAL_SEP_CHAR = (char) 0;

@@ -283,10 +283,20 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, randomBoolean()),
+            new ES920DiskBBQVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                randomBoolean(),
+                randomBoolean()
+            ),
             new ES818BinaryQuantizedVectorsFormat(),
             new ES818HnswBinaryQuantizedVectorsFormat(),
-            new ES93HnswBinaryQuantizedVectorsFormat(),
+            new ES93HnswBinaryQuantizedVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                randomBoolean(),
+                randomBoolean()
+            ),
             new ES813Int8FlatVectorFormat(),
             new ES813Int8FlatVectorFormat(),
             new ES814HnswScalarQuantizedVectorsFormat()

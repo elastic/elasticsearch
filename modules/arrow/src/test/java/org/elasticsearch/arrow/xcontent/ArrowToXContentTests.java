@@ -446,17 +446,16 @@ public class ArrowToXContentTests extends ESTestCase {
     }
 
     public void testDuration() throws IOException {
-        var value = randomLongBetween(-1_000_000L, 1_000_000L);
+        var millis = randomLongBetween(-1_000_000L, 1_000_000L);
 
         try (var vector = new DurationVector(
             new Field("field", FieldType.nullable(Types.MinorType.DURATION.getType()), null), allocator)
         ) {
-            vector.getUnit()
             vector.allocateNew(1);
-            vector.set(0, value / 1000L);
+            vector.set(0, millis / 1000L);
             vector.setValueCount(1);
             // Check millis value truncated to seconds
-            checkPosition(vector, 0, "{\"field\":" + (value / 1000L * 1000L) + "}");
+            checkPosition(vector, 0, "{\"field\":" + (millis / 1000L * 1000L) + "}");
         }
 
         try (var vector = new TimeStampMilliVector("field", allocator)) {

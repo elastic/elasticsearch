@@ -19,8 +19,11 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.arrow.vector.util.Text;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.arrow.ArrowPlugin;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -31,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collection;
@@ -81,6 +85,7 @@ public class ArrowBulkActionIT extends ESSingleNodeRestTestCase {
 
         int batchCount = randomIntBetween(1, 10);
         int rowCount = randomIntBetween(1, 10);
+        boolean chunked = randomBoolean();
 
         byte[] payload;
 
@@ -110,7 +115,14 @@ public class ArrowBulkActionIT extends ESSingleNodeRestTestCase {
             request.addParameter("refresh", "wait_for");
             request.addParameter("error_trace", "true");
             request.setOptions(request.getOptions().toBuilder().addHeader("Content-type", "application/vnd.apache.arrow.stream"));
-            request.setEntity(new ByteArrayEntity(payload, ContentType.create(Arrow.MEDIA_TYPE)));
+            AbstractHttpEntity entity;
+            if (chunked) {
+                entity = new InputStreamEntity(new ByteArrayInputStream(payload), ContentType.create(Arrow.MEDIA_TYPE));
+                entity.setChunked(true);
+            } else {
+                entity = new ByteArrayEntity(payload, ContentType.create(Arrow.MEDIA_TYPE));
+            }
+            request.setEntity(entity);
 
             var response = restClient.performRequest(request);
 

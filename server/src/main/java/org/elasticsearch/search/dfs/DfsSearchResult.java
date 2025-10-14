@@ -60,7 +60,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
             DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
             knnResults = results != null ? List.of(results) : List.of();
         }
-        searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        }
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -144,7 +146,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
             }
             out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
         }
-        out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

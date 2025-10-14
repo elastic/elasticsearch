@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -163,16 +162,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.usePit = in.readOptionalInt();
 
         deduceMappings = in.readOptionalInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            numFailureRetries = in.readOptionalInt();
-        } else {
-            numFailureRetries = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            unattended = in.readOptionalInt();
-        } else {
-            unattended = DEFAULT_UNATTENDED;
-        }
+        numFailureRetries = in.readOptionalInt();
+        unattended = in.readOptionalInt();
     }
 
     public Integer getMaxPageSearchSize() {
@@ -275,12 +266,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         out.writeOptionalInt(usePit);
 
         out.writeOptionalInt(deduceMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalInt(numFailureRetries);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeOptionalInt(unattended);
-        }
+        out.writeOptionalInt(numFailureRetries);
+        out.writeOptionalInt(unattended);
     }
 
     @Override

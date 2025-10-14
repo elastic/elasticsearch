@@ -395,6 +395,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
+    @Override
+    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids) {
+        // Do Nothing Extra
+    }
+
     private void writeCentroidsWithParents(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -531,8 +536,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException {
 
-        long nanoTime = System.nanoTime();
-
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         CentroidAssignments centroidAssignments = buildCentroidAssignments(floatVectorValues, vectorPerCluster);
         float[][] centroids = centroidAssignments.centroids();
@@ -549,7 +552,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
             logger.debug("final centroid count: {}", centroids.length);
         }
         return centroidAssignments;
@@ -653,7 +655,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             return corrections;
         }
     }
@@ -705,7 +707,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call next first");
             }
@@ -755,7 +757,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call readQuantizedVector first");
             }

@@ -218,6 +218,11 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
+        public DocIndexIterator iterator() {
+            return inner.iterator();
+        }
+
+        @Override
         public RescorerOffHeapVectorValues copy() throws IOException {
             return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction, scorer);
         }

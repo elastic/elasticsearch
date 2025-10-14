@@ -4085,7 +4085,7 @@ required_capability: inline_stats
 required_capability: inline_stats_after_pruning_aggregate
 required_capability: join_lookup_v12
 
-from *
+from d*,*
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool
@@ -4133,4 +4133,41 @@ from app_log*
 
 VizcTbjMnBlQ:long | wXPJguff:double
 1                 | 3.0       
+;
+
+
+inlineStatsAfterPruningAggregate7
+required_capability: inline_stats
+required_capability: inline_stats_after_pruning_aggregate
+
+from dense_vector,airport_city_boundaries
+| eval  kMvNZVQSH = -4048759096317256968, GzAYNHaHuIS = 4262770411405329967, EwPpQFmOPoB = "lkdgnbTrBT", `abbrev` = "LiXI" 
+| keep `city`, `kMvNZVQSH`, GzAYNHaHuIS, city_boundary, EwPpQFmOPoB, `city_boundary`, `id`, kMvNZVQSH, id, airport 
+| limit 6888 
+| keep `kMvNZVQSH`, EwPpQFmOPoB, city, `id`, kMvNZVQSH 
+| stats  `EwPpQFmOPoB2` = min(id), `EwPpQFmOPoB3` = count(*), kZiJPhNZ = count(id), ErGhdKhdv = count_distinct(city), EwPpQFmOPoB = min(id) 
+| eval  ErGhdKhdv = null, fHSyxniFCS = -710891486, ErGhdKhdv = -1104488048, zdxdQdVIyFh = -1579062572, `kZiJPhNZ` = null, SzmOySyUh = null, eWVVRiwP = 1092261898855405071, nUxVhGhcpkiV = true, RvqGioBAAzYs = 169356242 
+| eval  `kZiJPhNZ` = "gWJHDTcDMjRVSnlzSX", lxLgaagX = 4700531997851493340, `kZiJPhNZ` = false 
+| keep `zdxdQdVIyFh` 
+| inline stats  `zdxdQdVIyFh` = count(*), WbWVJnYJ = count(*), zdxdQdVIyFh2 = max(zdxdQdVIyFh), uKjfeKTfaH = max(zdxdQdVIyFh), QpovVxjMWSjh = min(zdxdQdVIyFh)
+;
+
+zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | QpovVxjMWSjh:integer
+1                | 1             | -1579062572          | -1579062572        | -1579062572
+;
+
+
+inlineStatsAfterPruningAggregate8
+required_capability: inline_stats
+required_capability: inline_stats_after_pruning_aggregate
+
+from employees
+| stats m = count(emp_no) 
+| eval c = 0
+| keep c 
+| inline stats c = count(*)
+;
+
+c:long
+1
 ;

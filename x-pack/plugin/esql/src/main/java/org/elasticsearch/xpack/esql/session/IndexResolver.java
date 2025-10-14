@@ -25,7 +25,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -93,7 +93,7 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        EsqlExecutionInfo executionInfo,
+        Predicate<String> canSkip,
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
@@ -108,9 +108,12 @@ public class IndexResolver {
                 for (FieldCapabilitiesFailure failure : response.caps().getFailures()) {
                     var cause = ExceptionsHelper.unwrapCause(failure.getException());
                     var clusterAlias = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+                    if (canSkip.test(clusterAlias)) {
+                        continue;
+                    }
                     if (cause instanceof IndexNotFoundException) {
                         missingIndices.addAll(Arrays.asList(failure.getIndices()));
-                    } else if (executionInfo != null && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+                    } else {
                         listener.onFailure(failure.getException());
                         return;
                     }

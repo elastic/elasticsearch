@@ -509,7 +509,7 @@ public class EsqlSession {
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
-            executionInfo,
+            executionInfo::shouldSkipOnFailure,
             false,
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
             false,
@@ -726,7 +726,7 @@ public class EsqlSession {
                         }
                         default -> requestFilter;
                     },
-                    executionInfo,
+                    executionInfo::shouldSkipOnFailure,
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
                     preAnalysis.supportsAggregateMetricDouble(),
                     preAnalysis.supportsDenseVector(),

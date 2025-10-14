@@ -451,7 +451,7 @@ public class EnrichPolicyResolver {
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             null,
-                            null,
+                            clusterAlias -> false,
                             false,
                             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
                             false,

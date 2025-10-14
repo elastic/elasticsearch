@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -207,15 +208,31 @@ import static org.hamcrest.Matchers.startsWith;
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
-    public void testEval() {
+    public void testSimpleEvalImplicitLimit() {
         var plan = plan("""
             from test
             | eval s = score(match(last_name, "high"))
             """);
-        var project = as(plan, EsqlProject.class);
-        assertThat(project.expressions(), is(empty()));
-        var limit = as(project.child(), Limit.class);
-        as(limit.child(), EsRelation.class);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), instanceOf(Eval.class));
+        assertThat(((Literal)limit.limit()).value(), equalTo(1000L));
+        var eval = as(limit.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        assertThat(eval.fields().get(0).child(), instanceOf(Score.class));
+    }
+
+    public void testSimpleEvalExplicitLimit() {
+        var plan = plan("""
+            from test
+            | eval s = score(match(last_name, "high"))
+            | limit 42
+            """);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), instanceOf(Eval.class));
+        assertThat(((Literal)limit.limit()).value(), equalTo(42L));
+        var eval = as(limit.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        assertThat(eval.fields().get(0).child(), instanceOf(Score.class));
     }
 
     public void testEmptyProjections() {

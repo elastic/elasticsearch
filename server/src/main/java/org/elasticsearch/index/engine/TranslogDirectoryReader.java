@@ -182,8 +182,9 @@ final class TranslogDirectoryReader extends DirectoryReader {
         boolean rootDocOnly,
         Translog.Index operation
     ) {
+        final String id = Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
-            new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
+            new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
             mappingLookup
         );
 
@@ -244,7 +245,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             };
         } catch (IOException e) {
-            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + operation.id() + "]", e);
+            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + id + "]", e);
         }
     }
 
@@ -339,7 +340,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = directory;
-            this.uid = Uid.encodeId(operation.id());
+            this.uid = operation.uid();
         }
 
         private LeafReader getDelegate() {

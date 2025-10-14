@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -833,6 +834,34 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
+    public void testBwcWithStoredAuthenticationHeaders() throws IOException {
+        // Version 6.6.1
+        final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";
+        final Authentication authenticationV6 = AuthenticationContextSerializer.decode(headerV6);
+        assertThat(authenticationV6.getEffectiveSubject().getTransportVersion(), equalTo(TransportVersion.fromId(6_06_01_99)));
+        assertThat(authenticationV6.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "superuser")));
+        assertThat(authenticationV6.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
+        assertThat(authenticationV6.isRunAs(), is(false));
+        assertThat(authenticationV6.encode(), equalTo(headerV6));
+
+        // Rewrite for a different version
+        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(newVersion);
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(newVersion));
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
+        assertThat(rewrittenAuthentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
+        assertThat(rewrittenAuthentication.isRunAs(), is(false));
+
+        // Version 7.2.1
+        final String headerV7 = "p72sAwANZWxhc3RpYy1hZG1pbgENX2VzX3Rlc3Rfcm9vdAoAAAABAARub2RlBWZpbGUxBGZpbGUAAAoA";
+        final Authentication authenticationV7 = AuthenticationContextSerializer.decode(headerV7);
+        assertThat(authenticationV7.getEffectiveSubject().getTransportVersion(), equalTo(TransportVersion.fromId(7_02_01_99)));
+        assertThat(authenticationV7.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "_es_test_root")));
+        assertThat(authenticationV7.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
+        assertThat(authenticationV7.isRunAs(), is(false));
+        assertThat(authenticationV7.encode(), equalTo(headerV7));
+    }
+
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
         final TransportVersion crossClusterAccessRealmVersion =
             RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -913,6 +942,32 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
+    public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_REALM_DOMAINS,
+            // Don't include CURRENT, so we always have at least one newer version available below
+            TransportVersionUtils.getPreviousVersion()
+        );
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
+            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
+            .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
+            .build();
+
+        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
+
+        assertThat(
+            actual.getAuthenticatingSubject().getRealm().getDomain(),
+            equalTo(authentication.getAuthenticatingSubject().getRealm().getDomain())
+        );
+        assertThat(
+            actual.getEffectiveSubject().getRealm().getDomain(),
+            equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
+        );
+    }
+
     public void testToCrossClusterAccess() {
         final User creator = randomUser();
         final String apiKeyId = randomAlphaOfLength(42);
@@ -934,6 +989,31 @@ public class AuthenticationTests extends ESTestCase {
                 AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
                 crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList()
             )
+        );
+    }
+
+    public void testMaybeRewriteRealmRef() {
+        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
+        assertThat(realmRefWithDomain.getDomain(), notNullValue());
+
+        assertThat(
+            Authentication.maybeRewriteRealmRef(
+                TransportVersionUtils.randomVersionBetween(
+                    random(),
+                    null,
+                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
+                ),
+                realmRefWithDomain
+            ).getDomain(),
+            nullValue()
+        );
+
+        assertThat(
+            Authentication.maybeRewriteRealmRef(
+                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
+                realmRefWithDomain
+            ),
+            equalTo(realmRefWithDomain)
         );
     }
 

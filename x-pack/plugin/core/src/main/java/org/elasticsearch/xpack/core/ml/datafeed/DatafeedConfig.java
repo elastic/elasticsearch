@@ -1050,6 +1050,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
+            if (indicesOptions.resolveCrossProjectIndexExpression()) {
+                throw ExceptionsHelper.crossProjectSearchIsDisabled();
+            }
+
             return new DatafeedConfig(
                 id,
                 jobId,

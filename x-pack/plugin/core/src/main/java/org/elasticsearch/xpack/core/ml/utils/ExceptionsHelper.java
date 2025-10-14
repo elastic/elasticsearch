@@ -101,6 +101,10 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(failure.getCause().getMessage(), failure.getStatus(), failure.getCause());
     }
 
+    public static ElasticsearchStatusException crossProjectSearchIsDisabled() {
+        return new ElasticsearchStatusException("Cross-project search is not enabled for any ML feature", RestStatus.FORBIDDEN);
+    }
+
     /**
      * Creates an error message that explains there are shard failures, displays info
      * for the first failure (shard/reason) and kindly asks to see more info in the logs

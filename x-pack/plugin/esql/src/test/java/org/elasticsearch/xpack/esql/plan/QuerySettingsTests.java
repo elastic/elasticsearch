@@ -28,13 +28,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
-    public void testNonExistingSetting() {
+    public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
 
         assertInvalid(settingName, Literal.keyword(Source.EMPTY, "12"), "Unknown setting [" + settingName + "]");
     }
 
-    public void testProjectRouting() {
+    public void testValidate_ProjectRouting() {
         var setting = QuerySettings.PROJECT_ROUTING;
 
         assertDefault(setting, nullValue());
@@ -47,7 +47,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testTimeZone() {
+    public void testValidate_TimeZone() {
         var setting = QuerySettings.TIME_ZONE;
 
         assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
@@ -69,13 +69,15 @@ public class QuerySettingsTests extends ESTestCase {
 
     private static <T> void assertValid(
         QuerySettings.QuerySettingDef<T> settingDef,
-        Expression valueExpression,
+        Literal valueLiteral,
         Matcher<T> parsedValueMatcher
     ) {
-        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), valueExpression));
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), valueLiteral));
         QuerySettings.validate(new EsqlStatement(null, List.of(setting)), null);
 
-        T value = settingDef.get(valueExpression, null);
+        QuerySettings settings = QuerySettings.from(new EsqlStatement(null, List.of(setting)));
+
+        T value = settings.get(settingDef);
 
         assertThat(value, parsedValueMatcher);
     }
@@ -90,7 +92,9 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     private static <T> void assertDefault(QuerySettings.QuerySettingDef<T> settingDef, Matcher<? super T> defaultMatcher) {
-        T value = settingDef.get(null, null);
+        QuerySettings settings = QuerySettings.from(new EsqlStatement(null, List.of()));
+
+        T value = settings.get(settingDef);
 
         assertThat(value, defaultMatcher);
     }

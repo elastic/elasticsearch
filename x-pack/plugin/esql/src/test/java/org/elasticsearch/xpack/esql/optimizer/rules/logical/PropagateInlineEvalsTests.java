@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -88,7 +88,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             from test
             | keep emp_no, languages, gender
             | inline stats max_lang = MAX(languages) BY y = gender
-            """, LogicalPlanOptimizerTests.SubstitutionOnlyOptimizer.INSTANCE);
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);
@@ -132,7 +132,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
             | keep emp_no, languages, gender, last_name, first_name
             | eval first_name_l = left(first_name, 1)
             | inline stats max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), g = gender, first_name_l
-            """, LogicalPlanOptimizerTests.SubstitutionOnlyOptimizer.INSTANCE);
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);

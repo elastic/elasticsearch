@@ -56,11 +56,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static EnrichResolution enrichResolution;
 
-    public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
+    public static class TestSubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        // A static instance of this would break the EsqlNodeSubclassTests because its initialization requires a Random instance.
 
-        SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
-            super(optimizerContext);
+        public TestSubstitutionOnlyOptimizer() {
+            super(unboundLogicalOptimizerContext());
         }
 
         @Override

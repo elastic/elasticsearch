@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListene
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -29,9 +28,7 @@ import static org.elasticsearch.core.Strings.format;
 
 class ApiKeyAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_API_KEY_ID = "es.security.api_key_id";
     public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";
-    public static final String ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON = "es.security.api_key_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 
@@ -47,7 +44,7 @@ class ApiKeyAuthenticator implements Authenticator {
         this.authenticationMetrics = new SecurityMetrics<>(
             SecurityMetricType.AUTHC_API_KEY,
             meterRegistry,
-            this::buildMetricAttributes,
+            credentials -> Map.of(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value()),
             nanoTimeSupplier
         );
         this.apiKeyService = apiKeyService;
@@ -105,13 +102,7 @@ class ApiKeyAuthenticator implements Authenticator {
         );
     }
 
-    private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials, String failureReason) {
-        final Map<String, Object> attributes = new HashMap<>(failureReason != null ? 3 : 2);
-        attributes.put(ATTRIBUTE_API_KEY_ID, credentials.getId());
-        attributes.put(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value());
-        if (failureReason != null) {
-            attributes.put(ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, failureReason);
-        }
-        return attributes;
+    private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials) {
+        return Map.of(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value());
     }
 }

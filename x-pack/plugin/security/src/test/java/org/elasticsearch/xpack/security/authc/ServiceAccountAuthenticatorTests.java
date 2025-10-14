@@ -131,8 +131,7 @@ public class ServiceAccountAuthenticatorTests extends AbstractAuthenticatorTests
             SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
             Map.ofEntries(
                 Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal()),
-                Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_TOKEN_NAME, serviceAccountToken.getTokenName()),
-                Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_AUTHC_FAILURE_REASON, "failed to authenticate test service account")
+                Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_TOKEN_NAME, serviceAccountToken.getTokenName())
             )
         );
 

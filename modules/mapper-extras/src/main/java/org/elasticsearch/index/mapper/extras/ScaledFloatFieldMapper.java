@@ -9,10 +9,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
@@ -28,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -831,8 +830,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
-            final SortedNumericDocValues values = scaledFieldData.getLongValues();
-            final NumericDocValues singleValues = DocValues.unwrapSingleton(values);
+            final SortedNumericLongValues values = scaledFieldData.getLongValues();
+            final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);
             if (singleValues != null) {
                 return FieldData.singleton(new NumericDoubleValues() {
                     @Override

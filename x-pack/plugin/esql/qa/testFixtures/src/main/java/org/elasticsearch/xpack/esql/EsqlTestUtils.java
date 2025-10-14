@@ -13,6 +13,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -102,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryClusterSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -260,7 +263,11 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD);
+        return relation(IndexMode.STANDARD);
+    }
+
+    public static EsRelation relation(IndexMode mode) {
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
     }
 
     /**
@@ -440,7 +447,7 @@ public final class EsqlTestUtils {
         createMockTransportService(),
         mock(SearchService.class),
         null,
-        mock(ClusterService.class),
+        createMockClusterService(),
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
@@ -448,6 +455,12 @@ public final class EsqlTestUtils {
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS
     );
+
+    private static ClusterService createMockClusterService() {
+        var service = mock(ClusterService.class);
+        doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        return service;
+    }
 
     private static TransportService createMockTransportService() {
         var service = mock(TransportService.class);
@@ -488,6 +501,15 @@ public final class EsqlTestUtils {
 
     public static Configuration configuration(String query) {
         return configuration(new QueryPragmas(Settings.EMPTY), query);
+    }
+
+    public static EsqlQueryClusterSettings queryClusterSettings() {
+        return new EsqlQueryClusterSettings(
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+        );
     }
 
     public static Literal L(Object value) {
@@ -570,23 +592,19 @@ public final class EsqlTestUtils {
     }
 
     public static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(Iterators.map(values, EsqlTestUtils::toList));
     }
 
     public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.iterator().forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.iterator().forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(Iterators.map(values.iterator(), row -> toList(row.iterator())));
+    }
+
+    private static <T> List<T> toList(Iterator<T> iterator) {
+        var list = new ArrayList<T>();
+        while (iterator.hasNext()) {
+            list.add(iterator.next());
+        }
+        return list;
     }
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
@@ -975,7 +993,11 @@ public final class EsqlTestUtils {
     }
 
     public static <T> T singleValue(Collection<T> collection) {
-        assertThat(collection, hasSize(1));
+        return singleValue("", collection);
+    }
+
+    public static <T> T singleValue(String reason, Collection<T> collection) {
+        assertThat(reason, collection, hasSize(1));
         return collection.iterator().next();
     }
 

@@ -2249,7 +2249,7 @@ public class MasterServiceTests extends ESTestCase {
             ).submitTask(source, new ClusterStateTaskListener() {
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof FailedToCommitClusterStateException
+                    if (e instanceof NotMasterException
                         && e.getMessage().startsWith("could not schedule timeout handler")
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()

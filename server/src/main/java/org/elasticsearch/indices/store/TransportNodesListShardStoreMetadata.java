@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -205,9 +204,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
-                new ShardId(in);
-            }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
             final var peerRecoveryRetentionLeases = in.readCollectionAsImmutableList(RetentionLease::new);
             if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
@@ -219,10 +215,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
-                // no compatible version cares about the shard ID, we can just make one up
-                FAKE_SHARD_ID.writeTo(out);
-            }
             metadataSnapshot.writeTo(out);
             out.writeCollection(peerRecoveryRetentionLeases);
         }

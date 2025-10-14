@@ -17,9 +17,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -532,11 +531,12 @@ public class ModelRegistry implements ClusterStateListener {
 
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
-            IndexRequest configRequest = createIndexRequest(
-                Model.documentId(inferenceEntityId),
+            var requestBuilder = createIndexRequestBuilder(
+                inferenceEntityId,
                 InferenceIndex.INDEX_NAME,
                 newModel.getConfigurations(),
-                true
+                true,
+                client
             );
 
             ActionListener<BulkResponse> storeConfigListener = subListener.delegateResponse((l, e) -> {
@@ -545,7 +545,7 @@ public class ModelRegistry implements ClusterStateListener {
                 l.onFailure(e);
             });
 
-            client.prepareBulk().add(configRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
+            client.prepareBulk().add(requestBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
 
         }).<BulkResponse>andThen((subListener, configResponse) -> {
             // in this block, we respond to the success or failure of updating the model configurations, then try to store the new secrets
@@ -570,11 +570,12 @@ public class ModelRegistry implements ClusterStateListener {
                 );
             } else {
                 // Since the model configurations were successfully updated, we can now try to store the new secrets
-                IndexRequest secretsRequest = createIndexRequest(
-                    Model.documentId(newModel.getConfigurations().getInferenceEntityId()),
+                var requestBuilder = createIndexRequestBuilder(
+                    newModel.getConfigurations().getInferenceEntityId(),
                     InferenceSecretsIndex.INDEX_NAME,
                     newModel.getSecrets(),
-                    true
+                    true,
+                    client
                 );
 
                 ActionListener<BulkResponse> storeSecretsListener = subListener.delegateResponse((l, e) -> {
@@ -584,7 +585,7 @@ public class ModelRegistry implements ClusterStateListener {
                 });
 
                 client.prepareBulk()
-                    .add(secretsRequest)
+                    .add(requestBuilder)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(storeSecretsListener);
             }
@@ -592,12 +593,14 @@ public class ModelRegistry implements ClusterStateListener {
             // in this block, we respond to the success or failure of updating the model secrets
             if (secretsResponse.hasFailures()) {
                 // since storing the secrets failed, we will try to restore / roll-back-to the previous model configurations
-                IndexRequest configRequest = createIndexRequest(
-                    Model.documentId(inferenceEntityId),
+                var requestBuilder = createIndexRequestBuilder(
+                    inferenceEntityId,
                     InferenceIndex.INDEX_NAME,
                     existingModel.getConfigurations(),
-                    true
+                    true,
+                    client
                 );
+
                 logger.error(
                     "Failed to update inference endpoint secrets [{}], attempting rolling back to previous state",
                     inferenceEntityId
@@ -609,7 +612,7 @@ public class ModelRegistry implements ClusterStateListener {
                     l.onFailure(e);
                 });
                 client.prepareBulk()
-                    .add(configRequest)
+                    .add(requestBuilder)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(rollbackConfigListener);
             } else {
@@ -656,7 +659,7 @@ public class ModelRegistry implements ClusterStateListener {
 
     private void storeModel(Model model, boolean updateClusterState, ActionListener<Boolean> listener, TimeValue timeout) {
         storeModels(List.of(model), updateClusterState, listener.delegateFailureAndWrap((delegate, responses) -> {
-            var firstFailureResponse = responses.stream().filter(ModelResponse::failed).findFirst();
+            var firstFailureResponse = responses.stream().filter(ModelStoreResponse::failed).findFirst();
             if (firstFailureResponse.isPresent() == false) {
                 delegate.onResponse(Boolean.TRUE);
                 return;
@@ -664,7 +667,6 @@ public class ModelRegistry implements ClusterStateListener {
 
             var failureItem = firstFailureResponse.get();
             if (ExceptionsHelper.unwrapCause(failureItem.failureCause()) instanceof VersionConflictEngineException) {
-                // TODO do we want to include the cause?
                 delegate.onFailure(
                     new ElasticsearchStatusException(
                         "Inference endpoint [{}] already exists",
@@ -686,28 +688,31 @@ public class ModelRegistry implements ClusterStateListener {
         }), timeout);
     }
 
-    // TODO rename
-    public record ModelResponse(String inferenceId, RestStatus status, @Nullable Exception failureCause) {
+    public record ModelStoreResponse(String inferenceId, RestStatus status, @Nullable Exception failureCause) {
         public boolean failed() {
             return failureCause != null;
         }
     }
 
-    public void storeModels(
+    public void storeModels(List<Model> models, ActionListener<List<ModelStoreResponse>> listener, TimeValue timeout) {
+        storeModels(models, true, listener, timeout);
+    }
+
+    private void storeModels(
         List<Model> models,
         boolean updateClusterState,
-        ActionListener<List<ModelResponse>> listener,
+        ActionListener<List<ModelStoreResponse>> listener,
         TimeValue timeout
     ) {
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (var model : models) {
             bulkRequestBuilder.add(
-                createIndexRequestBuilder(model.getInferenceEntityId(), InferenceIndex.INDEX_NAME, model.getConfigurations(), false)
+                createIndexRequestBuilder(model.getInferenceEntityId(), InferenceIndex.INDEX_NAME, model.getConfigurations(), false, client)
             );
 
             bulkRequestBuilder.add(
-                createIndexRequestBuilder(model.getInferenceEntityId(), InferenceSecretsIndex.INDEX_NAME, model.getSecrets(), false)
+                createIndexRequestBuilder(model.getInferenceEntityId(), InferenceSecretsIndex.INDEX_NAME, model.getSecrets(), false, client)
             );
         }
 
@@ -717,14 +722,15 @@ public class ModelRegistry implements ClusterStateListener {
     private ActionListener<BulkResponse> getStoreMultipleModelsListener(
         List<Model> models,
         boolean updateClusterState,
-        ActionListener<List<ModelResponse>> listener,
+        ActionListener<List<ModelStoreResponse>> listener,
         TimeValue timeout
     ) {
-        var docIdToInferenceId = models.stream()
-            .collect(Collectors.toMap(m -> Model.documentId(m.getInferenceEntityId()), Model::getInferenceEntityId));
-        var inferenceIdToModel = models.stream().collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity()));
-
         return ActionListener.wrap(bulkItemResponses -> {
+            var docIdToInferenceId = models.stream()
+                .collect(Collectors.toMap(m -> Model.documentId(m.getInferenceEntityId()), Model::getInferenceEntityId, (id1, id2) -> id1));
+            var inferenceIdToModel = models.stream()
+                .collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity(), (id1, id2) -> id1));
+
             var inferenceEntityIds = String.join(", ", models.stream().map(Model::getInferenceEntityId).toList());
             if (bulkItemResponses.getItems().length == 0) {
                 logger.warn("Storing inference endpoints [{}] failed, no items were received from the bulk response", inferenceEntityIds);
@@ -743,12 +749,12 @@ public class ModelRegistry implements ClusterStateListener {
 
             if (updateClusterState) {
                 updateClusterState(
-                    responseInfo.successfullyStoredModels,
-                    listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.response)),
+                    responseInfo.v2(),
+                    listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.v1())),
                     timeout
                 );
             } else {
-                listener.onResponse(responseInfo.response);
+                listener.onResponse(responseInfo.v1());
             }
         }, e -> {
             String errorMessage = format(
@@ -760,53 +766,81 @@ public class ModelRegistry implements ClusterStateListener {
         });
     }
 
-    // TODO rename
-    private record ResponseInfo(List<ModelResponse> response, List<Model> successfullyStoredModels) {}
-
-    // TODO rename
-    private static ResponseInfo getResponseInfo(
+    private static Tuple<List<ModelStoreResponse>, List<Model>> getResponseInfo(
         BulkResponse bulkResponse,
         Map<String, String> docIdToInferenceId,
         Map<String, Model> inferenceIdToModel
     ) {
-        var response = new ArrayList<ModelResponse>();
+        var responses = new ArrayList<ModelStoreResponse>();
         var modelsSuccessfullyStored = new ArrayList<Model>();
 
-        for (var item : bulkResponse.getItems()) {
-            var failure = item.getFailure();
+        var bulkItems = bulkResponse.getItems();
+        for (int i = 0; i < bulkItems.length; i += 2) {
+            var configurationItem = bulkItems[i];
+            var configStoreResponse = createModelStoreResponse(configurationItem, docIdToInferenceId);
+            var modelFromBulkItem = getModelFromMap(docIdToInferenceId.get(configurationItem.getId()), inferenceIdToModel);
 
-            String inferenceIdOrUnknown = "unknown";
-            var inferenceIdMaybeNull = docIdToInferenceId.get(item.getId());
-            if (inferenceIdMaybeNull == null) {
-                logger.warn("Failed to find inference id for document id [{}]", item.getId());
-            } else {
-                inferenceIdOrUnknown = inferenceIdMaybeNull;
+            if (i + 1 >= bulkResponse.getItems().length) {
+                logger.error("Expected an even number of bulk response items, got [{}]", bulkResponse.getItems().length);
+                responses.add(configStoreResponse);
+                if (configStoreResponse.failed() == false && modelFromBulkItem != null) {
+                    modelsSuccessfullyStored.add(modelFromBulkItem);
+                }
+                return new Tuple<>(responses, modelsSuccessfullyStored);
             }
 
-            if (item.isFailed() && failure != null) {
-                response.add(new ModelResponse(inferenceIdOrUnknown, item.status(), failure.getCause()));
-                logger.warn(
-                    format(
-                        "Failed to store document id: [%s] inference id: [%s] index: [%s] bulk failure message [%s]",
-                        item.getId(),
-                        inferenceIdOrUnknown,
-                        item.getIndex(),
-                        item.getFailureMessage()
-                    )
-                );
-            } else {
-                response.add(new ModelResponse(inferenceIdOrUnknown, item.status(), null));
+            var secretsItem = bulkItems[i + 1];
+            var secretsStoreResponse = createModelStoreResponse(secretsItem, docIdToInferenceId);
 
-                if (inferenceIdMaybeNull != null) {
-                    var modelForResponseItem = inferenceIdToModel.get(inferenceIdMaybeNull);
-                    if (modelForResponseItem != null) {
-                        modelsSuccessfullyStored.add(modelForResponseItem);
-                    }
+            if (configStoreResponse.failed()) {
+                responses.add(configStoreResponse);
+            } else if (secretsStoreResponse.failed()) {
+                responses.add(secretsStoreResponse);
+            } else {
+                responses.add(configStoreResponse);
+                if (modelFromBulkItem != null) {
+                    modelsSuccessfullyStored.add(modelFromBulkItem);
                 }
             }
         }
 
-        return new ResponseInfo(response, modelsSuccessfullyStored);
+        return new Tuple<>(responses, modelsSuccessfullyStored);
+    }
+
+    private static ModelStoreResponse createModelStoreResponse(BulkItemResponse item, Map<String, String> docIdToInferenceId) {
+        var failure = item.getFailure();
+
+        String inferenceIdOrUnknown = "unknown";
+        var inferenceIdMaybeNull = docIdToInferenceId.get(item.getId());
+        if (inferenceIdMaybeNull == null) {
+            logger.warn("Failed to find inference id for document id [{}]", item.getId());
+        } else {
+            inferenceIdOrUnknown = inferenceIdMaybeNull;
+        }
+
+        if (item.isFailed() && failure != null) {
+            logger.warn(
+                format(
+                    "Failed to store document id: [%s] inference id: [%s] index: [%s] bulk failure message [%s]",
+                    item.getId(),
+                    inferenceIdOrUnknown,
+                    item.getIndex(),
+                    item.getFailureMessage()
+                )
+            );
+
+            return new ModelStoreResponse(inferenceIdOrUnknown, item.status(), failure.getCause());
+        } else {
+            return new ModelStoreResponse(inferenceIdOrUnknown, item.status(), null);
+        }
+    }
+
+    private static Model getModelFromMap(@Nullable String inferenceId, Map<String, Model> inferenceIdToModel) {
+        if (inferenceId != null) {
+            return inferenceIdToModel.get(inferenceId);
+        }
+
+        return null;
     }
 
     private void updateClusterState(List<Model> models, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
@@ -966,11 +1000,13 @@ public class ModelRegistry implements ClusterStateListener {
         return request;
     }
 
-    private IndexRequestBuilder createIndexRequestBuilder(
+    // default for testing
+    static IndexRequestBuilder createIndexRequestBuilder(
         String inferenceId,
         String indexName,
         ToXContentObject body,
-        boolean allowOverwriting
+        boolean allowOverwriting,
+        Client client
     ) {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(
@@ -989,21 +1025,6 @@ public class ModelRegistry implements ClusterStateListener {
                 indexName,
                 inferenceId
             );
-        }
-    }
-
-    private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            var request = new IndexRequest(indexName);
-            XContentBuilder source = body.toXContent(
-                builder,
-                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
-            );
-            var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
-
-            return request.opType(operation).id(docId).source(source);
-        } catch (IOException ex) {
-            throw new ElasticsearchException(format("Unexpected serialization exception for index [%s] doc [%s]", indexName, docId), ex);
         }
     }
 

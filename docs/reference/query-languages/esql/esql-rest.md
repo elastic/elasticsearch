@@ -137,9 +137,20 @@ Which returns:
 Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T00:00:00.000Z
 ```
 
-Unlike placing a condition into the WHERE clause, the filter could eliminate columns from the result set if the entire index is skipped.
+#### Filter vs WHERE clause behavior
 
-For example, when querying index-1 with f1 attribute and index-2 with f2 attribute,
+The `filter` parameter can eliminate columns from the result set when it skips entire indices.
+This is useful for resolving type conflicts between attributes of different indices.
+
+For example, if several days of data in a data stream were indexed with an incorrect type, you can use a filter to exclude the incorrect range.
+This allows {{esql}} to use the correct type for the remaining data without changing the source pattern.
+
+##### Example
+
+Consider querying `index-1` with an `f1` attribute and `index-2` with an `f2` attribute.
+
+Using a filter the following query returns only the `f1` column:
+
 ```console
 POST /_query?format=txt
 {
@@ -151,21 +162,15 @@ POST /_query?format=txt
   }
 }
 ```
-returns only `f1` column.
 
-and
+Using a WHERE clause returns both the `f1` and `f2` columns:
+
 ```console
 POST /_query?format=txt
 {
   "query": "FROM index-* WHERE f1 is not null"
 }
 ```
-returns both `f1` and `f2` columns.
-
-This might be useful when trying to resolve a type conflict between several indices.
-For example, when several days worth of data in a data stream were indexed with an incorrect type.
-In such a case, incorrect range might be excluded by a filter allowing ESQL to use a correct type
-for the remaining data without having to change the source pattern.
 
 
 ### Columnar results [esql-rest-columnar]

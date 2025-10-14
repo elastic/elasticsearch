@@ -11,10 +11,10 @@ package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.core.Nullable;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Holds information about the target projects for a cross-project search request. This record is used both by the
@@ -23,8 +23,15 @@ import java.util.stream.Collectors;
  *                      project routing
  * @param linkedProjects all projects that are linked and authorized, can be empty if the request is not cross-project
  */
-public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
-    public static final TargetProjects NOT_CROSS_PROJECT = new TargetProjects(null, List.of());
+public record TargetProjects(
+    @Nullable ProjectRoutingInfo originProject, // null when CPS is disabled or the local project is excluded by routing
+    @Nullable List<ProjectRoutingInfo> linkedProjects // null when CPS is disabled
+) {
+    // A placeholder constant to satisfy the AuthorizedProjectResolver contract when CPS is disabled. The field values
+    // are chosen so that it is a combination that is impossible to have when CPS is enabled. Hence, they are not
+    // meant to be always interpreted literally, i.e. the `null` originProject does NOT mean the local project is excluded.
+    // Instead, actions are always and only executed against the local project when CPS is disabled.
+    public static final TargetProjects LOCAL_ONLY_FOR_CPS_DISABLED = new TargetProjects(null, null);
 
     public TargetProjects(ProjectRoutingInfo originProject) {
         this(originProject, List.of());
@@ -37,14 +44,14 @@ public record TargetProjects(@Nullable ProjectRoutingInfo originProject, List<Pr
 
     public Set<String> allProjectAliases() {
         // TODO consider caching this
-        final Set<String> allProjectAliases = linkedProjects.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toSet());
-        if (originProject != null) {
-            allProjectAliases.add(originProject.projectAlias());
-        }
-        return Collections.unmodifiableSet(allProjectAliases);
+        return Stream.concat(
+            originProject != null ? Stream.of(originProject) : Stream.empty(),
+            linkedProjects != null ? linkedProjects.stream() : Stream.empty()
+        ).map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet());
     }
 
+    // TODO: Either change the definition or the method name since it allows targeting only the origin project without any remotes
     public boolean crossProject() {
-        return originProject != null || linkedProjects.isEmpty() == false;
+        return originProject != null || (linkedProjects != null && linkedProjects.isEmpty() == false);
     }
 }

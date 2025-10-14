@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -803,7 +804,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
-            super(name, true, false, false, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.inferenceId = inferenceId;
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;

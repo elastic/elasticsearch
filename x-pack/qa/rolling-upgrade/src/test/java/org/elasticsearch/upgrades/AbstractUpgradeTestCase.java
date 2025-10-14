@@ -7,7 +7,9 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -23,15 +26,17 @@ import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
@@ -194,43 +199,98 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<Boolean, RestClient> getRestClientByCapability(Function<Map<String, Object>, Boolean> capabilityChecker)
-        throws IOException {
+    protected Map<String, String> getRestEndpointByIdNodeId() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
-
-        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
-            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = capabilityChecker.apply(nodeDetails);
+        return nodesAsMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            Map<String, Object> nodeDetails = (Map<String, Object>) e.getValue();
             Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
-                .add(HttpHost.create((String) httpInfo.get("publish_address")));
-        }
-
-        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
-        for (var entry : hostsByCapability.entrySet()) {
-            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
-        }
-        return clientsByCapability;
+            return (String) httpInfo.get("publish_address");
+        }));
     }
 
-    protected void createClientsByCapability(Function<Map<String, Object>, Boolean> capabilityChecker) throws IOException {
-        var clientsByCapability = getRestClientByCapability(capabilityChecker);
-        if (clientsByCapability.size() == 2) {
-            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
-                if (client.getKey() == false) {
-                    oldVersionClient = client.getValue();
-                } else {
-                    newVersionClient = client.getValue();
-                }
-            }
+    protected void createClientsByCapability(Predicate<TestNodeInfo> capabilityChecker) throws IOException {
+        var testNodesByCapability = collectNodeInfos(adminClient()).stream().collect(Collectors.partitioningBy(capabilityChecker));
+        if (testNodesByCapability.size() == 2) {
+            oldVersionClient = buildClient(
+                restClientSettings(),
+                new HttpHost[] { HttpHost.create(testNodesByCapability.get(false).getFirst().restEndpoint) }
+            );
+            newVersionClient = buildClient(
+                restClientSettings(),
+                new HttpHost[] { HttpHost.create(testNodesByCapability.get(true).getFirst().restEndpoint) }
+            );
             assertThat(oldVersionClient, notNullValue());
             assertThat(newVersionClient, notNullValue());
         } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
+            fail("expected 2 versions during rolling upgrade but got: " + testNodesByCapability.size());
+        }
+    }
+
+    protected Set<TestNodeInfo> collectNodeInfos(RestClient adminClient) throws IOException {
+        final Request request = new Request("GET", "_cluster/state");
+        request.addParameter("filter_path", "nodes_features");
+
+        final Response response = adminClient.performRequest(request);
+
+        final Map<String, Set<String>> nodeFeatures;
+        var responseData = responseAsMap(response);
+        if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
+            nodeFeatures = nodesFeatures.stream()
+                .map(Map.class::cast)
+                .collect(Collectors.toUnmodifiableMap(nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(), nodeFeatureMap -> {
+                    @SuppressWarnings("unchecked")
+                    var features = (List<String>) nodeFeatureMap.get("features");
+                    return new HashSet<>(features);
+                }));
+        } else {
+            nodeFeatures = Map.of();
+        }
+        var restEndpointByNodeId = getRestEndpointByIdNodeId();
+
+        return nodeInfoById().entrySet().stream().map(entry -> {
+            var version = (String) extractValue((Map<?, ?>) entry.getValue(), "version");
+            assertNotNull(version);
+            var transportVersion = (Integer) extractValue((Map<?, ?>) entry.getValue(), "transport_version");
+            assertNotNull(transportVersion);
+            return new TestNodeInfo(
+                entry.getKey(),
+                version,
+                TransportVersion.fromId(transportVersion),
+                nodeFeatures.getOrDefault(entry.getKey(), Set.of()),
+                restEndpointByNodeId.get(entry.getKey())
+            );
+        }).collect(Collectors.toSet());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> nodeInfoById() throws IOException {
+        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes/_all"));
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
+        assertNotNull("Nodes info is null", nodes);
+        return nodes;
+    }
+
+    protected record TestNodeInfo(
+        String nodeId,
+        String version,
+        TransportVersion transportVersion,
+        Set<String> features,
+        String restEndpoint
+    ) {
+        public boolean isOriginalVersionCluster() {
+            return AbstractUpgradeTestCase.isOriginalCluster(this.version());
+        }
+
+        public boolean isUpgradedVersionCluster() {
+            return false == isOriginalVersionCluster();
+        }
+
+        public boolean supportsFeature(String feature) {
+            return features().contains(feature);
         }
     }
 

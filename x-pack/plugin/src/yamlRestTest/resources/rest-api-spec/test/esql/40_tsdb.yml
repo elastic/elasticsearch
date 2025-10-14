@@ -244,7 +244,7 @@ cast counter then filter:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_convert_to ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Uses TO_AGGREGATE_METRIC_DOUBLE"
   - do:
       esql.query:
@@ -268,7 +268,7 @@ sort on counter without cast:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [sorting_on_source_and_counters_forbidden, aggregate_metric_double_convert_to]
+          capabilities: [sorting_on_source_and_counters_forbidden, aggregate_metric_double_v0]
       reason: "Sorting on counters shouldn't have been possible"
   - do:
       catch: /cannot sort on counter_long/
@@ -788,3 +788,100 @@ avg of aggregate_metric_double:
   - match: {columns.0.name: "avg"}
   - match: {columns.0.type: "double"}
   - match: {values.0.0: 4.904761904761905}
+
+---
+TS Command grouping on text field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_permit_text_becoming_keyword_when_grouped_on, ts_command_v0 ]
+      reason: "fix grouping on text fields with TS command"
+
+  - do:
+      indices.create:
+        index: test-text-field
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: integer
+                          rx:
+                            type: integer
+              text_field:
+                type: text
+  - do:
+      bulk:
+        refresh: true
+        index: test-text-field
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T16:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}, "text_field": "some text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}, "text_field": "even more text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}, "text_field": "wow i cant believe theres still text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}, "text_field": "who knew there could be so much text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T16:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}, "text_field": "we are just overflowing with text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}, "text_field": "is this text?"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}, "text_field": "why cant i hold all these text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}, "text_field": "peak text"}'
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test-text-field
+            | STATS max = max(k8s.pod.network.rx) BY text_field, bucket = bucket(@timestamp,1hour)
+            | SORT max, text_field
+            | LIMIT 3
+
+  - length: {values: 3}
+  - length: {values.0: 3}
+  - match: {columns.0.name: "max"}
+  - match: {columns.0.type: "integer"}
+  - match: {columns.1.name: "text_field"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "bucket"}
+  - match: {columns.2.type: "date"}
+  - match: {values.0.0: 530575198}
+  - match: {values.0.1: "we are just overflowing with text"}
+  - match: {values.0.2: "2021-04-28T16:00:00.000Z"}
+  - match: {values.1.0: 530600088}
+  - match: {values.1.1: "is this text?"}
+  - match: {values.1.2: "2021-04-28T17:00:00.000Z"}
+  - match: {values.2.0: 530604797}
+  - match: {values.2.1: "why cant i hold all these text"}
+  - match: {values.2.2: "2021-04-28T18:00:00.000Z"}

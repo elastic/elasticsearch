@@ -178,7 +178,7 @@ public final class LuceneSliceQueue {
     }
 
     public static LuceneSliceQueue create(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
@@ -186,10 +186,10 @@ public final class LuceneSliceQueue {
         Function<ShardContext, ScoreMode> scoreModeFunction
     ) {
         List<LuceneSlice> slices = new ArrayList<>();
-        Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
+        Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
 
         int nextSliceId = 0;
-        for (ShardContext ctx : contexts) {
+        for (ShardContext ctx : contexts.collection()) {
             for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
                 var scoreMode = scoreModeFunction.apply(ctx);
                 Query query = queryAndExtra.query;

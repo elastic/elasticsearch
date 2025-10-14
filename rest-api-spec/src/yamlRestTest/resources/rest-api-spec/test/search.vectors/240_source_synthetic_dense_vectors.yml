@@ -21,10 +21,7 @@ setup:
                 type: dense_vector
                 dims: 3
                 similarity: l2_norm
-              vector2:
-                type: dense_vector
-                dims: 3
-                similarity: l2_norm
+
               nested:
                 type: nested
                 properties:
@@ -42,7 +39,6 @@ setup:
         body:
           name: cow.jpg
           vector: [1, 2, 3]
-          vector2: [1, 2, 3]
 
   - do:
       index:

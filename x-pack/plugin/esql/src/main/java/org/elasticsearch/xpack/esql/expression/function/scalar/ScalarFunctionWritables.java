@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
@@ -91,6 +93,8 @@ public class ScalarFunctionWritables {
         entries.add(MonthName.ENTRY);
         entries.add(IpPrefix.ENTRY);
         entries.add(Least.ENTRY);
+        entries.add(ClampMax.ENTRY);
+        entries.add(ClampMin.ENTRY);
         entries.add(Left.ENTRY);
         entries.add(Locate.ENTRY);
         entries.add(Log.ENTRY);

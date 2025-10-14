@@ -454,7 +454,7 @@ public class EsqlFunctionRegistry {
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             new FunctionDefinition[] { def(IpPrefix.class, IpPrefix::new, "ip_prefix") },
-            new FunctionDefinition[] { def(NetworkDirection.class, NetworkDirection::new, "network_direction") },
+            new FunctionDefinition[] { def(NetworkDirection.class, NetworkDirection::new, "network_direction", "netdir") },
             // conversion functions
             new FunctionDefinition[] {
                 def(FromBase64.class, FromBase64::new, "from_base64"),

@@ -32,9 +32,9 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Objects;
@@ -132,7 +132,7 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 tsDataStreamCount,
                 tsIndexCount,
                 ilmStats.getDownsamplingStats(),
-                ilmStats.getIlmPolicyStats(),
+                ilmStats.calculateIlmPolicyStats(),
                 dlmStats.getDownsamplingStats(),
                 indicesByInterval
             )
@@ -171,16 +171,24 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
         }
     }
 
+    /**
+     * Tracks the ILM policies currently in use by time series data streams.
+     */
     static class IlmDownsamplingStatsTracker extends DownsamplingStatsTracker {
-        // Delete is not relevant for the statistics we track
-        private static final List<String> ORDERED_RELEVANT_PHASES = List.of("hot", "warm", "cold", "frozen");
         private final Map<String, Map<String, Phase>> policies = new HashMap<>();
 
         void trackPolicy(LifecyclePolicy ilmPolicy) {
             policies.putIfAbsent(ilmPolicy.getName(), ilmPolicy.getPhases());
         }
 
-        TimeSeriesFeatureSetUsage.IlmPolicyStats getIlmPolicyStats() {
+        /**
+         * Calculates ILM-policy-specific statistics that help us get a better understanding on the phases that use downsampling and on
+         * how the force merge step in the downsample action is used. More specifically, we are tracking for downsampling we are tracking:
+         * - if users explicitly enabled or disable it.
+         * - if the force merge could be skipped with minimal impact, when the force merge flag is undefined.
+         * @return a IlmPolicyStats record that contains these counters.
+         */
+        TimeSeriesFeatureSetUsage.IlmPolicyStats calculateIlmPolicyStats() {
             if (policies.isEmpty()) {
                 return TimeSeriesFeatureSetUsage.IlmPolicyStats.EMPTY;
             }
@@ -192,7 +200,7 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
             for (String ilmPolicy : policies.keySet()) {
                 Map<String, Phase> phases = policies.get(ilmPolicy);
                 boolean downsampledForceMergeNeeded = false;
-                for (String phase : ORDERED_RELEVANT_PHASES) {
+                for (String phase : TimeseriesLifecycleType.ORDERED_VALID_PHASES) {
                     if (phases.containsKey(phase) == false) {
                         continue;
                     }

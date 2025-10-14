@@ -32,11 +32,11 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -312,27 +312,25 @@ public class DownsampleAction implements LifecycleAction {
             false
         );
 
-        List<Step> steps = new ArrayList<>(17);
-        steps.add(isTimeSeriesIndexBranchingStep);
-        steps.add(checkNotWriteIndexStep);
-        steps.add(waitForNoFollowersStep);
-        steps.add(waitUntilTimeSeriesEndTimeStep);
-        steps.add(readOnlyStep);
-        steps.add(cleanupDownsampleIndexStep);
-        steps.add(generateDownsampleIndexNameStep);
-        steps.add(downsampleStep);
-        steps.add(downsampleAllocatedStep);
-        if (isForceMergeEnabled()) {
-            steps.add(forceMergeStep);
-            steps.add(segmentCountStep);
-        }
-        steps.add(copyExecutionStateStep);
-        steps.add(copyLifecycleSettingsStep);
-        steps.add(isDataStreamBranchingStep);
-        steps.add(replaceDataStreamBackingIndex);
-        steps.add(deleteSourceIndexStep);
-        steps.add(swapAliasesAndDeleteSourceIndexStep);
-        return steps;
+        return Stream.of(
+            isTimeSeriesIndexBranchingStep,
+            checkNotWriteIndexStep,
+            waitForNoFollowersStep,
+            waitUntilTimeSeriesEndTimeStep,
+            readOnlyStep,
+            cleanupDownsampleIndexStep,
+            generateDownsampleIndexNameStep,
+            downsampleStep,
+            downsampleAllocatedStep,
+            forceMergeStep,
+            segmentCountStep,
+            copyExecutionStateStep,
+            copyLifecycleSettingsStep,
+            isDataStreamBranchingStep,
+            replaceDataStreamBackingIndex,
+            deleteSourceIndexStep,
+            swapAliasesAndDeleteSourceIndexStep
+        ).filter(Objects::nonNull).toList();
     }
 
     private boolean isForceMergeEnabled() {

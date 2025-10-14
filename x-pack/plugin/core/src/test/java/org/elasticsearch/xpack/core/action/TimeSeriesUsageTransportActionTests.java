@@ -46,7 +46,7 @@ public class TimeSeriesUsageTransportActionTests extends ESTestCase {
         );
         var tracker = new TimeSeriesUsageTransportAction.IlmDownsamplingStatsTracker();
         policies.forEach(tracker::trackPolicy);
-        TimeSeriesFeatureSetUsage.IlmPolicyStats ilmPolicyStats = tracker.getIlmPolicyStats();
+        TimeSeriesFeatureSetUsage.IlmPolicyStats ilmPolicyStats = tracker.calculateIlmPolicyStats();
         assertThat(ilmPolicyStats.forceMergeExplicitlyEnabledCounter(), equalTo(2L));
         assertThat(ilmPolicyStats.forceMergeExplicitlyDisabledCounter(), equalTo(1L));
         assertThat(ilmPolicyStats.forceMergeDefaultCounter(), equalTo(4L));
@@ -60,7 +60,7 @@ public class TimeSeriesUsageTransportActionTests extends ESTestCase {
                 Map.of("warm", new PhaseConfig(true, null, false, false, false), "cold", new PhaseConfig(true, null, false, true, false))
             )
         );
-        TimeSeriesFeatureSetUsage.IlmPolicyStats ilmPolicyStats = tracker.getIlmPolicyStats();
+        TimeSeriesFeatureSetUsage.IlmPolicyStats ilmPolicyStats = tracker.calculateIlmPolicyStats();
         assertThat(ilmPolicyStats.forceMergeExplicitlyEnabledCounter(), equalTo(0L));
         assertThat(ilmPolicyStats.forceMergeExplicitlyDisabledCounter(), equalTo(0L));
         assertThat(ilmPolicyStats.forceMergeDefaultCounter(), equalTo(2L));
@@ -73,7 +73,7 @@ public class TimeSeriesUsageTransportActionTests extends ESTestCase {
                 Map.of("warm", new PhaseConfig(true, null, false, false, false), "cold", new PhaseConfig(true, true, false, true, false))
             )
         );
-        ilmPolicyStats = tracker.getIlmPolicyStats();
+        ilmPolicyStats = tracker.calculateIlmPolicyStats();
         assertThat(ilmPolicyStats.forceMergeExplicitlyEnabledCounter(), equalTo(1L));
         assertThat(ilmPolicyStats.forceMergeExplicitlyDisabledCounter(), equalTo(0L));
         assertThat(ilmPolicyStats.forceMergeDefaultCounter(), equalTo(1L));

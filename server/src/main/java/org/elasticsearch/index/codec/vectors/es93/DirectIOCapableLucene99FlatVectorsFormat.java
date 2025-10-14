@@ -65,11 +65,6 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return fieldsReader(state, false);
-    }
-
-    @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
         if (state.context.context() == IOContext.Context.DEFAULT && useDirectIO && canUseDirectIO(state)) {
             // only override the context for the random-access use case

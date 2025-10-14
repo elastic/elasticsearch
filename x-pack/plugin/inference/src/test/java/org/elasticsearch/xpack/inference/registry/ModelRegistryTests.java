@@ -322,10 +322,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         var model = TestModel.createRandomInstance();
         assertStoreModel(registry, model);
 
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> assertStoreModel(registry, model)
-        );
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> assertStoreModel(registry, model));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),

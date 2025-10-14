@@ -205,9 +205,8 @@ public class TimeSeriesAggregate extends Aggregate {
                     failures.add(
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
-                }
-                // reject COUNT(keyword), but allow COUNT(numeric)
-                if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
+                    // reject COUNT(keyword), but allow COUNT(numeric)
+                } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
                     Expression field = outer.field();
                     var lastOverTime = new LastOverTime(source(), field, new Literal(source(), null, DataType.DATETIME));
                     if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
@@ -216,7 +215,7 @@ public class TimeSeriesAggregate extends Aggregate {
                                 this,
                                 "implicit time-series aggregation function [{}] generated from [{}] doesn't support type [{}], "
                                     + "only numeric types are supported; use the FROM command instead of the TS command",
-                                outer.sourceText().replaceAll(field.sourceText(), "last_over_time(" + field.sourceText() + ")"),
+                                outer.sourceText().replace(field.sourceText(), "last_over_time(" + field.sourceText() + ")"),
                                 outer.sourceText(),
                                 field.dataType().typeName()
                             )

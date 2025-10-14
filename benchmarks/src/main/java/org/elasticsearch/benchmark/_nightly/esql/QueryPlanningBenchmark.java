@@ -99,6 +99,9 @@ public class QueryPlanningBenchmark {
 
         var functionRegistry = new EsqlFunctionRegistry();
 
+        // Assume all nodes are on the current version for the benchmark.
+        TransportVersion minimumVersion = TransportVersion.current();
+
         telemetry = new PlanTelemetry(functionRegistry);
         defaultParser = new EsqlParser();
         manyFieldsAnalyzer = new Analyzer(
@@ -109,12 +112,11 @@ public class QueryPlanningBenchmark {
                 Map.of(),
                 new EnrichResolution(),
                 InferenceResolution.EMPTY,
-                // Assume all nodes are on the current version for the benchmark.
-                TransportVersion.current()
+                minimumVersion
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );
-        defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
+        defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {

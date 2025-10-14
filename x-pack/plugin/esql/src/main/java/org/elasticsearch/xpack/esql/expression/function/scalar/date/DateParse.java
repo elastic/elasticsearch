@@ -22,19 +22,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.ThreeOptionalArguments;
-import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.TimeZone;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
@@ -73,16 +69,8 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
             type = { "keyword", "text" },
             description = "Date expression as a string. If `null` or an empty string, the function returns `null`."
         ) Expression second,
-        @Param(
-            name="dateLocale",
-            type = { "keyword", "text" },
-            description = "The locale to parse with"
-        ) Expression third,
-        @Param(
-            name="dateTimezone",
-            type = { "keyword", "text" },
-            description = "The timezone to parse with"
-        ) Expression forth
+        @Param(name = "dateLocale", type = { "keyword", "text" }, description = "The locale to parse with") Expression third,
+        @Param(name = "dateTimezone", type = { "keyword", "text" }, description = "The timezone to parse with") Expression forth
     ) {
         super(source, fields(first, second, third, forth));
         this.field = second != null ? second : first;
@@ -218,7 +206,8 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
             newChildren.get(0),
             newChildren.size() > 1 ? newChildren.get(1) : null,
             newChildren.size() > 2 ? newChildren.get(2) : null,
-            newChildren.size() > 3 ? newChildren.get(3) : null);
+            newChildren.size() > 3 ? newChildren.get(3) : null
+        );
     }
 
     @Override

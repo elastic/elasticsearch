@@ -165,7 +165,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (localIndexNames.length == 0) {
                 String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(projectMetadata, indicesOptions);
                 resolvedLocallyList.add(createResolvedIndexExpression(Metadata.ALL, concreteIndexNames));
-            } else {
+            } else if (false == IndexNameExpressionResolver.isNoneExpression(localIndexNames)) {
                 for (String localIndexName : localIndexNames) {
                     String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(
                         projectMetadata,

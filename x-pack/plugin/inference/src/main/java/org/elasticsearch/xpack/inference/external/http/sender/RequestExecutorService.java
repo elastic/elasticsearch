@@ -341,6 +341,10 @@ public class RequestExecutorService implements RequestExecutor {
         return inputs instanceof EmbeddingsInput embeddingsInput && InputType.isIngest(embeddingsInput.getInputType());
     }
 
+    private static boolean rateLimitingEnabled(RateLimitSettings rateLimitSettings) {
+        return rateLimitSettings != null && rateLimitSettings.isEnabled();
+    }
+
     private void cleanup(CleanupStrategy cleanupStrategy) {
         try {
             shutdown();
@@ -479,7 +483,7 @@ public class RequestExecutorService implements RequestExecutor {
             return;
         }
 
-        if (isEmbeddingsIngestInput(inferenceInputs)) {
+        if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
             submitTaskToRateLimitedExecutionPath(task);
         } else {
             boolean taskAccepted = requestQueue.offer(task);

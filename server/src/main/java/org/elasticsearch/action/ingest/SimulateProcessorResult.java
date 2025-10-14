@@ -9,6 +9,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -172,7 +173,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
      * Read from a stream.
      */
     SimulateProcessorResult(StreamInput in) throws IOException {
-        this.processorTag = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            this.processorTag = in.readOptionalString();
+        } else {
+            this.processorTag = in.readString();
+        }
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
         this.description = in.readOptionalString();
@@ -187,7 +192,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(processorTag);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            out.writeOptionalString(processorTag);
+        } else {
+            out.writeString(processorTag);
+        }
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
         out.writeOptionalString(description);

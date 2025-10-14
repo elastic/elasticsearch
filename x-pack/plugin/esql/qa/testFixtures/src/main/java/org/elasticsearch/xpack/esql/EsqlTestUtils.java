@@ -1028,7 +1028,11 @@ public final class EsqlTestUtils {
     }
 
     public static <T> T singleValue(Collection<T> collection) {
-        assertThat(collection, hasSize(1));
+        return singleValue("", collection);
+    }
+
+    public static <T> T singleValue(String reason, Collection<T> collection) {
+        assertThat(reason, collection, hasSize(1));
         return collection.iterator().next();
     }
 

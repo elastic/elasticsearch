@@ -137,11 +137,11 @@ PUT bbq_flat-index
 stack: ga 9.2
 ```
 
-When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm for efficient [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. DiskBBQ is an alternative to HNSW that stores most of the vector data on disk rather than in memory. It reduces memory usage and works well with large datasets or in low-memory environments.
+When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](https://www.elastic.co/docs//solutions/search/vector/knn) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.
 
-Instead of keeping the entire index in memory, DiskBBQ groups similar vectors into clusters on disk and searches only within the most relevant clusters. During a query, it identifies which clusters are closest to the query vector and compares only the vectors within those clusters. This approach reduces memory requirements while maintaining strong search relevance and speed.
+DiskBBQ groups similar vectors into small clusters using [hierarchical K-means](https://www.elastic.co/search-labs/blog/k-means-for-vector-indices). When processing a query, it finds the centroids closest to the query vector and only compares the vectors within those clusters. This targeted approach reduces the number of in-memory operations, making it ideal for large-scale or memory-constrained environments.
 
-DiskBBQ performs well when the desired recall is around 95%. For use cases that require exceptionally high recall (99% or higher), many vector clusters may need to be visited, which can negatively impact performance. In very high recall cases, [bbq_hnsw](#bbq-hnsw), or one of the other `HNSW` formats might prove best depending on memory requirements.
+DiskBBQ typically performs well for recall levels up to around 95%. For use cases requiring exceptionally high recall (99% or higher), many vector clusters may need to be visited, which can negatively impact performance. In very high recall cases, [bbq_hnsw](#bbq-hnsw), or other HNSW-based formats deliver better performance depending on memory availability.
 
 The following example creates an index with a `dense_vector` field configured to use the `bbq_disk` algorithm.
 
@@ -218,6 +218,23 @@ POST _reindex
 
 :::::
 
+You can set the `visit_percentage` parameter to define the fraction of vectors visited per shard during search.
+
+```console
+POST bbq_disk-index/_search
+{
+  "query": {
+    "knn": {
+      "field": "my_vector",
+      "query_vector": [0.0127, 0.1230, 0.3929],
+      "k": 10,
+      "visit_percentage": 10.0
+    }
+  }
+}
+```
+
+A lower `visit_percentage` can further reduce memory use and speed up queries, while a higher value can improve recall. Learn more about [top-level parameters for knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-top-level-parameters) queries.
 
 ## Oversampling [bbq-oversampling]
 
@@ -246,5 +263,6 @@ You can change oversampling from the default 3× to another value. Refer to [Ove
 ## Learn more [bbq-learn-more]
 
 - [Better Binary Quantization (BBQ) in Lucene and {{es}}](https://www.elastic.co/search-labs/blog/better-binary-quantization-lucene-elasticsearch) - Learn how BBQ works, its benefits, and how it reduces memory usage while preserving search accuracy.
+- [Introducing a new vector storage format: DiskBBQ](https://www.elastic.co/search-labs/blog/diskbbq-elasticsearch-introduction) - Learn how DiskBBQ improves vector search in low-memory environments and compares to HNSW in speed and cost-effectiveness. 
 - [Dense vector field type](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/dense-vector) - Find code examples for using `bbq_hnsw` `index_type`.
 - [kNN search](https://www.elastic.co/docs/solutions/search/vector/knn) - Learn about the search algorithm that BBQ works with.

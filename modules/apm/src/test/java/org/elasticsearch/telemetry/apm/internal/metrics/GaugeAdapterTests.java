@@ -124,7 +124,7 @@ public class GaugeAdapterTests extends ESTestCase {
             "es.test.name.total",
             "desc",
             "unit",
-            () -> new LongWithAttributes(1, Map.of("high_cardinality_id", "27932451"))
+            () -> new LongWithAttributes(1, Map.of("index", "index1"))
         );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);

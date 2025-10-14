@@ -345,13 +345,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         AsyncSearchResponse finalResponse;
 
         try {
-            // do NOT restore headers here; we’re on the search action thread already
-            finalResponse = getResponse(); // must NOT propagate
+            finalResponse = getResponse(); 
         } catch (Exception e) {
             ElasticsearchException ex = (e instanceof ElasticsearchException)
                 ? (ElasticsearchException) e
                 : ExceptionsHelper.convertToElastic(e);
-            ex.setStackTrace(new StackTraceElement[0]); // keep stored payloads small
+            ex.setStackTrace(new StackTraceElement[0]);
 
             finalResponse = new AsyncSearchResponse(searchId.getEncoded(), null, ex, false, false, getStartTime(), expirationTimeMillis);
         }

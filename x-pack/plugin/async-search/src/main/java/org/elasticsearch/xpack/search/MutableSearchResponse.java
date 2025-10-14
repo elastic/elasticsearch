@@ -42,6 +42,8 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  */
 class MutableSearchResponse extends AbstractRefCounted {
 
+    private final Logger logger = Loggers.getLogger(getClass(), "async");
+
     private int totalShards;
     private int skippedShards;
     private Clusters clusters;
@@ -236,7 +238,7 @@ class MutableSearchResponse extends AbstractRefCounted {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      * This method also restores the response headers in the current thread context when requested, if the final response is available.
      */
-    synchronized AsyncSearchResponse  toAsyncSearchResponse(AsyncSearchTask task, long expirationTime, boolean restoreResponseHeaders) {
+    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime, boolean restoreResponseHeaders) {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
@@ -246,7 +248,7 @@ class MutableSearchResponse extends AbstractRefCounted {
             // We have a final response, use it.
             searchResponse = finalResponse;
             searchResponse.mustIncRef();
-            //System.out.println("Thread:" + Thread.currentThread().getName() + " finalResponse=" + finalResponse);
+            // System.out.println("Thread:" + Thread.currentThread().getName() + " finalResponse=" + finalResponse);
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
@@ -493,6 +495,16 @@ class MutableSearchResponse extends AbstractRefCounted {
 
     @Override
     protected synchronized void closeInternal() {
+
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "MutableSearchResponse.close(): byThread={}, finalResponsePresent={}, clusterResponsesCount={}, stack={}",
+                Thread.currentThread().getName(),
+                finalResponse != null,
+                clusterResponses != null ? clusterResponses.size() : 0,
+                new Exception().getStackTrace()
+            );
+        }
 
         if (finalResponse != null) {
             finalResponse.decRef();

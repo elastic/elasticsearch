@@ -351,13 +351,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             ElasticsearchException ex = (e instanceof ElasticsearchException)
                 ? (ElasticsearchException) e
                 : ExceptionsHelper.convertToElastic(e);
+            ex.setStackTrace(new StackTraceElement[0]); // keep stored payloads small
 
-            finalResponse = AsyncSearchResponse.failure(
-                searchId.getEncoded(),
-                getStartTime(),
-                expirationTimeMillis,
-                ex
-            );
+            finalResponse = new AsyncSearchResponse(searchId.getEncoded(), null, ex, false, false, getStartTime(), expirationTimeMillis);
         }
 
         try {
@@ -449,6 +445,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     @Override
     public void close() {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "AsyncSearchTask.close(): byThread={}, asyncId={}, taskId={}, hasCompleted={}, stack={}",
+                Thread.currentThread().getName(),
+                searchId != null ? searchId.getEncoded() : "<null>",
+                getId(),
+                hasCompleted,
+                new Exception().getStackTrace()
+            );
+        }
         searchResponse.decRef();
     }
 

@@ -101,8 +101,4 @@ class ApiKeyAuthenticator implements Authenticator {
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null))))
         );
     }
-
-    private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials) {
-        return Map.of(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value());
-    }
 }

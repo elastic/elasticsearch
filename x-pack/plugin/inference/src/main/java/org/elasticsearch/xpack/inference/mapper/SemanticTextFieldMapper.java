@@ -894,9 +894,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (modelSettings == null) {
                 return new MatchNoDocsQuery();
             }
-            if (getEmbeddingsField() == null) {
-                return new MatchNoDocsQuery();
-            }
 
             return NestedQueryBuilder.toQuery(
                 (c -> getEmbeddingsField().fieldType().existsQuery(c)),

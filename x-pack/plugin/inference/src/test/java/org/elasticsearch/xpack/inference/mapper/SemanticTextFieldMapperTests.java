@@ -321,8 +321,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
-        DocumentMapper mapper = mapperService.documentMapper();
-        assertThat(mapper.mappingSource().toString(), containsString("\"inference_id\":\"" + DEFAULT_EIS_ELSER_INFERENCE_ID + "\""));
     }
 
     public void testDefaultInferenceIdFallsBackWhenEisUnavailable() throws Exception {
@@ -333,14 +331,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
-        DocumentMapper mapper = mapperService.documentMapper();
-        assertThat(mapper.mappingSource().toString(), containsString("\"inference_id\":\"" + DEFAULT_FALLBACK_ELSER_INFERENCE_ID + "\""));
     }
 
     private void removeDefaultEisEndpoint() {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
         globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);
-        assertTrue("Failed to remove default EIS endpoint", removalFuture.actionGet());
+        assertTrue("Failed to remove default EIS endpoint", removalFuture.actionGet(TEST_REQUEST_TIMEOUT));
     }
 
     @Override

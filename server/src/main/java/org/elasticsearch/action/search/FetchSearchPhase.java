@@ -44,6 +44,7 @@ class FetchSearchPhase extends SearchPhase {
     @Nullable
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
+    private long phaseStartTimeInNanos;
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
@@ -76,6 +77,7 @@ class FetchSearchPhase extends SearchPhase {
 
     @Override
     protected void run() {
+        phaseStartTimeInNanos = System.nanoTime();
         context.execute(new AbstractRunnable() {
 
             @Override
@@ -260,6 +262,7 @@ class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
+        context.getSearchResponseMetrics().recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos);
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);

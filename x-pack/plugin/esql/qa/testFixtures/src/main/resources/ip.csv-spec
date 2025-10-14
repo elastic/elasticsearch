@@ -734,8 +734,8 @@ networkDirectionSimple
 required_capability: network_direction
 
 FROM hosts
-| WHERE mv_count(ip0) == 1 AND mv_count(ip1) == 1
-| EVAL direction = network_direction(ip0, ip1, ["loopback"])
+| WHERE MV_COUNT(ip0) == 1 AND MV_COUNT(ip1) == 1
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["loopback"])
 | KEEP ip0, ip1, direction
 | SORT direction, ip0, ip1
 ;
@@ -754,7 +754,7 @@ networkDirectionFromRow
 required_capability: network_direction
 
 ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
-| EVAL direction = network_direction(ip0, ip1, networks)
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, networks)
 | DROP networks
 ;
 
@@ -767,7 +767,7 @@ required_capability: network_direction
 
 // tag::networkDirectionFromRowWithInlineNetworks[]
 ROW ip0 = "127.0.0.1"::ip, ip1 = "5.6.7.8"::ip
-| EVAL direction = network_direction(ip0, ip1, ["loopback", "private"])
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["loopback", "private"])
 // end::networkDirectionFromRowWithInlineNetworks[]
 ;
 

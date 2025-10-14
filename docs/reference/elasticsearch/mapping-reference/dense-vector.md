@@ -133,6 +133,10 @@ To retrieve vector values explicitly, you can use:
   }
   ```
 
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
+
 ### Storage behavior and `_source`
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.

@@ -1,0 +1,6 @@
+pr: 136237
+summary: Prevent unintentional fork away from generic thread pool during SAML Logout
+  and Invalidate Session actions
+area: Security
+type: bug
+issues: []

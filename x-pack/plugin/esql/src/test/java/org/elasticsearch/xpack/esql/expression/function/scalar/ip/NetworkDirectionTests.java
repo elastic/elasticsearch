@@ -39,224 +39,26 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
             suppliers.addAll(
                 List.of(
                     // CIDR tests
-                    new TestCaseSupplier(
-                        "CIDR1",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("10.0.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("192.168.1.2"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/8"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_OUTBOUND))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "CIDR2",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.2"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("10.0.1.1"), DataType.IP, "destination_ip"),
-                                new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/8"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INBOUND))
-                        )
-                    ),
+                    createTestCase("CIDR1", "10.0.1.1", "192.168.1.2", "10.0.0.0/8", stringType, NetworkDirectionUtils.DIRECTION_OUTBOUND),
+                    createTestCase("CIDR2", "192.168.1.2", "10.0.1.1", "10.0.0.0/8", stringType, NetworkDirectionUtils.DIRECTION_INBOUND),
                     // Unspecified tests
-                    new TestCaseSupplier(
-                        "Unspecified1",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("0.0.0.0"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("0.0.0.0"), DataType.IP, "destination_ip"),
-                                new TestCaseSupplier.TypedData(new BytesRef("unspecified"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "Unspecified2",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::"), DataType.IP, "destination_ip"),
-                                new TestCaseSupplier.TypedData(new BytesRef("unspecified"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
-                        )
-                    ),
+                    createTestCase("Unspecified1", "0.0.0.0", "0.0.0.0", "unspecified", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
+                    createTestCase("Unspecified2", "::", "::", "unspecified", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
                     // Private network tests
-                    new TestCaseSupplier(
-                        "Unspecified3",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("192.168.1.2"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
-                        )
+                    createTestCase(
+                        "Private1", "192.168.1.1", "192.168.1.2", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL
                     ),
-                    new TestCaseSupplier(
-                        "Unspecified4",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("10.0.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("192.168.1.2"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "Unspecified5",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("172.16.0.1"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "Unspecified6",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("fd12:3456:789a:1::1"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("private"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_INTERNAL))
-                        )
+                    createTestCase("Private2", "10.0.1.1", "192.168.1.2", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
+                    createTestCase("Private3", "192.168.1.1", "172.16.0.1", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL),
+                    createTestCase(
+                        "Private4", "192.168.1.1", "fd12:3456:789a:1::1", "private", stringType, NetworkDirectionUtils.DIRECTION_INTERNAL
                     ),
                     // Public tests
-                    new TestCaseSupplier(
-                        "Public1",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("192.168.1.2"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "Public2",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("10.0.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("192.168.1.2"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "Public3",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("172.16.0.1"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
-                        )
-                    ),
-                    new TestCaseSupplier(
-                        "Public4",
-                        List.of(DataType.IP, DataType.IP, stringType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.1.1"), DataType.IP, "source_ip"),
-                                new TestCaseSupplier.TypedData(
-                                    EsqlDataTypeConverter.stringToIP("fd12:3456:789a:1::1"),
-                                    DataType.IP,
-                                    "destination_ip"
-                                ),
-                                new TestCaseSupplier.TypedData(new BytesRef("public"), stringType, "internal_networks")
-                            ),
-                            "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
-                                + " networks=Attribute[channel=2]]",
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef(NetworkDirectionUtils.DIRECTION_EXTERNAL))
-                        )
+                    createTestCase("Public1", "192.168.1.1", "192.168.1.2", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL),
+                    createTestCase("Public2", "10.0.1.1", "192.168.1.2", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL),
+                    createTestCase("Public3", "192.168.1.1", "172.16.0.1", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL),
+                    createTestCase(
+                        "Public4", "192.168.1.1", "fd12:3456:789a:1::1", "public", stringType, NetworkDirectionUtils.DIRECTION_EXTERNAL
                     )
                 )
             );
@@ -264,6 +66,31 @@ public class NetworkDirectionTests extends AbstractScalarFunctionTestCase {
         suppliers = anyNullIsNull(true, suppliers);
 
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+    }
+
+    private static TestCaseSupplier createTestCase(
+        String testName,
+        String sourceIp,
+        String destinationIp,
+        String internalNetworks,
+        DataType stringType,
+        String expectedDirection
+    ) {
+        return new TestCaseSupplier(
+            testName,
+            List.of(DataType.IP, DataType.IP, stringType),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP(sourceIp), DataType.IP, "source_ip"),
+                    new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP(destinationIp), DataType.IP, "destination_ip"),
+                    new TestCaseSupplier.TypedData(new BytesRef(internalNetworks), stringType, "internal_networks")
+                ),
+                "NetworkDirectionEvaluator[sourceIp=Attribute[channel=0], destinationIp=Attribute[channel=1],"
+                    + " networks=Attribute[channel=2]]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef(expectedDirection))
+            )
+        );
     }
 
     @Override

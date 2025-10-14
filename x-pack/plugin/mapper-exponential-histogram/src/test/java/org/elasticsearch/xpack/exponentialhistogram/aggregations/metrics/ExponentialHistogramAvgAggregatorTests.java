@@ -48,8 +48,12 @@ public class ExponentialHistogramAvgAggregatorTests extends ExponentialHistogram
         double expectedAvg = expectedSum / expectedCount;
 
         testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), avg -> {
-            assertThat(avg.value(), closeTo(expectedAvg, 0.0001d));
-            assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(true));
+            if (expectedCount > 0) {
+                assertThat(avg.value(), closeTo(expectedAvg, 0.0001d));
+                assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(true));
+            } else {
+                assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(false));
+            }
         });
     }
 
@@ -92,8 +96,12 @@ public class ExponentialHistogramAvgAggregatorTests extends ExponentialHistogram
                 )
             ),
             avg -> {
-                assertThat(avg.value(), closeTo(filteredAvg, 0.0001d));
-                assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(true));
+                if (filteredCnt > 0) {
+                    assertThat(avg.value(), closeTo(filteredAvg, 0.0001d));
+                    assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(true));
+                } else {
+                    assertThat(AggregationInspectionHelper.hasValue(avg), equalTo(false));
+                }
             }
         );
     }

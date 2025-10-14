@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -297,26 +299,21 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         };
     }
 
-    static LogicalPlan parse(String query) {
+    static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small()));
         var analyzer = new Analyzer(
-            testAnalyzerContext(
-                TEST_CFG,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
+            testAnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution(), emptyInferenceResolution()),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        TransportVersion minimumVersion = analyzer.context().minimumVersion();
+        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query))), minimumVersion);
     }
 
-    static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG));
+    static PhysicalPlan mapAndMaybeOptimize(Versioned<LogicalPlan> logicalPlan) {
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG, logicalPlan.minimumVersion()));
         var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {

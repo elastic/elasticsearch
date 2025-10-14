@@ -41,7 +41,9 @@ public class LogicalOptimizerContext {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (LogicalOptimizerContext) obj;
-        return this.configuration.equals(that.configuration) && this.foldCtx.equals(that.foldCtx)  && Objects.equals(this.minimumVersion, that.minimumVersion);
+        return this.configuration.equals(that.configuration)
+            && this.foldCtx.equals(that.foldCtx)
+            && Objects.equals(this.minimumVersion, that.minimumVersion);
     }
 
     @Override
@@ -51,7 +53,13 @@ public class LogicalOptimizerContext {
 
     @Override
     public String toString() {
-        return "LogicalOptimizerContext[configuration=" + configuration + ", foldCtx=" + foldCtx + ", minimumVersion=" + minimumVersion + ']';
+        return "LogicalOptimizerContext[configuration="
+            + configuration
+            + ", foldCtx="
+            + foldCtx
+            + ", minimumVersion="
+            + minimumVersion
+            + ']';
     }
 
 }

@@ -45,11 +45,7 @@ public record AnalyzerContext(
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert minimumVersion.onOrBefore(TransportVersion.current())
-            : "AnalyzerContext ["
-                + minimumVersion
-                + "] is not on or before current transport version ["
-                + TransportVersion.current()
-                + "]";
+            : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }
 
     public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {

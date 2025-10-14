@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,14 +19,17 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +42,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
@@ -164,22 +167,26 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             """);
     }
 
-    static LogicalPlan parse(String query) {
+    static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
+        LogicalOptimizerContext context = unboundLogicalOptimizerContext();
+        TransportVersion minimumVersion = context.minimumVersion();
+        var logicalOptimizer = new LogicalPlanOptimizer(context);
         var analyzer = new Analyzer(
-            testAnalyzerContext(
+            new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
+                Map.of(),
                 emptyPolicyResolution(),
-                emptyInferenceResolution()
+                emptyInferenceResolution(),
+                minimumVersion
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query))), minimumVersion);
     }
 
     @Override

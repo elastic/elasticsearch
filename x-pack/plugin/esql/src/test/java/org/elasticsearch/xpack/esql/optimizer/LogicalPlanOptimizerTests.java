@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
@@ -8934,8 +8935,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(knn.k(), equalTo(100));
     }
 
-    private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {
-        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small());
+    private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(
+        List<RuleExecutor.Batch<LogicalPlan>> batches,
+        TransportVersion minimumVersion
+    ) {
+        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
         LogicalPlanOptimizer customOptimizer = new LogicalPlanOptimizer(context) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {
@@ -8976,7 +8980,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
             }
         );
-        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(List.of(customRuleBatch));
+        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
+            List.of(customRuleBatch),
+            logicalOptimizer.context().minimumVersion()
+        );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
         assertThat(e.getMessage(), containsString("additionalAttribute"));
@@ -9021,7 +9028,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
             }
         );
-        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(List.of(customRuleBatch));
+        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
+            List.of(customRuleBatch),
+            logicalOptimizerCtx.minimumVersion()
+        );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }

@@ -433,7 +433,7 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    private static TransportVersion randomMinimumVersion() {
+    public static TransportVersion randomMinimumVersion() {
         return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
     }
 

@@ -225,11 +225,17 @@ public class EsqlSession {
                     LogicalPlan plan = analyzedPlan.inner();
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
-                    var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion));
-                    var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldContext, minimumVersion));
+                    var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
+                        new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
+                    );
+                    var logicalPlanOptimizer = new LogicalPlanOptimizer(
+                        new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
+                    );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, l))
-                        .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(new Versioned<>(optimizedPlan(p, logicalPlanOptimizer), minimumVersion), l))
+                        .<LogicalPlan>andThen(
+                            (l, p) -> preMapper.preMapper(new Versioned<>(optimizedPlan(p, logicalPlanOptimizer), minimumVersion), l)
+                        )
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
@@ -267,9 +273,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(
-            new PhysicalOptimizerContext(configuration, minimumVersion)
-        );
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
         if (explainMode) {// TODO: INLINE STATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer);
@@ -929,7 +933,9 @@ public class EsqlSession {
     }
 
     private PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan, PhysicalPlanOptimizer physicalPlanOptimizer) {
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion())));
+        var plan = physicalPlanOptimizer.optimize(
+            physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()))
+        );
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
     }

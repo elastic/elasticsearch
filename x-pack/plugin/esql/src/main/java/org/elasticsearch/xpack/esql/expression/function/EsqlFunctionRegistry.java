@@ -168,7 +168,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -554,9 +553,7 @@ public class EsqlFunctionRegistry {
                 defTS(FirstOverTime.class, bi(FirstOverTime::new), "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") },
-            // random functions
-            new FunctionDefinition[] { def(Random.class, uni(Random::new), "random") } };
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

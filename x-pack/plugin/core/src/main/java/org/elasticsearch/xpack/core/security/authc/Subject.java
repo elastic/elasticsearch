@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
@@ -258,9 +257,6 @@ public class Subject {
     }
 
     private RoleReferenceIntersection buildRoleReferencesForApiKey() {
-        if (version.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
-            return buildRolesReferenceForApiKeyBwc();
-        }
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.REST == getApiKeyType() : "only a REST API key should have its role built here";
 
@@ -337,29 +333,6 @@ public class Subject {
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {
         return roleDescriptorsBytes == null || (roleDescriptorsBytes.length() == 2 && "{}".equals(roleDescriptorsBytes.utf8ToString()));
-    }
-
-    private RoleReferenceIntersection buildRolesReferenceForApiKeyBwc() {
-        final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        final Map<String, Object> roleDescriptorsMap = getRoleDescriptorMap(API_KEY_ROLE_DESCRIPTORS_KEY);
-        final Map<String, Object> limitedByRoleDescriptorsMap = getRoleDescriptorMap(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
-        if (roleDescriptorsMap == null && limitedByRoleDescriptorsMap == null) {
-            throw new ElasticsearchSecurityException("no role descriptors found for API key");
-        } else {
-            final RoleReference.BwcApiKeyRoleReference limitedByRoleReference = new RoleReference.BwcApiKeyRoleReference(
-                apiKeyId,
-                limitedByRoleDescriptorsMap,
-                RoleReference.ApiKeyRoleType.LIMITED_BY
-            );
-            if (roleDescriptorsMap == null || roleDescriptorsMap.isEmpty()) {
-                return new RoleReferenceIntersection(limitedByRoleReference);
-            } else {
-                return new RoleReferenceIntersection(
-                    new RoleReference.BwcApiKeyRoleReference(apiKeyId, roleDescriptorsMap, RoleReference.ApiKeyRoleType.ASSIGNED),
-                    limitedByRoleReference
-                );
-            }
-        }
     }
 
     @SuppressWarnings("unchecked")

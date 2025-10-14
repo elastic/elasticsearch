@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
@@ -23,7 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -177,13 +175,11 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_10_0, TransportVersion.current()));
+            out.setTransportVersion(randomCompatibleVersion(random()));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(
-                randomVersionBetween(random(), TransportVersions.V_7_10_0, TransportVersion.current())
-            );
+            inputStreamStreamInput.setTransportVersion(randomCompatibleVersion(random()));
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));

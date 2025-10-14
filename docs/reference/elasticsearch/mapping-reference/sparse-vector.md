@@ -95,13 +95,13 @@ This ensures that:
 * The tokens that are kept are frequent enough and have significant scoring.
 * Very infrequent tokens that may not have as high of a score are removed.
 
-## Accessing `dense_vector` fields in search responses
+## Accessing `sparse_vector` fields in search responses
 ```{applies_to}
 stack: ga 9.2
 serverless: ga
 ```
 
-By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
+By default, `sparse_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
 This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.
 
 To retrieve vector values explicitly, you can use:
@@ -125,6 +125,10 @@ POST my-index-2/_search
   }
 }
 ```
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 

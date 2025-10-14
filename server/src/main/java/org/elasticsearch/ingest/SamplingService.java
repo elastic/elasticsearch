@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -82,6 +83,13 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
     private static final String TTL_JOB_ID = "sampling_ttl";
+    public static final Setting<TimeValue> TTL_POLL_INTERVAL_SETTING = Setting.timeSetting(
+        "random.sampling.ttl.poll.interval",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -97,7 +105,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     );
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private SchedulerEngine.Job scheduledJob;
-    private volatile TimeValue pollInterval = TimeValue.timeValueMinutes(30);
+    private volatile TimeValue pollInterval = TimeValue.timeValueSeconds(1);
     private final Settings settings;
     private final Clock clock = Clock.systemUTC();
     /*
@@ -118,6 +126,14 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
             new UpdateSamplingConfigurationExecutor()
         );
         this.settings = settings;
+        this.pollInterval = TTL_POLL_INTERVAL_SETTING.get(settings);
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.addSettingsUpdateConsumer(TTL_POLL_INTERVAL_SETTING, (v) -> {
+            pollInterval = v;
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                maybeScheduleJob();
+            }
+        });
         this.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStop() {
@@ -420,7 +436,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
             }
         }
         // scheduler could be null if the node is shutting down
-        if (scheduler.get() != null && lifecycleState() == Lifecycle.State.STARTED) {
+        if (scheduler.get() != null && (lifecycleState() == Lifecycle.State.STARTED || lifecycleState() == Lifecycle.State.INITIALIZED)) {
             scheduledJob = new SchedulerEngine.Job(TTL_JOB_ID, new TimeValueSchedule(pollInterval));
             scheduler.get().add(scheduledJob);
         }
@@ -496,7 +512,6 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
 
     @Override
     protected void doStart() {
-
     }
 
     @Override

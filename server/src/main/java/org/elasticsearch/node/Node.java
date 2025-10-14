@@ -554,6 +554,7 @@ public class Node implements Closeable {
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
         toClose.add(injector.getInstance(HealthPeriodicLogger.class));
+        toClose.add(injector.getInstance(SamplingService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

@@ -38,9 +38,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -118,6 +120,71 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDownHead.isCountedDown(), is(true));
             assertThat(countDownGet.isCountedDown(), is(true));
+        }
+    }
+
+    public void testReadBlobWithFailuresMidDownload() throws IOException {
+        final int chunksToSend = randomIntBetween(3, 5);
+        final AtomicInteger chunkCounter = new AtomicInteger(0);
+        final AtomicBoolean sendErrorNext = new AtomicBoolean(randomBoolean());
+
+        final ByteArrayOutputStream totalContentsStream = new ByteArrayOutputStream();
+        final byte[][] chunks = new byte[chunksToSend][];
+        for (int i = 0; i < chunks.length; i++) {
+            chunks[i] = randomBlobContent();
+            totalContentsStream.write(chunks[i]);
+        }
+        final byte[] totalContents = totalContentsStream.toByteArray();
+        final String eTag = UUIDs.base64UUID();
+        httpServer.createContext("/account/container/read_blob_max_retries", exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(totalContents.length));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(totalContents.length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    if (sendErrorNext.compareAndSet(true, false)) {
+                        if (randomBoolean()) {
+                            final Integer rCode = randomFrom(
+                                RestStatus.INTERNAL_SERVER_ERROR.getStatus(),
+                                RestStatus.SERVICE_UNAVAILABLE.getStatus(),
+                                RestStatus.TOO_MANY_REQUESTS.getStatus()
+                            );
+                            logger.info("---> sending error: {}", rCode);
+                            exchange.sendResponseHeaders(rCode, -1);
+                        } else {
+                            logger.info("---> sending no response");
+                        }
+                    } else {
+                        final var ranges = getRanges(exchange);
+                        logger.info("---> responding to: {} -> {}", ranges.v1(), ranges.v2());
+                        final int chunkIndex = chunkCounter.getAndIncrement();
+                        final int sentLength = IntStream.range(0, chunkIndex).map(i -> chunks[i].length).sum();
+                        byte[] chunk = chunks[chunkIndex];
+                        final int rangeStart = getRangeStart(exchange);
+                        assertEquals(sentLength, rangeStart);
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(totalContents.length));
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(totalContents.length));
+                        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.getResponseHeaders().add("ETag", eTag);
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), totalContents.length - sentLength);
+                        exchange.getResponseBody().write(chunk, 0, chunk.length);
+                        sendErrorNext.set(randomBoolean());
+                    }
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(chunksToSend * 2);
+        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_max_retries")) {
+            assertArrayEquals(totalContents, BytesReference.toBytes(Streams.readFully(inputStream)));
+            assertEquals(chunksToSend, chunkCounter.get());
         }
     }
 

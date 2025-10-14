@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import io.netty.handler.codec.http.HttpMethod;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
@@ -25,6 +26,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -33,8 +35,11 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -197,8 +202,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         boolean isProxyMode,
         boolean skipUnavailable
     ) throws Exception {
+        putFulfillingClusterSettings();
+
         // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
-        putRemoteClusterSettings(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode, skipUnavailable);
+        putQueryClusterSettings(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode, skipUnavailable);
 
         // Ensure remote cluster is connected
         checkRemoteConnection(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode);
@@ -234,7 +241,18 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         }
     }
 
-    protected void putRemoteClusterSettings(
+    protected void putFulfillingClusterSettings() throws IOException {
+        if (getFulfillingClusterNodeFeatures().contains(SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE.id())) {
+            final var request = newXContentRequest(HttpMethod.PUT, "/_cluster/settings", (builder, params) -> {
+                builder.startObject("persistent");
+                Settings.builder().put("cluster.remote.signing.certificate_authorities", "signing.crt").build().toXContent(builder, params);
+                return builder.endObject();
+            });
+            assertOK(performRequestAgainstFulfillingCluster(request));
+        }
+    }
+
+    protected void putQueryClusterSettings(
         String clusterAlias,
         ElasticsearchCluster targetFulfillingCluster,
         boolean basicSecurity,
@@ -301,6 +319,22 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static String randomEncodedApiKey() {
         return Base64.getEncoder()
             .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.randomBase64UUIDSecureString()).getBytes(StandardCharsets.UTF_8));
+    }
+
+    protected Set<String> getFulfillingClusterNodeFeatures() throws IOException {
+        final Request request = new Request("GET", "_cluster/state");
+        request.addParameter("filter_path", "nodes_features");
+        final Response response = performRequestAgainstFulfillingCluster(request);
+
+        var responseData = responseAsMap(response);
+        if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
+            return nodesFeatures.stream().map(Map.class::cast).flatMap(nodeFeatureMap -> {
+                @SuppressWarnings("unchecked")
+                List<String> features = (List<String>) nodeFeatureMap.get("features");
+                return features.stream();
+            }).collect(Collectors.toSet());
+        }
+        return Set.of();
     }
 
     protected record TestClusterConfigProviders(LocalClusterConfigProvider server, LocalClusterConfigProvider client) {}

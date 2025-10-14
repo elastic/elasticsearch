@@ -136,7 +136,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         }
         final byte[] totalContents = totalContentsStream.toByteArray();
         final String eTag = UUIDs.base64UUID();
-        httpServer.createContext("/account/container/read_blob_max_retries", exchange -> {
+        httpServer.createContext("/account/container/read_blob_fail_mid_stream", exchange -> {
             try {
                 Streams.readFully(exchange.getRequestBody());
                 if ("HEAD".equals(exchange.getRequestMethod())) {
@@ -160,10 +160,16 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
                         }
                     } else {
                         final var ranges = getRanges(exchange);
-                        logger.info("---> responding to: {} -> {}", ranges.v1(), ranges.v2());
                         final int chunkIndex = chunkCounter.getAndIncrement();
                         final int sentLength = IntStream.range(0, chunkIndex).map(i -> chunks[i].length).sum();
                         byte[] chunk = chunks[chunkIndex];
+                        logger.info(
+                            "---> responding to: {} -> {} (sending chunk of size {}, total sent {})",
+                            ranges.v1(),
+                            ranges.v2(),
+                            chunk.length,
+                            sentLength
+                        );
                         final int rangeStart = getRangeStart(exchange);
                         assertEquals(sentLength, rangeStart);
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -182,7 +188,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(chunksToSend * 2);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_fail_mid_stream")) {
             assertArrayEquals(totalContents, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertEquals(chunksToSend, chunkCounter.get());
         }

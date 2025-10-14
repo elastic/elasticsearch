@@ -31,22 +31,22 @@ import org.elasticsearch.search.sort.SortOrder;
  *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
  * </p>
  */
-@Aggregator({ @IntermediateState(name = "top", type = "LONG_BLOCK"), @IntermediateState(name = "extra", type = "LONG_BLOCK") })
+@Aggregator({ @IntermediateState(name = "top", type = "LONG_BLOCK"), @IntermediateState(name = "output", type = "LONG_BLOCK") })
 @GroupingAggregator
 class TopLongLongAggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
 
-    public static void combine(SingleState state, long v, long extra) {
-        state.add(v, extra);
+    public static void combine(SingleState state, long v, long outputValue) {
+        state.add(v, outputValue);
     }
 
-    public static void combineIntermediate(SingleState state, LongBlock values, LongBlock extras) {
+    public static void combineIntermediate(SingleState state, LongBlock values, LongBlock outputValues) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, values.getLong(i), extras.getLong(i));
+            combine(state, values.getLong(i), outputValues.getLong(i));
         }
     }
 
@@ -58,15 +58,15 @@ class TopLongLongAggregator {
         return new GroupingState(bigArrays, limit, ascending);
     }
 
-    public static void combine(GroupingState state, int groupId, long v, long extra) {
-        state.add(groupId, v, extra);
+    public static void combine(GroupingState state, int groupId, long v, long outputValue) {
+        state.add(groupId, v, outputValue);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, LongBlock values, LongBlock extras, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, LongBlock values, LongBlock outputValues, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getLong(i), extras.getLong(i));
+            combine(state, groupId, values.getLong(i), outputValues.getLong(i));
         }
     }
 
@@ -81,8 +81,8 @@ class TopLongLongAggregator {
             this.sort = new LongLongBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
-        public void add(int groupId, long value, long extra) {
-            sort.collect(value, extra, groupId);
+        public void add(int groupId, long value, long outputValue) {
+            sort.collect(value, outputValue, groupId);
         }
 
         @Override
@@ -115,8 +115,8 @@ class TopLongLongAggregator {
             this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void add(long value, long extra) {
-            internalState.add(0, value, extra);
+        public void add(long value, long outputValue) {
+            internalState.add(0, value, outputValue);
         }
 
         @Override

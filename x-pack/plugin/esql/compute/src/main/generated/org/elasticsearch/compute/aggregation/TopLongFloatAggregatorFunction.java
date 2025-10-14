@@ -26,7 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class TopLongFloatAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("top", ElementType.LONG),
-      new IntermediateStateDesc("extra", ElementType.FLOAT)  );
+      new IntermediateStateDesc("output", ElementType.FLOAT)  );
 
   private final DriverContext driverContext;
 
@@ -74,78 +74,78 @@ public final class TopLongFloatAggregatorFunction implements AggregatorFunction 
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock vBlock = page.getBlock(channels.get(0));
-    FloatBlock extraBlock = page.getBlock(channels.get(1));
+    FloatBlock outputValueBlock = page.getBlock(channels.get(1));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
-      addRawBlock(vBlock, extraBlock, mask);
+      addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
-    FloatVector extraVector = extraBlock.asVector();
-    if (extraVector == null) {
-      addRawBlock(vBlock, extraBlock, mask);
+    FloatVector outputValueVector = outputValueBlock.asVector();
+    if (outputValueVector == null) {
+      addRawBlock(vBlock, outputValueBlock, mask);
       return;
     }
-    addRawVector(vVector, extraVector, mask);
+    addRawVector(vVector, outputValueVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     LongBlock vBlock = page.getBlock(channels.get(0));
-    FloatBlock extraBlock = page.getBlock(channels.get(1));
+    FloatBlock outputValueBlock = page.getBlock(channels.get(1));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
-      addRawBlock(vBlock, extraBlock);
+      addRawBlock(vBlock, outputValueBlock);
       return;
     }
-    FloatVector extraVector = extraBlock.asVector();
-    if (extraVector == null) {
-      addRawBlock(vBlock, extraBlock);
+    FloatVector outputValueVector = outputValueBlock.asVector();
+    if (outputValueVector == null) {
+      addRawBlock(vBlock, outputValueBlock);
       return;
     }
-    addRawVector(vVector, extraVector);
+    addRawVector(vVector, outputValueVector);
   }
 
-  private void addRawVector(LongVector vVector, FloatVector extraVector) {
+  private void addRawVector(LongVector vVector, FloatVector outputValueVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
-      float extraValue = extraVector.getFloat(valuesPosition);
-      TopLongFloatAggregator.combine(state, vValue, extraValue);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopLongFloatAggregator.combine(state, vValue, outputValueValue);
     }
   }
 
-  private void addRawVector(LongVector vVector, FloatVector extraVector, BooleanVector mask) {
+  private void addRawVector(LongVector vVector, FloatVector outputValueVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
       long vValue = vVector.getLong(valuesPosition);
-      float extraValue = extraVector.getFloat(valuesPosition);
-      TopLongFloatAggregator.combine(state, vValue, extraValue);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopLongFloatAggregator.combine(state, vValue, outputValueValue);
     }
   }
 
-  private void addRawBlock(LongBlock vBlock, FloatBlock extraBlock) {
+  private void addRawBlock(LongBlock vBlock, FloatBlock outputValueBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (vBlock.isNull(p)) {
         continue;
       }
-      if (extraBlock.isNull(p)) {
+      if (outputValueBlock.isNull(p)) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        int extraStart = extraBlock.getFirstValueIndex(p);
-        int extraEnd = extraStart + extraBlock.getValueCount(p);
-        for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-          float extraValue = extraBlock.getFloat(extraOffset);
-          TopLongFloatAggregator.combine(state, vValue, extraValue);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(p);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(p);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
+          TopLongFloatAggregator.combine(state, vValue, outputValueValue);
         }
       }
     }
   }
 
-  private void addRawBlock(LongBlock vBlock, FloatBlock extraBlock, BooleanVector mask) {
+  private void addRawBlock(LongBlock vBlock, FloatBlock outputValueBlock, BooleanVector mask) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -153,18 +153,18 @@ public final class TopLongFloatAggregatorFunction implements AggregatorFunction 
       if (vBlock.isNull(p)) {
         continue;
       }
-      if (extraBlock.isNull(p)) {
+      if (outputValueBlock.isNull(p)) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
       int vEnd = vStart + vBlock.getValueCount(p);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        int extraStart = extraBlock.getFirstValueIndex(p);
-        int extraEnd = extraStart + extraBlock.getValueCount(p);
-        for (int extraOffset = extraStart; extraOffset < extraEnd; extraOffset++) {
-          float extraValue = extraBlock.getFloat(extraOffset);
-          TopLongFloatAggregator.combine(state, vValue, extraValue);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(p);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(p);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          float outputValueValue = outputValueBlock.getFloat(outputValueOffset);
+          TopLongFloatAggregator.combine(state, vValue, outputValueValue);
         }
       }
     }
@@ -180,13 +180,13 @@ public final class TopLongFloatAggregatorFunction implements AggregatorFunction 
     }
     LongBlock top = (LongBlock) topUncast;
     assert top.getPositionCount() == 1;
-    Block extraUncast = page.getBlock(channels.get(1));
-    if (extraUncast.areAllValuesNull()) {
+    Block outputUncast = page.getBlock(channels.get(1));
+    if (outputUncast.areAllValuesNull()) {
       return;
     }
-    FloatBlock extra = (FloatBlock) extraUncast;
-    assert extra.getPositionCount() == 1;
-    TopLongFloatAggregator.combineIntermediate(state, top, extra);
+    FloatBlock output = (FloatBlock) outputUncast;
+    assert output.getPositionCount() == 1;
+    TopLongFloatAggregator.combineIntermediate(state, top, output);
   }
 
   @Override

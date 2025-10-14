@@ -31,22 +31,22 @@ import org.elasticsearch.search.sort.SortOrder;
  *     This class is generated. Edit `X-TopAggregator.java.st` to edit this file.
  * </p>
  */
-@Aggregator({ @IntermediateState(name = "top", type = "DOUBLE_BLOCK"), @IntermediateState(name = "extra", type = "FLOAT_BLOCK") })
+@Aggregator({ @IntermediateState(name = "top", type = "DOUBLE_BLOCK"), @IntermediateState(name = "output", type = "FLOAT_BLOCK") })
 @GroupingAggregator
 class TopDoubleFloatAggregator {
     public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
         return new SingleState(bigArrays, limit, ascending);
     }
 
-    public static void combine(SingleState state, double v, float extra) {
-        state.add(v, extra);
+    public static void combine(SingleState state, double v, float outputValue) {
+        state.add(v, outputValue);
     }
 
-    public static void combineIntermediate(SingleState state, DoubleBlock values, FloatBlock extras) {
+    public static void combineIntermediate(SingleState state, DoubleBlock values, FloatBlock outputValues) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
         for (int i = start; i < end; i++) {
-            combine(state, values.getDouble(i), extras.getFloat(i));
+            combine(state, values.getDouble(i), outputValues.getFloat(i));
         }
     }
 
@@ -58,15 +58,15 @@ class TopDoubleFloatAggregator {
         return new GroupingState(bigArrays, limit, ascending);
     }
 
-    public static void combine(GroupingState state, int groupId, double v, float extra) {
-        state.add(groupId, v, extra);
+    public static void combine(GroupingState state, int groupId, double v, float outputValue) {
+        state.add(groupId, v, outputValue);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, DoubleBlock values, FloatBlock extras, int valuesPosition) {
+    public static void combineIntermediate(GroupingState state, int groupId, DoubleBlock values, FloatBlock outputValues, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getDouble(i), extras.getFloat(i));
+            combine(state, groupId, values.getDouble(i), outputValues.getFloat(i));
         }
     }
 
@@ -81,8 +81,8 @@ class TopDoubleFloatAggregator {
             this.sort = new DoubleFloatBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
-        public void add(int groupId, double value, float extra) {
-            sort.collect(value, extra, groupId);
+        public void add(int groupId, double value, float outputValue) {
+            sort.collect(value, outputValue, groupId);
         }
 
         @Override
@@ -115,8 +115,8 @@ class TopDoubleFloatAggregator {
             this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void add(double value, float extra) {
-            internalState.add(0, value, extra);
+        public void add(double value, float outputValue) {
+            internalState.add(0, value, outputValue);
         }
 
         @Override

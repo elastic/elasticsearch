@@ -103,16 +103,16 @@ public class Top extends AggregateFunction
         ) Expression order,
         @Param(
             optional = true,
-            name = "mapToField",
+            name = "outputField",
             type = { "double", "integer", "long" },
-            description = "The extra field that the result of the TOP call is mapped to."
-        ) Expression mapToField
+            description = "The extra field that, if present, will be the output of the TOP call instead of `field`."
+        ) Expression outputField
     ) {
-        this(source, field, Literal.TRUE, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, mapToField);
+        this(source, field, Literal.TRUE, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, outputField);
     }
 
-    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order, @Nullable Expression mapToField) {
-        super(source, field, filter, mapToField != null ? asList(limit, order, mapToField) : asList(limit, order));
+    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order, @Nullable Expression outputField) {
+        super(source, field, filter, outputField != null ? asList(limit, order, outputField) : asList(limit, order));
     }
 
     private Top(StreamInput in) throws IOException {
@@ -121,7 +121,7 @@ public class Top extends AggregateFunction
 
     @Override
     public Top withFilter(Expression filter) {
-        return new Top(source(), field(), filter, limitField(), orderField(), mapToField());
+        return new Top(source(), field(), filter, limitField(), orderField(), outputField());
     }
 
     @Override
@@ -138,7 +138,7 @@ public class Top extends AggregateFunction
     }
 
     @Nullable
-    Expression mapToField() {
+    Expression outputField() {
         return parameters().size() > 2 ? parameters().get(2) : null;
     }
 
@@ -180,10 +180,10 @@ public class Top extends AggregateFunction
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isNotNull(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
-        if (mapToField() != null) {
+        if (outputField() != null) {
             typeResolution.and(
                 isType(
-                    mapToField(),
+                    outputField(),
                     dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
                     sourceText(),
                     FIRST,
@@ -279,12 +279,12 @@ public class Top extends AggregateFunction
 
     @Override
     public DataType dataType() {
-        return mapToField() == null ? field().dataType().noText() : mapToField().dataType().noText();
+        return outputField() == null ? field().dataType().noText() : outputField().dataType().noText();
     }
 
     @Override
     protected NodeInfo<Top> info() {
-        return NodeInfo.create(this, Top::new, field(), filter(), limitField(), orderField(), mapToField());
+        return NodeInfo.create(this, Top::new, field(), filter(), limitField(), orderField(), outputField());
     }
 
     @Override
@@ -312,22 +312,27 @@ public class Top extends AggregateFunction
 
     private static final Map<Tuple<DataType, DataType>, BiFunction<Integer, Boolean, AggregatorFunctionSupplier>> SUPPLIERS_WITH_EXTRA = Map
         .ofEntries(
+            Map.entry(Tuple.tuple(DataType.LONG, DataType.DATETIME), TopLongLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.LONG, DataType.INTEGER), TopLongIntAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.LONG, DataType.LONG), TopLongLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.LONG, DataType.FLOAT), TopLongFloatAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.LONG, DataType.DOUBLE), TopLongDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DATETIME, DataType.DATETIME), TopLongLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DATETIME, DataType.INTEGER), TopLongIntAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DATETIME, DataType.LONG), TopLongLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DATETIME, DataType.FLOAT), TopLongFloatAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DATETIME, DataType.DOUBLE), TopLongDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.INTEGER, DataType.DATETIME), TopIntLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.INTEGER, DataType.INTEGER), TopIntIntAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.INTEGER, DataType.LONG), TopIntLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.INTEGER, DataType.FLOAT), TopIntFloatAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.INTEGER, DataType.DOUBLE), TopIntDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.FLOAT, DataType.DATETIME), TopFloatLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.FLOAT, DataType.INTEGER), TopFloatIntAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.FLOAT, DataType.LONG), TopFloatLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.FLOAT, DataType.FLOAT), TopFloatFloatAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.FLOAT, DataType.DOUBLE), TopFloatDoubleAggregatorFunctionSupplier::new),
+            Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.DATETIME), TopDoubleLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.INTEGER), TopDoubleIntAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.LONG), TopDoubleLongAggregatorFunctionSupplier::new),
             Map.entry(Tuple.tuple(DataType.DOUBLE, DataType.FLOAT), TopDoubleFloatAggregatorFunctionSupplier::new),
@@ -336,18 +341,18 @@ public class Top extends AggregateFunction
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        DataType type = field().dataType();
+        DataType fieldType = field().dataType();
         BiFunction<Integer, Boolean, AggregatorFunctionSupplier> supplierCtor;
-        if (mapToField() == null) {
-            supplierCtor = SUPPLIERS.get(type);
+        if (outputField() == null) {
+            supplierCtor = SUPPLIERS.get(fieldType);
             if (supplierCtor == null) {
-                throw EsqlIllegalArgumentException.illegalDataType(type);
+                throw EsqlIllegalArgumentException.illegalDataType(fieldType);
             }
         } else {
-            DataType mapToFieldType = mapToField().dataType();
-            supplierCtor = SUPPLIERS_WITH_EXTRA.get(Tuple.tuple(type, mapToFieldType));
+            DataType outputFieldType = outputField().dataType();
+            supplierCtor = SUPPLIERS_WITH_EXTRA.get(Tuple.tuple(fieldType, outputFieldType));
             if (supplierCtor == null) {
-                throw EsqlIllegalArgumentException.illegalDataTypeCombination(type, mapToFieldType);
+                throw EsqlIllegalArgumentException.illegalDataTypeCombination(fieldType, outputFieldType);
             }
         }
         return supplierCtor.apply(limitValue(), orderValue());

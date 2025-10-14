@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
 
@@ -515,6 +516,150 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public String toString() {
             return "BlockDocValuesReader.Doubles";
         }
+    }
+
+    public static class DenseVectorFunctionBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+        private final int dimensions;
+        private final DenseVectorFieldMapper.DenseVectorFieldType fieldType;
+        private final Function<float[], Double> converter;
+
+        public DenseVectorFunctionBlockLoader(
+            String fieldName,
+            int dimensions,
+            DenseVectorFieldMapper.DenseVectorFieldType fieldType,
+            Function<float[], Double> converter
+        ) {
+            this.fieldName = fieldName;
+            this.dimensions = dimensions;
+            this.fieldType = fieldType;
+            this.converter = converter;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            switch (fieldType.getElementType()) {
+                case FLOAT -> {
+                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+                    if (floatVectorValues != null) {
+                        if (fieldType.isNormalized()) {
+                            NumericDocValues magnitudeDocValues = context.reader()
+                                .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                            return new FloatNormalizedDenseVectorFunctionBlockReader(
+                                floatVectorValues,
+                                dimensions,
+                                converter,
+                                magnitudeDocValues
+                            );
+                        }
+                        return new FloatDenseVectorFunctionBlockReader(floatVectorValues, dimensions, converter);
+                    }
+                }
+                default -> throw new IllegalArgumentException("Unsupported element type: " + fieldType.getElementType());
+            }
+
+            return new ConstantNullsReader();
+        }
+    }
+
+    private static class FloatDenseVectorFunctionBlockReader extends BlockDocValuesReader {
+
+        protected final FloatVectorValues vectorValues;
+        protected final KnnVectorValues.DocIndexIterator iterator;
+        protected final int dimensions;
+        protected final Function<float[], Double> converter;
+
+        FloatDenseVectorFunctionBlockReader(FloatVectorValues vectorValues, int dimensions, Function<float[], Double> converter) {
+            this.vectorValues = vectorValues;
+            iterator = vectorValues.iterator();
+            this.dimensions = dimensions;
+            this.converter = converter;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    read(docs.get(i), builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (BlockLoader.DoubleBuilder) builder);
+        }
+
+        private void read(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
+            assertDimensions();
+
+            if (iterator.docID() > doc) {
+                builder.appendNull();
+            } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
+                readValue(builder);
+            } else {
+                builder.appendNull();
+            }
+        }
+
+        protected void readValue(DoubleBuilder builder) throws IOException {
+            float[] floats = vectorValues.vectorValue(iterator.index());
+            Double result = converter.apply(floats);
+            builder.appendDouble(result);
+        }
+
+        @Override
+        public int docId() {
+            return iterator.docID();
+        }
+
+        protected void assertDimensions() {
+            assert vectorValues.dimension() == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.FloatDenseVectorFunctionBlockReader";
+        }
+    }
+
+    private static class FloatNormalizedDenseVectorFunctionBlockReader extends FloatDenseVectorFunctionBlockReader {
+
+        private final NumericDocValues magnitudeDocValues;
+
+        FloatNormalizedDenseVectorFunctionBlockReader(
+            FloatVectorValues vectorValues,
+            int dimensions,
+            Function<float[], Double> converter,
+            NumericDocValues magnitudeDocValues
+        ) {
+            super(vectorValues, dimensions, converter);
+            this.magnitudeDocValues = magnitudeDocValues;
+        }
+
+        protected void readValue(DoubleBuilder builder) throws IOException {
+            float[] floats = vectorValues.vectorValue(iterator.index());
+
+            // If all vectors are normalized, no doc values will be present. The vector may be normalized already, so we may not have a
+            // stored magnitude for all docs
+            if ((magnitudeDocValues != null) && magnitudeDocValues.advanceExact(iterator.docID())) {
+                float magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+                for (int i = 0; i < floats.length; i++) {
+                    floats[i] *= magnitude;
+                }
+            }
+
+            Double result = converter.apply(floats);
+            builder.appendDouble(result);
+        }
+
     }
 
     public static class DenseVectorBlockLoader extends DocValuesBlockLoader {

@@ -2904,7 +2904,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + efConstruction
             + ", flatVectorFormat=ES93BinaryQuantizedVectorsFormat("
             + "name=ES93BinaryQuantizedVectorsFormat, "
-            + "writeFlatVectorFormat=Lucene99FlatVectorsFormat";
+            + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+            + " format=Lucene99FlatVectorsFormat";
         assertThat(knnVectorsFormat, hasToString(startsWith(expectedString)));
     }
 

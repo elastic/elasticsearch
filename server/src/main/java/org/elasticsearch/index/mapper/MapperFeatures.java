@@ -57,7 +57,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
-    static final NodeFeature BBQ_HNSW_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.bbq_hnsw_on_disk_rescoring");
+    public static final NodeFeature HNSW_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.hnsw_on_disk_rescoring");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -99,7 +99,7 @@ public class MapperFeatures implements FeatureSpecification {
             DISKBBQ_ON_DISK_RESCORING,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
-            BBQ_HNSW_ON_DISK_RESCORING
+            HNSW_ON_DISK_RESCORING
         );
     }
 }

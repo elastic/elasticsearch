@@ -17,6 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -81,6 +83,17 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return List.of(new Object[] { true }, new Object[] { false });
+    }
+
+    private boolean runTest;
+
+    @Before
+    public void checkSupport() {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            runTest = DENSE_MODEL.getServiceSettings().elementType() != DenseVectorFieldMapper.ElementType.BFLOAT16
+                || clusterHasFeature(MapperFeatures.HNSW_ON_DISK_RESCORING);
+        }
+        assumeTrue("Old cluster needs to support bfloat16", runTest);
     }
 
     public void testSemanticTextOperations() throws Exception {

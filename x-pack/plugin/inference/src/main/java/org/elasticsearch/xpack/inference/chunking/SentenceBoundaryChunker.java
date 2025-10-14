@@ -11,6 +11,7 @@ import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ public class SentenceBoundaryChunker implements Chunker {
     @Override
     public List<ChunkOffset> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings) {
-            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize, sentenceBoundaryChunkingSettings.sentenceOverlap > 0);
+            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize(), sentenceBoundaryChunkingSettings.sentenceOverlap() > 0);
         } else {
             throw new IllegalArgumentException(
                 Strings.format(

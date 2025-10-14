@@ -52,9 +52,8 @@ public final class ShardBulkSplitHelper {
 
         // All items belong to either the source shard or target shard.
         if (requestsByShard.size() == 1) {
-            Map.Entry<ShardId, List<BulkItemRequest>> entry = requestsByShard.entrySet().iterator().next();
             // Return the original request if no items were split to target.
-            if (entry.getKey().equals(sourceShardId)) {
+            if (requestsByShard.containsKey(sourceShardId)) {
                 return Map.of(sourceShardId, request);
             }
         }

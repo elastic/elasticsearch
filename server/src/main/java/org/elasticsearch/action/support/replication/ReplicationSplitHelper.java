@@ -219,14 +219,14 @@ public class ReplicationSplitHelper<
             Request splitRequest,
             Supplier<ClusterState> clusterStateSupplier,
             final ProjectMetadata project,
-            ActionListener<Response> finalLister
+            ActionListener<Response> finalListener
         ) {
             new RetryableAction<>(
                 logger,
                 clusterService.threadPool(),
                 retryTimeout,
                 initialRetryBackoffBound,
-                finalLister,
+                finalListener,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {
 

@@ -358,7 +358,6 @@ public abstract class IndexRouting {
                 if (routing == null) {
                     throw new IllegalStateException("Routing should be set by the coordinator");
                 }
-                TimeSeriesRoutingHashFieldMapper.decode(routing);
                 return indexShard(indexRequest);
             } else if (addIdWithRoutingHash) {
                 // TODO: is this correct?
@@ -452,7 +451,6 @@ public abstract class IndexRouting {
 
             @Override
             protected int hashSource(IndexRequest indexRequest) {
-                // System.out.println("hashSource for routing path");
                 return hashRoutingFields(indexRequest.getContentType(), indexRequest.source()).buildHash(
                     IndexRouting.ExtractFromSource::defaultOnEmpty
                 );

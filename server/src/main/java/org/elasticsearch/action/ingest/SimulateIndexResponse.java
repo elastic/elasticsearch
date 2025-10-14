@@ -58,7 +58,11 @@ public class SimulateIndexResponse extends IndexResponse {
         } else {
             this.exception = null;
         }
-        this.ignoredFields = in.readStringCollectionAsList();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
+            this.ignoredFields = in.readStringCollectionAsList();
+        } else {
+            this.ignoredFields = List.of();
+        }
         if (in.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
             if (in.readBoolean()) {
                 this.effectiveMapping = CompressedXContent.readCompressedString(in);
@@ -148,7 +152,9 @@ public class SimulateIndexResponse extends IndexResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeException(exception);
         }
-        out.writeStringCollection(ignoredFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
+            out.writeStringCollection(ignoredFields);
+        }
         if (out.getTransportVersion().supports(SIMULATE_INGEST_EFFECTIVE_MAPPING)) {
             out.writeBoolean(effectiveMapping != null);
             if (effectiveMapping != null) {

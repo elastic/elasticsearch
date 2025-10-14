@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,10 +17,9 @@ import java.io.IOException;
 
 public class FieldDataTests extends ESTestCase {
 
-    private static class DummyValues extends AbstractNumericDocValues {
+    private static class DummyValues extends LongValues {
 
         private final long value;
-        private int docID = -1;
 
         DummyValues(long value) {
             this.value = value;
@@ -30,13 +27,7 @@ public class FieldDataTests extends ESTestCase {
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            docID = target;
             return true;
-        }
-
-        @Override
-        public int docID() {
-            return docID;
         }
 
         @Override
@@ -49,23 +40,23 @@ public class FieldDataTests extends ESTestCase {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
-        NumericDocValues values = new DummyValues(valueBits);
+        LongValues values = new DummyValues(valueBits);
 
-        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values));
+        SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
         NumericDoubleValues asDoubles = FieldData.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);
 
         values = new DummyValues(valueBits);
-        asMultiDoubles = FieldData.sortableLongBitsToDoubles(DocValues.singleton(values));
-        NumericDocValues backToLongs = DocValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
+        asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
+        LongValues backToLongs = SortedNumericLongValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
-        SortedNumericDocValues multiValues = new AbstractSortedNumericDocValues() {
+        SortedNumericLongValues multiValues = new SortedNumericLongValues() {
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public boolean advanceExact(int target) {
                 return true;
             }
 
@@ -101,8 +92,8 @@ public class FieldDataTests extends ESTestCase {
             }
         };
 
-        SortedNumericDocValues asMultiLongs = FieldData.toSortableLongBits(FieldData.singleton(values));
-        NumericDocValues asLongs = DocValues.unwrapSingleton(asMultiLongs);
+        SortedNumericLongValues asMultiLongs = FieldData.toSortableLongBits(FieldData.singleton(values));
+        LongValues asLongs = SortedNumericLongValues.unwrapSingleton(asMultiLongs);
         assertNotNull(asLongs);
         assertTrue(asLongs.advanceExact(0));
         assertEquals(valueBits, asLongs.longValue());
@@ -129,15 +120,10 @@ public class FieldDataTests extends ESTestCase {
         assertSame(multiValues, FieldData.sortableLongBitsToDoubles(asMultiLongs));
     }
 
-    private static NumericDocValues asNumericDocValues(Long... values) {
-        return new AbstractNumericDocValues() {
+    private static LongValues asNumericDocValues(Long... values) {
+        return new LongValues() {
 
             int docID = -1;
-
-            @Override
-            public int docID() {
-                return docID;
-            }
 
             @Override
             public boolean advanceExact(int target) throws IOException {
@@ -153,8 +139,8 @@ public class FieldDataTests extends ESTestCase {
     }
 
     public void testReplaceMissingLongs() throws IOException {
-        final NumericDocValues values = asNumericDocValues(null, 3L, 2L, null, 5L, null);
-        final NumericDocValues replaced = FieldData.replaceMissing(values, 4);
+        final LongValues values = asNumericDocValues(null, 3L, 2L, null, 5L, null);
+        final LongValues replaced = FieldData.replaceMissing(values, 4);
 
         assertTrue(replaced.advanceExact(0));
         assertEquals(4L, replaced.longValue());

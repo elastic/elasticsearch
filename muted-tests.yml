@@ -281,9 +281,6 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
-  method: testSnapshotUpgrader
-  issue: https://github.com/elastic/elasticsearch/issues/98560
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
@@ -444,9 +441,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionTests
   method: testGetClusterStateWithDefaultProjectOnly
   issue: https://github.com/elastic/elasticsearch/issues/134450
-- class: org.elasticsearch.cluster.ClusterInfoServiceIT
-  method: testMaxQueueLatenciesInClusterInfo
-  issue: https://github.com/elastic/elasticsearch/issues/134500
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithNulls {TestCase=<date_nanos>, <date_nanos>, <time_duration>, <_source> #11}"
   issue: https://github.com/elastic/elasticsearch/issues/134509
@@ -591,9 +585,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:union_types.MultiIndexTsLongStatsDrop}
   issue: https://github.com/elastic/elasticsearch/issues/136113
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:lookup-join-expression.LookupMultiColTwoExprAndNoMatch}
-  issue: https://github.com/elastic/elasticsearch/issues/136121
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:bucket.BucketByWeekInString}
   issue: https://github.com/elastic/elasticsearch/issues/136136
@@ -624,9 +615,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136353
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityBWCToRCS2ClusterRestIT
-  method: testBwcCCSViaRCS1orRCS2
-  issue: https://github.com/elastic/elasticsearch/issues/136368
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testServiceAccountApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136390
@@ -648,15 +636,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSlmPolicyAndStats {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136399
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query in a bool clause - missing num_candidates}
-  issue: https://github.com/elastic/elasticsearch/issues/136402
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/220_dense_vector_node_index_stats/index node stats non-quantized}
-  issue: https://github.com/elastic/elasticsearch/issues/136403
-- class: org.elasticsearch.TransportVersionTests
-  method: testVersionComparison
-  issue: https://github.com/elastic/elasticsearch/issues/136410
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136437
@@ -672,6 +651,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
   method: testExcludeInferenceFieldsFromSourceOldIndexVersions
   issue: https://github.com/elastic/elasticsearch/issues/136452
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
+  method: testEsqlRcs2UnavailableRemoteScenarios
+  issue: https://github.com/elastic/elasticsearch/issues/136493
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
+  method: testFloatVectorScorerIteration
+  issue: https://github.com/elastic/elasticsearch/issues/136566
 
 # Examples:
 #

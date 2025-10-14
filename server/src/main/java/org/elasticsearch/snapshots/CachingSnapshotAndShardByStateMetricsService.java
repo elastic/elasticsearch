@@ -34,7 +34,7 @@ import java.util.Map;
 public class CachingSnapshotAndShardByStateMetricsService {
 
     private final ClusterService clusterService;
-    private CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
+    private volatile CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
 
     public CachingSnapshotAndShardByStateMetricsService(ClusterService clusterService) {
         this.clusterService = clusterService;

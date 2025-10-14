@@ -238,7 +238,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    public static class ExponentialHistogramFieldType extends MappedFieldType {
+    public static final class ExponentialHistogramFieldType extends MappedFieldType {
 
         // Visible for testing
         public ExponentialHistogramFieldType(String name, Map<String, String> meta) {

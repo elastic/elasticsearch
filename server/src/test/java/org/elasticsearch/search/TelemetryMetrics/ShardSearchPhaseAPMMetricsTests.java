@@ -267,6 +267,12 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
         final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, canMatchMeasurements.size());
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertEquals(num_primaries, queryMeasurements.size());
+        assertAttributes(queryMeasurements, false, false);
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        assertEquals(1, fetchMeasurements.size());
+        assertAttributes(fetchMeasurements, false, false);
     }
 
     private static void assertAttributes(List<Measurement> measurements, boolean isSystem, boolean isScroll) {

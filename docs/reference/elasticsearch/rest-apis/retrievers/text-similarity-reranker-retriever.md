@@ -86,6 +86,25 @@ score = ln(score), if score < 0
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
+`chunk_rescorer` {applies_to}`stack: beta 9.2`
+:   (Optional, `object`)
+
+    Chunks and scores documents based on configured chunking settings, and only sends the best scoring chunks to the reranking model as input. This helps improve relevance when reranking long documents that would otherwise be truncated by the reranking model's token limit.
+
+    Parameters for `chunk_rescorer`:
+
+    `size`
+    :   (Optional, `int`)
+
+    The number of chunks to pass to the reranker. Defaults to `1`.
+
+    `chunking_settings`
+    :   (Optional, `object`)
+
+    Settings for chunking text into smaller passages for scoring and reranking. Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md). Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`. 
+    :::{warning} 
+    If you configure chunks larger than the reranker's token limit, the results may be truncated. This can degrade relevance significantly.
+    :::
 
 
 ## Example: Elastic Rerank [text-similarity-reranker-retriever-example-elastic-rerank]
@@ -117,6 +136,7 @@ Follow these steps:
       }
     }
     ```
+    % TEST[skip:uses ML]
 
     1. [Adaptive allocations](docs-content://deploy-manage/autoscaling/trained-model-autoscaling.md#enabling-autoscaling-through-apis-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
 
@@ -145,6 +165,7 @@ Follow these steps:
       }
     }
     ```
+    % TEST[skip:uses ML]
 
 
 
@@ -175,6 +196,7 @@ GET /index/_search
    }
 }
 ```
+% TEST[skip:uses ML]
 
 
 ## Example: Semantic re-ranking with a Hugging Face model [text-similarity-reranker-retriever-example-eland]
@@ -220,7 +242,8 @@ Follow these steps to load the model and create a semantic re-ranker.
       }
     }
     ```
-
+    % TEST[skip:uses ELSER]
+    
 4. Define a `text_similarity_rerank` retriever.
 
     ```console
@@ -244,5 +267,6 @@ Follow these steps to load the model and create a semantic re-ranker.
       }
     }
     ```
+    % TEST[skip:uses ELSER]
 
     This retriever uses a standard `match` query to search the `movie` index for films tagged with the genre "drama". It then re-ranks the results based on semantic similarity to the text in the `inference_text` parameter, using the model we uploaded to {{es}}.

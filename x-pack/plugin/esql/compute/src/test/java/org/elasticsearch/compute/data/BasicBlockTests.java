@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.RefCounted;
@@ -819,6 +819,12 @@ public class BasicBlockTests extends ESTestCase {
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
+            // modify the offset
+            var v0 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            var v1 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            v1.length = 0;
+            var v2 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            assertThat(v2, equalTo(v0));
         }
     }
 
@@ -1460,7 +1466,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocBlock() {
         int positionCount = randomIntBetween(0, 100);
         DocBlock block = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
@@ -1502,7 +1508,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocVector() {
         int positionCount = randomIntBetween(0, 100);
         DocVector vector = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),

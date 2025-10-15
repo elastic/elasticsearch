@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -283,7 +284,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             boolean quiet;
-            quiet = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+                quiet = in.readBoolean();
+            } else {
+                // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
+                quiet = true;
+            }
             List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
@@ -299,7 +305,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeString(entry.uuid);
             entry.snapshot().writeTo(o);
             o.writeByte(entry.state().value());
-            o.writeBoolean(entry.quiet());
+            if (out.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
+                o.writeBoolean(entry.quiet());
+            }
             o.writeStringCollection(entry.indices);
             o.writeMap(entry.shards);
         });

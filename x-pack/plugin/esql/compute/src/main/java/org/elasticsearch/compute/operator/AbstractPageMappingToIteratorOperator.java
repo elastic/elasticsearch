@@ -223,8 +223,13 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             processNanos = in.readVLong();
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
-            rowsReceived = in.readVLong();
-            rowsEmitted = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
         }
 
         @Override
@@ -232,8 +237,10 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             out.writeVLong(processNanos);
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override

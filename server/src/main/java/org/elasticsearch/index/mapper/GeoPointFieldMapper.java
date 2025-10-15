@@ -569,7 +569,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     /** GeoPoint parser implementation */
-    private static class GeoPointParser extends PointParser<GeoPoint> {
+    static class GeoPointParser extends PointParser<GeoPoint> {
         private final boolean storeMalformedDataForSyntheticSource;
 
         GeoPointParser(

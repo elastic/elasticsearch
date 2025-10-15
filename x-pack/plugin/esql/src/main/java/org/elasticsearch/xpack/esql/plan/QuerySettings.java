@@ -21,15 +21,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * Stores a map of query settings.
- * <p>
- *     The key is the setting definition. It must be one of the static constants in this class.
- * </p>
- * <p>
- *     The value is the literal value of the setting.
- * </p>
- */
 public class QuerySettings {
     // TODO check cluster state and see if project routing is allowed
     // see https://github.com/elastic/elasticsearch/pull/134446

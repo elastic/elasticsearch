@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -54,6 +55,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -304,6 +306,15 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
                 source.subSearches(subSearchSourceBuilders);
             }
         }
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
+                );
+            }
+        }
         aliasFilter = AliasFilter.readFrom(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
@@ -318,7 +329,16 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
-        forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            /*
+             * Synthetic source is not supported before 8.3.0 so any request
+             * from a coordinating node of that version will not want to
+             * force it.
+             */
+            forceSyntheticSource = false;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -351,6 +371,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             }
             out.writeNamedWriteableCollection(rankQueryBuilders);
         }
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
         if (asKey == false) {
@@ -368,7 +392,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         TransportVersion.writeVersion(channelVersion, out);
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
+        }
     }
 
     @Override

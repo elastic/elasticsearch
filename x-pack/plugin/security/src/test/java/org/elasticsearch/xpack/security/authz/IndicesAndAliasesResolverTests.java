@@ -2911,7 +2911,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices, TargetProjects.NOT_CROSS_PROJECT);
+        return defaultIndicesResolver.resolve(
+            action,
+            request,
+            this.projectMetadata,
+            authorizedIndices,
+            TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+        );
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

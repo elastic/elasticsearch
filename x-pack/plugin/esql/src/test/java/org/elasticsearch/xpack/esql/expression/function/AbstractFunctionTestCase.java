@@ -650,12 +650,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
     protected static void buildLayout(Layout.Builder builder, Expression e) {
+        dedupAndBuildLayout(new HashSet<>(), builder, e);
+    }
+
+    private static void dedupAndBuildLayout(Set<Expression> seen, Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
-            builder.append(f);
+            if (seen.add(f)) {
+                builder.append(f);
+            }
             return;
         }
         for (Expression c : e.children()) {
-            buildLayout(builder, c);
+            dedupAndBuildLayout(seen, builder, c);
         }
     }
 

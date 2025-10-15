@@ -79,8 +79,46 @@ public class Configuration implements Writeable {
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries
     ) {
+        this(
+            zi,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            Clock.system(zi)
+        );
+    }
+
+    public Configuration(
+        ZoneId zi,
+        Locale locale,
+        String username,
+        String clusterName,
+        QueryPragmas pragmas,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
+        String query,
+        boolean profile,
+        Map<String, Map<String, Column>> tables,
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        Clock clock
+    ) {
+        Clock clk = clock == null ? Clock.system(zi) : clock;
+
         this.zoneId = zi.normalized();
-        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
+        this.now = ZonedDateTime.now(Clock.tick(clk, Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;
         this.locale = locale;

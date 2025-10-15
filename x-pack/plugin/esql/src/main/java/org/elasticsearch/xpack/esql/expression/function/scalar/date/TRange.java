@@ -26,10 +26,11 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -48,7 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class TRange extends EsqlScalarFunction implements OptionalArgument, SurrogateExpression {
+public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression {
     public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_INTERVAL_PARAM_NAME = "start_time_or_interval";
@@ -81,13 +82,14 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Surr
             type = { "keyword", "long", "integer" },
             description = "End time for two parameter mode (optional). The end time value can be a date string or epoch milliseconds.",
             optional = true
-        ) Expression endTime
+        ) Expression endTime,
+        Configuration configuration
     ) {
-        this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), startTime, endTime);
+        this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), startTime, endTime, configuration);
     }
 
-    public TRange(Source source, Expression timestamp, Expression startTime, Expression endTime) {
-        super(source, endTime != null ? List.of(startTime, endTime, timestamp) : List.of(startTime, timestamp));
+    TRange(Source source, Expression timestamp, Expression startTime, Expression endTime, Configuration configuration) {
+        super(source, endTime != null ? List.of(startTime, endTime, timestamp) : List.of(startTime, timestamp), configuration);
         this.timestamp = timestamp;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -175,16 +177,15 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Surr
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         if (newChildren.size() == 3) {
-            return new TRange(source(), newChildren.get(2), newChildren.get(0), newChildren.get(1));
+            return new TRange(source(), newChildren.get(2), newChildren.get(0), newChildren.get(1), configuration());
         }
-        return new TRange(source(), newChildren.get(1), newChildren.get(0), null);
+        return new TRange(source(), newChildren.get(1), newChildren.get(0), null, configuration());
     }
 
     @Override
     public Expression surrogate() {
         long[] range = getRange(FoldContext.small());
 
-        // Create literal expressions for the bounds based on timestamp data type
         Expression startLiteral;
         Expression endLiteral;
 
@@ -205,7 +206,7 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Surr
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TRange::new, timestamp, startTime, endTime);
+        return NodeInfo.create(this, TRange::new, timestamp, startTime, endTime, configuration());
     }
 
     @Override
@@ -226,16 +227,14 @@ public class TRange extends EsqlScalarFunction implements OptionalArgument, Surr
         Instant beginningOfRange;
 
         if (endTime == null) {
-            // Single parameter mode - fold the startTime to get its value
             Object start = startTime.fold(foldContext);
             if (start == null) {
                 throw new InvalidArgumentException("start_time_or_interval can not be null in [{}]", sourceText());
             }
 
-            endOfRange = Instant.now();
+            endOfRange = configuration().now().toInstant();
             beginningOfRange = calculateStartTime(start, endOfRange, START_TIME_OR_INTERVAL_PARAM_NAME);
         } else {
-            // Two parameter mode - fold both startTime and endTime to get their values
             Object start = startTime.fold(foldContext);
             if (start == null) {
                 throw new InvalidArgumentException("start_time_or_interval can not be null in [{}]", sourceText());

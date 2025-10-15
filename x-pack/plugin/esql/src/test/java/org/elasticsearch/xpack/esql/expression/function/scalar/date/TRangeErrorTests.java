@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -53,10 +54,10 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         );
 
         if (args.size() == 1) {
-            return new TRange(source, timestamp, args.get(0), null);
+            return new TRange(source, timestamp, args.get(0), null, EsqlTestUtils.TEST_CFG);
         }
 
-        return new TRange(source, timestamp, args.get(0), args.get(1));
+        return new TRange(source, timestamp, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
     }
 
     @Override

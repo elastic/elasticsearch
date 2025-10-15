@@ -536,7 +536,7 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
-                def(TRange.class, bi(TRange::new), "trange") } };
+                def(TRange.class, TRange::new, "trange") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

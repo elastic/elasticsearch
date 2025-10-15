@@ -148,7 +148,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -1235,8 +1234,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushTRangeFunction() {
-        String startRange = "2023-10-23T12:00:00";
-        String endRange = "2023-10-23T14:00:00";
+        String startRange = "2023-10-23T12:00:00.000Z";
+        String endRange = "2023-10-23T14:00:00.000Z";
 
         String query = String.format(Locale.ROOT, """
             FROM k8s
@@ -1256,12 +1255,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var rangeQuery = as(sv(singleValue, "@timestamp"), RangeQueryBuilder.class);
 
-        long expectedStartRangeInMillis = EsqlDataTypeConverter.dateTimeToLong(startRange);
-        long expectedEndRangeInMillis = EsqlDataTypeConverter.dateTimeToLong(endRange);
-
         assertThat(rangeQuery.fieldName(), equalTo("@timestamp"));
-        assertThat(rangeQuery.from(), equalTo(expectedStartRangeInMillis));
-        assertThat(rangeQuery.to(), equalTo(expectedEndRangeInMillis));
+        assertThat(rangeQuery.from(), equalTo(startRange));
+        assertThat(rangeQuery.to(), equalTo(endRange));
         assertTrue(rangeQuery.includeLower());
         assertTrue(rangeQuery.includeUpper());
     }

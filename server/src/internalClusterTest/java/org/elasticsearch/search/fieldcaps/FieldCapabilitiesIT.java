@@ -13,6 +13,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -912,6 +914,147 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             actualIndexModes.put(indexResp.getIndexName(), indexResp.getIndexMode());
         }
         assertThat(actualIndexModes, equalTo(indexModes));
+    }
+
+    public void testResolvedExpressionWithIndexAlias() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("current").setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "new_index");
+
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("current", expression.original());
+        Set<String> concreteIndices = expression.localExpressions().expressions();
+        assertEquals(1, concreteIndices.size());
+        assertTrue(concreteIndices.contains("new_index"));
+    }
+
+    public void testResolvedExpressionWithWildcard() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("*index").setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "new_index", "old_index");
+
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("*index", expression.original());
+        Set<String> concreteIndices = expression.localExpressions().expressions();
+        assertEquals(2, concreteIndices.size());
+        assertTrue(concreteIndices.containsAll(Set.of("new_index", "old_index")));
+    }
+
+    public void testResolvedExpressionWithClosedIndices() throws IOException {
+        // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
+        assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
+        ensureGreen("index1-error", "index2-error");
+
+        // Closed shards will result to index error because shards must be in readable state
+        closeShards(internalCluster(), "index1-error", "index2-error");
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "index1-error", "index2-error")
+            .setFields("*")
+            .setIncludeResolvedTo(true)
+            .get();
+        Set<String> openIndices = Set.of("old_index", "new_index");
+        Set<String> closedIndices = Set.of("index1-error", "index2-error");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(4, resolvedLocally.expressions().size());
+        for (ResolvedIndexExpression expression : expressions) {
+            ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+            if (openIndices.contains(expression.original())) {
+                Set<String> concreteIndices = localExpressions.expressions();
+                assertEquals(1, concreteIndices.size());
+                assertTrue(concreteIndices.contains(expression.original())); // no aliases here, so the concrete index == original index
+                assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
+            } else if (closedIndices.contains(expression.original())) {
+                Set<String> concreteIndices = localExpressions.expressions();
+                assertEquals(0, concreteIndices.size());
+                assertEquals(
+                    ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                    localExpressions.localIndexResolutionResult()
+                );
+            }
+        }
+    }
+
+    public void testResolvedExpressionWithAllIndices() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIncludeResolvedTo(true).get();
+        assertIndices(response, "new_index", "old_index");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("_all", expression.original()); // not setting indices means _all
+        ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+        Set<String> concreteIndices = localExpressions.expressions();
+        assertTrue(concreteIndices.containsAll(Set.of("new_index", "old_index")));
+        assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
+    }
+
+    public void testResolvedExpressionWithOnlyOneClosedIndexAndIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index")
+            .setFields("*")
+            .setIndicesOptions(options)
+            .setIncludeResolvedTo(true)
+            .get();
+
+        assertIndices(response);
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, expressions.size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("old_index", expression.original());
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+        Set<String> concreteIndices = localExpressions.expressions();
+        assertEquals(0, concreteIndices.size());
+        assertEquals(
+            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+            localExpressions.localIndexResolutionResult()
+        );
+    }
+
+    public void testResolvedExpressionWithIndexFilter() throws InterruptedException {
+        assertAcked(
+            prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"),
+            prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long")
+        );
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
+        indexRandom(true, reqs);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*")
+            .setFields("*")
+            .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+            .setIncludeResolvedTo(true)
+            .get();
+
+        assertIndices(response, "index-2");
+        assertEquals(0, response.getResolvedRemotely().size());
+        ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
+        List<ResolvedIndexExpression> expressions = resolvedLocally.expressions();
+        assertEquals(1, resolvedLocally.expressions().size());
+        ResolvedIndexExpression expression = expressions.get(0);
+        assertEquals("index-*", expression.original());
+        ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
+        Set<String> concreteIndices = localExpressions.expressions();
+        assertEquals(2, concreteIndices.size());
+        assertTrue(concreteIndices.containsAll(Set.of("index-1", "index-2")));
+        assertEquals(ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS, localExpressions.localIndexResolutionResult());
     }
 
     public void testNoneExpressionIndices() {

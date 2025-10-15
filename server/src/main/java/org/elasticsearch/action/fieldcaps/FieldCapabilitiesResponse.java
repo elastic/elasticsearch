@@ -43,7 +43,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     private final String[] indices;
     private final ResolvedIndexExpressions resolvedLocally;
-    private final Map<String, ResolvedIndexExpressions> resolvedRemotely;
+    private final transient Map<String, ResolvedIndexExpressions> resolvedRemotely;
     private final Map<String, Map<String, FieldCapabilities>> fields;
     private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
@@ -83,7 +83,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.indices = in.readStringArray();
         if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             this.resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
-            this.resolvedRemotely = in.readImmutableMap(StreamInput::readString, ResolvedIndexExpressions::new);
+            this.resolvedRemotely = null;
         } else {
             this.resolvedLocally = null;
             this.resolvedRemotely = Collections.emptyMap();
@@ -173,13 +173,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
-            out.writeOptionalWriteable(resolvedLocally);
-            out.writeMap(resolvedRemotely, StreamOutput::writeWriteable);
-        }
         out.writeMap(fields, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeCollection(failures);
+        if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
+            out.writeOptionalWriteable(resolvedLocally);
+        }
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
@@ -258,6 +257,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         public Builder withResolved(ResolvedIndexExpressions resolvedLocally, Map<String, ResolvedIndexExpressions> resolvedRemotely) {
             this.resolvedLocally = resolvedLocally;
             this.resolvedRemotely = resolvedRemotely;
+            return this;
+        }
+
+        public Builder withResolvedLocally(ResolvedIndexExpressions resolvedLocally) {
+            this.resolvedLocally = resolvedLocally;
             return this;
         }
 

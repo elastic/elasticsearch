@@ -184,7 +184,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .toArray(String[]::new);
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(FieldCapabilitiesResponse.empty());
+            FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder();
+            if (request.includeResolvedTo()) { // TODO MP is this ok for CCS/CPS or should we also add remote resolution?
+                responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(resolvedLocallyList));
+            }
+            listener.onResponse(responseBuilder.build());
             return;
         }
 
@@ -248,6 +252,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 return;
             }
             indexFailures.collect(index, error);
+
+            // for (ResolvedIndexExpression resolvedIndexExpression : resolvedLocallyList) {
+            // if (resolvedIndexExpression.localExpressions().expressions().size() == 1) {
+            // // TODO MP ???
+            // }
+            //
+            // }
+
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
             }
@@ -357,13 +369,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static ResolvedIndexExpression createResolvedIndexExpression(String original, String[] concreteIndexNames) {
+        boolean isWildcard = Regex.isSimpleMatchPattern(original);
+        // if it is a wildcard we consider it successful even if it didn't resolve to any concrete index
+        ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult = concreteIndexNames.length > 0 || isWildcard
+            ? ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+            : ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
+
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(
-                Set.of(concreteIndexNames),
-                ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                null
-            ),
+            new ResolvedIndexExpression.LocalExpressions(Set.of(concreteIndexNames), resolutionResult, null),
             Collections.emptySet()
         );
     }
@@ -425,7 +439,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 listener.onResponse(
                     FieldCapabilitiesResponse.builder()
                         .withIndexResponses(indexResponses.values())
-                        .withResolved(resolvedLocally, resolvedRemotely)
+                        .withResolved(resolvedLocally, resolvedRemotely) // TODO MP CHECK THIS fo CCS/CPS
                         .withFailures(failures)
                         .build()
                 );
@@ -444,13 +458,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     )) {
                     listener.onResponse(
                         FieldCapabilitiesResponse.builder().withResolved(resolvedLocally, resolvedRemotely).withFailures(failures).build()
+                        // TODO MP check this for CCS/CPS
                     );
                 } else {
                     // throw back the first exception
                     listener.onFailure(failures.get(0).getException());
                 }
             } else {
-                // TODO[aifgi]: is this correct?
+                // TODO MP is this correct or should we add locally resolved if setResolved is true?
                 listener.onResponse(FieldCapabilitiesResponse.empty());
             }
         }
@@ -520,6 +535,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             collectFields(fieldsBuilder, fields, request.includeIndices());
         }
 
+        List<String> failedIndices = failures.stream().flatMap(f -> Arrays.stream(f.getIndices())).toList();
+        List<ResolvedIndexExpression> collect = resolvedLocally.expressions().stream().map(expression -> {
+            if (failedIndices.contains(expression.original())) {
+                return new ResolvedIndexExpression(
+                    expression.original(),
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        // TODO MP maybe with can be auth too and maybe can remain a success if wildcard?
+                        null
+                    ),
+                    expression.remoteExpressions()
+                );
+            }
+            return expression;
+        }).collect(Collectors.toList());
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
         // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
         // These failures have already been deduplicated, before this method was called.
@@ -534,7 +565,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         return FieldCapabilitiesResponse.builder()
             .withIndices(indices)
-            .withResolved(resolvedLocally, resolvedRemotely)
+            .withResolved(new ResolvedIndexExpressions(collect), resolvedRemotely) // TODO MP check this, should be good
             .withFields(fields)
             .withFailures(failures)
             .build();

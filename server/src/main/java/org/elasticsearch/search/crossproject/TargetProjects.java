@@ -27,11 +27,22 @@ public record TargetProjects(
     @Nullable ProjectRoutingInfo originProject, // null when CPS is disabled or the local project is excluded by routing
     @Nullable List<ProjectRoutingInfo> linkedProjects // null when CPS is disabled
 ) {
+    // Constant for representing no target project at all. Note this has a non-null empty linkedProjects field.
+    public static final TargetProjects EMPTY = new TargetProjects(null, List.of());
+
     // A placeholder constant to satisfy the AuthorizedProjectResolver contract when CPS is disabled. The field values
     // are chosen so that it is a combination that is impossible to have when CPS is enabled. Hence, they are not
     // meant to be always interpreted literally, i.e. the `null` originProject does NOT mean the local project is excluded.
-    // Instead, actions are always and only executed against the local project when CPS is disabled.
+    // Instead, actions are always and only executed against the local project when CPS is disabled. =
+    // This is different the above EMPTY field and its isEmpty check returns `false`.
     public static final TargetProjects LOCAL_ONLY_FOR_CPS_DISABLED = new TargetProjects(null, null);
+
+    static {
+        assert EMPTY.isEmpty();
+        assert EMPTY.crossProject() == false;
+        assert LOCAL_ONLY_FOR_CPS_DISABLED.isEmpty() == false;
+        assert LOCAL_ONLY_FOR_CPS_DISABLED.crossProject() == false;
+    }
 
     public TargetProjects(ProjectRoutingInfo originProject) {
         this(originProject, List.of());
@@ -53,5 +64,9 @@ public record TargetProjects(
     // TODO: Either change the definition or the method name since it allows targeting only the origin project without any remotes
     public boolean crossProject() {
         return originProject != null || (linkedProjects != null && linkedProjects.isEmpty() == false);
+    }
+
+    public boolean isEmpty() {
+        return originProject == null && (linkedProjects != null && linkedProjects.isEmpty());
     }
 }

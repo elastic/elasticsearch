@@ -54,6 +54,9 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
                     if (ex instanceof PostOptimizationVerificationAware va) {
                         va.postOptimizationVerification(failures);
                     }
+                    if (ex instanceof PostOptimizationPlanVerificationAware vpa) {
+                        vpa.postOptimizationPlanVerification().accept(p, failures);
+                    }
                 });
             }
         });

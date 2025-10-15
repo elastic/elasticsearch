@@ -73,7 +73,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -313,8 +315,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
     }
 
-    private UnresolvedRelation visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
-        IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
+    private LogicalPlan visitRelation(Source source, IndexMode indexMode, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
+        List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
+        List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
+        List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
+        int size = ctxs == null ? 0 : ctxs.size();
+        if (ctxs != null) {
+            ctxs.forEach(c -> {
+                if (c.indexPattern() != null) {
+                    indexPatternsCtx.add(c.indexPattern());
+                } else {
+                    subqueriesCtx.add(c.subquery());
+                }
+            });
+        } else { // We should not reach here as the grammar does not allow it
+            throw new ParsingException("no index pattern or subquery provided");
+        }
+        IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
+        List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
@@ -331,7 +349,66 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         List<Attribute> metadataFields = List.of(metadataMap.values().toArray(Attribute[]::new));
         final String commandName = indexMode == IndexMode.TIME_SERIES ? "TS" : "FROM";
-        return new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, indexMode, null, commandName);
+        if (subqueries.isEmpty()) {
+            return unresolvedRelation;
+        } else {
+            // subquery is not supported with time-series indices at the moment
+            if (indexMode == IndexMode.TIME_SERIES) {
+                throw new ParsingException(source, "Subqueries are not supported in TS command");
+            }
+
+            List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
+            if (table.indexPattern().isEmpty() == false) {
+                mainQueryAndSubqueries.add(unresolvedRelation);
+                telemetryAccounting(unresolvedRelation);
+            }
+            mainQueryAndSubqueries.addAll(subqueries);
+
+            if (mainQueryAndSubqueries.size() == 1) {
+                // if there is only one child, return it directly, no need for UnionAll
+                return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
+            } else {
+                // the output of UnionAll is resolved by analyzer
+                return new UnionAll(source(ctxs.get(0), ctxs.get(size - 1)), mainQueryAndSubqueries, List.of());
+            }
+        }
+    }
+
+    private List<Subquery> visitSubqueriesInFromCommand(List<EsqlBaseParser.SubqueryContext> ctxs) {
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
+            return List.of();
+        }
+        if (ctxs == null) {
+            return List.of();
+        }
+        List<Subquery> subqueries = new ArrayList<>();
+        for (EsqlBaseParser.SubqueryContext ctx : ctxs) {
+            LogicalPlan plan = visitSubquery(ctx);
+            telemetryAccounting(plan);
+            subqueries.add(new Subquery(source(ctx), plan));
+        }
+        return subqueries;
+    }
+
+    @Override
+    public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
+        // build a subquery tree
+        EsqlBaseParser.FromCommandContext fromCtx = ctx.fromCommand();
+        if (fromCtx != null) {
+            LogicalPlan from = visitFromCommand(fromCtx);
+            List<PlanFactory> processingCommands = visitList(this, ctx.subqueryProcessingCommand(), PlanFactory.class);
+            LogicalPlan child = from;
+            LogicalPlan parent = from;
+            for (PlanFactory processingCommand : processingCommands) {
+                parent = processingCommand.apply(child);
+                telemetryAccounting(child);
+                child = parent;
+            }
+            return parent;
+        } else { // We should not reach here as the grammar does not allow it
+            throw new ParsingException("FROM is required in a subquery");
+        }
     }
 
     @Override

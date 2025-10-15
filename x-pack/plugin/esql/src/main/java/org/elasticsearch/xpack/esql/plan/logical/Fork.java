@@ -103,6 +103,10 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return new Fork(source(), subPlans, output);
     }
 
+    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+        return new Fork(source(), subPlans, output);
+    }
+
     @Override
     public List<Attribute> output() {
         return output;
@@ -184,7 +188,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        if (plan instanceof Fork == false) {
+        if (plan instanceof Fork == false || plan instanceof UnionAll) {
             return;
         }
         Fork fork = (Fork) plan;
@@ -194,7 +198,14 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 return;
             }
 
-            failures.add(Failure.fail(otherFork, "Only a single FORK command is supported, but found multiple"));
+            failures.add(
+                Failure.fail(
+                    otherFork,
+                    otherFork instanceof UnionAll
+                        ? "FORK after subquery is not supported"
+                        : "Only a single FORK command is supported, but found multiple"
+                )
+            );
         });
 
         Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));

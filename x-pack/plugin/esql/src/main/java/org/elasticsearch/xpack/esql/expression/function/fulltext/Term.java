@@ -118,6 +118,15 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     }
 
     @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        // check plan again after predicates are pushed down into subqueries
+        return (plan, failures) -> {
+            super.postOptimizationPlanVerification().accept(plan, failures);
+            fieldVerifier(plan, this, field, failures);
+        };
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Term(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }

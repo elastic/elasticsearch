@@ -2767,6 +2767,36 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * If there is no common data type for a field in a subquery and the main query, {@code VerificationException} is thrown.
+     */
+    public void testMixedDataTypesInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertThat(
+            error("""
+                FROM test, (FROM test_mixed_types | WHERE languages > 0)
+                | WHERE emp_no > 10000
+                | SORT is_rehired, still_hired
+                """),
+            equalTo(
+                "1:1: Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]\n"
+                    + "line 1:1: Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"
+            )
+        );
+    }
+
+    public void testSubqueryInFromWithFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertThat(error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | KEEP emp_no
+            """), equalTo("1:6: FORK after subquery is not supported"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

@@ -533,10 +533,67 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeSubqueryIndices(preAnalysis, preAnalysis.subqueryIndices().iterator(), r, l))
             .<LogicalPlan>andThen(
                 (l, r) -> analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l)
             )
             .addListener(logicalPlanListener);
+    }
+
+    private void preAnalyzeSubqueryIndices(
+        PreAnalyzer.PreAnalysis preAnalysis,
+        Iterator<IndexPattern> subqueryIndices,
+        PreAnalysisResult preAnalysisResult,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (subqueryIndices.hasNext()) {
+            preAnalyzeSubqueryIndex(preAnalysis, subqueryIndices.next(), preAnalysisResult, listener.delegateFailureAndWrap((l, r) -> {
+                preAnalyzeSubqueryIndices(preAnalysis, subqueryIndices, r, l);
+            }));
+        } else {
+            listener.onResponse(preAnalysisResult);
+        }
+    }
+
+    private void preAnalyzeSubqueryIndex(
+        PreAnalyzer.PreAnalysis preAnalysis,
+        IndexPattern subqueryIndexPattern,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
+        if (subqueryIndexPattern != null) {
+            /*
+             * TODO subqueries with remote clusters need to be tested.
+             * Subquery index pattern can contain remote clusters, which need to be
+             * resolved against the available clusters. The input executionInfo is built for
+             *  the main index pattern, not for subqueries. Create an index pattern with
+             *  remote clusters for subquery's index pattern, make a copy of the main
+             * EsqlExecutionInfo for this subquery, and reuse the existing API to build
+             * the subqueryIndexExpression.
+             */
+
+            // time-series index mode is not supported in subqueries yet, the grammar does not allow it
+            indexResolver.resolveAsMergedMapping(
+                subqueryIndexPattern.indexPattern(),
+                result.fieldNames,
+                null,
+                false,
+                false,
+                preAnalysis.supportsDenseVector(),
+                listener.delegateFailure((l, indexResolution) -> {
+                    l.onResponse(result.addSubqueryIndexResolution(subqueryIndexPattern.indexPattern(), indexResolution));
+                })
+            );
+
+        } else {
+            // occurs when dealing with local relations (row a = 1)
+            listener.onResponse(result.addSubqueryIndexResolution("invalid subquery", IndexResolution.invalid("[none specified]")));
+        }
     }
 
     private void preAnalyzeLookupIndices(
@@ -867,7 +924,15 @@ public class EsqlSession {
         throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indices.failures());
         Analyzer analyzer = new Analyzer(
-            new AnalyzerContext(configuration, functionRegistry, r.indices, r.lookupIndices, r.enrichResolution, r.inferenceResolution),
+            new AnalyzerContext(
+                configuration,
+                functionRegistry,
+                r.indices,
+                r.lookupIndices,
+                r.enrichResolution,
+                r.inferenceResolution,
+                r.subqueryIndices
+            ),
             verifier
         );
         LogicalPlan plan = analyzer.analyze(parsed);
@@ -914,15 +979,24 @@ public class EsqlSession {
         IndexResolution indices,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
+        InferenceResolution inferenceResolution,
+        Map<String, IndexResolution> subqueryIndices
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY);
+            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY, new HashMap<>());
         }
 
         PreAnalysisResult withIndices(IndexResolution indices) {
-            return new PreAnalysisResult(fieldNames, wildcardJoinIndices, indices, lookupIndices, enrichResolution, inferenceResolution);
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indices,
+                lookupIndices,
+                enrichResolution,
+                inferenceResolution,
+                subqueryIndices
+            );
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution indexResolution) {
@@ -931,11 +1005,32 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
-            return new PreAnalysisResult(fieldNames, wildcardJoinIndices, indices, lookupIndices, enrichResolution, inferenceResolution);
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indices,
+                lookupIndices,
+                enrichResolution,
+                inferenceResolution,
+                subqueryIndices
+            );
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution inferenceResolution) {
-            return new PreAnalysisResult(fieldNames, wildcardJoinIndices, indices, lookupIndices, enrichResolution, inferenceResolution);
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indices,
+                lookupIndices,
+                enrichResolution,
+                inferenceResolution,
+                subqueryIndices
+            );
+        }
+
+        PreAnalysisResult addSubqueryIndexResolution(String index, IndexResolution newIndexResolution) {
+            subqueryIndices.put(index, newIndexResolution);
+            return this;
         }
     }
 }

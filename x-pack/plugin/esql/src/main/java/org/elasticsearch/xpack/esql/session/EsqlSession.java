@@ -184,13 +184,12 @@ public class EsqlSession {
         LOGGER.debug("ESQL query:\n{}", request.query());
         EsqlStatement statement = parse(request.query(), request.params());
         Configuration configuration = new Configuration(
-            ZoneOffset.UTC, // TODO: Use the time_zone setting instead?
+            statement.setting(QuerySettings.TIME_ZONE),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,
             clusterName,
             request.pragmas(),
-            QuerySettings.from(statement),
             clusterSettings.resultTruncationMaxSize(),
             clusterSettings.resultTruncationDefaultSize(),
             request.query(),

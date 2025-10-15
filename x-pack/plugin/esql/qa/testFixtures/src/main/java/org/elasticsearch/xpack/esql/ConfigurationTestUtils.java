@@ -19,19 +19,12 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.QuerySetting;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
@@ -75,7 +68,6 @@ public class ConfigurationTestUtils {
             username,
             clusterName,
             randomQueryPragmas(),
-            randomQuerySettings(),
             truncation,
             defaultTruncation,
             query,
@@ -91,24 +83,6 @@ public class ConfigurationTestUtils {
     private static QueryPragmas randomQueryPragmas() {
         return new QueryPragmas(
             Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), randomFrom(DataPartitioning.values())).build()
-        );
-    }
-
-    private static QuerySettings randomQuerySettings() {
-        return QuerySettings.from(
-            new EsqlStatement(
-                null,
-                List.of(
-                    new QuerySetting(
-                        Source.EMPTY,
-                        new Alias(
-                            Source.EMPTY,
-                            QuerySettings.PROJECT_ROUTING.name(),
-                            Literal.keyword(Source.EMPTY, randomAlphaOfLengthBetween(3, 10))
-                        )
-                    )
-                )
-            )
         );
     }
 

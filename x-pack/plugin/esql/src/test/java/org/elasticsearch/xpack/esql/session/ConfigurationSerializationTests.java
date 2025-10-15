@@ -18,8 +18,6 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.QuerySettingsSerializationTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.ZoneId;
@@ -50,13 +48,12 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         String username = in.username();
         String clusterName = in.clusterName();
         QueryPragmas pragmas = in.pragmas();
-        QuerySettings settings = in.settings();
         int resultTruncationMaxSize = in.resultTruncationMaxSize(false);
         int resultTruncationDefaultSize = in.resultTruncationDefaultSize(false);
         String query = in.query();
         boolean profile = in.profile();
         Map<String, Map<String, Column>> tables = in.tables();
-        switch (between(0, 10)) {
+        switch (between(0, 9)) {
             case 0 -> zoneId = randomValueOtherThan(zoneId, () -> randomZone().normalized());
             case 1 -> locale = randomValueOtherThan(in.locale(), () -> randomLocale(random()));
             case 2 -> username = randomAlphaOfLength(15);
@@ -64,12 +61,11 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             case 4 -> pragmas = new QueryPragmas(
                 Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10)).build()
             );
-            case 5 -> settings = randomValueOtherThan(settings, QuerySettingsSerializationTests::randomSettings);
-            case 6 -> resultTruncationMaxSize += randomIntBetween(3, 10);
-            case 7 -> resultTruncationDefaultSize += randomIntBetween(3, 10);
-            case 8 -> query += randomAlphaOfLength(2);
-            case 9 -> profile = false == profile;
-            case 10 -> {
+            case 5 -> resultTruncationMaxSize += randomIntBetween(3, 10);
+            case 6 -> resultTruncationDefaultSize += randomIntBetween(3, 10);
+            case 7 -> query += randomAlphaOfLength(2);
+            case 8 -> profile = false == profile;
+            case 9 -> {
                 while (true) {
                     Map<String, Map<String, Column>> newTables = null;
                     try {
@@ -100,7 +96,6 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             username,
             clusterName,
             pragmas,
-            settings,
             resultTruncationMaxSize,
             resultTruncationDefaultSize,
             query,

@@ -779,15 +779,15 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 CountDownLatch countDownLatch;
                 int blobCount = 0;
 
-                // === First, write blobs until capacity is exceeded === //
-
-                // While there is at least one byte in the stream, write
-                while (shardBlobsToDelete.sizeInBytes() < heapMemory) {
+                // Write while there is capacity, and then bound the number of leaked blobs
+                while (leakedBlobCount < 100) {
                     // Generate the next blob to write
                     final var indexId = new IndexId(randomIdentifier(), randomUUID());
                     final var shardId = between(1, 30);
                     final var shardGeneration = new ShardGeneration(randomUUID());
+                    // Always write at least one blob, guaranteeing that the shardDeleteResults stream increases in size
                     final var blobsToDelete = randomList(
+                        1,
                         100,
                         () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
                             "",
@@ -816,7 +816,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     safeAwait(countDownLatch);
 
                     // The entire blob was written to memory, so we expect to see it returned
-                    if (shardBlobsToDelete.sizeInBytes() <= heapMemory) {
+                    if (shardBlobsToDelete.sizeInBytes() < heapMemory && heapMemory != 0) {
                         for (final var blobToDelete : blobsToDelete) {
                             expectedBlobsToDelete.add(indexPath + blobToDelete);
                         }
@@ -825,60 +825,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     // We've overflowed the stream with our latest write, and expect to see a WARN log
                     else {
                         leakedBlobCount += blobsToDelete.size();
-                        mockLog.addExpectation(
-                            new MockLog.SeenEventExpectation(
-                                "skipped cleanup warning",
-                                BlobStoreRepository.class.getCanonicalName(),
-                                Level.WARN,
-                                "*Skipped cleanup of "
-                                    + leakedBlobCount
-                                    + " dangling snapshot blobs due to memory constraints "
-                                    + "on the master node. These blobs will be cleaned up automatically by future snapshot deletions. "
-                                    + "If you routinely delete large snapshots, consider increasing the master node's heap size to allow "
-                                    + "for more efficient cleanup."
-                            )
-                        );
                     }
                 }
 
-                assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-                assertThat(expectedBlobsToDelete, empty());
-                assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
-
-                mockLog.assertAllExpectationsMatched();
-
-                // === Second, now capacity is exceeded, test whether subsequent writes are accepted without throwing an error === //
-
-                for (int i = 0; i < randomIntBetween(1, 20); i++) {
-                    // Generate the next blob to write
-                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
-                    final var shardId = between(1, 30);
-                    final var shardGeneration = new ShardGeneration(randomUUID());
-                    final var blobsToDelete = randomList(
-                        100,
-                        () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
-                            "",
-                            METADATA_BLOB_NAME_SUFFIX
-                        )
-                    );
-                    expectedShardGenerations.put(indexId, shardId, shardGeneration);
-                    leakedBlobCount += blobsToDelete.size();
-
-                    countDownLatch = new CountDownLatch(1);
-                    try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                        repo.threadPool()
-                            .generic()
-                            .execute(
-                                ActionRunnable.run(
-                                    refs.acquireListener(),
-                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
-                                )
-                            );
-                    }
-                    safeAwait(countDownLatch);
-                }
-
+                // Since we're guaranteed to have exceeded capacity, we expect a WARN log
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "skipped cleanup warning",
@@ -893,13 +843,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     )
                 );
 
-                // We expect no shard generations
                 assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-
-                // We expect the blob paths to be only those that were written before we exceeded the threshold
-                List<String> blobPaths = new ArrayList<>();
-                shardBlobsToDelete.getBlobPaths().forEachRemaining(blobPaths::add);
-                assertEquals(blobCount, blobPaths.size());
+                shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+                assertThat(expectedBlobsToDelete, empty());
+                assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
 
                 mockLog.assertAllExpectationsMatched();
             }

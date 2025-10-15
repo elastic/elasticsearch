@@ -77,6 +77,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -444,7 +445,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private volatile ByteSizeValue maxHeapSizeForSnapshotDeletion;
+    private volatile int maxHeapSizeForSnapshotDeletion;
 
     /**
      * Repository settings that can be updated dynamically without having to create a new repository.
@@ -563,7 +564,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(
             MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
-            status -> this.maxHeapSizeForSnapshotDeletion = status
+            maxHeapSizeForSnapshotDeletion -> {
+                /**
+                 * Calculates the maximum size of the ShardBlobsToDelete.shardDeleteResults BytesStreamOutput.
+                 * The size cannot exceed 2GB, without {@code BytesStreamOutput} throwing an IAE,
+                 * but should also be no more than 25% of the total remaining heap space.
+                 * A buffer of 1MB is maintained, so that even if the stream is of max size, there is room to flush
+                 */
+                this.maxHeapSizeForSnapshotDeletion = Math.toIntExact(
+                    Math.min(maxHeapSizeForSnapshotDeletion.getBytes(), Integer.MAX_VALUE - ByteSizeUnit.MB.toBytes(1))
+                );
+            }
         );
     }
 
@@ -1707,7 +1718,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final ShardGenerations.Builder shardGenerationsBuilder = ShardGenerations.builder();
 
         ShardBlobsToDelete() {
-            int shardDeleteResultsMaxSize = calculateMaximumShardDeleteResultsSize();
             this.shardDeleteResults = new ReleasableBytesStreamOutput(bigArrays);
             this.truncatedShardDeleteResultsOutputStream = new TruncatedOutputStream(
                 new BufferedOutputStream(
@@ -1715,25 +1725,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     DeflateCompressor.BUFFER_SIZE
                 ),
                 shardDeleteResults::size,
-                shardDeleteResultsMaxSize
+                maxHeapSizeForSnapshotDeletion
             );
             this.compressed = new OutputStreamStreamOutput(this.truncatedShardDeleteResultsOutputStream);
             resources.add(compressed);
             resources.add(LeakTracker.wrap((Releasable) shardDeleteResults));
-        }
-
-        /**
-         * Calculates the maximum size of the shardDeleteResults BytesStreamOutput.
-         * The size cannot exceed 2GB, without {@code BytesStreamOutput} throwing an IAE,
-         * but should also be no more than 25% of the total remaining heap space.
-         * A buffer of 1MB is maintained, so that even if the stream is of max size, there is room to flush
-         * @return The maximum number of bytes the shardDeleteResults BytesStreamOutput can consume in the heap
-         */
-        int calculateMaximumShardDeleteResultsSize() {
-            long maxHeapSizeInBytes = maxHeapSizeForSnapshotDeletion.getBytes();
-            int oneMBBuffer = 1024 * 1024;
-            int maxShardDeleteResultsSize = Integer.MAX_VALUE - oneMBBuffer;
-            return Math.toIntExact(Math.min(maxHeapSizeInBytes, maxShardDeleteResultsSize));
         }
 
         synchronized void addShardDeleteResult(
@@ -1744,22 +1740,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ) {
             try {
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
-                boolean writeTruncated = false;
-                // There is a minimum of 1 byte available for writing
-                if (this.truncatedShardDeleteResultsOutputStream.hasCapacity()) {
-                    new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
-                    // We only want to read this shard delete result if we were able to write the entire object.
-                    // Otherwise, for partial writes, an EOFException will be thrown upon reading
-                    if (this.truncatedShardDeleteResultsOutputStream.hasCapacity()) {
-                        resultsCount += 1;
-                    } else {
-                        writeTruncated = true;
-                    }
-                } else {
-                    writeTruncated = true;
-                }
-
-                if (writeTruncated) {
+                // The write was truncated
+                if (writeBlobsIfCapacity(indexId, shardId, blobsToDelete) == false) {
                     logger.debug(
                         "Unable to clean up the following dangling blobs, {}, for index {} and shard {} "
                             + "due to insufficient heap space on the master node.",
@@ -1773,6 +1755,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
             }
+        }
+
+        private boolean writeBlobsIfCapacity(IndexId indexId, int shardId, Collection<String> blobsToDelete) throws IOException {
+            // There is a minimum of 1 byte available for writing
+            if (this.truncatedShardDeleteResultsOutputStream.hasCapacity()) {
+                new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
+                // We only want to read this shard delete result if we were able to write the entire object.
+                // Otherwise, for partial writes, an EOFException will be thrown upon reading
+                if (this.truncatedShardDeleteResultsOutputStream.hasCapacity()) {
+                    resultsCount += 1;
+                    return true;
+                }
+            }
+            return false;
         }
 
         public ShardGenerations getUpdatedShardGenerations() {

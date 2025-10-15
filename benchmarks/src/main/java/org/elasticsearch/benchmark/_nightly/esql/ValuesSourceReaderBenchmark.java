@@ -41,8 +41,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -290,9 +292,8 @@ public class ValuesSourceReaderBenchmark {
         return new NumberFieldMapper.NumberFieldType(
             w.name,
             numberType,
-            true,
+            IndexType.points(true, docValues),
             stored,
-            docValues,
             true,
             null,
             Map.of(),
@@ -368,7 +369,7 @@ public class ValuesSourceReaderBenchmark {
             blockFactory,
             ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             0
@@ -538,7 +539,7 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    ShardRefCounted.ALWAYS_REFERENCED,
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
@@ -575,8 +576,7 @@ public class ValuesSourceReaderBenchmark {
                             pages.add(
                                 new Page(
                                     new DocVector(
-
-                                        ShardRefCounted.ALWAYS_REFERENCED,
+                                        AlwaysReferencedIndexedByShardId.INSTANCE,
                                         blockFactory.newConstantIntVector(0, size),
                                         leafs.build(),
                                         docs.build(),
@@ -594,7 +594,7 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
-                                ShardRefCounted.ALWAYS_REFERENCED,
+                                AlwaysReferencedIndexedByShardId.INSTANCE,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
@@ -621,8 +621,7 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-
-                                    ShardRefCounted.ALWAYS_REFERENCED,
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
                                     blockFactory.newConstantIntVector(0, 1),
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),

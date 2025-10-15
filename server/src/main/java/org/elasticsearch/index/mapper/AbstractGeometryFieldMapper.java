@@ -136,14 +136,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         protected AbstractGeometryFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Parser<T> geometryParser,
             T nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexType, stored, meta);
             this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }

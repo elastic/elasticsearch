@@ -28,6 +28,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -74,7 +75,11 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
 
     private LogicalPlanPreOptimizer preOptimizer() {
         var inferenceService = mock(org.elasticsearch.xpack.esql.inference.InferenceService.class);
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small(), inferenceService);
+        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(
+            FoldContext.small(),
+            inferenceService,
+            randomMinimumVersion()
+        );
         return new LogicalPlanPreOptimizer(preOptimizerContext);
     }
 

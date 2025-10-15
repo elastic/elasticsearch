@@ -95,16 +95,15 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected RolloverConfiguration mutateInstance(RolloverConfiguration instance) {
-        RolloverConditions.Builder conditions = randomRolloverConditionsWithoutMaxAgeBuilder();
-        if (instance.getAutomaticConditions().contains(MaxAgeCondition.NAME) == false) {
-            if (randomBoolean()) {
-                conditions.addMaxIndexAgeCondition(TimeValue.timeValueMillis(randomMillisUpToYear9999())).build();
-            }
-        }
+        RolloverConditions originalConditions = instance.getConcreteConditions();
+        RolloverConditions newConditions = randomValueOtherThan(
+            originalConditions,
+            () -> RolloverConfigurationTests.randomRolloverConditionsWithoutMaxAgeBuilder().build()
+        );
         // There is no point mutating automatic conditions. If they change, then the concrete conditions
         // should also change to produce a valid configuration Consequently, the mutated instance is guaranteed to be
         // different from the original instance and the test purpose would be voided.
-        return new RolloverConfiguration(conditions.build(), instance.getAutomaticConditions());
+        return new RolloverConfiguration(newConditions, instance.getAutomaticConditions());
     }
 
     public void testConstructorValidation() {

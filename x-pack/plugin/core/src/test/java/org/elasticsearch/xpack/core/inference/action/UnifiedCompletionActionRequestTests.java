@@ -113,6 +113,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
+            new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
     }
@@ -122,12 +123,17 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         String inferenceEntityId = instance.getInferenceEntityId();
         TaskType taskType = instance.getTaskType();
         UnifiedCompletionRequest unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
+        InferenceContext inferenceContext = instance.getContext();
         TimeValue timeout = instance.getTimeout();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, () -> randomAlphaOfLength(10));
             case 1 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
-            case 2 -> unifiedCompletionRequest = UnifiedCompletionRequestTests.randomUnifiedCompletionRequest();
-            case 3 -> timeout = TimeValue.timeValueMillis(randomLongBetween(1, 2048));
+            case 2 -> unifiedCompletionRequest = randomValueOtherThan(
+                unifiedCompletionRequest,
+                () -> UnifiedCompletionRequestTests.randomUnifiedCompletionRequest()
+            );
+            case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
+            case 4 -> timeout = randomValueOtherThan(timeout, () -> TimeValue.timeValueMillis(randomLongBetween(1, 2048)));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);

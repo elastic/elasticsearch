@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -982,15 +983,13 @@ public final class IndicesPermission {
             this.selectorPredicate = privilege.getSelectorPredicate();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
-            ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
+                this.indexNameAutomaton = CachedSupplier.wrap(() -> Automatons.patterns(indices));
             } else {
                 this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    indices,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                this.indexNameAutomaton = CachedSupplier.wrap(
+                    () -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

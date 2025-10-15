@@ -80,7 +80,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                             }));
                         }
                         var replacedAttributes = aliasesForReplacedAttributesBuilder.build();
-                        // We need to create a copy of attributes used by TonP, because Enrich or some command on the way overwrites them.
+                        // We need to create a copy of attributes used by TopN, because Enrich or some command on the way overwrites them.
                         // Shadowed structure is going to look like this:
                         /*
                          Project[[_meta_field{f}#16, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,...]]

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -121,6 +122,8 @@ import java.util.stream.Collectors;
  * used for approximating the original plan.
  */
 public class Approximate {
+
+    public record QueryProperties(boolean hasNonCountAllAgg, boolean preservesRows) {}
 
     public interface LogicalPlanRunner {
         void run(LogicalPlan plan, ActionListener<Result> listener);
@@ -223,13 +226,17 @@ public class Approximate {
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
+    private static final AggregateFunction COUNT_ALL_ROWS = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
+
     private final LogicalPlan logicalPlan;
-    private final boolean preservesRows;
+    private final QueryProperties queryProperties;
     private final LogicalPlanRunner runner;
+
+    private long sourceRowCount;
 
     public Approximate(LogicalPlan logicalPlan, LogicalPlanRunner logicalPlanRunner) {
         this.logicalPlan = logicalPlan;
-        this.preservesRows = verifyPlan(logicalPlan);
+        this.queryProperties = verifyPlan(logicalPlan);
         this.runner = logicalPlanRunner;
     }
 
@@ -237,7 +244,13 @@ public class Approximate {
      * Computes approximate results for the logical plan.
      */
     public void approximate(ActionListener<Result> listener) {
-        runner.run(sourceCountPlan(), sourceCountListener(runner, listener));
+        if (queryProperties.hasNonCountAllAgg || queryProperties.preservesRows == false) {
+            runner.run(sourceCountPlan(), sourceCountListener(listener));
+        } else {
+            // Counting all rows is fast for queries that preserve all rows, as it's returned from
+            // Lucene's metadata. Approximation would only slow things down in this case.
+            runner.run(logicalPlan, listener);
+        }
     }
 
     /**
@@ -246,7 +259,7 @@ public class Approximate {
      * @return whether the part of the query until the STATS command preserves all rows
      * @throws VerificationException if the plan is not suitable for approximation
      */
-    public static boolean verifyPlan(LogicalPlan logicalPlan) throws VerificationException {
+    public static QueryProperties verifyPlan(LogicalPlan logicalPlan) throws VerificationException {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
@@ -267,10 +280,15 @@ public class Approximate {
         });
 
         Holder<Boolean> encounteredStats = new Holder<>(false);
+        Holder<Boolean> hasNonCountAllAgg = new Holder<>(false);
         Holder<Boolean> preservesRows = new Holder<>(true);
+
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (plan instanceof Aggregate) {
+                if (plan instanceof Aggregate aggregate) {
+                    if (aggregate.groupings().isEmpty() == false) {
+                        hasNonCountAllAgg.set(true);
+                    }
                     // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);
                     plan.transformExpressionsOnly(AggregateFunction.class, aggFn -> {
@@ -285,6 +303,9 @@ public class Approximate {
                                     )
                                 )
                             );
+                        }
+                        if (aggFn.equals(COUNT_ALL_ROWS) == false) {
+                            hasNonCountAllAgg.set(true);
                         }
                         return aggFn;
                     });
@@ -301,7 +322,7 @@ public class Approximate {
             return plan;
         });
 
-        return preservesRows.get();
+        return new QueryProperties(hasNonCountAllAgg.get(), preservesRows.get());
     }
 
     /**
@@ -315,12 +336,7 @@ public class Approximate {
         LogicalPlan sourceCountPlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
                 // Append the leaf plan by a STATS COUNT(*).
-                plan = new Aggregate(
-                    Source.EMPTY,
-                    plan,
-                    List.of(),
-                    List.of(new Alias(Source.EMPTY, "$count", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"))))
-                );
+                plan = new Aggregate(Source.EMPTY, plan, List.of(), List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS)));
             } else {
                 // Strip everything after the leaf.
                 plan = plan.children().getFirst();
@@ -337,15 +353,15 @@ public class Approximate {
      * {@link Approximate#approximatePlan} or {@link Approximate#countPlan}
      * depending on whether the original query preserves all rows or not.
      */
-    private ActionListener<Result> sourceCountListener(LogicalPlanRunner runner, ActionListener<Result> listener) {
+    private ActionListener<Result> sourceCountListener(ActionListener<Result> listener) {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
-            long rowCount = rowCount(countResult);
-            logger.debug("sourceCountPlan result: {} rows", rowCount);
-            double sampleProbability = rowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / rowCount;
-            if (preservesRows || sampleProbability == 1.0) {
+            sourceRowCount = rowCount(countResult);
+            logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
+            double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
+            if (queryProperties.preservesRows || sampleProbability == 1.0) {
                 runner.run(approximatePlan(sampleProbability), listener);
             } else {
-                runner.run(countPlan(sampleProbability), countListener(runner, sampleProbability, listener));
+                runner.run(countPlan(sampleProbability), countListener(sampleProbability, listener));
             }
         });
     }
@@ -372,7 +388,7 @@ public class Approximate {
                         Source.EMPTY,
                         aggregate.child(),
                         List.of(),
-                        List.of(new Alias(Source.EMPTY, "$count", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"))))
+                        List.of(new Alias(Source.EMPTY, "$count", COUNT_ALL_ROWS))
                     );
                 }
             } else {
@@ -392,13 +408,13 @@ public class Approximate {
      * {@link Approximate#countPlan} depending on whether the current count is
      * sufficient.
      */
-    private ActionListener<Result> countListener(LogicalPlanRunner runner, double sampleProbability, ActionListener<Result> listener) {
+    private ActionListener<Result> countListener(double sampleProbability, ActionListener<Result> listener) {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
             double newSampleProbability = sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount);
             if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < 1.0) {
-                runner.run(countPlan(newSampleProbability), countListener(runner, newSampleProbability, listener));
+                runner.run(countPlan(newSampleProbability), countListener(newSampleProbability, listener));
             } else {
                 runner.run(approximatePlan(newSampleProbability), listener);
             }
@@ -508,9 +524,17 @@ public class Approximate {
                     // Replace the original aggregation by a sample-corrected one.
                     Alias aggAlias = (Alias) aggOrKey;
                     AggregateFunction aggFn = (AggregateFunction) aggAlias.child();
+
+                    if (aggFn.equals(COUNT_ALL_ROWS) && aggregate.groupings().isEmpty() && queryProperties.preservesRows) {
+                        // If the query is preserving all rows, and the aggregation function is
+                        // counting all rows, we know the exact result without sampling.
+                        aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount)));
+                        continue;
+                    }
+
                     aggregates.add(aggAlias.replaceChild(correctForSampling(aggFn, sampleProbability)));
 
-                    if (SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
+                    if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
                         // For the supported single-valued aggregations, add buckets with sampled
                         // values, that will be used to compute a confidence interval.
                         // For multivalued aggregations, confidence intervals do not make sense.

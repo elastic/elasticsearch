@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
@@ -235,9 +236,30 @@ public class ApproximateTests extends ESTestCase {
         assertThat(runner.invocations.get(1), allOf(hasFilter("emp_no"), not(hasSample())));
     }
 
-    public void testApproximatePlan_createsConfidenceInterval() throws Exception {
+    public void testApproximate_countAllRows() throws Exception {
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)", runner);
+        Approximate approximate = createApproximate("FROM test | STATS COUNT(*)", runner);
+        approximate.approximate(TestRunner.resultCloser);
+        assertThat(runner.invocations, hasSize(1));
+    }
+
+    public void testApproximate_countAllRows_withFiltering() throws Exception {
+        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
+        Approximate approximate = createApproximate("FROM test | WHERE emp_no > 10 | STATS COUNT(*)", runner);
+        approximate.approximate(TestRunner.resultCloser);
+        assertThat(runner.invocations, hasSize(greaterThan(1)));
+    }
+
+    public void testApproximate_countAllRows_withGrouping() throws Exception {
+        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
+        Approximate approximate = createApproximate("FROM test | STATS COUNT(*) BY emp_no", runner);
+        approximate.approximate(TestRunner.resultCloser);
+        assertThat(runner.invocations, hasSize(greaterThan(1)));
+    }
+
+    public void testApproximatePlan_createsConfidenceInterval_withoutGrouping() throws Exception {
+        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
+        Approximate approximate = createApproximate("FROM test | STATS COUNT(), SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
         // One pass is needed to get the number of rows, and approximation is executed immediately
         // after that with the correct sample probability.
@@ -245,13 +267,33 @@ public class ApproximateTests extends ESTestCase {
 
         LogicalPlan approximatePlan = runner.invocations.get(1);
         assertThat(approximatePlan, hasSample(1e-4));
+        // Counting all rows is exact, so no confidence interval is output.
+        assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(COUNT())")));
+        assertThat(approximatePlan, not(hasEval("RELIABLE(COUNT())")));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(SUM(emp_no))"));
+        assertThat(approximatePlan, hasEval("RELIABLE(SUM(emp_no))"));
+    }
+
+    public void testApproximatePlan_createsConfidenceInterval_withGrouping() throws Exception {
+        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
+        Approximate approximate = createApproximate("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no", runner);
+        approximate.approximate(TestRunner.resultCloser);
+        // One pass is needed to get the number of rows, and approximation is executed immediately
+        // after that with the correct sample probability.
+        assertThat(runner.invocations, hasSize(2));
+
+        LogicalPlan approximatePlan = runner.invocations.get(1);
+        assertThat(approximatePlan, hasSample(1e-4));
+        assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(COUNT())"));
+        assertThat(approximatePlan, hasEval("RELIABLE(COUNT())"));
+        assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(SUM(emp_no))"));
+        assertThat(approximatePlan, hasEval("RELIABLE(SUM(emp_no))"));
     }
 
     public void testApproximatePlan_dependentConfidenceIntervals() throws Exception {
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
         Approximate approximate = createApproximate(
-            "FROM test | STATS x=COUNT() | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)",
+            "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)",
             runner
         );
         approximate.approximate(TestRunner.resultCloser);
@@ -262,11 +304,17 @@ public class ApproximateTests extends ESTestCase {
         LogicalPlan approximatePlan = runner.invocations.get(1);
         assertThat(approximatePlan, hasPlan(Sample.class, s -> Foldables.literalValueOf(s.probability()).equals(1e-4)));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(x)"));
+        assertThat(approximatePlan, hasEval("RELIABLE(x)"));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(a)"));
+        assertThat(approximatePlan, hasEval("RELIABLE(a)"));
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(b)")));
+        assertThat(approximatePlan, not(hasEval("RELIABLE(b)")));
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(c)")));
+        assertThat(approximatePlan, not(hasEval("RELIABLE(c)")));
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(d)")));
+        assertThat(approximatePlan, not(hasEval("RELIABLE(d)")));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(e)"));
+        assertThat(approximatePlan, hasEval("RELIABLE(e)"));
     }
 
     private Matcher<? super LogicalPlan> hasFilter(String field) {

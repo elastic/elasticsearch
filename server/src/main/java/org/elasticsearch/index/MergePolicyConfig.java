@@ -399,25 +399,32 @@ public final class MergePolicyConfig {
             return new CompoundFileThreshold(1.0d);
         } else if (noCFSRatio.equalsIgnoreCase("false")) {
             return new CompoundFileThreshold(0.0d);
-        } else if (noCFSRatio.endsWith("b") == false) {
+        }
+        NumberFormatException suppressedNfe = null;
+        if (noCFSRatio.endsWith("b") == false) {
             // If the value ends with a `b`, it implies it is probably a byte size value, so do not try to parse as a ratio at all.
             // The main motivation is to make parsing faster. Using exception throwing and catching when trying to parse
             // as a ratio as a means of identifying that a string is not a ratio can be quite slow.
             try {
                 return new CompoundFileThreshold(Double.parseDouble(noCFSRatio));
             } catch (NumberFormatException e) {
-                // ignore, see if it parses as bytes
+                // ignore for now, see if it parses as bytes
+                suppressedNfe = e;
             }
         }
         try {
             return new CompoundFileThreshold(ByteSizeValue.parseBytesSizeValue(noCFSRatio, INDEX_COMPOUND_FORMAT_SETTING_KEY));
         } catch (ElasticsearchParseException ex) {
-            throw new IllegalArgumentException(
+            final var illegalArgumentException = new IllegalArgumentException(
                 "index.compound_format must be a boolean, a non-negative byte size or a ratio in the interval [0..1] but was: ["
                     + noCFSRatio
                     + "]",
                 ex
             );
+            if (suppressedNfe != null) {
+                illegalArgumentException.addSuppressed(suppressedNfe);
+            }
+            throw illegalArgumentException;
         }
     }
 

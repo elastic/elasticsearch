@@ -156,9 +156,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
-        final List<ResolvedIndexExpression> resolvedLocallyList = new ArrayList<>();
+        final List<ResolvedIndexExpression> resolvedLocallyList;
+        if (request.getResolvedIndexExpressions() != null) {
+            // in CPS the SAF would populate resolvedExpressions for the local project
+            resolvedLocallyList = request.getResolvedIndexExpressions().expressions();
+        } else {
+            resolvedLocallyList = new ArrayList<>();
+        }
         // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-        if (localIndices != null) {
+        if (localIndices != null && resolvedLocallyList.isEmpty()) {
             ProjectMetadata projectMetadata = projectState.metadata();
             IndicesOptions indicesOptions = localIndices.indicesOptions();
             String[] localIndexNames = localIndices.indices();

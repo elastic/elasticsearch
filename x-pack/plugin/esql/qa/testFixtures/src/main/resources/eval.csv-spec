@@ -822,6 +822,22 @@ position:double
 0
 ;
 
+evalUsingScoreAndLimit2
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+from employees
+| where emp_no == 10094
+| eval position = score(match(job_positions, "Senior Python Developer"))
+| limit 100
+| keep position
+;
+
+position:double
+1.957748532295227
+;
+
 evalUsingScoreAndTopN
 required_capability: score_function
 required_capability: match_function
@@ -831,18 +847,18 @@ from employees
 | sort emp_no desc
 | eval position = score(match(job_positions, "Senior Python Developer"))
 | limit 10
-| keep position
+| keep emp_no, position
 ;
 
-position:double
-0
-0
-0
-0
-0
-0
-1.957748532295227
-0
-0
-0
+emp_no:integer | position:double
+10100          | 0
+10099          | 0
+10098          | 0
+10097          | 0
+10096          | 0
+10095          | 0
+10094          | 1.957748532295227
+10093          | 0
+10092          | 0
+10091          | 0
 ;

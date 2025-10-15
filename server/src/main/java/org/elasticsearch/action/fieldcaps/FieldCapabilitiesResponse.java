@@ -29,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
@@ -81,6 +82,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         this.indices = in.readStringArray();
+        this.fields = in.readMap(FieldCapabilitiesResponse::readField);
+        this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
+        this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
         if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             this.resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
             this.resolvedRemotely = null;
@@ -88,9 +92,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             this.resolvedLocally = null;
             this.resolvedRemotely = Collections.emptyMap();
         }
-        this.fields = in.readMap(FieldCapabilitiesResponse::readField);
-        this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
-        this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
     }
 
     /**
@@ -257,6 +258,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         public Builder withResolved(ResolvedIndexExpressions resolvedLocally, Map<String, ResolvedIndexExpressions> resolvedRemotely) {
             this.resolvedLocally = resolvedLocally;
             this.resolvedRemotely = resolvedRemotely;
+            return this;
+        }
+
+        public Builder withResolvedRemotelyBuilder(Map<String, ResolvedIndexExpressions.Builder> resolvedRemotelyBuilder) {
+            this.resolvedRemotely = resolvedRemotelyBuilder.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
             return this;
         }
 

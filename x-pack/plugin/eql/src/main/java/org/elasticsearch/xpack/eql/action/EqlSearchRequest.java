@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -129,9 +130,16 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
         runtimeMappings = in.readGenericMap();
-        maxSamplesPerKey = in.readInt();
-        allowPartialSearchResults = in.readOptionalBoolean();
-        allowPartialSequenceResults = in.readOptionalBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            maxSamplesPerKey = in.readInt();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            allowPartialSearchResults = in.readOptionalBoolean();
+            allowPartialSequenceResults = in.readOptionalBoolean();
+        } else {
+            allowPartialSearchResults = false;
+            allowPartialSequenceResults = false;
+        }
     }
 
     @Override
@@ -480,9 +488,13 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             out.writeCollection(fetchFields);
         }
         out.writeGenericMap(runtimeMappings);
-        out.writeInt(maxSamplesPerKey);
-        out.writeOptionalBoolean(allowPartialSearchResults);
-        out.writeOptionalBoolean(allowPartialSequenceResults);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            out.writeInt(maxSamplesPerKey);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            out.writeOptionalBoolean(allowPartialSearchResults);
+            out.writeOptionalBoolean(allowPartialSequenceResults);
+        }
     }
 
     @Override

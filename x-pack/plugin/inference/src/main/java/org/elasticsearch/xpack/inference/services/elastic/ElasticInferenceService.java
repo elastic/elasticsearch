@@ -109,6 +109,10 @@ public class ElasticInferenceService extends SenderService {
     private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
+    static final String LEGACY_DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
+    static final String LEGACY_DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
+
+    // gp-llm-v1
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "gp-llm-v1";
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
@@ -186,6 +190,19 @@ public class ElasticInferenceService extends SenderService {
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         return Map.of(
+            LEGACY_DEFAULT_CHAT_COMPLETION_MODEL_ID_V1,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceCompletionModel(
+                    LEGACY_DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
+                    TaskType.CHAT_COMPLETION,
+                    NAME,
+                    new ElasticInferenceServiceCompletionServiceSettings(LEGACY_DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents
+                ),
+                MinimalServiceSettings.chatCompletion(NAME)
+            ),
             DEFAULT_CHAT_COMPLETION_MODEL_ID_V1,
             new DefaultModelConfig(
                 new ElasticInferenceServiceCompletionModel(

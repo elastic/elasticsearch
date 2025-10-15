@@ -1,8 +1,8 @@
 ---
 setup:
   - requires:
-      cluster_features: [ "ingest.append.ignore_empty_values" ]
-      reason: "The ignore_empty_values option of the append processor is new"
+      cluster_features: [ "ingest.append.ignore_empty_values_fix" ]
+      reason: "These tests all verify that a bug in ignore_empty_values has been fixed"
   - do:
       ingest.put_pipeline:
         id: "test-pipeline-1"

@@ -49,6 +49,11 @@ public interface SearchStats {
     }
 
     /**
+     * Number of shards involved in this local execution.
+     */
+    int numShards();
+
+    /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
      */
     record EmptySearchStats() implements SearchStats {
@@ -106,6 +111,11 @@ public interface SearchStats {
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
+        }
+
+        @Override
+        public int numShards() {
+            return 0;
         }
     }
 
@@ -166,6 +176,11 @@ public interface SearchStats {
 
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int numShards() {
             throw new UnsupportedOperationException();
         }
     }

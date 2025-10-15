@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -245,7 +244,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final ComputeListener computeListener;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
-        private final boolean singleShardPipeline;
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final ComputeSearchContextByShardId searchContexts;
@@ -258,7 +256,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             int maxConcurrentShards,
             boolean failFastOnShardFailure,
             Map<ShardId, Exception> shardLevelFailures,
-            boolean singleShardPipeline,
             ComputeListener computeListener,
             ComputeSearchContextByShardId searchContexts
         ) {
@@ -270,7 +267,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.maxConcurrentShards = maxConcurrentShards;
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.shardLevelFailures = shardLevelFailures;
-            this.singleShardPipeline = singleShardPipeline;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
             this.searchContexts = searchContexts;
         }
@@ -326,37 +322,18 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         batchListener.onResponse(DriverCompletionInfo.EMPTY);
                         return;
                     }
-                    if (singleShardPipeline) {
-                        try (ComputeListener sub = new ComputeListener(threadPool, () -> {}, batchListener)) {
-                            for (ComputeSearchContext searchContext : acquiredSearchContexts.collection()) {
-                                var computeContext = new ComputeContext(
-                                    sessionId,
-                                    "data",
-                                    clusterAlias,
-                                    flags,
-                                    new IndexedByShardIdFromSingleton<>(searchContext, searchContext.index()),
-                                    configuration,
-                                    configuration.newFoldContext(),
-                                    null,
-                                    () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
-                                );
-                                computeService.runCompute(parentTask, computeContext, request.plan(), sub.acquireCompute());
-                            }
-                        }
-                    } else {
-                        var computeContext = new ComputeContext(
-                            sessionId,
-                            ComputeService.DATA_DESCRIPTION,
-                            clusterAlias,
-                            flags,
-                            acquiredSearchContexts,
-                            configuration,
-                            configuration.newFoldContext(),
-                            null,
-                            () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
-                        );
-                        computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
-                    }
+                    var computeContext = new ComputeContext(
+                        sessionId,
+                        ComputeService.DATA_DESCRIPTION,
+                        clusterAlias,
+                        flags,
+                        acquiredSearchContexts,
+                        configuration,
+                        configuration.newFoldContext(),
+                        null,
+                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                    );
+                    computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
                 }, batchListener::onFailure)
             );
         }
@@ -487,11 +464,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 });
                 EsqlFlags flags = computeService.createFlags();
                 int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
-                final boolean sortedTimeSeriesSource = PlannerUtils.requiresSortedTimeSeriesSource(request.plan());
-                if (sortedTimeSeriesSource) {
-                    // each time-series pipeline uses 3 drivers
-                    maxConcurrentShards = Math.clamp(Math.ceilDiv(request.pragmas().taskConcurrency(), 3), 1, maxConcurrentShards);
-                }
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
                     flags,
                     request,
@@ -500,7 +472,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     maxConcurrentShards,
                     failFastOnShardFailure,
                     shardLevelFailures,
-                    sortedTimeSeriesSource,
                     computeListener,
                     searchContexts
                 );

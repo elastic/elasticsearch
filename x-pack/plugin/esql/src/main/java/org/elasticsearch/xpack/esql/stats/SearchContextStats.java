@@ -446,4 +446,9 @@ public class SearchContextStats implements SearchStats {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
     }
+
+    @Override
+    public int numShards() {
+        return contexts.size();
+    }
 }

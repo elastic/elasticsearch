@@ -66,4 +66,9 @@ public class DisabledSearchStats implements SearchStats {
     public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
         return false;
     }
+
+    @Override
+    public int numShards() {
+        return 1;
+    }
 }

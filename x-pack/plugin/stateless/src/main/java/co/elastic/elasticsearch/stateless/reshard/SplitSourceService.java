@@ -196,15 +196,14 @@ public class SplitSourceService {
             setupSplitProgressTracking(sourceShard);
         }
 
-        // register new commits to be copied prior to copying existing data to avoid gaps.
-        commitService.markSplitting(sourceShardId, targetShardId);
-
-        ActionListener.run(listener.delegateFailure((handoffListener, indexShard) -> {
-            prepareForHandoff(handoffListener, sourceShard, targetShardId);
-        }), l -> {
+        SubscribableListener.<Releasable>newForked(l -> {
+            commitService.markSplitting(sourceShardId, targetShardId);
             objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
-            l.onResponse(sourceShard);
-        });
+            prepareForHandoff(l, sourceShard, targetShardId);
+        }).addListener(listener.delegateResponse((l, e) -> {
+            commitService.markSplitEnding(sourceShardId, targetShardId, true);
+            l.onFailure(e);
+        }));
     }
 
     public void setPreHandoffHook(Runnable preHandoffHook) {
@@ -253,7 +252,7 @@ public class SplitSourceService {
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {
-        commitService.markSplitCompleting(getSplitSource(targetShardId), targetShardId);
+        commitService.markSplitEnding(getSplitSource(targetShardId), targetShardId, false);
     }
 
     public void afterSplitSourceIndexShardRecovery(

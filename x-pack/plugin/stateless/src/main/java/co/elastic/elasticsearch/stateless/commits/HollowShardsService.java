@@ -306,7 +306,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         if (featureEnabled && ingestionBlocker != null) {
             if (permitAcquired) {
                 logger.debug(() -> "adding ingestion operation for shard " + shardId + " to the ingestion blocker");
-                assert indexShard.getActiveOperationsCount() > 0 : indexShard.getActiveOperationsCount();
+                assert indexShard.getActiveOperationsCount() != 0 : indexShard.getActiveOperationsCount();
                 ingestionBlocker.listener.addListener(listener);
                 unhollow(shardId);
             } else {
@@ -356,7 +356,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     // does not compete with any hollowing initiated by a concurrent relocation (which should not be theoretically
                     // possible as relocation should not re-hollow an already hollow shard, but we want to be sure).
                     // TODO: read the above, and consider whether unhollowing can happen without a primary permit. (ES-11416)
-                    assert indexShard.getActiveOperationsCount() > 0
+                    assert indexShard.getActiveOperationsCount() != 0
                         : "unhollowing requires a permit but they are " + indexShard.getActiveOperationsCount();
 
                     // Similar to the stateless recovery process without activating primary context

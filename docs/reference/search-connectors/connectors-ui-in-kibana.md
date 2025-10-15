@@ -24,13 +24,21 @@ In 8.12 we introduced a set of [connector APIs]({{es-apis}}group/endpoint-connec
 
 You connector writes data to an {{es}} index.
 
-To create [self-managed connectors](/reference/search-connectors/self-managed-connectors.md), use the buttons under **{{es}} > Content > {{connectors-app}}**. Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
+To create [self-managed connectors](/reference/search-connectors/self-managed-connectors.md):
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
+
+Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
 
 ## Manage connector indices [es-connectors-usage-indices]
 
 View and manage all Elasticsearch indices managed by connectors.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a list of connector indices and their attributes, including connector type health and ingestion status.
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
+
+Here, you can view a list of connector indices and their attributes, including connector type health and ingestion status.
 
 Within this interface, you can choose to view the details for each existing index or delete an index. Or, you can [create a new connector index](#es-connectors-usage-index-create).
 
@@ -49,7 +57,10 @@ When you create an index with a connector, the index is created with default sea
 
 You can inspect your index mappings in the following ways:
 
-* In the {{kib}} UI: Navigate to **{{es}} > Content > Indices > *YOUR-INDEX* > Index Mappings**.
+* In the {{kib}} UI:
+1. Go to **Index Management** using the navigation menu or the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md).
+2. Select the index you want to work with and then the **Mappings** tab.
+
 * By API: Use the [get mapping API]({{es-apis}}operation/operation-indices-get-mapping).
 
 You can manually **edit** the mappings and settings via the {{es}} APIs:
@@ -84,7 +95,9 @@ The workflow for these updates is as follows:
 
 After creating an index to be managed by a connector, you can configure automatic, recurring syncs.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
 
 Choose the connector and then the **Scheduling** tab.
 
@@ -107,7 +120,9 @@ After you enable recurring syncs or sync once, the first sync will begin. (There
 
 After creating the index to be managed by a connector, you can request a single sync at any time.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
 
 Then choose the connector to sync.
 
@@ -126,7 +141,9 @@ This operation requires access to Kibana and the `write` [indices privilege^](/r
 
 After a sync has started, you can cancel the sync before it completes.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
 
 Then choose the connector with the running sync.
 
@@ -139,7 +156,9 @@ This operation requires access to Kibana and the `write` [indices privilege^](/r
 
 View the index details to see a variety of information that communicate the status of the index and connector.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
 
 Then choose the connector to view.
 
@@ -183,9 +202,11 @@ This operation requires access to Kibana and the `read` [indices privilege^](/re
 
 ## View documents [es-connectors-usage-documents]
 
-View the documents the connector has synced from the data. Additionally view the index mappings to determine the current document schema.
+View the documents the connector has synced from the data. Additionally, view the index mappings to determine the current document schema.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
 
 Select the connector then the **Documents** tab to view the synced documents. Choose the **Mappings** tab to view the index mappings that were created by the connector.
 
@@ -200,7 +221,9 @@ See [Security](/reference/search-connectors/es-connectors-security.md) for secur
 
 Use [sync rules](/reference/search-connectors/es-sync-rules.md) to limit which documents are fetched from the data source, or limit which fetched documents are stored in Elastic.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
 
 Then choose the index to manage and choose the **Sync rules** tab.
 
@@ -209,5 +232,8 @@ Then choose the index to manage and choose the **Sync rules** tab.
 
 Use [ingest pipelines](docs-content://solutions/search/ingest-for-search.md) to transform fetched data before it is stored in Elastic.
 
-In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI:
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors.
+2. Select **Build / Connectors** from the results.
+
 Then choose the connector and view its **Pipelines** tab.

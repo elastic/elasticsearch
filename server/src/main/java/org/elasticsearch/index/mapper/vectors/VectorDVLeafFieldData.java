@@ -69,14 +69,14 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             if (indexed) {
                 return switch (elementType) {
                     case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
-                    case FLOAT -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
+                    case FLOAT, BFLOAT16 -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
                     case BIT -> new BitKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                 };
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
                 return switch (elementType) {
                     case BYTE -> new ByteBinaryDenseVectorDocValuesField(values, name, elementType, dims);
-                    case FLOAT -> new BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
+                    case FLOAT, BFLOAT16 -> new BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
                     case BIT -> new BitBinaryDenseVectorDocValuesField(values, name, elementType, dims);
                 };
             }
@@ -138,7 +138,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                     return vectorValue;
                 }
             };
-            case FLOAT -> new FormattedDocValues() {
+            case FLOAT, BFLOAT16 -> new FormattedDocValues() {
                 float[] vector = new float[dims];
                 private FloatVectorValues floatVectorValues; // use when indexed
                 private KnnVectorValues.DocIndexIterator iterator; // use when indexed

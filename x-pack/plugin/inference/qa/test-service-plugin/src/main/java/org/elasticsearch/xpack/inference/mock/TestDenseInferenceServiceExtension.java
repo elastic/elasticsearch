@@ -255,7 +255,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         // Copied from DenseVectorFieldMapperTestUtils due to dependency restrictions
         private static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
             return switch (elementType) {
-                case FLOAT, BYTE -> dimensions;
+                case FLOAT, BYTE, BFLOAT16 -> dimensions;
                 case BIT -> {
                     assert dimensions % Byte.SIZE == 0;
                     yield dimensions / Byte.SIZE;

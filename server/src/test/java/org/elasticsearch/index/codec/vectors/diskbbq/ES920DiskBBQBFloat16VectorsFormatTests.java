@@ -7,9 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.es93;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.index.VectorEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.regex.Matcher;
@@ -17,15 +16,10 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.closeTo;
 
-public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends ES93BinaryQuantizedVectorsFormatTests {
+public class ES920DiskBBQBFloat16VectorsFormatTests extends ES920DiskBBQVectorsFormatTests {
     @Override
     DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.BFLOAT16;
-    }
-
-    @Override
-    protected VectorEncoding randomVectorEncoding() {
-        return VectorEncoding.FLOAT32;
     }
 
     @Override
@@ -78,6 +72,12 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends ES93BinaryQua
     @Override
     public void testVectorValuesReportCorrectDocs() throws Exception {
         AssertionError err = expectThrows(AssertionError.class, super::testVectorValuesReportCorrectDocs);
+        assertFloatsWithinBounds(err);
+    }
+
+    @Override
+    public void testRandomWithUpdatesAndGraph() throws Exception {
+        AssertionError err = expectThrows(AssertionError.class, super::testRandomWithUpdatesAndGraph);
         assertFloatsWithinBounds(err);
     }
 

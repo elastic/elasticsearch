@@ -73,7 +73,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.<Object[]>of(new Object[] { "bbq_disk" });
+        return List.of(new Object[] { "bbq_hnsw" }, new Object[] { "bbq_disk" });
     }
 
     public DirectIOIT(String type) {

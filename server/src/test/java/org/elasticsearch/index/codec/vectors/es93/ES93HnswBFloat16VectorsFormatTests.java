@@ -17,7 +17,8 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.closeTo;
 
-public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends ES93BinaryQuantizedVectorsFormatTests {
+public class ES93HnswBFloat16VectorsFormatTests extends ES93HnswVectorsFormatTests {
+
     @Override
     DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.BFLOAT16;
@@ -59,13 +60,14 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends ES93BinaryQua
     }
 
     @Override
-    public void testWriterRamEstimate() throws Exception {
-        // estimate is different due to bfloat16
+    public void testRandom() throws Exception {
+        AssertionError err = expectThrows(AssertionError.class, super::testRandom);
+        assertFloatsWithinBounds(err);
     }
 
     @Override
-    public void testRandom() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandom);
+    public void testRandomWithUpdatesAndGraph() throws Exception {
+        AssertionError err = expectThrows(AssertionError.class, super::testRandomWithUpdatesAndGraph);
         assertFloatsWithinBounds(err);
     }
 

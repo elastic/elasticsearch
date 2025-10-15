@@ -22,6 +22,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -36,6 +37,9 @@ import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX;
 
@@ -536,7 +540,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
             switch (fieldType.getElementType()) {
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
+                    // BFloat16 is handled by the implementation of FloatVectorValues
                     FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
                     if (floatVectorValues != null) {
                         if (fieldType.isNormalized()) {
@@ -1052,6 +1057,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             }
             return switch (elementType) {
                 case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
+                case BFLOAT16 -> new BFloat16DenseVectorFromBinary(docValues, dims, indexVersion);
                 case BYTE -> new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
                 case BIT -> new BitDenseVectorFromBinary(docValues, dims, indexVersion);
             };
@@ -1132,6 +1138,26 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "FloatDenseVectorFromBinary.Bytes";
+        }
+    }
+
+    private static class BFloat16DenseVectorFromBinary extends FloatDenseVectorFromBinary {
+        BFloat16DenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion);
+        }
+
+        @Override
+        protected void decodeDenseVector(BytesRef bytesRef, float[] scratch) {
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
+            ShortBuffer sb = ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .asShortBuffer();
+            BFloat16.bFloat16ToFloat(sb, scratch);
+        }
+
+        @Override
+        public String toString() {
+            return "BFloat16DenseVectorFromBinary.Bytes";
         }
     }
 

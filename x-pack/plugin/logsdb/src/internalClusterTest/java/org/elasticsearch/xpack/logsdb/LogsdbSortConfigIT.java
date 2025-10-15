@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -130,7 +131,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             doc("{\"@timestamp\":\"2025-01-01T12:00:00\",\"test_id\": \"%id%\"}"),
             doc("{\"@timestamp\":\"2025-01-01T11:00:00\",\"test_id\": \"%id%\"}") };
 
-        createDataStream(dataStreamName, mapping);
+        createDataStream(dataStreamName, mapping, b -> b.put("index.logsdb.default_sort_on_message_template", true));
 
         List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
         indexDocuments(dataStreamName, shuffledDocs);
@@ -264,11 +265,21 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     private void createDataStream(String dataStreamName, String mapping) throws IOException {
+        createDataStream(dataStreamName, mapping, UnaryOperator.identity());
+    }
+
+    private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
-                .template(new Template(indexSettings(1, 0).put("index.mode", "logsdb").build(), new CompressedXContent(mapping), null))
+                .template(
+                    new Template(
+                        settings.apply(indexSettings(1, 0)).put("index.mode", "logsdb").build(),
+                        new CompressedXContent(mapping),
+                        null
+                    )
+                )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );

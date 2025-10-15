@@ -19,6 +19,7 @@ import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -88,11 +89,16 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean useDirectIO;
 
     public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(vectorPerCluster, centroidsPerParentCluster, false, false);
+        this(vectorPerCluster, centroidsPerParentCluster, DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     // TODO: ElementType
-    public ES920DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, boolean useBFloat16, boolean useDirectIO) {
+    public ES920DiskBBQVectorsFormat(
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -116,7 +122,11 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
         }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
-        this.rawVectorFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
+        this.rawVectorFormat = switch (elementType) {
+            case FLOAT -> float32VectorFormat;
+            case BFLOAT16 -> bfloat16VectorFormat;
+            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
+        };
         this.useDirectIO = useDirectIO;
     }
 

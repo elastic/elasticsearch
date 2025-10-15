@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,8 +18,8 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class ES920DiskBBQBFloat16VectorsFormatTests extends ES920DiskBBQVectorsFormatTests {
     @Override
-    boolean useBFloat16() {
-        return true;
+    DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.BFLOAT16;
     }
 
     @Override

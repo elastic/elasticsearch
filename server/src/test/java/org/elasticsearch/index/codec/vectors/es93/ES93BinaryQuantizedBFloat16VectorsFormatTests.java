@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.index.VectorEncoding;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,8 +19,8 @@ import static org.hamcrest.Matchers.closeTo;
 
 public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends ES93BinaryQuantizedVectorsFormatTests {
     @Override
-    boolean useBFloat16() {
-        return true;
+    DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.BFLOAT16;
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -32,21 +33,21 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         flatVectorsFormat = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93HnswVectorsFormat(int maxConn, int beamWidth, boolean bfloat16, boolean useDirectIO) {
+    public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
         super(NAME, maxConn, beamWidth);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     public ES93HnswVectorsFormat(
         int maxConn,
         int beamWidth,
-        boolean bfloat16,
+        DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(bfloat16, useDirectIO);
+        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override

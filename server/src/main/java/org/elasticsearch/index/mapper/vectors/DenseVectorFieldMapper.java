@@ -2074,11 +2074,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return switch (elementType) {
-                case FLOAT -> new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, false, onDiskRescore);
-                case BFLOAT16 -> new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, true, onDiskRescore);
-                default -> throw new AssertionError();
-            };
+            return new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, elementType, onDiskRescore);
         }
 
         @Override
@@ -2143,11 +2139,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return switch (elementType) {
-                case FLOAT -> new ES93BinaryQuantizedVectorsFormat(false, false);
-                case BFLOAT16 -> new ES93BinaryQuantizedVectorsFormat(false, true);
-                default -> throw new AssertionError();
-            };
+            return new ES93BinaryQuantizedVectorsFormat(elementType, false);
         }
 
         @Override
@@ -2210,21 +2202,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            return switch (elementType) {
-                case FLOAT -> new ES920DiskBBQVectorsFormat(
-                    clusterSize,
-                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                    false,
-                    onDiskRescore
-                );
-                case BFLOAT16 -> new ES920DiskBBQVectorsFormat(
-                    clusterSize,
-                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                    true,
-                    onDiskRescore
-                );
-                default -> throw new AssertionError();
-            };
+            return new ES920DiskBBQVectorsFormat(
+                clusterSize,
+                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                onDiskRescore
+            );
         }
 
         @Override

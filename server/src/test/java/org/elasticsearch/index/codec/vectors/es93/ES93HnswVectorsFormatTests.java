@@ -27,6 +27,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -47,13 +48,13 @@ public class ES93HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     private KnnVectorsFormat format;
 
-    protected boolean useBFloat16() {
-        return false;
+    DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93HnswVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, useBFloat16(), random().nextBoolean());
+        format = new ES93HnswVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, elementType(), random().nextBoolean());
         super.setUp();
     }
 
@@ -66,7 +67,7 @@ public class ES93HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93HnswVectorsFormat(10, 20, false, false);
+                return new ES93HnswVectorsFormat(10, 20, elementType(), false);
             }
         };
         String expectedPattern = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20,"
@@ -78,15 +79,15 @@ public class ES93HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(-1, 20, false, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(0, 20, false, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, 0, false, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, -1, false, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(512 + 1, 20, false, false));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, 3201, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(-1, 20, elementType(), false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(0, 20, elementType(), false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, 0, elementType(), false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, -1, elementType(), false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(512 + 1, 20, elementType(), false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswVectorsFormat(20, 3201, elementType(), false));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES93HnswVectorsFormat(20, 100, false, false, 1, new SameThreadExecutorService())
+            () -> new ES93HnswVectorsFormat(20, 100, elementType(), false, 1, new SameThreadExecutorService())
         );
     }
 
@@ -106,7 +107,11 @@ public class ES93HnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
+                    int bytes = switch (elementType()) {
+                        case FLOAT -> Float.BYTES;
+                        case BFLOAT16 -> BFloat16.BYTES;
+                        default -> throw new AssertionError();
+                    };
                     assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
                     assertEquals(1L, (long) offHeap.get("vex"));
                     assertEquals(2, offHeap.size());

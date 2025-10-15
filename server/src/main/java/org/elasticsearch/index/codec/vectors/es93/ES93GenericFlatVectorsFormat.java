@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,13 +55,16 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     private final boolean useDirectIO;
 
     public ES93GenericFlatVectorsFormat() {
-        this(false, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
-    // TODO: ElementType
-    public ES93GenericFlatVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
+    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
         super(NAME);
-        writeFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
+        writeFormat = switch (elementType) {
+            case FLOAT -> float32VectorFormat;
+            case BFLOAT16 -> bfloat16VectorFormat;
+            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
+        };
         this.useDirectIO = useDirectIO;
     }
 

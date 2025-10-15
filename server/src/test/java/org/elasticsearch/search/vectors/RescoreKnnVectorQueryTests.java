@@ -47,6 +47,7 @@ import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFo
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -286,7 +287,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             new ES920DiskBBQVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                randomBoolean(),
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
             new ES818BinaryQuantizedVectorsFormat(),
@@ -294,7 +295,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             new ES93HnswBinaryQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                randomBoolean(),
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
             new ES813Int8FlatVectorFormat(),

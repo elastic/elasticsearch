@@ -36,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -63,8 +64,8 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     private KnnVectorsFormat format;
 
-    boolean useBFloat16() {
-        return false;
+    DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Before
@@ -74,7 +75,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                useBFloat16(),
+                elementType(),
                 random().nextBoolean()
             );
         } else {
@@ -82,7 +83,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
             format = new ES920DiskBBQVectorsFormat(
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                useBFloat16(),
+                elementType(),
                 random().nextBoolean()
             );
         }

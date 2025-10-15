@@ -66,7 +66,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, MalformedValueHandler malformedHandler)
             throws IOException;
 
-        private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
+        void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
                 parseFromSource(parser, consumer);
             } catch (IOException e) {
@@ -74,7 +74,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             }
         }
 
-        private void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
+        void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
             parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
         }
 
@@ -136,14 +136,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         protected AbstractGeometryFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Parser<T> geometryParser,
             T nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, meta);
+            super(name, indexType, stored, meta);
             this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }

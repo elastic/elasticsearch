@@ -9,15 +9,15 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
@@ -40,7 +40,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
+    ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
         super(state, getFormatReader);
     }
 
@@ -136,6 +136,37 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             );
         }
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+    }
+
+    @Override
+    protected FieldEntry doReadField(
+        IndexInput input,
+        String rawVectorFormat,
+        boolean useDirectIOReads,
+        VectorSimilarityFunction similarityFunction,
+        VectorEncoding vectorEncoding,
+        int numCentroids,
+        long centroidOffset,
+        long centroidLength,
+        long postingListOffset,
+        long postingListLength,
+        float[] globalCentroid,
+        float globalCentroidDp
+    ) {
+        // nothing more to read
+        return new FieldEntry(
+            rawVectorFormat,
+            useDirectIOReads,
+            similarityFunction,
+            vectorEncoding,
+            numCentroids,
+            centroidOffset,
+            centroidLength,
+            postingListOffset,
+            postingListLength,
+            globalCentroid,
+            globalCentroidDp
+        );
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(
@@ -353,8 +384,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs)
         throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
-        final int maxPostingListSize = indexInput.readVInt();
-        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, acceptDocs);
+        // max postings list size, no longer utilized
+        indexInput.readVInt();
+        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs);
     }
 
     @Override
@@ -394,14 +426,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
 
-        MemorySegmentPostingsVisitor(
-            float[] target,
-            IndexInput indexInput,
-            FieldEntry entry,
-            FieldInfo fieldInfo,
-            int maxPostingListSize,
-            Bits acceptDocs
-        ) throws IOException {
+        MemorySegmentPostingsVisitor(float[] target, IndexInput indexInput, FieldEntry entry, FieldInfo fieldInfo, Bits acceptDocs)
+            throws IOException {
             this.target = target;
             this.indexInput = indexInput;
             this.entry = entry;

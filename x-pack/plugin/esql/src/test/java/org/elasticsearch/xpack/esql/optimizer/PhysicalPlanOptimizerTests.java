@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroi
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -639,15 +640,118 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.estimatedRowSize(), equalTo(estimatedSize));
     }
 
-    public void testEvalPlan() {
+
+     /** Expects
+     * LimitExec[1000[INTEGER],2284]
+     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4],false]
+     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4]]
+     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
+     *       \_LimitExec[1000[INTEGER],78]
+     *         \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
+     *           \_FieldExtractExec[first_name{f}#6]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[1000], sort[] estimatedRowSize[2288] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *
+     */
+    public void testEvalWithScoreImplicitLimit() {
         var plan = physicalPlan("""
             from test
             | eval s = score(match(first_name, "foo"))
-            | limit 10
             """);
 
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
+        assertThat(limit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(fieldExtract.child(), LimitExec.class);
+        assertThat(dataNodeLimit.limit(), is(l(1000)));
+        var eval = as(dataNodeLimit.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertThat(query.limit(), is(l(1000)));
+    }
+
+    /**
+     * Expects
+     * LimitExec[42[INTEGER],2284]
+     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4],false]
+     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4]]
+     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
+     *       \_LimitExec[42[INTEGER],78]
+     *         \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
+     *           \_FieldExtractExec[first_name{f}#6]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[42], sort[] estimatedRowSize[2288] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     */
+    public void testEvalWithScoreExplicitLimit() {
+        var plan = physicalPlan("""
+            from test
+            | eval s = score(match(first_name, "foo"))
+            | limit 42
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        assertThat(limit.limit(), is(l(42)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(fieldExtract.child(), LimitExec.class);
+        assertThat(dataNodeLimit.limit(), is(l(42)));
+        var eval = as(dataNodeLimit.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertThat(query.limit(), is(l(42)));
+    }
+
+
+    /**
+     * Expects
+     * ProjectExec[[first_name{f}#9]]
+     * \_TopNExec[[Order[emp_no{f}#8,ASC,LAST]],2[INTEGER],54]
+     *   \_LimitExec[42[INTEGER],54]
+     *     \_ExchangeExec[[emp_no{f}#8, first_name{f}#9],false]
+     *       \_ProjectExec[[emp_no{f}#8, first_name{f}#9]]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_LimitExec[42[INTEGER],78]
+     *             \_FilterExec[s{r}#4 > 0.5[DOUBLE]]
+     *               \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
+     *                 \_FieldExtractExec[first_name{f}#9]
+     *                   \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[42], sort[] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     */
+    public void testEvalWithScoreAndTopN() {
+        var plan = physicalPlan("""
+            from test
+            | eval s = score(match(first_name, "foo"))
+            | where s > 0.5
+            | limit 42
+            | sort emp_no
+            | keep first_name
+            | limit 2
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        assertThat(limit.limit(), is(l(42)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(fieldExtract.child(), LimitExec.class);
+        assertThat(dataNodeLimit.limit(), is(l(42)));
+        var eval = as(dataNodeLimit.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertThat(query.limit(), is(l(42)));
     }
 
     /**

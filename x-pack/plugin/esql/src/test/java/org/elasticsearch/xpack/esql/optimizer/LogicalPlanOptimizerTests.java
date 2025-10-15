@@ -204,24 +204,24 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
-    public void testSimpleEvalImplicitLimit() {
+    public void testEvalWithScoreImplicitLimit() {
         var plan = plan("""
             from test
             | eval s = score(match(last_name, "high"))
             """);
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), instanceOf(Eval.class));
-        assertThat(((Literal)limit.limit()).value(), equalTo(1000L));
+        assertThat(((Literal)limit.limit()).value(), equalTo(1000));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child(), instanceOf(Score.class));
     }
 
-    public void testSimpleEvalExplicitLimit() {
+    public void testEvalWithScoreExplicitLimit() {
         var plan = plan("""
             from test
             | eval s = score(match(last_name, "high"))
@@ -229,7 +229,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), instanceOf(Eval.class));
-        assertThat(((Literal)limit.limit()).value(), equalTo(42L));
+        assertThat(((Literal)limit.limit()).value(), equalTo(42));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child(), instanceOf(Score.class));

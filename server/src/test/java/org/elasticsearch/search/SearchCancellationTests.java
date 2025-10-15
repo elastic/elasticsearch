@@ -121,6 +121,25 @@ public class SearchCancellationTests extends ESTestCase {
         assertThat(totalHits2, equalTo(reader.numDocs()));
     }
 
+    public void testCheckCancelled() throws IOException {
+        Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+
+        searcher.checkCancelled();
+
+        searcher.addQueryCancellation(cancellation);
+        expectThrows(TaskCancelledException.class, searcher::checkCancelled);
+
+        searcher.removeQueryCancellation(cancellation);
+        searcher.checkCancelled();
+    }
+
     public void testExitableDirectoryReader() throws IOException {
         AtomicBoolean cancelled = new AtomicBoolean(true);
         Runnable cancellation = () -> {

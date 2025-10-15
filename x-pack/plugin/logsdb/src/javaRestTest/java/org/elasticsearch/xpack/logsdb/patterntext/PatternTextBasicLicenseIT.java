@@ -23,6 +23,10 @@ public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    private Map<String, Object> getFieldMapping(Map<String, Object> mapping, String fieldName) {
+        return (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(fieldName);
+    }
+
     public void testStandardIndex() throws IOException {
         final String dataStreamName = "test-foo";
 
@@ -54,9 +58,7 @@ public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
         {
             assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "pattern_field"
-            );
+            Map<String, Object> patternFieldMapping = getFieldMapping(mapping, "pattern_field");
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
 
@@ -66,14 +68,11 @@ public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
         {
             assertEquals("true", getSetting(client(), backingIndex1, "index.mapping.pattern_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "pattern_field"
-            );
+            Map<String, Object> patternFieldMapping = getFieldMapping(mapping, "pattern_field");
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testLogsdbIndex() throws IOException {
         final String dataStreamName = "test-bar";
 
@@ -84,7 +83,8 @@ public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
               "data_stream": {},
               "template": {
                 "settings": {
-                  "index.mode": "logsdb"
+                  "index.mode": "logsdb",
+                  "index.logsdb.default_sort_on_message_template": true
                 },
                 "mappings": {
                   "properties": {
@@ -119,9 +119,7 @@ public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
                 getSetting(client(), backingIndex0, "index.sort.field")
             );
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "message"
-            );
+            Map<String, Object> patternFieldMapping = getFieldMapping(mapping, "message");
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
 
@@ -135,9 +133,7 @@ public class PatternTextBasicLicenseIT extends DataStreamLicenseChangeTestCase {
                 getSetting(client(), backingIndex1, "index.sort.field")
             );
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
-            Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
-                "message"
-            );
+            Map<String, Object> patternFieldMapping = getFieldMapping(mapping, "message");
             assertThat(patternFieldMapping, hasEntry("disable_templating", true));
         }
     }

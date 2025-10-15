@@ -113,16 +113,21 @@ public class ElasticInferenceService extends SenderService {
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
 
     // elastic-elser-v2
-    static final String DEFAULT_ELSER_2_MODEL_ID = "elastic-elser-v2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId(DEFAULT_ELSER_2_MODEL_ID);
-
-    // jina-embeddings-v3
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
-    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+    static final String DEFAULT_ELSER_V2_MODEL_ID = "elastic-elser-v2";
+    static final String DEFAULT_ELSER_V2_ENDPOINT_ID = defaultEndpointId(DEFAULT_ELSER_V2_MODEL_ID);
 
     // elastic-rerank-v1
     static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
     static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+
+    // jina-embeddings-v3
+    static final String DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID = "jina-embeddings-v3";
+    static final String DEFAULT_JINA_EMBEDDINGS_V3_ENDPOINT_ID = defaultEndpointId(DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID);
+
+    // jina-reranker-v3
+    static final String DEFAULT_JINA_RERANKER_V3_MODEL_ID = "jina-reranker-v3";
+    static final String DEFAULT_JINA_RERANKER_V3_ENDPOINT_ID = defaultEndpointId(DEFAULT_KINA_RERANKER_V3_MODEL_ID);
+
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -199,13 +204,13 @@ public class ElasticInferenceService extends SenderService {
                 ),
                 MinimalServiceSettings.chatCompletion(NAME)
             ),
-            DEFAULT_ELSER_2_MODEL_ID,
+            DEFAULT_ELSER_V2_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
-                    DEFAULT_ELSER_ENDPOINT_ID_V2,
+                    DEFAULT_ELSER_V2_ENDPOINT_ID,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_V2_MODEL_ID, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,
@@ -213,14 +218,14 @@ public class ElasticInferenceService extends SenderService {
                 ),
                 MinimalServiceSettings.sparseEmbedding(NAME)
             ),
-            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+            DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceDenseTextEmbeddingsModel(
-                    DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
+                    DEFAULT_JINA_EMBEDDINGS_V3_ENDPOINT_ID,
                     TaskType.TEXT_EMBEDDING,
                     NAME,
                     new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                        DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+                        DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID,
                         defaultDenseTextEmbeddingsSimilarity(),
                         null,
                         null

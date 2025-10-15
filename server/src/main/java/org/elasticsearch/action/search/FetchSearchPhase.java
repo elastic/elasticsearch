@@ -77,7 +77,6 @@ class FetchSearchPhase extends SearchPhase {
 
     @Override
     protected void run() {
-        phaseStartTimeInNanos = System.nanoTime();
         context.execute(new AbstractRunnable() {
 
             @Override
@@ -94,6 +93,7 @@ class FetchSearchPhase extends SearchPhase {
 
     private void innerRun() throws Exception {
         assert this.reducedQueryPhase == null ^ this.resultConsumer == null;
+        phaseStartTimeInNanos = System.nanoTime();
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
         final int numShards = context.getNumShards();

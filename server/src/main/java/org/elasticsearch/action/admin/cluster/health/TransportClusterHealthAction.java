@@ -233,18 +233,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                             )
                         );
                     } else {
-                        final Level level = isExpectedFailure(e) ? Level.TRACE : Level.ERROR;
+                        final Level level = e instanceof NotMasterException ? Level.TRACE : Level.ERROR;
                         logger.log(level, () -> "unexpected failure during [" + source + "]", e);
-                        assert isExpectedFailure(e) : e; // task cannot fail, nor will it trigger a publication which fails
+                        assert e instanceof NotMasterException : e; // task cannot fail, nor will it trigger a publication which fails
                         // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
                         listener.onFailure(e);
                     }
                 }
-
-                static boolean isExpectedFailure(Exception e) {
-                    return e instanceof NotMasterException;
-                }
-
             });
         }
     }

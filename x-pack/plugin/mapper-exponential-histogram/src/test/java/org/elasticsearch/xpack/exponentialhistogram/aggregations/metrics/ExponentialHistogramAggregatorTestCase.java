@@ -12,6 +12,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
@@ -32,30 +33,7 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
     }
 
     protected static List<ExponentialHistogram> createRandomHistograms(int count) {
-        return IntStream.range(0, count).mapToObj(i -> {
-            boolean hasNegativeValues = randomBoolean();
-            boolean hasPositiveValues = randomBoolean();
-            boolean hasZeroValues = randomBoolean();
-            double[] rawValues = IntStream.concat(
-                IntStream.concat(
-                    hasNegativeValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> -1) : IntStream.empty(),
-                    hasPositiveValues ? IntStream.range(0, randomIntBetween(1, 1000)).map(i1 -> 1) : IntStream.empty()
-                ),
-                hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
-            ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
-
-            int numBuckets = randomIntBetween(4, 300);
-            ExponentialHistogram histo = ExponentialHistogram.create(numBuckets, ExponentialHistogramCircuitBreaker.noop(), rawValues);
-            // Randomize sum, min and max a little
-            if (histo.valueCount() > 0) {
-                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop());
-                builder.sum(histo.sum() + (randomDouble() - 0.5) * 10_000);
-                builder.max(histo.max() - randomDouble());
-                builder.min(histo.min() + randomDouble());
-                histo = builder.build();
-            }
-            return histo;
-        }).toList();
+        return IntStream.range(0, count).mapToObj(i -> ExponentialHistogramTestUtils.randomHistogram()).toList();
     }
 
     protected static void addHistogramDoc(

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -136,6 +137,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -247,6 +249,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
 
     private final Configuration config;
+    private PlannerSettings plannerSettings;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
 
@@ -360,6 +363,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             functionRegistry,
             enrichResolution
         );
+        this.plannerSettings = TEST_PLANNER_SETTINGS;
     }
 
     TestDataSource makeTestDataSource(
@@ -3798,11 +3802,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
-        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
-        agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertThat("Aggregation is SINGLE", agg.getMode(), equalTo(SINGLE));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
         var eval = as(agg.child(), EvalExec.class);
@@ -4101,12 +4101,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
-        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-        assertAggregation(agg, "count", Sum.class);
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
-        agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertThat("Aggregation is SINGLE", agg.getMode(), equalTo(SINGLE));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "count", Sum.class);
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
@@ -6897,11 +6892,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | ENRICH _coordinator:departments
                 | STATS size=count(*) BY department""");
             var limit = as(plan, LimitExec.class);
-            var finalAggs = as(limit.child(), AggregateExec.class);
-            assertThat(finalAggs.getMode(), equalTo(FINAL));
-            var partialAggs = as(finalAggs.child(), AggregateExec.class);
-            assertThat(partialAggs.getMode(), equalTo(INITIAL));
-            var enrich = as(partialAggs.child(), EnrichExec.class);
+            var aggs = as(limit.child(), AggregateExec.class);
+            assertThat(aggs.getMode(), equalTo(SINGLE));
+            var enrich = as(aggs.child(), EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.COORDINATOR));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-3")));
             var exchange = as(enrich.child(), ExchangeExec.class);
@@ -7228,9 +7221,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
-            var finalAgg = as(limit.child(), AggregateExec.class);
-            var partialAgg = as(finalAgg.child(), AggregateExec.class);
-            var enrich1 = as(partialAgg.child(), EnrichExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            var enrich1 = as(agg.child(), EnrichExec.class);
             assertThat(enrich1.policyName(), equalTo("supervisors"));
             assertThat(enrich1.mode(), equalTo(Enrich.Mode.ANY));
             var finalTopN = as(enrich1.child(), TopNExec.class);
@@ -7254,9 +7246,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
-            var finalAgg = as(limit.child(), AggregateExec.class);
-            var partialAgg = as(finalAgg.child(), AggregateExec.class);
-            var enrich1 = as(partialAgg.child(), EnrichExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            var enrich1 = as(agg.child(), EnrichExec.class);
             assertThat(enrich1.policyName(), equalTo("supervisors"));
             assertThat(enrich1.mode(), equalTo(Enrich.Mode.COORDINATOR));
             var finalTopN = as(enrich1.child(), TopNExec.class);
@@ -7280,9 +7271,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
-            var finalAgg = as(limit.child(), AggregateExec.class);
-            var partialAgg = as(finalAgg.child(), AggregateExec.class);
-            var enrich1 = as(partialAgg.child(), EnrichExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            var enrich1 = as(agg.child(), EnrichExec.class);
             assertThat(enrich1.policyName(), equalTo("supervisors"));
             assertThat(enrich1.mode(), equalTo(Enrich.Mode.ANY));
             var topN = as(enrich1.child(), TopNExec.class);
@@ -7305,9 +7295,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | STATS teams=count(*) BY supervisor
                 """);
             var limit = as(plan, LimitExec.class);
-            var finalAgg = as(limit.child(), AggregateExec.class);
-            var partialAgg = as(finalAgg.child(), AggregateExec.class);
-            var enrich1 = as(partialAgg.child(), EnrichExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            var enrich1 = as(agg.child(), EnrichExec.class);
             assertThat(enrich1.policyName(), equalTo("supervisors"));
             assertThat(enrich1.mode(), equalTo(Enrich.Mode.ANY));
             var topN = as(enrich1.child(), TopNExec.class);
@@ -7889,11 +7878,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null, TEST_PLANNER_SETTINGS),
-            List.of()
+            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS)
         );
 
-        return planner.plan("test", FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -7989,10 +7977,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
-        TopNExec reductionTopN = as(reduction, TopNExec.class);
-        assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
-        assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
+        var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topN = as(reductionPlan, TopNExec.class);
+        assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
     }
 
     public void testReductionPlanForAggs() {
@@ -8001,7 +7988,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats x = sum(salary) BY first_name
             """);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
@@ -8009,7 +7996,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testReductionPlanForLimit() {
         var plan = physicalPlan("FROM test | LIMIT 10");
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(2276));
     }
@@ -8285,7 +8272,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query, config)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);

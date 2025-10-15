@@ -41,6 +41,7 @@
     "params": {
       "debug": {
         "type": "boolean",
+        "default": false,
         "description": "indicates whether the watch should execute in debug mode"
       }
     },

@@ -93,7 +93,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
-    private final SetOnce<XContentLengthPrefixedStreamingType> xContentLengthPrefixedStreamingType = new SetOnce<>();
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
@@ -138,14 +137,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         try {
             this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
             if (parsedContentType != null) {
-                this.xContentLengthPrefixedStreamingType.set(
-                    XContentLengthPrefixedStreamingType.fromMediaType(parsedContentType.mediaTypeWithoutParameters())
-                );
-                if (this.xContentLengthPrefixedStreamingType.get() == null) {
-                    this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
-                } else {
-                    this.xContentType.set(xContentLengthPrefixedStreamingType.get().xContentType());
-                }
+                this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
             }
         } catch (IllegalArgumentException e) {
             throw new MediaTypeHeaderException(e, "Content-Type");
@@ -347,7 +339,8 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasLengthPrefixedStreamingContent() {
-        return xContentLengthPrefixedStreamingType.get() != null;
+        return parsedContentType != null
+            && XContentLengthPrefixedStreamingType.fromMediaType(parsedContentType.mediaTypeWithoutParameters()) != null;
     }
 
     /**

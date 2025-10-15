@@ -32,7 +32,7 @@ public enum XContentLengthPrefixedStreamingType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "stream.json";
+            return null;
         }
 
         @Override
@@ -52,7 +52,7 @@ public enum XContentLengthPrefixedStreamingType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "stream.smile";
+            return null;
         }
 
         @Override
@@ -72,7 +72,7 @@ public enum XContentLengthPrefixedStreamingType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "stream.yaml";
+            return null;
         }
 
         @Override
@@ -92,7 +92,7 @@ public enum XContentLengthPrefixedStreamingType implements MediaType {
 
         @Override
         public String queryParameter() {
-            return "stream.cbor";
+            return null;
         }
 
         @Override

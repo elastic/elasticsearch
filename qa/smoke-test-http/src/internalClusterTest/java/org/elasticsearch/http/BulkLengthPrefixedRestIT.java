@@ -40,13 +40,14 @@ public class BulkLengthPrefixedRestIT extends HttpSmokeTestCase {
 
     private final RequestOptions options;
     private final XContentLengthPrefixedStreamingType xContentLengthPrefixedStreamingType;
-    private final XContentType xContentType;
+    private final XContentType returnXContentType;
 
     public BulkLengthPrefixedRestIT() {
         xContentLengthPrefixedStreamingType = randomFrom(XContentLengthPrefixedStreamingType.values());
-        xContentType = xContentLengthPrefixedStreamingType.xContentType();
+        returnXContentType = randomFrom(XContentType.values());
         options = RequestOptions.DEFAULT.toBuilder()
             .addHeader("Content-Type", randomFrom(xContentLengthPrefixedStreamingType.headerValues()).v1())
+            .addHeader("Accept", randomFrom(returnXContentType.headerValues()).v1())
             .build();
     }
 
@@ -222,7 +223,7 @@ public class BulkLengthPrefixedRestIT extends HttpSmokeTestCase {
             writeDocToBulk(bulk, doc);
             createDocument(doc, 1);
             writeDocToBulk(bulk, doc);
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, doc)) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentLengthPrefixedStreamingType.xContentType(), doc)) {
                 builder.startObject();
                 builder.endObject();
             }
@@ -259,14 +260,18 @@ public class BulkLengthPrefixedRestIT extends HttpSmokeTestCase {
 
         final Response bulkResponse = getRestClient().performRequest(bulkRequest);
         assertThat(bulkResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
-        Map<String, Object> responseMap = XContentHelper.convertToMap(xContentType.xContent(), bulkResponse.getEntity().getContent(), true);
+        Map<String, Object> responseMap = XContentHelper.convertToMap(
+            returnXContentType.xContent(),
+            bulkResponse.getEntity().getContent(),
+            true
+        );
 
         assertFalse((Boolean) responseMap.get("errors"));
         assertThat(((List<Object>) responseMap.get("items")).size(), equalTo(1001 + updates));
     }
 
     private void createActionDocument(OutputStream doc, String action, String indexName, String id) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, doc)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentLengthPrefixedStreamingType.xContentType(), doc)) {
             builder.startObject();
             builder.startObject(action);
             builder.field("_index", indexName);
@@ -279,7 +284,7 @@ public class BulkLengthPrefixedRestIT extends HttpSmokeTestCase {
     }
 
     private void createDocument(OutputStream doc, int value) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, doc)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentLengthPrefixedStreamingType.xContentType(), doc)) {
             builder.startObject();
             builder.field("field", value);
             builder.endObject();
@@ -287,7 +292,7 @@ public class BulkLengthPrefixedRestIT extends HttpSmokeTestCase {
     }
 
     private void createUpdateDocument(OutputStream doc, int value) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, doc)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentLengthPrefixedStreamingType.xContentType(), doc)) {
             builder.startObject();
             builder.startObject("doc");
             builder.field("field", value);

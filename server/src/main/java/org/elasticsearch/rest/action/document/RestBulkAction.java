@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.XContentLengthPrefixedStreamingType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -123,6 +124,17 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.requestParamsUsed(request.params().keySet());
             ReleasableBytesReference content = request.requiredContent();
 
+            XContentType xContentType;
+            BulkFormat bulkFormat;
+            if (request.hasLengthPrefixedStreamingContent()) {
+                xContentType = XContentLengthPrefixedStreamingType.fromMediaType(
+                    request.getParsedContentType().mediaTypeWithoutParameters()
+                ).xContentType();
+                bulkFormat = BulkFormat.PREFIX_LENGTH;
+            } else {
+                xContentType = request.getXContentType();
+                bulkFormat = BulkFormat.MARKER_SUFFIX;
+            }
             try {
                 bulkRequest.add(
                     content,
@@ -134,8 +146,8 @@ public class RestBulkAction extends BaseRestHandler {
                     defaultRequireDataStream,
                     defaultListExecutedPipelines,
                     allowExplicitIndex,
-                    request.getXContentType(),
-                    request.hasLengthPrefixedStreamingContent() ? BulkFormat.PREFIX_LENGTH : BulkFormat.MARKER_SUFFIX,
+                    xContentType,
+                    bulkFormat,
                     request.getRestApiVersion()
                 );
             } catch (Exception e) {
@@ -186,6 +198,17 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
+            XContentType xContentType;
+            BulkFormat bulkFormat;
+            if (request.hasLengthPrefixedStreamingContent()) {
+                xContentType = XContentLengthPrefixedStreamingType.fromMediaType(
+                    request.getParsedContentType().mediaTypeWithoutParameters()
+                ).xContentType();
+                bulkFormat = BulkFormat.PREFIX_LENGTH;
+            } else {
+                xContentType = request.getXContentType();
+                bulkFormat = BulkFormat.MARKER_SUFFIX;
+            }
             this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
                 .incrementalParser(
                     request.param("index"),
@@ -196,8 +219,8 @@ public class RestBulkAction extends BaseRestHandler {
                     request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
                     request.paramAsBoolean("list_executed_pipelines", false),
                     allowExplicitIndex,
-                    request.getXContentType(),
-                    request.hasLengthPrefixedStreamingContent() ? BulkFormat.PREFIX_LENGTH : BulkFormat.MARKER_SUFFIX,
+                    xContentType,
+                    bulkFormat,
                     (indexRequest, type) -> items.add(indexRequest),
                     items::add,
                     items::add

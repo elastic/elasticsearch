@@ -107,7 +107,15 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     // Move the alias into an eval and replace it with its attribute.
                     groupingChanged = true;
                     var attr = as.toAttribute();
-                    if (asChild instanceof DateFormat df) {
+                    final Attribute finalAttribute = as.toAttribute();
+                    if (asChild instanceof DateFormat df
+                        && aggregate.aggregates()
+                            .stream()
+                            .anyMatch(
+                                expression -> expression instanceof Alias alias && alias.references().contains(finalAttribute)
+                            ) == false) {
+                        // if (asChild instanceof DateFormat df) {
+
                         // Extract the format pattern and field from DateFormat
                         Expression rawFormat = df.format();
                         AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(aggregate, ctx);
@@ -457,9 +465,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 case 6:
                     return new Literal(source, ChronoUnit.MILLIS.getDuration(), DataType.TIME_DURATION);
             }
-        } catch (
-
-        IllegalArgumentException ignored) {}
+        } catch (IllegalArgumentException ignored) {}
         return null;
     }
 }

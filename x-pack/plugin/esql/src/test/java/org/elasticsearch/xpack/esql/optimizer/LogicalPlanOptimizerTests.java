@@ -64,10 +64,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -9437,6 +9437,114 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(rightAgg.groupings(), hasSize(1)); // grouped by date_format result
         assertThat(rightAgg.aggregates(), hasSize(2)); // sum(x) + grouping field
         var rightSource = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[count(*){r}#7001, concat(x, "01"){r}#7003, x{r}#7000]]
+     * \_Eval[[CONCAT(x{r}#7000,01[KEYWORD]) AS concat(x, "01")#7003]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_Aggregate[[x{r}#7000],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*)#7001, x{r}#7000]]
+     *       \_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#7012) AS x#7000]]
+     *         \_EsRelation[test][_meta_field{f}#7011, emp_no{f}#7005, first_name{f}#..]
+     */
+    public void testStatsCountConcatGroupingByDateFormat() {
+        var plan = plan("""
+            from test | stats count(*), concat(x, "01") by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var project = as(plan, Project.class);
+
+        var eval = as(project.child(), Eval.class);
+        var concatAlias = as(eval.fields().get(0), Alias.class);
+        var concat = as(concatAlias.child(), Concat.class);
+
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+
+        var evalInner = as(agg.child(), Eval.class);
+        var dateFormatAlias = as(evalInner.fields().get(0), Alias.class);
+        var dateFormat = as(dateFormatAlias.child(), DateFormat.class);
+
+        var relation = as(evalInner.child(), EsRelation.class);
+    }
+
+    /**
+     *Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[x{r}#9486],[x{r}#9486]]
+     *   |_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#9494) AS x#9486]]
+     *   | \_EsRelation[test][_meta_field{f}#9493, emp_no{f}#9487, first_name{f}#..]
+     *   \_Project[[count(*){r}#9481, concat(x, "01"){r}#9483, x{r}#9486]]
+     *     \_Eval[[CONCAT(x{r}#9486,01[KEYWORD]) AS concat(x, "01")#9483]]
+     *       \_Aggregate[[x{r}#9486],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*)#9481, x{r}#9486]]
+     *         \_StubRelation[[_meta_field{f}#9493, emp_no{f}#9487, first_name{f}#9488, gender{f}#9489, hire_date{f}#9494, job{f}#9495, job.
+     * raw{f}#9496, languages{f}#9490, last_name{f}#9491, long_noidx{f}#9497, salary{f}#9492, x{r}#9486]]
+     */
+    public void testInlineStatsCountConcatGroupingByDateFormat() {
+        var plan = plan("""
+            from test | inline stats count(*), concat(x, "01") by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Verify the left side (eval with date_format)
+        var eval = as(inlineJoin.left(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+
+        // Verify the right side (project with aggregates)
+        var project = as(inlineJoin.right(), Project.class);
+        var evalConcat = as(project.child(), Eval.class);
+        var aggregate = as(evalConcat.child(), Aggregate.class);
+        var stubRelation = as(aggregate.child(), StubRelation.class);
+    }
+
+    /**
+     * Limit[1000[INTEGER],false]
+     * \_Aggregate[[x{r}#961],[MAX(x{r}#961,true[BOOLEAN]) AS a#964, x{r}#961]]
+     *   \_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#973) AS x#961]]
+     *     \_EsRelation[test][_meta_field{f}#972, emp_no{f}#966, first_name{f}#96..]
+     */
+    public void testStatsMaxGroupingByDateFormat() {
+        var plan = plan("""
+            from test |  stats a = max(x) by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var eval = as(aggregate.child(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     *
+     *Limit[1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[x{r}#4757],[x{r}#4757]]
+     *   |_Eval[[DATEFORMAT(y-MM-dd[KEYWORD],hire_date{f}#4765) AS x#4757]]
+     *   | \_EsRelation[test][_meta_field{f}#4764, emp_no{f}#4758, first_name{f}#..]
+     *   \_Aggregate[[x{r}#4757],[MAX(x{r}#4757,true[BOOLEAN]) AS a#4754, x{r}#4757]]
+     *     \_StubRelation[[_meta_field{f}#4764, emp_no{f}#4758, first_name{f}#4759, gender{f}#4760, hire_date{f}#4765, job{f}#4766, job.
+     * raw{f}#4767, languages{f}#4761, last_name{f}#4762, long_noidx{f}#4768, salary{f}#4763, x{r}#4757]]
+     */
+    public void testInlineStatsMaxGroupingByDateFormat() {
+        var plan = plan("""
+            from test | inline stats a = max(x) by x = date_format("y-MM-dd", hire_date)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var inlineJoin = as(limit.child(), InlineJoin.class);
+
+        // Verify the left side (eval with date_format)
+        var eval = as(inlineJoin.left(), Eval.class);
+        var relation = as(eval.child(), EsRelation.class);
+
+        // Verify eval contains date_format
+        assertThat(eval.fields(), hasSize(1));
+        var evalAlias = as(eval.fields().get(0), Alias.class);
+        assertThat(evalAlias.child(), instanceOf(DateFormat.class));
+
+        // Verify the right side (aggregate)
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        var stubRelation = as(aggregate.child(), StubRelation.class);
     }
 
     public void testPushDownConjunctionsToKnnPrefilter() {

@@ -202,3 +202,35 @@ teardown:
         index: test-some-index
         id: "2"
   - match: { _source.foo_is_null: true }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 3
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": false
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "3"
+  - match: { _source.foo_is_null: true }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 4
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": true
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "4"
+  - match: { _source.foo_is_null: true }

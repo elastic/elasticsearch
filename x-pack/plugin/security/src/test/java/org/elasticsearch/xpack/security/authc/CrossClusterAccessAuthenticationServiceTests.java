@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import io.netty.channel.Channel;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -29,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 import org.junit.Before;
@@ -36,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -65,6 +70,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     private CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService;
     private CrossClusterApiKeySignatureManager.Verifier verifier;
     private CrossClusterApiKeySignatureManager.Signer signer;
+    private AuditTrailService auditTrailService;
 
     @Before
     public void init() throws Exception {
@@ -74,13 +80,16 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         this.verifier = mock(CrossClusterApiKeySignatureManager.Verifier.class);
         this.signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
         this.clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
+        this.auditTrailService = mock(AuditTrailService.class);
         when(clusterService.state().getMinTransportVersion()).thenReturn(TransportVersion.current());
         when(clusterService.threadPool().getThreadContext()).thenReturn(threadContext);
         crossClusterAccessAuthenticationService = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService,
-            verifier
+            verifier,
+            auditTrailService
+
         );
     }
 
@@ -318,8 +327,15 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             .tryAuthenticate(any(), any(ApiKeyService.ApiKeyCredentials.class), listenerCaptor.capture());
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Channel mockChannel = mock(Channel.class);
+        Header mockHeader = mock(Header.class);
+        when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 12345));
+        when(mockHeader.getActionName()).thenReturn("test:action");
+
         crossClusterAccessAuthenticationService.tryAuthenticate(
             new ApiKeyService.ApiKeyCredentials(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUIDSecureString(), ApiKey.Type.CROSS_CLUSTER),
+            mockChannel,
+            mockHeader,
             future
         );
         Exception ex = new IllegalArgumentException("terminator");

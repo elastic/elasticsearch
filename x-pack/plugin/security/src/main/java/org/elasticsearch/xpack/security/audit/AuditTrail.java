@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 public interface AuditTrail {
 
@@ -43,7 +44,9 @@ public interface AuditTrail {
 
     void authenticationFailed(String requestId, String realm, AuthenticationToken token, HttpPreRequest request);
 
-    void accessGranted(
+    void authenticationFailed(String requestId, AuthenticationToken token, String action, SocketAddress remoteAddress);
+
+        void accessGranted(
         String requestId,
         Authentication authentication,
         String action,

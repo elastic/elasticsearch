@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import io.netty.channel.Channel;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
@@ -38,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.EmptyRequest;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterSettings;
@@ -115,7 +118,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 ((ActionListener<Void>) invocation.getArguments()[1]).onResponse(null);
             }
             return null;
-        }).when(remoteCrossClusterAccessAuthenticationService).authenticateHeaders(any(Map.class), anyActionListener());
+        }).when(remoteCrossClusterAccessAuthenticationService).authenticateHeaders(any(Map.class), any(Channel.class), any(Header.class), anyActionListener());
         remoteSecurityNetty4ServerTransport = new SecurityNetty4ServerTransport(
             remoteSettings,
             TransportVersion.current(),

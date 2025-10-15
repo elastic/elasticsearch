@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
@@ -117,6 +118,10 @@ public class AuditTrailService {
 
         @Override
         public void authenticationFailed(String requestId, AuthenticationToken token, HttpPreRequest request) {}
+
+        @Override
+        public void authenticationFailed(String requestId, AuthenticationToken token, String action, SocketAddress remoteAddress) {};
+
 
         @Override
         public void authenticationFailed(

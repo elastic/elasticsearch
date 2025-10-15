@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -648,6 +649,26 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .build();
         }
     }
+
+    @Override
+    public void authenticationFailed(String requestId, AuthenticationToken token, String action, SocketAddress remoteAddress) {
+        if (events.contains(AUTHENTICATION_FAILED)) {
+            final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
+                .with(ACTION_FIELD_NAME, action)
+                .with(PRINCIPAL_FIELD_NAME, token.principal())
+                .withRequestId(requestId)
+                .withRestOrTransportOrigin(remoteAddress, threadContext)  // Use remoteAddress here somehow
+                .withThreadContext(threadContext);
+            if (token instanceof ServiceAccountToken) {
+                logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
+            }
+            logEntryBuilder.build();
+        }
+    }
+
+
 
     @Override
     public void accessGranted(
@@ -1596,6 +1617,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
                 }
             }
+            // fall through to local_node default
+            return this;
+        }
+
+        LogEntryBuilder withRestOrTransportOrigin(SocketAddress remoteAddress, ThreadContext threadContext) {
+            assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME));
+            final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
+            if (restAddress != null) {
+                logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
+            } else if (remoteAddress instanceof InetSocketAddress inetSocketAddress) {
+                logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetSocketAddress));
+            }
+
             // fall through to local_node default
             return this;
         }

@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import io.netty.channel.Channel;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -33,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
@@ -45,11 +50,22 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
+import static org.elasticsearch.xpack.security.transport.X509CertificateSignature.CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        builder.put("xpack.security.audit.enabled", "true");
+        builder.put("xpack.security.audit.logfile.events.emit_request_body", "true");
+        return builder.build();
+    }
 
     public void testInvalidHeaders() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
@@ -144,6 +160,10 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
+        Channel mockChannel = mock(Channel.class);
+        Header mockHeader = mock(Header.class);
+        when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 12345));
+        when(mockHeader.getActionName()).thenReturn("test:action");
 
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKey);
@@ -152,7 +172,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
-            service.tryAuthenticate(credentials, future);
+            service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
             future.actionGet();
         }
     }
@@ -206,6 +226,10 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
+        Channel mockChannel = mock(Channel.class);
+        Header mockHeader = mock(Header.class);
+        when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 12345));
+        when(mockHeader.getActionName()).thenReturn("test:action");
 
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
@@ -214,7 +238,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticate(credentials, future);
+            service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(
@@ -238,7 +262,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticate(credentials, future);
+            service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(actualException.getCause().getMessage(), containsString("invalid credentials for API key"));
@@ -255,7 +279,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticate(credentials, future);
+            service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(actualException.getCause().getMessage(), containsString("unable to find apikey with id"));
@@ -366,5 +390,39 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
         }
     }
+
+    public void testAuditLogForBadCrossClusterApiKeySignature() throws Exception {
+        final EncodedKeyWithId validApiKey = getEncodedCrossClusterAccessApiKeyWithId();
+        final String nodeName = internalCluster().getRandomNodeName();
+        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
+        final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
+
+        // 1. Prepare Corrupted Headers (Valid Key + Invalid Signature)
+        final String subjectInfoHeader = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo().encode();
+        // Use a clearly invalid signature header to force the verifier to fail
+        final String maliciousSignatureHeader = "version=1;certs=BAD;signature=DATA";
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, validApiKey.encoded);
+            threadContext.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, subjectInfoHeader);
+            threadContext.putHeader(CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY, maliciousSignatureHeader);
+
+            // 2. Execute the Authentication, expecting failure
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            service.authenticate(ClusterStateAction.NAME, new SearchRequest(), future);
+
+            // Assert the correct exception is thrown
+            final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
+            assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertThat(actualException.getCause().getMessage(), containsString("Invalid cross cluster api key signature from ["));
+        }
+    }
+
+
+
+
+
+
+
 
 }

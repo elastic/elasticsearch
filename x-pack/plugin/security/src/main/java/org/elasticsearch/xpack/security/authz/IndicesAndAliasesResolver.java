@@ -376,8 +376,7 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 assert indicesRequest.indices() != null : "indices() cannot be null when resolving non-all-index expressions";
-                // TODO: authorizedProjects.linkedProjects can be empty
-                // TODO: authorizedProjects.linkedProjects can filter down to empty by project routing
+                // TODO: consider short-circuit when authorizedProjects.linkedProjects is empty or is filtered to empty
                 if (crossProjectModeDecider.resolvesCrossProject(replaceable)
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
@@ -396,7 +395,7 @@ class IndicesAndAliasesResolver {
                     );
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
-                    resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList()); // TODO: can be empty
+                    resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {
                     final ResolvedIndices split;
                     if (replaceable.allowsRemoteIndices()) {

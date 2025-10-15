@@ -868,14 +868,16 @@ public final class IndicesPermission {
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
 
             if (combine) {
-                allAutomatons.compute(group.privilege().getAutomaton(), (key, value) -> {
-                    var list = value == null ? new ArrayList<Automaton>() : value;
-                    list.add(Automatons.unionAndMinimize(List.of(list.getFirst(), indexAutomaton)));
-                    return list;
-                });
+                // Combine all automatons with identical privileges
+                allAutomatons.compute(
+                    group.privilege().getAutomaton(),
+                    (key, value) -> value == null
+                        ? List.of(indexAutomaton)
+                        : List.of(Automatons.unionAndMinimize(List.of(value.getFirst(), indexAutomaton)))
+                );
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
                 for (var indexAndPrivilegeAutomatons : allAutomatons.entrySet()) {
-                    // Check if there is a group that already defines the same privileges
+                    // Check if there is a group that already defines the same privileges or some intersection
                     Automaton intersectingPrivileges = Operations.intersection(
                         indexAndPrivilegeAutomatons.getKey(),
                         group.privilege().getAutomaton()
@@ -888,6 +890,7 @@ public final class IndicesPermission {
                         combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
                     }
                 }
+                // Now we have all with identical privileges + all the intersecting ones
                 combinedAutomatons.forEach(
                     automatons -> allAutomatons.compute(
                         automatons.v1(),
@@ -897,6 +900,7 @@ public final class IndicesPermission {
                     )
                 );
             } else {
+                // If we don't need to combine, just add groups as they are
                 allAutomatons.compute(group.privilege().getAutomaton(), (k, v) -> {
                     var list = v == null ? new ArrayList<Automaton>() : v;
                     list.add(group.getIndexMatcherAutomaton());

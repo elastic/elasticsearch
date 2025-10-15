@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: "mapper.vectors.hnsw_on_disk_rescoring"
+      cluster_features: "mapper.vectors.hnsw_bfloat16_on_disk_rescoring"
       reason: 'bfloat16 needs to be supported'
   - do:
       indices.create:

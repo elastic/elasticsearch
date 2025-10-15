@@ -2075,8 +2075,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             return switch (elementType) {
-                case FLOAT -> new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, onDiskRescore, false);
-                case BFLOAT16 -> new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, onDiskRescore, true);
+                case FLOAT -> new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, false, onDiskRescore);
+                case BFLOAT16 -> new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, true, onDiskRescore);
                 default -> throw new AssertionError();
             };
         }

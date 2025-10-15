@@ -91,7 +91,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     public void checkSupport() {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             runTest = DENSE_MODEL.getServiceSettings().elementType() != DenseVectorFieldMapper.ElementType.BFLOAT16
-                || clusterHasFeature(MapperFeatures.HNSW_ON_DISK_RESCORING);
+                || clusterHasFeature(MapperFeatures.HNSW_BFLOAT16_ON_DISK_RESCORING);
         }
         assumeTrue("Old cluster needs to support bfloat16", runTest);
     }

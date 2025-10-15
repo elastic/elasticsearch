@@ -340,7 +340,7 @@ setup:
 ---
 "Test index configured rescore vector with on-disk rescoring":
   - requires:
-      cluster_features: ["mapper.vectors.hnsw_on_disk_rescoring"]
+      cluster_features: ["mapper.vectors.hnsw_bfloat16_on_disk_rescoring"]
       reason: Needs on_disk_rescoring feature
   - skip:
       features: "headers"

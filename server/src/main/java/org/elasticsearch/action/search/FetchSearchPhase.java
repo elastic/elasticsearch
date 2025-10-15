@@ -120,7 +120,12 @@ class FetchSearchPhase extends SearchPhase {
         }
     }
 
-    private void innerRunFetch(ScoreDoc[] scoreDocs, int numShards, SearchPhaseController.ReducedQueryPhase reducedQueryPhase, long phaseStartTimeInNanos) {
+    private void innerRunFetch(
+        ScoreDoc[] scoreDocs,
+        int numShards,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+        long phaseStartTimeInNanos
+    ) {
         ArraySearchPhaseResults<FetchSearchResult> fetchResults = new ArraySearchPhaseResults<>(numShards);
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
@@ -260,7 +265,8 @@ class FetchSearchPhase extends SearchPhase {
     private void moveToNextPhase(
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        long phaseStartTimeInNanos) {
+        long phaseStartTimeInNanos
+    ) {
         context.getSearchResponseMetrics().recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos);
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);

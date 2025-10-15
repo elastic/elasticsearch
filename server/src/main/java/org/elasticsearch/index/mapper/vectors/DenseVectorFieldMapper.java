@@ -56,6 +56,7 @@ import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -1314,17 +1315,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                if (mNode == null) {
-                    mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
-                }
-                if (efConstructionNode == null) {
-                    efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-                }
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
 
-                int m = XContentMapValues.nodeIntegerValue(mNode);
-                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
+                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new HnswIndexOptions(m, efConstruction);
+
+                return new HnswIndexOptions(m, efConstruction, onDiskRescore);
             }
 
             @Override
@@ -1482,16 +1480,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                if (mNode == null) {
-                    mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
-                }
-                if (efConstructionNode == null) {
-                    efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-                }
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
 
-                int m = XContentMapValues.nodeIntegerValue(mNode);
-                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
+                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
                 RescoreVector rescoreVector = null;
@@ -1588,7 +1580,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public boolean supportsElementType(ElementType elementType) {
-                return elementType == ElementType.FLOAT;
+                return elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             }
 
             @Override
@@ -1988,19 +1980,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class HnswIndexOptions extends DenseVectorIndexOptions {
         private final int m;
         private final int efConstruction;
+        private final boolean onDiskRescore;
 
-        HnswIndexOptions(int m, int efConstruction) {
+        HnswIndexOptions(int m, int efConstruction, boolean onDiskRescore) {
             super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
+            this.onDiskRescore = onDiskRescore;
         }
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            if (elementType == ElementType.BIT) {
-                return new ES815HnswBitVectorsFormat(m, efConstruction);
-            }
-            return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
+            return switch (elementType) {
+                case BIT -> new ES815HnswBitVectorsFormat(m, efConstruction);
+                case BYTE -> new Lucene99HnswVectorsFormat(m, efConstruction);
+                case FLOAT, BFLOAT16 -> new ES93HnswVectorsFormat(m, efConstruction, elementType, onDiskRescore);
+            };
         }
 
         @Override

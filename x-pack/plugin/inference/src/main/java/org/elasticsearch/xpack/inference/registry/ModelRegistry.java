@@ -692,9 +692,15 @@ public class ModelRegistry implements ClusterStateListener {
         ActionListener<Boolean> listener,
         TimeValue timeout
     ) {
-        var cleanupListener = listener.delegateResponse(
-            (delegate, ex) -> deleteModel(model.getInferenceEntityId(), ActionListener.running(() -> delegate.onFailure(ex)))
-        );
+        // If there was a partial failure in writing to the indices, we need to clean up
+        AtomicBoolean partialFailure = new AtomicBoolean(false);
+        var cleanupListener = listener.delegateResponse((delegate, ex) -> {
+            if (partialFailure.get()) {
+                deleteModel(model.getInferenceEntityId(), ActionListener.running(() -> delegate.onFailure(ex)));
+            } else {
+                delegate.onFailure(ex);
+            }
+        });
         return ActionListener.wrap(bulkItemResponses -> {
             var inferenceEntityId = model.getInferenceEntityId();
 
@@ -703,7 +709,7 @@ public class ModelRegistry implements ClusterStateListener {
                     format("Storing inference endpoint [%s] failed, no items were received from the bulk response", inferenceEntityId)
                 );
 
-                listener.onFailure(
+                cleanupListener.onFailure(
                     new ElasticsearchStatusException(
                         format(
                             "Failed to store inference endpoint [%s], invalid bulk response received. Try reinitializing the service",
@@ -719,7 +725,7 @@ public class ModelRegistry implements ClusterStateListener {
 
             if (failure == null) {
                 if (updateClusterState) {
-                    var storeListener = getStoreMetadataListener(inferenceEntityId, listener);
+                    var storeListener = getStoreMetadataListener(inferenceEntityId, cleanupListener);
                     try {
                         metadataTaskQueue.submitTask(
                             "add model [" + inferenceEntityId + "]",
@@ -735,30 +741,22 @@ public class ModelRegistry implements ClusterStateListener {
                         storeListener.onFailure(exc);
                     }
                 } else {
-                    listener.onResponse(Boolean.TRUE);
+                    cleanupListener.onResponse(Boolean.TRUE);
                 }
                 return;
             }
 
-            boolean anySuccess = false;
-            ActionListener<Boolean> listenerToInvoke;
             for (BulkItemResponse aResponse : bulkItemResponses.getItems()) {
                 logBulkFailure(inferenceEntityId, aResponse);
-                anySuccess |= aResponse.isFailed() == false;
-            }
-            // If there was a partial failure in writing to the indices, we need to clean up
-            if (anySuccess) {
-                listenerToInvoke = cleanupListener;
-            } else {
-                listenerToInvoke = listener;
+                partialFailure.compareAndSet(false, aResponse.isFailed() == false);
             }
 
             if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
-                listenerToInvoke.onFailure(new ResourceAlreadyExistsException("Inference endpoint [{}] already exists", inferenceEntityId));
+                cleanupListener.onFailure(new ResourceAlreadyExistsException("Inference endpoint [{}] already exists", inferenceEntityId));
                 return;
             }
 
-            listenerToInvoke.onFailure(
+            cleanupListener.onFailure(
                 new ElasticsearchStatusException(
                     format("Failed to store inference endpoint [%s]", inferenceEntityId),
                     RestStatus.INTERNAL_SERVER_ERROR,
@@ -768,7 +766,7 @@ public class ModelRegistry implements ClusterStateListener {
         }, e -> {
             String errorMessage = format("Failed to store inference endpoint [%s]", model.getInferenceEntityId());
             logger.warn(errorMessage, e);
-            listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
+            cleanupListener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
         });
     }
 

@@ -26,7 +26,7 @@ public record BlockArgument(TypeName type, String name) implements Argument {
 
     @Override
     public String paramName(boolean blockStyle) {
-        return name + (blockStyle ? "Block" : "Vector");
+        return name + "Block";
     }
 
     @Override

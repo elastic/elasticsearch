@@ -729,3 +729,97 @@ row ip4 = to_ip("1.2.3.4")
 ip4:ip  | a:ip | b:ip | c:ip
 1.2.3.4 | null | null | null
 ;
+
+networkDirectionSimple
+required_capability: network_direction
+
+FROM hosts
+| WHERE MV_COUNT(ip0) == 1 AND MV_COUNT(ip1) == 1
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["loopback"])
+| KEEP ip0, ip1, direction
+| SORT direction, ip0, ip1
+;
+
+ip0:ip                    | ip1:ip                    | direction:keyword
+fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | external
+fe80::cae2:65ff:fece:feb9 | 127.0.0.3                 | inbound
+::1                       | ::1                       | internal
+127.0.0.1                 | ::1                       | internal
+127.0.0.1                 | 127.0.0.1                 | internal
+127.0.0.1                 | 127.0.0.2                 | internal
+127.0.0.1                 | 128.0.0.1                 | outbound
+;
+
+networkDirectionFromRow
+required_capability: network_direction
+
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, networks)
+| DROP networks
+;
+
+ip0:ip  | ip1:ip  | direction:keyword
+1.2.3.4 | 5.6.7.8 | external
+;
+
+networkDirectionFromRowUsingAlias
+required_capability: network_direction
+
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
+| EVAL direction = NETDIR(ip0, ip1, networks)
+| DROP networks
+;
+
+ip0:ip  | ip1:ip  | direction:keyword
+1.2.3.4 | 5.6.7.8 | external
+;
+
+networkDirectionFromRowWithInlineNetworks
+required_capability: network_direction
+
+// tag::networkDirectionFromRowWithInlineNetworks[]
+ROW ip0 = "127.0.0.1"::ip, ip1 = "5.6.7.8"::ip
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["loopback", "private"])
+// end::networkDirectionFromRowWithInlineNetworks[]
+;
+
+// tag::networkDirectionFromRowWithInlineNetworks-result[]
+ip0:ip    | ip1:ip  | direction:keyword
+127.0.0.1 | 5.6.7.8 | outbound
+// end::networkDirectionFromRowWithInlineNetworks-result[]
+;
+
+networkDirectionFromIpPrefix
+required_capability: network_direction
+
+ROW ip0 = "192.168.1.123"::ip, ip1 = "8.8.8.8"::ip
+| EVAL direction = NETWORK_DIRECTION(IP_PREFIX(ip0, 24, 0), ip1, ["private"])
+| KEEP ip0, ip1, direction
+;
+
+ip0:ip          | ip1:ip  | direction:keyword
+192.168.1.123   | 8.8.8.8 | outbound
+;
+
+networkDirectionBadIp
+required_capability: network_direction
+
+ROW ip0 = null::ip, ip1 = "8.8.8.8"::ip
+| EVAL direction = NETWORK_DIRECTION(TO_IP(ip0), ip1, ["loopback"])
+;
+
+ip0:ip | ip1:ip  | direction:keyword
+null   | 8.8.8.8 | null
+;
+
+networkDirectionBadNetworksArray
+required_capability: network_direction
+
+ROW ip0 = "127.0.0.1"::ip, ip1 = "8.8.8.8"::ip 
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["invalid_network"]);
+warning:Line 2:20: evaluation of [NETWORK_DIRECTION(ip0, ip1, [\"invalid_network\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not an IP string literal.
+
+ip0:ip      |ip1:ip    |direction:keyword
+127.0.0.1   |8.8.8.8   |null
+;

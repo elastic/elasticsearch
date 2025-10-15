@@ -1098,6 +1098,105 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
+    public void testEarlyPublishDesiredBalanceForNewShardAllocation() {
+        var discoveryNode0 = newNode("node-0");
+        var discoveryNode1 = newNode("node-1");
+        var discoveryNode2 = newNode("node-2");
+        var discoveryNode3 = newNode("node-3");
+        var initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(discoveryNode0).localNodeId(discoveryNode0.getId()).masterNodeId(discoveryNode0.getId()))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode1))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode2))
+            .nodes(DiscoveryNodes.builder().add(discoveryNode3))
+            .build();
+        final var ignoredIndexName = "index-ignored";
+
+        var threadPool = new TestThreadPool(getTestName());
+        var time = new AtomicLong(threadPool.relativeTimeInMillis());
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        var allocationServiceRef = new SetOnce<AllocationService>();
+        var reconcileAction = new DesiredBalanceReconcilerAction() {
+            @Override
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+            }
+        };
+
+        var gatewayAllocator = createGatewayAllocator((shardRouting, allocation, unassignedAllocationHandler) -> {
+            if (shardRouting.getIndexName().equals(ignoredIndexName)) {
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+            }
+        });
+        final var balancedShardsAllocator = new BalancedShardsAllocator();
+
+        // Make sure the computation takes at least a few iterations, where each iteration takes 1s (see {@code #shardsAllocator.allocate}).
+        // By setting the following setting we ensure the desired balance computation will be interrupted early to not delay assigning
+        // newly created primary shards. This ensures that we hit a desired balance computation (3s) which is longer than the configured
+        // setting below.
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2s").build()
+        );
+        final int minIterations = between(3, 10);
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            balancedShardsAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), balancedShardsAllocator, TEST_ONLY_EXPLAINER) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
+                }
+
+                @Override
+                boolean hasEnoughIterations(int currentIteration) {
+                    return currentIteration >= minIterations;
+                }
+            },
+            reconcileAction,
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP
+        );
+        var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
+        allocationServiceRef.set(allocationService);
+
+        var rerouteFinished = new CyclicBarrier(2);
+        // A mock cluster state update task for creating an index
+        class CreateIndexTask extends ClusterStateUpdateTask {
+            private final String indexName;
+
+            private CreateIndexTask(String indexName) {
+                this.indexName = indexName;
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                var indexMetadata = createIndex(indexName);
+                var newState = ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
+                    .routingTable(
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, currentState.routingTable())
+                            .addAsNew(indexMetadata)
+                    )
+                    .build();
+                return allocationService.reroute(
+                    newState,
+                    "test",
+                    ActionTestUtils.assertNoFailureListener(response -> safeAwait(rerouteFinished))
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
     public void testResetDesiredBalanceOnNodeShutdown() {
         var node1 = newNode(LOCAL_NODE_ID);
         var node2 = newNode(OTHER_NODE_ID);

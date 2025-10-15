@@ -149,6 +149,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // if the isFresh flag is false then we only do one iteration, allocating the primaries but not the replicas
         var desiredBalance0 = DesiredBalance.BECOME_MASTER_INITIAL;
         var desiredBalance1 = desiredBalanceComputer.compute(desiredBalance0, createInput(clusterState), queue(), input -> false);
+        logger.info("~~~ desiredBalance1: " + desiredBalance1);
         assertDesiredAssignments(
             desiredBalance1,
             Map.of(
@@ -161,6 +162,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         // the next iteration allocates the replicas whether stale or fresh
         var desiredBalance2 = desiredBalanceComputer.compute(desiredBalance1, createInput(clusterState), queue(), input -> randomBoolean());
+        logger.info("~~~ desiredBalance2: " + desiredBalance2);
         assertDesiredAssignments(
             desiredBalance2,
             Map.of(
@@ -1957,6 +1959,38 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         });
+    }
+
+    /**
+     * Checks that the DesiredBalanceComputer.compute method returns early (gives a reason of STOP_EARLY) and has all the replica shard
+     * copies assigned DESPITE throttling settings.
+     *
+     * TODO NOMERGE (Dianna): Balancer#allocateUnassigned appears to assign a replica to a node that already has a copy. Something is
+     * broken in the code before I got here? Need to investigate.
+     */
+    public void testMyThing() {
+        var desiredBalanceComputer = createDesiredBalanceComputer(new BalancedShardsAllocator());
+        var clusterState = createInitialClusterState(4, 4, 3);
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
+
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            createInput(clusterState),
+            queue(),
+            input -> true
+        );
+
+        // TODO: not the right assignments, but haven't gotten the test to reach it yet.
+        assertDesiredAssignments(
+            desiredBalance,
+            Map.of(
+                new ShardId(index, 0),
+                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0),
+                new ShardId(index, 1),
+                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
+            )
+        );
+
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {

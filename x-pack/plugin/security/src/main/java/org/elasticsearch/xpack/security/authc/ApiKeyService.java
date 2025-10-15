@@ -208,6 +208,7 @@ public class ApiKeyService implements Closeable {
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
     );
+    private static final int MAX_PATTERN_CACHE_SIZE = 100;
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
@@ -219,6 +220,7 @@ public class ApiKeyService implements Closeable {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
+    private final Cache<String, Pattern> certificateIdentityPatternCache;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
@@ -271,6 +273,11 @@ public class ApiKeyService implements Closeable {
                 .build();
             final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
             this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
+            this.certificateIdentityPatternCache = CacheBuilder.<String, Pattern>builder()
+                .setExpireAfterAccess(ttl)
+                .setMaximumWeight(MAX_PATTERN_CACHE_SIZE)
+                .build();
+
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
@@ -310,6 +317,7 @@ public class ApiKeyService implements Closeable {
         } else {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
+            this.certificateIdentityPatternCache = null;
         }
 
         if (enabled) {
@@ -1472,7 +1480,7 @@ public class ApiKeyService implements Closeable {
     }
 
     // package-private for testing
-    static void completeApiKeyAuthentication(
+    void completeApiKeyAuthentication(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -1537,10 +1545,21 @@ public class ApiKeyService implements Closeable {
         }
     }
 
-    private static boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
+    private boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
         logger.trace("Validating certificate identity [{}] against [{}]", certificateIdentity, certificateIdentityPattern);
-        // Consider adding a cache if this causes performance problems
-        return Pattern.matches(certificateIdentityPattern, certificateIdentity);
+
+        try {
+            Pattern pattern = certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
+            return pattern.matcher(certificateIdentity).matches();
+        } catch (ExecutionException e) {
+            logger.error(
+                "Failed to validate certificate identity [{}] against pattern [{}] using cache. Falling back to regular matching",
+                certificateIdentity,
+                certificateIdentityPattern,
+                e
+            );
+            return Pattern.matches(certificateIdentityPattern, certificateIdentity);
+        }
     }
 
     ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {

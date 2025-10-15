@@ -30,8 +30,10 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
@@ -498,8 +500,37 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.stash().stashValue("_project_id_prefix_", activeProjectPrefix());
 
         try {
-            for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-                executeSection(executableSection);
+            List<ExecutableSection> sections = testCandidate.getTestSection().getExecutableSections();
+            List<AssertionError> allAssertionErrors = new ArrayList<>();
+            
+            int i = 0;
+            while (i < sections.size()) {
+                ExecutableSection section = sections.get(i);
+                
+                // Execute non-assertion sections normally
+                if (!(section instanceof Assertion)) {
+                    executeSection(section);
+                    i++;
+                    
+                    // After a "do" section, batch any following assertions
+                    if (section instanceof DoSection) {
+                        // Execute all consecutive assertions, collecting errors
+                        while (i < sections.size() && sections.get(i) instanceof Assertion) {
+                            Assertion assertion = (Assertion) sections.get(i);
+                            assertion.executeSoftly(restTestExecutionContext, allAssertionErrors);
+                            i++;
+                        }
+                    }
+                } else {
+                    // Standalone assertion (not after a "do" section) - execute immediately
+                    executeSection(section);
+                    i++;
+                }
+            }
+            
+            // After executing all sections, throw if any assertions failed
+            if (!allAssertionErrors.isEmpty()) {
+                throw combineAssertionErrors(allAssertionErrors);
             }
         } finally {
             logger.debug("start teardown test [{}]", testCandidate.getTestPath());
@@ -548,6 +579,34 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private String errorMessage(ExecutableSection executableSection, Throwable t) {
         return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber() + "]: " + t.getMessage();
+    }
+
+    /**
+     * Combine multiple assertion errors into a single AssertionError with a detailed message.
+     * 
+     * @param errors list of assertion errors to combine
+     * @return a single AssertionError containing all failure information
+     */
+    private AssertionError combineAssertionErrors(List<AssertionError> errors) {
+        if (errors.size() == 1) {
+            return errors.get(0);
+        }
+        
+        StringBuilder message = new StringBuilder();
+        message.append("Multiple assertion failures (").append(errors.size()).append("):\n");
+        
+        for (int i = 0; i < errors.size(); i++) {
+            message.append("  ").append(i + 1).append(") ").append(errors.get(i).getMessage()).append("\n");
+        }
+        
+        AssertionError combinedError = new AssertionError(message.toString());
+        
+        // Add all errors as suppressed exceptions to preserve stack traces
+        for (AssertionError error : errors) {
+            combinedError.addSuppressed(error);
+        }
+        
+        return combinedError;
     }
 
     protected boolean randomizeContentType() {

@@ -12,6 +12,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,6 +67,21 @@ public abstract class Assertion implements ExecutableSection {
     @Override
     public final void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
         doAssert(getActualValue(executionContext), resolveExpectedValue(executionContext));
+    }
+
+    /**
+     * Execute the assertion softly, collecting any errors instead of throwing immediately.
+     * This allows multiple assertions to be executed and all failures reported together.
+     * 
+     * @param executionContext the execution context
+     * @param errors list to collect any assertion errors
+     */
+    public final void executeSoftly(ClientYamlTestExecutionContext executionContext, List<AssertionError> errors) throws IOException {
+        try {
+            execute(executionContext);
+        } catch (AssertionError e) {
+            errors.add(e);
+        }
     }
 
     /**

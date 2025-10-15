@@ -1540,7 +1540,7 @@ public class ApiKeyService implements Closeable {
     private static boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
         logger.trace("Validating certificate identity [{}] against [{}]", certificateIdentity, certificateIdentityPattern);
         // Consider adding a cache if this causes performance problems
-        return Pattern.compile(certificateIdentityPattern).matcher(certificateIdentity).matches();
+        return Pattern.matches(certificateIdentityPattern, certificateIdentity);
     }
 
     ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {

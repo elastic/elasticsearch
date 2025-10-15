@@ -211,8 +211,11 @@ public class Approximate {
      */
     private static final Set<Class<? extends EsqlScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(MvAppend.class);
 
-    // TODO: find a good default value, or alternative ways of setting it
+    // TODO: set via a query setting; and find a good default value
     private static final int SAMPLE_ROW_COUNT = 100000;
+
+    // TODO: set via a query setting
+    private static final double CONFIDENCE_LEVEL = 0.90;
 
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
@@ -474,8 +477,8 @@ public class Approximate {
      *               BY group
      *             | WHERE `s$0` IS NOT NULL AND ... AND `s$T*B-1` IS NOT NULL
      *             | EVAL t = s*s, `t$0` = `s$0`*`s$0`, ..., `t$T*B-1` = `s$T*B-1`*`s$T*B-1`
-     *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.95),
-     *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.95)
+     *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.90),
+     *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.90)
      *             | KEEP s, t, `CONFIDENCE_INTERVAL(s)`, `CONFIDENCE_INTERVAL(t)`
      *     }
      * </pre>
@@ -637,7 +640,7 @@ public class Approximate {
 
         Expression trialCount = Literal.integer(Source.EMPTY, TRIAL_COUNT);
         Expression bucketCount = Literal.integer(Source.EMPTY, BUCKET_COUNT);
-        Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, 0.95);
+        Expression confidenceLevel = Literal.fromDouble(Source.EMPTY, CONFIDENCE_LEVEL);
 
         // Compute the confidence interval for all output fields that have buckets.
         List<Alias> confidenceIntervalsAndReliable = new ArrayList<>();

@@ -43,6 +43,7 @@ To see how you can set up an index for the `distance_feature` query, try the fol
       }
     }
     ```
+    % TESTSETUP
 
 2. Index several documents to this index.
 
@@ -77,6 +78,28 @@ To see how you can set up an index for the `distance_feature` query, try the fol
 #### Boost documents based on date [distance-feature-query-date-ex]
 
 The following `bool` search returns documents with a `name` value of `chocolate`. The search also uses the `distance_feature` query to increase the relevance score of documents with a `production_date` value closer to `now`.
+
+<!--
+```console
+PUT /items
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "keyword"
+      },
+      "production_date": {
+        "type": "date"
+      },
+      "location": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+```
+% TESTSETUP
+-->
 
 ```console
 GET /items/_search

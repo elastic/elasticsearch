@@ -94,7 +94,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            Clock.system(zi)
+            Clock.system(zi.normalized())
         );
     }
 
@@ -115,7 +115,7 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries,
         Clock clock
     ) {
-        Clock clk = clock == null ? Clock.system(zi) : clock;
+        Clock clk = (clock == null) ? Clock.system(zi.normalized()) : clock;
 
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(clk, Duration.ofNanos(1)));

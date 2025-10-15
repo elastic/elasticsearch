@@ -166,7 +166,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == globalOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                    for (int i = 0, dvc = globalOrds.docValueCount(); i < dvc; i++) {
                         long globalOrd = globalOrds.nextOrd();
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
@@ -179,7 +179,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 if (false == globalOrds.advanceExact(doc)) {
                     return;
                 }
-                for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                for (int i = 0, dvc = globalOrds.docValueCount(); i < dvc; i++) {
                     long globalOrd = globalOrds.nextOrd();
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
@@ -356,7 +356,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    for (int i = 0; i < segmentOrds.docValueCount(); i++) {
+                    for (int i = 0, dvc = segmentOrds.docValueCount(); i < dvc; i++) {
                         long segmentOrd = segmentOrds.nextOrd();
                         int docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
@@ -527,7 +527,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         if (liveDocs == null || liveDocs.get(docId)) {  // document is not deleted
                             globalOrds = globalOrds == null ? valuesSource.globalOrdinalsValues(ctx) : globalOrds;
                             if (globalOrds.advanceExact(docId)) {
-                                for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                                for (int i = 0, dvc = globalOrds.docValueCount(); i < dvc; i++) {
                                     long globalOrd = globalOrds.nextOrd();
                                     if (accepted.find(globalOrd) >= 0) {
                                         continue;
@@ -687,7 +687,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         if (liveDocs == null || liveDocs.get(docId)) {  // document is not deleted
                             globalOrds = globalOrds == null ? valuesSource.globalOrdinalsValues(ctx) : globalOrds;
                             if (globalOrds.advanceExact(docId)) {
-                                for (int i = 0; i < globalOrds.docValueCount(); i++) {
+                                for (int i = 0, dvc = globalOrds.docValueCount(); i < dvc; i++) {
                                     long globalOrd = globalOrds.nextOrd();
                                     if (accepted.find(globalOrd) >= 0) {
                                         continue;

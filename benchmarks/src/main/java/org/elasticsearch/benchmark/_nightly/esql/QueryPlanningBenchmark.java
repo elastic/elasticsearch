@@ -119,7 +119,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
+        var parsed = parser.createStatement(query, new QueryParams(), telemetry);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;

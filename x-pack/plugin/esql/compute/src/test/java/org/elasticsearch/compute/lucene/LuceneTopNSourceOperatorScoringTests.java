@@ -99,7 +99,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
         long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
             taskConcurrency,

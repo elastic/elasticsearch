@@ -6,5 +6,9 @@
         model_id: "missing-model"
         body: >
           {
-            "number_of_allocations": 4
+            "adaptive_allocations": {
+              "enabled": true,
+              "min_number_of_allocations": 0,
+              "max_number_of_allocations": 1
+            }
           }

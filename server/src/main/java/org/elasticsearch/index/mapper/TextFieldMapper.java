@@ -1693,7 +1693,7 @@ public final class TextFieldMapper extends FieldMapper {
         // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we need to check both this
         // field and the delegate
 
-        // first field loader - to check whether the field's value was stored under this match_only_text field
+        // first field loader - to check whether the field's value was stored under this text field
         final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override

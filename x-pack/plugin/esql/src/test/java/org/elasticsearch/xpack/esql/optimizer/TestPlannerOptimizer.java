@@ -91,7 +91,7 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         PhysicalPlan physical = mapper.map(logical);
         return physical;

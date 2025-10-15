@@ -26,7 +26,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 /** Utility class for vector quantization calculations */
 public class BQVectorUtils {
-    private static final float EPSILON = 1e-4f;
+    // NOTE: this is currently > 1e-4f due to bfloat16
+    private static final float EPSILON = 0.02f;
 
     public static double sqrtNewtonRaphson(double x, double curr, double prev) {
         return (curr == prev) ? curr : sqrtNewtonRaphson(x, 0.5 * (curr + x / curr), curr);

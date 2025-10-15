@@ -210,15 +210,14 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                             unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),
-                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                         throw new UnsupportedOperationException();
                     }, 0.2)),
                     0
                 )
             );
-            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {
-                new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher) };
-            operators.add(createOperator(driverContext, shards));
+            var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
+            operators.add(createOperator(driverContext, shardConfig));
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -276,7 +275,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
     private static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, boolean scoring) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
@@ -298,7 +297,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
     /**
      * Create the operator to test
      */
-    protected abstract Operator createOperator(DriverContext driverContext, LuceneQueryEvaluator.ShardConfig[] shards);
+    protected abstract Operator createOperator(DriverContext blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards);
 
     /**
      * Should the test use scoring?

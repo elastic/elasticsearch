@@ -532,7 +532,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
@@ -1086,7 +1086,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

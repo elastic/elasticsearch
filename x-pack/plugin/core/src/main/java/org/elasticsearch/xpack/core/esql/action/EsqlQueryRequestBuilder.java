@@ -41,4 +41,5 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
 
     public abstract EsqlQueryRequestBuilder<Request, Response> allowPartialResults(boolean allowPartialResults);
 
+    public abstract EsqlQueryRequestBuilder<Request, Response> profile(boolean profile);
 }

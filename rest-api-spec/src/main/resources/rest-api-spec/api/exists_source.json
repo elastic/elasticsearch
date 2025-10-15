@@ -63,7 +63,7 @@
         "description": "A list of fields to extract and return from the _source field"
       },
       "version": {
-        "type": "number",
+        "type": "long",
         "description": "Explicit version number for concurrency control"
       },
       "version_type": {

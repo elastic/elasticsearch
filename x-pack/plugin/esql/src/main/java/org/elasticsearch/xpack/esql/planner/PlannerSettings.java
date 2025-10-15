@@ -52,6 +52,13 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> REDUCTION_LATE_MATERIALIZATION = Setting.boolSetting(
+        "esql.reduction_late_materialization",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
     private volatile int luceneTopNLimit;

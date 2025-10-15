@@ -118,4 +118,23 @@ public class GaugeAdapterTests extends ESTestCase {
         metrics = otelMeter.getRecorder().getMeasurements(lgauge);
         assertThat(metrics, hasSize(0));
     }
+
+    public void testLongGaugeWithInvalidAttribute() {
+        registry.registerLongGauge("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
+
+        AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
+        assertThat(error.getMessage(), equalTo("invalid metric attributes"));
+    }
+
+    public void testDoubleGaugeWithInvalidAttribute() {
+        registry.registerDoubleGauge(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(1.0, Map.of("has_timestamp", "false"))
+        );
+
+        AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
+        assertThat(error.getMessage(), equalTo("invalid metric attributes"));
+    }
 }

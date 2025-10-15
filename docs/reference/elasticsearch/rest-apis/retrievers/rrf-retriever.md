@@ -57,6 +57,83 @@ Combining `query` and `retrievers` is not supported.
 
 A simple hybrid search example (lexical search + dense vector search) combining a `standard` retriever with a `knn` retriever using RRF:
 
+<!--
+```console
+PUT /restaurants
+{
+  "mappings": {
+    "properties": {
+      "region": { "type": "keyword" },
+      "year": { "type": "keyword" },
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+POST /restaurants/_bulk?refresh
+{"index":{}}
+{"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
+{"index":{}}
+{"region": "France", "year": "2019", "vector": [10, 22, 78]}
+{"index":{}}
+{"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
+{"index":{}}
+{"region": "France", "year": "2020", "vector": [10, 22, 80]}
+PUT /movies
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+```
+% TESTSETUP
+```console
+DELETE /restaurants
+DELETE /movies
+DELETE /books
+```
+% TEARDOWN
+-->
+
 ```console
 GET /restaurants/_search
 {
@@ -91,6 +168,7 @@ GET /restaurants/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Defines a retriever tree with an RRF retriever.
 2. The sub-retriever array.
@@ -146,4 +224,4 @@ GET movies/_search
   }
 }
 ```
-
+% TEST[skip:uses ELSER]

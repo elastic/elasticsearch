@@ -24,6 +24,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -350,7 +351,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         public SortedNumericDoubleValues getDoubleValues() {
             try {
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                return FieldData.sortableLongBitsToDoubles(raw);
+                return FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.wrap(raw));
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }

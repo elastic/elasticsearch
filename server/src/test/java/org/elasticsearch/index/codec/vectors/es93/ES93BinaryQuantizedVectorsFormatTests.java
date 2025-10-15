@@ -56,17 +56,15 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
-import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -77,9 +75,13 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     private KnnVectorsFormat format;
 
+    boolean useBFloat16() {
+        return false;
+    }
+
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(useBFloat16(), random().nextBoolean());
         super.setUp();
     }
 
@@ -191,11 +193,12 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
             }
         };
         String expectedPattern = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
-            + " writeFlatVectorFormat=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat,"
-            + " flatVectorScorer=%s())";
-        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), either(startsWith(defaultScorer)).or(startsWith(memSegScorer)));
+            + " rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+            + " format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())),"
+            + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))";
+        var defaultScorer = expectedPattern.replaceAll("\\{}", "DefaultFlatVectorScorer");
+        var memSegScorer = expectedPattern.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+        assertThat(customCodec.knnVectorsFormat().toString(), oneOf(defaultScorer, memSegScorer));
     }
 
     @Override
@@ -239,7 +242,8 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
                     assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
                     assertTrue(offHeap.get("veb") > 0L);
                     if (expectVecOffHeap) {
-                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                        int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
+                        assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
                     }
                 }
             }

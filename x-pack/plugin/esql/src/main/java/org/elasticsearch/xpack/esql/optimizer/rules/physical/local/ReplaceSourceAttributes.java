@@ -30,9 +30,8 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
 
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
-        var docId = new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         final List<Attribute> attributes = new ArrayList<>();
-        attributes.add(docId);
+        attributes.add(getDocAttribute(plan));
 
         if (plan.indexMode() == IndexMode.TIME_SERIES) {
             for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
@@ -58,5 +57,18 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             null,
             List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of()))
         );
+    }
+
+    private static Attribute getDocAttribute(EsSourceExec plan) {
+        // The source (or doc) field is sometimes added to the relation output as a hack to enable late materialization in the reduce
+        // driver. In that case, we should take it instead of replacing it with a new one to ensure the same attribute is used throughout.
+        var sourceAttributes = plan.output().stream().filter(EsQueryExec::isDocAttribute).toList();
+        if (sourceAttributes.size() > 1) {
+            throw new IllegalStateException("Expected at most one source attribute, found: " + sourceAttributes);
+        }
+        if (sourceAttributes.isEmpty()) {
+            return new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        }
+        return sourceAttributes.getFirst();
     }
 }

@@ -11,6 +11,8 @@ import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import java.util.ArrayList;
 import java.util.List;

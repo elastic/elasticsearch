@@ -306,7 +306,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> "project [" + projectId + " failed to update remote cluster connection [" + clusterAlias + "]", e);
+                logger.warn(() -> "project [" + projectId + "] failed to update remote cluster connection [" + clusterAlias + "]", e);
             }
         }, latch::countDown));
 

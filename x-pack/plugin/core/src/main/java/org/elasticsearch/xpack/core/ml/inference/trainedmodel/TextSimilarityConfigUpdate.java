@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -48,7 +49,10 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
         return new TextSimilarityConfigUpdate(text, resultsField, tokenizationUpdate, spanScoreFunction);
     }
 
-    private static final ObjectParser<Builder, Void> STRICT_PARSER = new ObjectParser<>(NAME, Builder::new);
+    private static final ObjectParser<TextSimilarityConfigUpdate.Builder, Void> STRICT_PARSER = new ObjectParser<>(
+        NAME,
+        TextSimilarityConfigUpdate.Builder::new
+    );
 
     static {
         STRICT_PARSER.declareString(Builder::setText, TEXT);
@@ -162,14 +166,14 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
         return text;
     }
 
-    public static class Builder implements InferenceConfigUpdate.Builder<Builder, TextSimilarityConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<TextSimilarityConfigUpdate.Builder, TextSimilarityConfigUpdate> {
         private String resultsField;
         private String spanScoreFunction;
         private TokenizationUpdate tokenizationUpdate;
         private String text;
 
         @Override
-        public Builder setResultsField(String resultsField) {
+        public TextSimilarityConfigUpdate.Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
@@ -197,6 +201,6 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_5_0;
     }
 }

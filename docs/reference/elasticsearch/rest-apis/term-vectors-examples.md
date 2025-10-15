@@ -66,7 +66,6 @@ PUT /my-index-000001/_doc/2?refresh=wait_for
   "text" : "Another test ..."
 }
 ```
-
 % TEST[continued]
 
 The following request returns all information and statistics for field
@@ -83,7 +82,6 @@ GET /my-index-000001/_termvectors/1
   "field_statistics" : true
 }
 ```
-
 % TEST[continued]
 
 Response:
@@ -133,7 +131,6 @@ Response:
   }
 }
 ```
-
 % TEST[continued]
 % TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 
@@ -154,7 +151,6 @@ GET /my-index-000001/_termvectors/1
   "field_statistics" : true
 }
 ```
-
 % TEST[continued]
 
 ## Artificial documents [docs-termvectors-artificial-doc]
@@ -174,7 +170,6 @@ GET /my-index-000001/_termvectors
   }
 }
 ```
-
 % TEST[continued]
 
 ## Per-field analyzer [docs-termvectors-per-field-analyzer]
@@ -198,7 +193,6 @@ GET /my-index-000001/_termvectors
   }
 }
 ```
-
 % TEST[continued]
 
 Response:
@@ -232,7 +226,6 @@ Response:
   }
 }
 ```
-
 % TEST[continued]
 % TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 % TESTRESPONSE[s/"sum_doc_freq": 2/"sum_doc_freq": "$body.term_vectors.fullname.field_statistics.sum_doc_freq"/]
@@ -264,7 +257,6 @@ GET /imdb/_termvectors
   }
 }
 ```
-
 % TEST[skip:no imdb test index]
 
 Response:

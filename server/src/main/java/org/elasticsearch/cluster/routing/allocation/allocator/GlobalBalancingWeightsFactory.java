@@ -31,14 +31,17 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
     private class GlobalBalancingWeights implements BalancingWeights {
 
         private final WeightFunction weightFunction;
+        private final boolean diskUsageIgnored;
 
         GlobalBalancingWeights() {
+            final float diskUsageBalanceFactor = balancerSettings.getDiskUsageBalanceFactor();
             this.weightFunction = new WeightFunction(
                 balancerSettings.getShardBalanceFactor(),
                 balancerSettings.getIndexBalanceFactor(),
                 balancerSettings.getWriteLoadBalanceFactor(),
-                balancerSettings.getDiskUsageBalanceFactor()
+                diskUsageBalanceFactor
             );
+            this.diskUsageIgnored = diskUsageBalanceFactor == 0;
         }
 
         @Override
@@ -54,6 +57,11 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
         @Override
         public NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer) {
             return new GlobalNodeSorters(new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer));
+        }
+
+        @Override
+        public boolean diskUsageIgnored() {
+            return diskUsageIgnored;
         }
 
         private record GlobalNodeSorters(BalancedShardsAllocator.NodeSorter nodeSorter) implements NodeSorters {

@@ -5,6 +5,6 @@ Calculates the count over time value of a field.
 
 ```esql
 TS k8s
-| STATS count=count(count_over_time(network.cost))
-  BY cluster, time_bucket = bucket(@timestamp,1minute)
+| STATS count=COUNT(COUNT_OVER_TIME(network.cost))
+  BY cluster, time_bucket = BUCKET(@timestamp,1minute)
 ```

@@ -1,0 +1,6 @@
+pr: 136348
+summary: Add error message when using inline stats on TS
+area: ES|QL
+type: bug
+issues:
+ - 136092

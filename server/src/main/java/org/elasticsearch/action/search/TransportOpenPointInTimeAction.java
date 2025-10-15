@@ -34,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -70,6 +71,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final TransportService transportService;
     private final SearchService searchService;
     private final ClusterService clusterService;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -79,7 +81,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
-        ClusterService clusterService
+        ClusterService clusterService,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -88,6 +91,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterService = clusterService;
+        this.searchResponseMetrics = searchResponseMetrics;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -230,7 +234,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
             TransportVersion minTransportVersion = clusterState.getMinTransportVersion();
             new AbstractSearchAsyncAction<>(
-                actionName,
+                "open_pit",
                 logger,
                 namedWriteableRegistry,
                 searchTransportService,
@@ -246,7 +250,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 task,
                 new ArraySearchPhaseResults<>(shardIterators.size()),
                 searchRequest.getMaxConcurrentShardRequests(),
-                clusters
+                clusters,
+                searchResponseMetrics
             ) {
                 @Override
                 protected void executePhaseOnShard(

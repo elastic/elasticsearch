@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 
 import java.io.IOException;
 import java.util.Map;
@@ -105,7 +106,7 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         long timeSeriesDataStreamCount,
         long timeSeriesIndexCount,
         DownsamplingFeatureStats ilmDownsamplingStats,
-        Map<String, Long> phasesUsedInDownsampling,
+        IlmPolicyStats ilmPolicyStats,
         DownsamplingFeatureStats dlmDownsamplingStats,
         Map<String, Long> indexCountPerInterval
     ) {
@@ -118,7 +119,7 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
             this.timeSeriesIndexCount = timeSeriesIndexCount;
             this.downsamplingUsage = new DownsamplingUsage(
                 ilmDownsamplingStats,
-                phasesUsedInDownsampling,
+                ilmPolicyStats,
                 dlmDownsamplingStats,
                 indexCountPerInterval
             );
@@ -192,26 +193,24 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
 
     public record DownsamplingUsage(
         DownsamplingFeatureStats ilmDownsamplingStats,
-        Map<String, Long> phasesUsedInDownsampling,
+        IlmPolicyStats ilmPolicyStats,
         DownsamplingFeatureStats dlmDownsamplingStats,
         Map<String, Long> indexCountPerInterval
     ) implements Writeable, ToXContentObject {
 
         public static DownsamplingUsage read(StreamInput in) throws IOException {
             DownsamplingFeatureStats ilmDownsamplingStats = in.readOptionalWriteable(DownsamplingFeatureStats::read);
-            Map<String, Long> phasesUsedInDownsampling = ilmDownsamplingStats != null
-                ? in.readImmutableMap(StreamInput::readString, StreamInput::readVLong)
-                : null;
+            IlmPolicyStats ilmPolicyStats = ilmDownsamplingStats != null ? IlmPolicyStats.read(in) : null;
             DownsamplingFeatureStats dlmDownsamplingStats = DownsamplingFeatureStats.read(in);
             Map<String, Long> indexCountPerInterval = in.readImmutableMap(StreamInput::readString, StreamInput::readVLong);
-            return new DownsamplingUsage(ilmDownsamplingStats, phasesUsedInDownsampling, dlmDownsamplingStats, indexCountPerInterval);
+            return new DownsamplingUsage(ilmDownsamplingStats, ilmPolicyStats, dlmDownsamplingStats, indexCountPerInterval);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(ilmDownsamplingStats);
             if (ilmDownsamplingStats != null) {
-                out.writeMap(phasesUsedInDownsampling, StreamOutput::writeString, StreamOutput::writeVLong);
+                ilmPolicyStats.writeTo(out);
             }
             dlmDownsamplingStats.writeTo(out);
             out.writeMap(indexCountPerInterval, StreamOutput::writeString, StreamOutput::writeVLong);
@@ -230,7 +229,7 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
             if (ilmDownsamplingStats != null) {
                 builder.startObject("ilm");
                 ilmDownsamplingStats.toXContent(builder, params);
-                builder.field("phases_in_use", phasesUsedInDownsampling);
+                ilmPolicyStats.toXContent(builder, params);
                 builder.endObject();
             }
             if (dlmDownsamplingStats != null) {
@@ -281,6 +280,68 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
                 builder.endObject();
             }
             return builder;
+        }
+    }
+
+    /**
+     * Calculates statistics specific to the ILM policies in use
+     * @param downsamplingPhases the phases used for downsampling
+     * @param forceMergeExplicitlyEnabledCounter the policies that have force merge explicitly enabled
+     * @param forceMergeExplicitlyDisabledCounter the policies that have force merge implicitly enabled
+     * @param forceMergeDefaultCounter the policies that have not specified force merge
+     * @param downsampledForceMergeNeededCounter the policies that could potentially skip the force merge in downsampling
+     */
+    public record IlmPolicyStats(
+        Map<String, Long> downsamplingPhases,
+        long forceMergeExplicitlyEnabledCounter,
+        long forceMergeExplicitlyDisabledCounter,
+        long forceMergeDefaultCounter,
+        long downsampledForceMergeNeededCounter
+    ) implements Writeable, ToXContentFragment {
+        public static final IlmPolicyStats EMPTY = new IlmPolicyStats(Map.of(), 0L, 0L, 0L, 0L);
+
+        static IlmPolicyStats read(StreamInput in) throws IOException {
+            Map<String, Long> downsamplingPhases = in.readImmutableMap(StreamInput::readString, StreamInput::readVLong);
+            long forceMergeExplicitlyEnabledCounter = 0;
+            long forceMergeExplicitlyDisabledCounter = 0;
+            long forceMergeDefaultCounter = 0;
+            long downsampledForceMergeNeededCounter = 0;
+            if (in.getTransportVersion().supports(DownsampleAction.ILM_FORCE_MERGE_IN_DOWNSAMPLING)) {
+                forceMergeExplicitlyEnabledCounter = in.readVLong();
+                forceMergeExplicitlyDisabledCounter = in.readVLong();
+                forceMergeDefaultCounter = in.readVLong();
+                downsampledForceMergeNeededCounter = in.readVLong();
+            }
+            return new IlmPolicyStats(
+                downsamplingPhases,
+                forceMergeExplicitlyEnabledCounter,
+                forceMergeExplicitlyDisabledCounter,
+                forceMergeDefaultCounter,
+                downsampledForceMergeNeededCounter
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(downsamplingPhases, StreamOutput::writeString, StreamOutput::writeVLong);
+            if (out.getTransportVersion().supports(DownsampleAction.ILM_FORCE_MERGE_IN_DOWNSAMPLING)) {
+                out.writeVLong(forceMergeExplicitlyEnabledCounter);
+                out.writeVLong(forceMergeExplicitlyDisabledCounter);
+                out.writeVLong(forceMergeDefaultCounter);
+                out.writeVLong(downsampledForceMergeNeededCounter);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("phases_in_use", downsamplingPhases);
+            builder.startObject("force_merge");
+            builder.field("explicitly_enabled_count", forceMergeExplicitlyEnabledCounter);
+            builder.field("explicitly_disabled_count", forceMergeExplicitlyDisabledCounter);
+            builder.field("undefined_count", forceMergeDefaultCounter);
+            builder.field("undefined_force_merge_needed_count", downsampledForceMergeNeededCounter);
+            builder.endObject();
+            return null;
         }
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -196,7 +197,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.settings = Settings.readSettingsFromStream(in);
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
-            this.dataStreamName = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+                this.dataStreamName = in.readOptionalString();
+            }
         }
 
         @Override
@@ -208,7 +211,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             settings.writeTo(out);
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
-            out.writeOptionalString(this.dataStreamName);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+                out.writeOptionalString(this.dataStreamName);
+            }
         }
 
         @Override

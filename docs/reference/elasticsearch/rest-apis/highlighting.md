@@ -32,6 +32,7 @@ GET /_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 ## Highlighting types [highlighting-types]
 

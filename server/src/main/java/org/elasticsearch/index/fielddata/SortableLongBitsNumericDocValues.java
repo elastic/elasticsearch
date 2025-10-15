@@ -10,6 +10,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
@@ -19,9 +20,8 @@ import java.io.IOException;
  * and converts the doubles to sortable long bits using
  * {@link NumericUtils#doubleToSortableLong(double)}.
  */
-final class SortableLongBitsNumericDocValues extends AbstractNumericDocValues {
+final class SortableLongBitsNumericDocValues extends LongValues {
 
-    private int docID = -1;
     private final NumericDoubleValues values;
 
     SortableLongBitsNumericDocValues(NumericDoubleValues values) {
@@ -35,13 +35,7 @@ final class SortableLongBitsNumericDocValues extends AbstractNumericDocValues {
 
     @Override
     public boolean advanceExact(int target) throws IOException {
-        docID = target;
         return values.advanceExact(target);
-    }
-
-    @Override
-    public int docID() {
-        return docID;
     }
 
     /** Return the wrapped values. */

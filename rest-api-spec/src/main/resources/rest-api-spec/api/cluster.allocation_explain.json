@@ -31,7 +31,7 @@
         "description": "Specifies the name of the index that you would like an explanation for"
       },
       "shard": {
-        "type": "number",
+        "type": "int",
         "description": "Specifies the ID of the shard that you would like an explanation for"
       },
       "primary": {

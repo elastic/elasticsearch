@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -148,11 +149,16 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isSafe);
-            reason.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                reason.writeTo(out);
+            }
             out.writeString(message);
         }
 
         public static Result readFrom(final StreamInput in) throws IOException {
+            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
+                return new Result(in.readBoolean(), null, in.readString());
+            }
             return new Result(in.readBoolean(), Reason.readFrom(in), in.readString());
         }
 

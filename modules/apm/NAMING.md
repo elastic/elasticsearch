@@ -64,6 +64,8 @@ Examples :
 
 ### Attributes
 
+Do not use **high cardinality** attributes, this might result in the APM Java agent dropping events.
+
 Attribute names should follow the same rules. In particular, these rules apply to attributes too:
 * elements and separators
 * hierarchy/namespaces

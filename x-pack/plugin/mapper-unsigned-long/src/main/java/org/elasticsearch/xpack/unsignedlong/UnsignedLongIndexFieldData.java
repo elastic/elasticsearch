@@ -8,20 +8,20 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     private final IndexNumericFieldData signedLongIFD;
-    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
     protected final boolean indexed;
 
     UnsignedLongIndexFieldData(
         IndexNumericFieldData signedLongFieldData,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
         boolean indexed
     ) {
         this.signedLongIFD = signedLongFieldData;

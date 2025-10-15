@@ -133,6 +133,10 @@ To retrieve vector values explicitly, you can use:
   }
   ```
 
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
+
 ### Storage behavior and `_source`
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
@@ -441,6 +445,7 @@ POST /my-bit-vectors/_bulk?refresh
 {"index": {"_id" : "2"}}
 {"my_vector": "8100012a7f"} <2>
 ```
+% TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
 2. A hexidecimal string representing the 40 bit dimensioned vector
@@ -459,6 +464,7 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
   }
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
@@ -550,6 +556,7 @@ PUT /my-index-000001/_mapping
     }
 }
 ```
+% TEST[setup:my_index]
 
 Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
 

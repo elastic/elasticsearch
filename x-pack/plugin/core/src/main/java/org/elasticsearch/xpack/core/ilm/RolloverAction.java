@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -86,12 +87,16 @@ public class RolloverAction implements LifecycleAction {
         builder.addMaxPrimaryShardSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
         builder.addMaxIndexAgeCondition(in.readOptionalTimeValue());
         builder.addMaxIndexDocsCondition(in.readOptionalVLong());
-        builder.addMaxPrimaryShardDocsCondition(in.readOptionalVLong());
-        builder.addMinIndexSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
-        builder.addMinPrimaryShardSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
-        builder.addMinIndexAgeCondition(in.readOptionalTimeValue());
-        builder.addMinIndexDocsCondition(in.readOptionalVLong());
-        builder.addMinPrimaryShardDocsCondition(in.readOptionalVLong());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            builder.addMaxPrimaryShardDocsCondition(in.readOptionalVLong());
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            builder.addMinIndexSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
+            builder.addMinPrimaryShardSizeCondition(in.readOptionalWriteable(ByteSizeValue::readFrom));
+            builder.addMinIndexAgeCondition(in.readOptionalTimeValue());
+            builder.addMinIndexDocsCondition(in.readOptionalVLong());
+            builder.addMinPrimaryShardDocsCondition(in.readOptionalVLong());
+        }
         return new RolloverAction(builder.build());
     }
 
@@ -100,13 +105,24 @@ public class RolloverAction implements LifecycleAction {
         out.writeOptionalWriteable(conditions.getMaxSize());
         out.writeOptionalWriteable(conditions.getMaxPrimaryShardSize());
         out.writeOptionalTimeValue(conditions.getMaxAge());
-        out.writeOptionalVLong(conditions.getMaxDocs());
-        out.writeOptionalVLong(conditions.getMaxPrimaryShardDocs());
-        out.writeOptionalWriteable(conditions.getMinSize());
-        out.writeOptionalWriteable(conditions.getMinPrimaryShardSize());
-        out.writeOptionalTimeValue(conditions.getMinAge());
-        out.writeOptionalVLong(conditions.getMinDocs());
-        out.writeOptionalVLong(conditions.getMinPrimaryShardDocs());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            out.writeOptionalVLong(conditions.getMaxDocs());
+            out.writeOptionalVLong(conditions.getMaxPrimaryShardDocs());
+        } else {
+            // With an older version and if maxDocs is empty, we use maxPrimaryShardDocs in its place.
+            if (conditions.getMaxDocs() == null) {
+                out.writeOptionalVLong(conditions.getMaxPrimaryShardDocs());
+            } else {
+                out.writeOptionalVLong(conditions.getMaxDocs());
+            }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeOptionalWriteable(conditions.getMinSize());
+            out.writeOptionalWriteable(conditions.getMinPrimaryShardSize());
+            out.writeOptionalTimeValue(conditions.getMinAge());
+            out.writeOptionalVLong(conditions.getMinDocs());
+            out.writeOptionalVLong(conditions.getMinPrimaryShardDocs());
+        }
     }
 
     @Override

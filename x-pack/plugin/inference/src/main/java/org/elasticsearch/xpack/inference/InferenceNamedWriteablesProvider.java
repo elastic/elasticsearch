@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -27,10 +26,6 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
@@ -146,8 +141,6 @@ public class InferenceNamedWriteablesProvider {
 
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
-
-        addChunkingSettingsNamedWriteables(namedWriteables);
 
         // Empty default secret settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, EmptySecretSettings.NAME, EmptySecretSettings::new));
@@ -622,25 +615,6 @@ public class InferenceNamedWriteablesProvider {
                     in
                 )
             )
-        );
-    }
-
-    private static void addChunkingSettingsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ChunkingSettings.class, NoneChunkingSettings.NAME, in -> NoneChunkingSettings.INSTANCE)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ChunkingSettings.class, WordBoundaryChunkingSettings.NAME, WordBoundaryChunkingSettings::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                ChunkingSettings.class,
-                SentenceBoundaryChunkingSettings.NAME,
-                SentenceBoundaryChunkingSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ChunkingSettings.class, RecursiveChunkingSettings.NAME, RecursiveChunkingSettings::new)
         );
     }
 

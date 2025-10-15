@@ -175,6 +175,7 @@ public class EsqlDataTypeConverter {
         MINUTE,
         MINUTES,
         MIN,
+        M,
         HOUR,
         HOURS,
         H,
@@ -208,6 +209,7 @@ public class EsqlDataTypeConverter {
         INTERVALS.MINUTE,
         INTERVALS.MINUTES,
         INTERVALS.MIN,
+        INTERVALS.M,
         INTERVALS.HOUR,
         INTERVALS.HOURS,
         INTERVALS.H
@@ -488,7 +490,7 @@ public class EsqlDataTypeConverter {
             return switch (INTERVALS.valueOf(temporalUnit.toUpperCase(Locale.ROOT))) {
                 case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
                 case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
-                case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
+                case MINUTE, MINUTES, MIN, M -> Duration.ofMinutes(safeToLong(value));
                 case HOUR, HOURS, H -> Duration.ofHours(safeToLong(value));
 
                 case DAY, DAYS, D -> Period.ofDays(safeToInt(safeToLong(value)));

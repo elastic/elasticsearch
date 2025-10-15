@@ -6,5 +6,5 @@ Calculates the presence of a field in the output result over time range.
 ```esql
 TS k8s
 | WHERE cluster == "prod" AND pod == "two"
-| STATS events_received = max(present_over_time(events_received)) BY pod, time_bucket = tbucket(2 minute)
+| STATS events_received = MAX(PRESENT_OVER_TIME(events_received)) BY pod, time_bucket = TBUCKET(2 minute)
 ```

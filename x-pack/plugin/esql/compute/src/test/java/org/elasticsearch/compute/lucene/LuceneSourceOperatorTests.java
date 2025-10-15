@@ -36,6 +36,7 @@ import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -238,7 +239,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
         return new LuceneSourceOperator.Factory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
             DataPartitioning.AutoStrategy.DEFAULT,
@@ -503,10 +504,10 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     }
 
     static void assertAllRefCountedSameInstance(List<Page> results) {
-        ShardRefCounted firstRefCounted = null;
+        RefCounted firstRefCounted = null;
         for (Page page : results) {
             DocBlock docs = page.getBlock(0);
-            ShardRefCounted refCounted = docs.asVector().shardRefCounted();
+            var refCounted = docs.asVector().shardRefCounted(docs.asVector().shards().getInt(0));
             if (firstRefCounted == null) {
                 firstRefCounted = refCounted;
             } else {

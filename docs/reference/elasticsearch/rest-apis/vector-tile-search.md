@@ -274,6 +274,26 @@ tile contains the following data:
 `grid_agg` argument of `geotile` and an `exact_bounds` argument of `true`
 into the following search:
 
+<!--
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my-geo-field": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/0?refresh
+{
+  "my-geo-field": "POINT (-122.0863176 37.3864953)"
+}
+```
+-->
+
 ```console
 GET my-index/_search
 {

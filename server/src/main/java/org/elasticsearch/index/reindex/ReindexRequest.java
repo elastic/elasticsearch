@@ -116,6 +116,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
             }
+            if (getRemoteInfo().getUsername() != null && getRemoteInfo().getPassword() == null) {
+                e = addValidationError("reindex from remote source included username but not password", e);
+            }
+            if (getRemoteInfo().getPassword() != null && getRemoteInfo().getUsername() == null) {
+                e = addValidationError("reindex from remote source included password but not username", e);
+            }
         }
         return e;
     }

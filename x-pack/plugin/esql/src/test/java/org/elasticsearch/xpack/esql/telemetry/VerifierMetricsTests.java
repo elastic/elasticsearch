@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -834,7 +833,7 @@ public class VerifierMetricsTests extends ESTestCase {
             metrics = new Metrics(new EsqlFunctionRegistry());
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
-        analyzer(verifier).analyze(parser.createStatement(esql, EsqlTestUtils.TEST_CFG));
+        analyzer(verifier).analyze(parser.createStatement(esql));
 
         return metrics == null ? null : metrics.stats();
     }

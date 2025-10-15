@@ -13,7 +13,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
@@ -105,7 +105,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        SortedNumericDocValues dv = ifd.load(context).getLongValues();
+                        SortedNumericLongValues dv = ifd.load(context).getLongValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}

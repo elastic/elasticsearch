@@ -46,8 +46,13 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         super(in);
         shardIds = in.readCollectionAsList(ShardId::new);
         fields = in.readStringArray();
-        filters = in.readStringArray();
-        allowedTypes = in.readStringArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            filters = in.readStringArray();
+            allowedTypes = in.readStringArray();
+        } else {
+            filters = Strings.EMPTY_ARRAY;
+            allowedTypes = Strings.EMPTY_ARRAY;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
@@ -132,8 +137,10 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         super.writeTo(out);
         out.writeCollection(shardIds);
         out.writeStringArray(fields);
-        out.writeStringArray(filters);
-        out.writeStringArray(allowedTypes);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            out.writeStringArray(filters);
+            out.writeStringArray(allowedTypes);
+        }
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);

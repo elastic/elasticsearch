@@ -110,7 +110,7 @@ public class ParsingTests extends ESTestCase {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
@@ -360,7 +360,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        return parser.createQuery(query, params, TEST_CFG);
+        return parser.createQuery(query, params);
     }
 
     private String error(String query) {

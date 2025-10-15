@@ -24,7 +24,7 @@ base {
 
 restResources {
   restApi {
-    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities', 'esql.query', 'field_caps'
+    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities', 'esql.query', 'field_caps', 'get'
   }
 }
 

@@ -40,11 +40,15 @@ $endif$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override

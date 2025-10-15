@@ -1122,8 +1122,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // then
 
-        // since synthetic source is disabled, the fallback field name shouldn't exist
-        assertThat(mapper.fieldType().syntheticSourceFallbackFieldName(), Matchers.nullValue());
         // despite exceeding ignore_above, because synthetic source is disabled, we don't expect to store anything
         assertThat(doc.rootDoc().getField(mapper.fieldType() + "_original"), Matchers.nullValue());
     }

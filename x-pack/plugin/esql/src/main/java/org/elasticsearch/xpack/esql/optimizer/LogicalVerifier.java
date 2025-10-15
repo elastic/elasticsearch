@@ -25,7 +25,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
     private LogicalVerifier() {}
 
     @Override
-    boolean skipVerification(LogicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
+    public boolean skipVerification(LogicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
             var enriches = optimizedPlan.collectFirstChildren(Enrich.class::isInstance);
@@ -37,7 +37,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
     }
 
     @Override
-    void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+    public void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
         List<BiConsumer<LogicalPlan, Failures>> checkers = new ArrayList<>();
 
         optimizedPlan.forEachUp(p -> {

@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * The service uses OpenShiftAiActionCreator to create actions for executing inference requests.
  */
 public class OpenShiftAiService extends SenderService implements RerankingInferenceService {
-    public static final String NAME = "openshiftai";
+    public static final String NAME = "openshift_ai";
     /**
      * The optimal batch size depends on the hardware the model is deployed on.
      * For OpenShift AI use a conservatively small max batch size as it is
@@ -293,32 +293,35 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
         ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION:
-                return new OpenShiftAiChatCompletionModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
-            case TEXT_EMBEDDING:
-                return new OpenShiftAiEmbeddingsModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
-            case RERANK:
-                return new OpenShiftAiRerankModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    context
-                );
-            default:
-                throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        }
+        return switch (taskType) {
+            case CHAT_COMPLETION, COMPLETION -> new OpenShiftAiChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                secretSettings,
+                context
+            );
+            case TEXT_EMBEDDING -> new OpenShiftAiEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                chunkingSettings,
+                secretSettings,
+                context
+            );
+            case RERANK -> new OpenShiftAiRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
+        };
     }
 
     private OpenShiftAiModel createModelFromPersistent(

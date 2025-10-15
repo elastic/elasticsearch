@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  */
 public class OpenShiftAIRerankTaskSettings implements TaskSettings {
 
-    public static final String NAME = "openshiftai_rerank_task_settings";
+    public static final String NAME = "openshift_ai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N = "top_n";
 

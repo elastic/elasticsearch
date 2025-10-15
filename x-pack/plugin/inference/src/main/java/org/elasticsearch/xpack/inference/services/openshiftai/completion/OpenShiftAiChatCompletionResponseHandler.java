@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatComple
  */
 public class OpenShiftAiChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
-    private static final String OPENSHIFT_AI_ERROR = "openshiftai_error";
+    private static final String OPENSHIFT_AI_ERROR = "openshift_ai_error";
     private static final UnifiedChatCompletionErrorParserContract OPENSHIFT_AI_ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
         .createErrorParserWithStringify(OPENSHIFT_AI_ERROR);
 

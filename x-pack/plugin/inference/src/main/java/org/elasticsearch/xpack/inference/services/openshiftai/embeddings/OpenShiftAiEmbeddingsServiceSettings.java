@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri
  * This class encapsulates the configuration settings required to use OpenShift AI for generating embeddings.
  */
 public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSettings {
-    public static final String NAME = "openshiftai_embeddings_service_settings";
+    public static final String NAME = "openshift_ai_embeddings_service_settings";
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     private final Integer dimensions;

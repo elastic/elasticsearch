@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri
  * This class encapsulates the model ID, URI, and rate limit settings for the OpenShift AI chat completion service.
  */
 public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiServiceSettings {
-    public static final String NAME = "openshiftai_completion_service_settings";
+    public static final String NAME = "openshift_ai_completion_service_settings";
 
     /**
      * Creates a new instance of OpenShiftAiChatCompletionServiceSettings from a map of settings.

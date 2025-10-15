@@ -55,9 +55,9 @@ public class MMRResultDiversificationTests extends ESTestCase {
             "dense_vector_field",
             0.3f,
             3,
-            queryVectorData,
             fieldMapper,
             IndexVersion.current(),
+            queryVectorData,
             fieldVectors
         );
 
@@ -99,9 +99,9 @@ public class MMRResultDiversificationTests extends ESTestCase {
             "dense_vector_field",
             0.6f,
             10,
-            queryVectorData,
             fieldMapper,
             IndexVersion.current(),
+            queryVectorData,
             new HashMap<>()
         );
         RankDoc[] emptyDocs = new RankDoc[0];

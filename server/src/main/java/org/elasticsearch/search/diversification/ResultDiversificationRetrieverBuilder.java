@@ -106,7 +106,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     private final String diversificationField;
     private final float[] queryVector;
     private final Float lambda;
-    private final int numCandidates;
+    private final Integer numCandidates;
     private ResultDiversificationContext diversificationContext = null;
 
     ResultDiversificationRetrieverBuilder(
@@ -114,9 +114,9 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         String diversificationType,
         String diversificationField,
         int rankWindowSize,
-        float[] queryVector,
+        @Nullable float[] queryVector,
         @Nullable Float lambda,
-        int numCandidates
+        @Nullable Integer numCandidates
     ) {
         super(List.of(innerRetriever), rankWindowSize);
         this.diversificationType = diversificationType;
@@ -159,11 +159,30 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }
 
         // if MMR, ensure we have a lambda between 0.0 and 1.0
-        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) && (lambda < 0.0 || lambda > 1.0)) {
-            validationException = addValidationError(
-                String.format(Locale.ROOT, "[%s] MMR result diversification must have a lambda between 0.0 and 1.0", getName()),
-                validationException
-            );
+        // and numCandidates of at least 1
+        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
+            if (lambda == null || lambda < 0.0 || lambda > 1.0) {
+                validationException = addValidationError(
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] MMR result diversification must have a [%s]] between 0.0 and 1.0",
+                        getName(),
+                        LAMBDA_FIELD.getPreferredName()
+                    ),
+                    validationException
+                );
+            }
+            if (numCandidates == null || numCandidates < 1) {
+                validationException = addValidationError(
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] MMR result diversification must set the [%s] >= 1",
+                        getName(),
+                        NUM_CANDIDATES.getPreferredName()
+                    ),
+                    validationException
+                );
+            }
         }
 
         return validationException;
@@ -182,9 +201,9 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 diversificationField,
                 lambda,
                 numCandidates,
-                new VectorData(queryVector),
                 (DenseVectorFieldMapper) mapper,
                 indexVersion,
+                queryVector == null ? null : new VectorData(queryVector),
                 null
             );
         } else {
@@ -253,7 +272,23 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO --
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(TYPE_FIELD.getPreferredName(), diversificationType);
+        builder.field(FIELD_FIELD.getPreferredName(), diversificationField);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+
+        if (queryVector != null) {
+            builder.array(QUERY_FIELD.getPreferredName(), queryVector);
+        }
+
+        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
+            if (lambda != null) {
+                builder.field(LAMBDA_FIELD.getPreferredName(), lambda);
+            }
+            if (numCandidates != null) {
+                builder.field(NUM_CANDIDATES.getPreferredName(), numCandidates);
+            }
+        }
     }
 
     @Override

@@ -165,10 +165,16 @@ public class MMRResultDiversification extends ResultDiversification {
         ResultDiversificationContext context
     ) {
         Map<Integer, Float> querySimilarity = new HashMap<>();
+
+        VectorData queryVector = context.getQueryVector();
+        if (queryVector == null) {
+            return querySimilarity;
+        }
+
         for (ScoreDoc doc : docs) {
             VectorData vectorData = context.getFieldVector(doc.doc);
             if (vectorData != null) {
-                float querySimilarityScore = getVectorComparisonScore(similarityFunction, useFloat, vectorData, context.getQueryVector());
+                float querySimilarityScore = getVectorComparisonScore(similarityFunction, useFloat, vectorData, queryVector);
                 querySimilarity.put(doc.doc, querySimilarityScore);
             }
         }

@@ -30,9 +30,9 @@ public abstract class ResultDiversificationContext {
     protected ResultDiversificationContext(
         String field,
         int numCandidates,
-        VectorData queryVector,
         DenseVectorFieldMapper fieldMapper,
         IndexVersion indexVersion,
+        @Nullable VectorData queryVector,
         @Nullable Map<Integer, VectorData> fieldVectors
     ) {
         this.field = field;

@@ -9,12 +9,15 @@
 
 package org.elasticsearch.action.downsample;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -28,17 +31,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a DownsampleAction that downsamples time series
  * (TSDB) indices. We have made great effort to simplify the rollup configuration and currently
- * only requires a fixed time interval. So, it has the following format:
+ * only requires a fixed time interval and optionally the sampling method. So, it has the following format:
  *
  *  {
- *    "fixed_interval" : "1d",
+ *    "fixed_interval": "1d",
+ *    "sampling_method": "aggregate"
  *  }
  *
  * fixed_interval is one or multiples of SI units and has no calendar-awareness (e.g. doesn't account
@@ -53,9 +59,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * future extensions.
  */
 public class DownsampleConfig implements NamedWriteable, ToXContentObject {
+    public static final TransportVersion ADD_LAST_VALUE_DOWNSAMPLING = TransportVersion.fromName("add_last_value_downsampling");
 
     private static final String NAME = "downsample/action/config";
     public static final String FIXED_INTERVAL = "fixed_interval";
+    public static final String SAMPLING_METHOD = "sampling_method";
     public static final String TIME_ZONE = "time_zone";
     public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
 
@@ -63,13 +71,15 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     private final DateHistogramInterval fixedInterval;
     private final String timeZone = DEFAULT_TIMEZONE;
     private final String intervalType = FIXED_INTERVAL;
+    private final SamplingMethod samplingMethod;
 
     private static final ConstructingObjectParser<DownsampleConfig, Void> PARSER;
+
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a -> {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[0];
             if (fixedInterval != null) {
-                return new DownsampleConfig(fixedInterval);
+                return new DownsampleConfig(fixedInterval, (SamplingMethod) a[1]);
             } else {
                 throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
             }
@@ -81,6 +91,12 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             new ParseField(FIXED_INTERVAL),
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> SamplingMethod.fromLabel(p.text()),
+            new ParseField(SAMPLING_METHOD),
+            ObjectParser.ValueType.STRING
+        );
     }
 
     /**
@@ -88,10 +104,19 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      */
     public DownsampleConfig(final DateHistogramInterval fixedInterval) {
+        this(fixedInterval, null);
+    }
+
+    /**
+     * Create a new {@link DownsampleConfig} using the given configuration parameters.
+     * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
+     */
+    public DownsampleConfig(final DateHistogramInterval fixedInterval, SamplingMethod samplingMethod) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
         this.fixedInterval = fixedInterval;
+        this.samplingMethod = samplingMethod;
 
         // validate interval
         createRounding(this.fixedInterval.toString(), this.timeZone);
@@ -99,12 +124,17 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
 
     public DownsampleConfig(final StreamInput in) throws IOException {
         fixedInterval = new DateHistogramInterval(in);
+        if (in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLING)) {
+            samplingMethod = in.readOptionalWriteable(SamplingMethod::read);
+        } else {
+            samplingMethod = null;
+        }
     }
 
     /**
      * This method validates the target downsampling configuration can be applied on an index that has been
      * already downsampled from the source configuration. The requirements are:
-     * - The target interval needs to be greater than source interval
+     * - The target interval needs to be greater than the source interval
      * - The target interval needs to be a multiple of the source interval
      * throws an IllegalArgumentException to signal that the target interval is not acceptable
      */
@@ -112,7 +142,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         long sourceMillis = source.fixedInterval.estimateMillis();
         long targetMillis = target.fixedInterval.estimateMillis();
         if (sourceMillis >= targetMillis) {
-            // Downsampling interval must be greater than source interval
+            // Downsampling interval must be greater than the source interval
             throw new IllegalArgumentException(
                 "Downsampling interval ["
                     + target.fixedInterval
@@ -135,6 +165,9 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
+        if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLING)) {
+            out.writeOptionalWriteable(samplingMethod);
+        }
     }
 
     /**
@@ -180,6 +213,10 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         return createRounding(fixedInterval.toString(), timeZone);
     }
 
+    public SamplingMethod getSamplingMethod() {
+        return samplingMethod;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -195,7 +232,11 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
-        return builder.field(FIXED_INTERVAL, fixedInterval.toString());
+        builder.field(FIXED_INTERVAL, fixedInterval.toString());
+        if (samplingMethod != null) {
+            builder.field(SAMPLING_METHOD, samplingMethod.label);
+        }
+        return builder;
     }
 
     public static DownsampleConfig fromXContent(final XContentParser parser) throws IOException {
@@ -213,12 +254,13 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         final DownsampleConfig that = (DownsampleConfig) other;
         return Objects.equals(fixedInterval, that.fixedInterval)
             && Objects.equals(intervalType, that.intervalType)
-            && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules());
+            && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules())
+            && Objects.equals(samplingMethod, that.samplingMethod);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fixedInterval, intervalType, ZoneId.of(timeZone));
+        return Objects.hash(fixedInterval, intervalType, ZoneId.of(timeZone), samplingMethod);
     }
 
     @Override
@@ -263,5 +305,48 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             sourceIndexName = sourceIndexMetadata.getIndex().getName();
         }
         return prefix + fixedInterval + "-" + sourceIndexName;
+    }
+
+    public enum SamplingMethod implements Writeable {
+        AGGREGATE((byte) 0, "aggregate"),
+        LAST_VALUE((byte) 1, "last_value");
+
+        private final byte id;
+        private final String label;
+
+        SamplingMethod(byte id, String label) {
+            this.id = id;
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+
+        public static SamplingMethod read(StreamInput in) throws IOException {
+            var id = in.readByte();
+            return switch (id) {
+                case 0 -> AGGREGATE;
+                case 1 -> LAST_VALUE;
+                default -> throw new IllegalArgumentException("Unknown sampling method id [" + id + "]");
+            };
+        }
+
+        @Nullable
+        public static SamplingMethod fromLabel(@Nullable String label) {
+            if (label == null) {
+                return null;
+            }
+            return switch (label.toLowerCase(Locale.ROOT)) {
+                case "aggregate" -> AGGREGATE;
+                case "last_value" -> LAST_VALUE;
+                default -> throw new IllegalArgumentException("Unknown sampling method label [" + label + "]");
+            };
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
     }
 }

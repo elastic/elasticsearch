@@ -26,11 +26,22 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
 
     @Override
     protected DownsampleConfig mutateInstance(DownsampleConfig instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        var interval = instance.getFixedInterval();
+        var samplingMode = instance.getSamplingMethod();
+        switch (between(0, 1)) {
+            case 0 -> interval = randomValueOtherThan(interval, ConfigTestHelpers::randomInterval);
+            case 1 -> samplingMode = randomValueOtherThan(samplingMode, DownsampleActionConfigTests::randomSamplingMethod);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new DownsampleConfig(interval, samplingMode);
     }
 
     public static DownsampleConfig randomConfig() {
-        return new DownsampleConfig(ConfigTestHelpers.randomInterval());
+        return new DownsampleConfig(ConfigTestHelpers.randomInterval(), randomSamplingMethod());
+    }
+
+    private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        return randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.AGGREGATE, DownsampleConfig.SamplingMethod.LAST_VALUE);
     }
 
     @Override

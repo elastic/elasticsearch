@@ -242,10 +242,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 static boolean isExpectedFailure(Exception e) {
-                    return e instanceof NotMasterException
-                        || e instanceof FailedToCommitClusterStateException
-                            && e.getCause() instanceof EsRejectedExecutionException esre
-                            && esre.isExecutorShutdown();
+                    return e instanceof NotMasterException;
                 }
 
             });

@@ -55,8 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -115,13 +114,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
      */
     private volatile Scheduler.ScheduledCancellable scheduled;
     /**
-     * Semaphore with 1 permit, used to ensure that only one run (periodic or cluster state) is running at a time.
+     * The number of requested runs. If this is greater than 0, then a run is either in progress or scheduled to run as soon as possible.
      */
-    private final Semaphore running = new Semaphore(1);
-    /**
-     * True if a run has been queued due to a cluster state change, false otherwise.
-     */
-    private final AtomicBoolean runOnDemandQueued = new AtomicBoolean(false);
+    private final AtomicInteger queuedRuns = new AtomicInteger(0);
     private final Supplier<TimeValue> pollIntervalSupplier;
     private final Function<String, char[]> tokenProvider;
 
@@ -426,15 +421,20 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             return;
         }
 
-        // If we are not able to acquire the semaphore immediately, it means that a run is already in progress. Periodic runs do not run
-        // concurrently, but a cluster state run could be in progress. Since the default poll interval is quite large (3d), there is no
-        // need to wait for the current run to finish and then run again, so we just skip this run and schedule the next one.
-        if (running.tryAcquire()) {
+        // If queuedRuns was greater than 0, then either a run is in progress, or a run is scheduled to run as soon as possible.
+        // In that case, we don't need to do anything, as the poll interval is quite large by default (3d).
+        // Otherwise, we set queuedRuns to 1 to indicate that a run is in progress and run the downloader now.
+        if (queuedRuns.compareAndSet(0, 1)) {
+            logger.trace("Running periodic downloader");
             try {
-                logger.trace("Running periodic downloader");
                 runDownloader();
             } finally {
-                running.release();
+                // If any exception was thrown during runDownloader, we still want to check queuedRuns.
+                // If queuedRuns is still > 0, then a run was requested while we were running, so we need to run again.
+                if (queuedRuns.decrementAndGet() > 0) {
+                    logger.debug("Downloader requested again while running, scheduling another run");
+                    threadPool.generic().submit(this::runOnDemand);
+                }
             }
         }
         if (threadPool.scheduler().isShutdown() == false) {
@@ -446,8 +446,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     /**
      * This method requests that the downloader runs on the latest cluster state, which likely contains a change in the GeoIP metadata.
-     * If the queue was already {@code true}, then a run is already scheduled, which will process the latest cluster state when it runs,
-     * so we don't need to do anything. If the queue was {@code false}, then we set it to {@code true} and schedule a run.
      * This method does nothing if this task is cancelled or completed.
      */
     public void requestRunOnDemand() {
@@ -456,7 +454,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             return;
         }
         logger.trace("Requesting downloader run on demand");
-        if (runOnDemandQueued.compareAndSet(false, true)) {
+        // If queuedRuns was greater than 0, then either a run is in progress and it will fire off another run when it finishes,
+        // or a run is scheduled to run as soon as possible and it will include the latest cluster state.
+        // If it was 0, we set it to 1 to indicate that a run is scheduled to run as soon as possible and schedule it now.
+        if (queuedRuns.getAndIncrement() == 0) {
             logger.trace("Scheduling downloader run on demand");
             threadPool.generic().submit(this::runOnDemand);
         }
@@ -470,31 +471,20 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             logger.debug("Not running downloader on demand because task is cancelled or completed");
             return;
         }
-        // Here we do want to wait for the current run (if any) to finish. Since a new cluster state might have arrived while the current
-        // run was running, we want to ensure that the new cluster state update isn't lost, so we wait and run afterwards.
-        logger.trace("Waiting to run downloader on demand");
-        boolean acquired = false;
+        // Capture the current queue size, so that if another run is requested while we're running, we'll know at the end of this method
+        // whether we need to run again.
+        final int currentQueueSize = queuedRuns.get();
+        logger.debug("Running downloader on demand");
         try {
-            running.acquire();
-            acquired = true;
-            // We have the semaphore, so no other run is in progress. We set queued to false, so that future calls to requestRunOnDemand
-            // will schedule a new run. We do this before running the downloader, so that if a new cluster state arrives while we're
-            // running, that will schedule a new run.
-            // Technically speaking, there's a chance that a new cluster state arrives in between the following line and
-            // clusterService.state() in updateDatabases() (or deleteDatabases()), which will cause another run to be scheduled,
-            // but the only consequence of that is that we'll process that cluster state twice, which is harmless.
-            runOnDemandQueued.set(false);
-            logger.debug("Running downloader on demand");
             runDownloader();
-        } catch (InterruptedException e) {
-            logger.warn("Interrupted while waiting to run downloader on demand", e);
         } finally {
-            // If a new cluster state arrived in between queued.set(false) and now, then that will have scheduled a new run,
-            // so we don't need to care about that here.
-            if (acquired) {
-                running.release();
+            // If any exception was thrown during runDownloader, we still want to check queuedRuns.
+            // Subtract this "batch" of runs from queuedRuns.
+            // If queuedRuns is still > 0, then a run was requested while we were running, so we need to run again.
+            if (queuedRuns.addAndGet(-currentQueueSize) > 0) {
+                logger.debug("Downloader on demand requested again while running, scheduling another run");
+                threadPool.generic().submit(this::runOnDemand);
             }
-            logger.trace("Finished running downloader on demand");
         }
     }
 

@@ -14,19 +14,23 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Header;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -35,12 +39,17 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
+import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -54,6 +63,7 @@ import static org.elasticsearch.xpack.security.transport.X509CertificateSignatur
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -153,10 +163,21 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 )
             );
         }
+
+        try (var ignored = threadContext.stashContext()) {
+            new CrossClusterAccessHeaders(
+                getEncodedCrossClusterAccessApiKey(),
+                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
+            ).writeToContext(threadContext, createMockSignerWithNoCerts());
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(msg, equalTo("Provided signature does not contain any certificates"))
+            );
+        }
     }
 
-    public void testAuthenticateHeadersSuccess() throws IOException {
-        final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
+    public void testAuthenticateHeadersSuccess() throws IOException, CertificateException {
+        final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKeyWithCertIdentity();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
@@ -169,7 +190,12 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKey);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
-                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKey)
+                Map.of(
+                    CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
+                    encodedCrossClusterAccessApiKey,
+                    CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY,
+                    createTestSignature().encodeToString()
+                )
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
@@ -218,10 +244,29 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
         }
 
+        {
+            ElasticsearchSecurityException ex = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> service.extractApiKeyCredentialsFromHeaders(
+                    withRandomizedAdditionalSecurityHeaders(
+                        Map.of(
+                            CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
+                            getEncodedCrossClusterAccessApiKey(),
+                            CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY,
+                            "not a valid signature"
+                        )
+                    )
+                )
+            );
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(ex.getCause().getMessage(), containsString("Illegal base64 character 20"));
+        }
     }
 
-    public void testAuthenticateHeadersFailure() throws IOException {
-        final EncodedKeyWithId encodedCrossClusterAccessApiKeyWithId = getEncodedCrossClusterAccessApiKeyWithId();
+    public void testAuthenticateHeadersFailure() throws IOException, CertificateException {
+        final EncodedKeyWithId encodedCrossClusterAccessApiKeyWithId = getEncodedCrossClusterAccessApiKeyWithId(
+            new CertificateIdentity("CN=ins*")
+        );
         final EncodedKeyWithId encodedRestApiKeyWithId = getEncodedRestApiKeyWithId();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
@@ -284,6 +329,22 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(actualException.getCause().getMessage(), containsString("unable to find apikey with id"));
         }
+
+        try (var ignored = threadContext.stashContext()) {
+            addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);
+            final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
+                Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKeyWithId.encoded)
+            );
+            final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            service.tryAuthenticate(credentials, future);
+            final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
+            assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertThat(
+                actualException.getCause().getMessage(),
+                containsString("Expected signature for cross cluster API key, but no signature was provided")
+            );
+        }
     }
 
     private Map<String, String> withRandomizedAdditionalSecurityHeaders(Map<String, String> headers) throws IOException {
@@ -307,7 +368,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         return Map.copyOf(map);
     }
 
-    private void addRandomizedHeaders(ThreadContext threadContext, String validEncodedApiKey) throws IOException {
+    private void addRandomizedHeaders(ThreadContext threadContext, String validEncodedApiKey) throws IOException, CertificateException {
         // Headers in thread context should have no impact on tryAuthenticate
         if (randomBoolean()) {
             new CrossClusterAccessHeaders(
@@ -319,7 +380,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                         RoleDescriptorsIntersection.EMPTY
                     )
                 )
-            ).writeToContext(threadContext, null);
+            ).writeToContext(threadContext, createMockSigner());
         } else {
             if (randomBoolean()) {
                 threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, validEncodedApiKey);
@@ -337,9 +398,23 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         return getEncodedCrossClusterAccessApiKeyWithId().encoded;
     }
 
+    private String getEncodedCrossClusterAccessApiKeyWithCertIdentity() throws IOException {
+        return getEncodedCrossClusterAccessApiKeyWithId(new CertificateIdentity("CN=instance*")).encoded;
+    }
+
     private EncodedKeyWithId getEncodedCrossClusterAccessApiKeyWithId() throws IOException {
-        final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess("cross_cluster_access_key", """
-            {"search": [{"names": ["*"]}]}""");
+        return getEncodedCrossClusterAccessApiKeyWithId(null);
+    }
+
+    private EncodedKeyWithId getEncodedCrossClusterAccessApiKeyWithId(CertificateIdentity certIdentity) throws IOException {
+        final CreateCrossClusterApiKeyRequest request = new CreateCrossClusterApiKeyRequest(
+            "cross_cluster_access_key",
+            CrossClusterApiKeyRoleDescriptorBuilder.parse("""
+                {"search": [{"names": ["*"]}]}"""),
+            null,
+            null,
+            certIdentity
+        );
         request.setRefreshPolicy(randomFrom(NONE, IMMEDIATE, WAIT_UNTIL));
         final CreateApiKeyResponse response = client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request).actionGet();
         return new EncodedKeyWithId(
@@ -378,8 +453,8 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
     private static CrossClusterAccessAuthenticationService getCrossClusterAccessAuthenticationService(String nodeName) {
         RemoteClusterAuthenticationService service = internalCluster().getInstance(RemoteClusterAuthenticationService.class, nodeName);
-        if (service instanceof CrossClusterAccessAuthenticationService) {
-            return (CrossClusterAccessAuthenticationService) service;
+        if (service instanceof CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService) {
+            return crossClusterAccessAuthenticationService;
         } else {
             throw new AssertionError(
                 "expected ["
@@ -389,6 +464,31 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                     + "]"
             );
         }
+    }
+
+    private X509Certificate[] getTestCertificates() throws CertificateException, IOException {
+        return PemUtils.readCertificates(List.of(getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")))
+            .stream()
+            .map(cert -> (X509Certificate) cert)
+            .toArray(X509Certificate[]::new);
+    }
+
+    private X509CertificateSignature createTestSignature() throws CertificateException, IOException {
+        return new X509CertificateSignature(getTestCertificates(), "SHA256withRSA", new BytesArray(new byte[] { 1, 2, 3, 4 }));
+    }
+
+    private CrossClusterApiKeySignatureManager.Signer createMockSigner() throws CertificateException, IOException {
+        var signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
+        when(signer.sign(anyString(), anyString())).thenReturn(createTestSignature());
+        return signer;
+    }
+
+    private CrossClusterApiKeySignatureManager.Signer createMockSignerWithNoCerts() {
+        var signer = mock(CrossClusterApiKeySignatureManager.Signer.class);
+        when(signer.sign(anyString(), anyString())).thenReturn(
+            new X509CertificateSignature(new X509Certificate[0], "SHA256withRSA", new BytesArray(new byte[] { 1, 2, 3, 4 }))
+        );
+        return signer;
     }
 
     public void testAuditLogForBadCrossClusterApiKeySignature() throws Exception {

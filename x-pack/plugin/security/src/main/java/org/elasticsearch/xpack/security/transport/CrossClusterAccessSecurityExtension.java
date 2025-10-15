@@ -44,8 +44,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.clusterService(),
             components.apiKeyService(),
             components.authenticationService(),
-            crossClusterApiKeySignatureManager.verifier(),
-            components.auditTrailService()
+            crossClusterApiKeySignatureManager.verifier()
         );
         this.transportInterceptor = new CrossClusterAccessTransportInterceptor(
             components.settings(),

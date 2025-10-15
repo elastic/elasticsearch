@@ -650,7 +650,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void handleJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {
         assert Thread.holdsLock(mutex) == false;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
+        DiscoveryNode masterNode = getLocalNode();
+        assert masterNode.isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
 
         if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
@@ -669,6 +670,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
             @Override
             public void onResponse(Releasable response) {
+                String joiningNodeName = joinRequest.getSourceNode().getName();
                 SubscribableListener
                     // Validates the join request: can the remote node deserialize our cluster state and does it respond to pings?
                     .<Void>newForked(l -> validateJoinRequest(joinRequest, l))
@@ -682,6 +684,14 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             // joining node in its future states too. Thus, we need to wait for the next committed state before we know the
                             // eventual outcome, and we need to wait for that before we can release (our ref to) the connection and complete
                             // the listener.
+                            logger.debug(
+                                "the cluster state update adding {} to the cluster was not committed to all nodes, " +
+                                    "and {} will be stepping down as master. However, the next master may have already committed the " +
+                                    "cluster state we've just published and will therefore include {} in its future states too. " +
+                                    "We will keep the connection to {} open until the next published cluster state update confirms " +
+                                    "whether {} has been added to the cluster",
+                                joiningNodeName, masterNode.getName(), joiningNodeName, joiningNodeName, joiningNodeName
+                            );
 
                             // NB we are on the master update thread here at the end of processing the failed cluster state update, so this
                             // all happens before any cluster state update that re-elects a master
@@ -696,30 +706,32 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                         // Remove this listener to avoid memory leaks
                                         clusterService.removeListener(this);
                                         if (discoveryNodes.nodeExists(joinRequest.getSourceNode().getId())) {
+                                            logger.debug(
+                                                "node {} was added to the cluster in the next cluster state update",
+                                                joinRequest.getSourceNode()
+                                            );
                                             ll.onResponse(null);
                                         } else {
+                                            logger.debug(
+                                                "node {} was not added to the cluster in the next cluster state update",
+                                                joinRequest.getSourceNode()
+                                            );
                                             ll.onFailure(e);
                                         }
                                     }
                                 }
                             };
                             clusterService.addListener(clusterStateListener);
-                            clusterStateListener.clusterChanged(
-                                new ClusterChangedEvent(
-                                    "Checking if another master has been elected since "
-                                        + joinRequest.getSourceNode().getName()
-                                        + " attempted to join cluster",
-                                    clusterService.state(),
-                                    clusterService.state()
-                                )
-                            );
                         } else {
                             ll.onFailure(e);
                         }
                     })))
 
                     // Whatever the outcome, release (our ref to) the connection we just opened and notify the joining node.
-                    .addListener(ActionListener.runBefore(joinListener, () -> Releasables.close(response)));
+                    .addListener(ActionListener.runBefore(joinListener, () -> {
+                        logger.debug("closing the connection to {}", joinRequest.getSourceNode());
+                        Releasables.close(response);
+                    }));
             }
 
             @Override
@@ -1250,11 +1262,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert becomingMaster
                     || activePublication
                     || coordinationState.get()
-                        .getLastAcceptedConfiguration()
-                        .equals(coordinationState.get().getLastCommittedConfiguration())
+                    .getLastAcceptedConfiguration()
+                    .equals(coordinationState.get().getLastCommittedConfiguration())
                     : coordinationState.get().getLastAcceptedConfiguration()
-                        + " != "
-                        + coordinationState.get().getLastCommittedConfiguration();
+                    + " != "
+                    + coordinationState.get().getLastCommittedConfiguration();
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -1267,7 +1279,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert followersChecker.getKnownFollowers().isEmpty();
                 assert lastKnownLeader.get().equals(applierState.nodes().getMasterNode())
                     || (applierState.nodes().getMasterNodeId() == null
-                        && (applierState.term() < getCurrentTerm() || applierState.version() < getLastAcceptedState().version()));
+                    && (applierState.term() < getCurrentTerm() || applierState.version() < getLastAcceptedState().version()));
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
@@ -1356,9 +1368,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
             assert nodeEligibility.mayWin()
                 : "initial state does not allow local node to win election, reason: "
-                    + nodeEligibility.reason()
-                    + " , metadata: "
-                    + getLastAcceptedState().coordinationMetadata();
+                + nodeEligibility.reason()
+                + " , metadata: "
+                + getLastAcceptedState().coordinationMetadata();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
@@ -1380,7 +1392,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             .filter(
                 n -> n.isMasterNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
-                        || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId()))
+                    || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId()))
             )
             .map(DiscoveryNode::getId);
 
@@ -1412,9 +1424,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     /*
-    * Valid Voting Configuration Exclusion state criteria:
-    * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
-    * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
+     * Valid Voting Configuration Exclusion state criteria:
+     * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
+     * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
      */
     static boolean validVotingConfigExclusionState(ClusterState clusterState) {
         Set<VotingConfigExclusion> votingConfigExclusions = clusterState.getVotingConfigExclusions();

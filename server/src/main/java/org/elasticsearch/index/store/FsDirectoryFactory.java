@@ -147,6 +147,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
+            if (name.endsWith(".cfs")) {
+                return Optional.of(ReadAdvice.NORMAL);
+            }
             return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
         };
     }

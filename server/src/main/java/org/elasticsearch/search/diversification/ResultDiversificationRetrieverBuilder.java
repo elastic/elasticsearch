@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -45,7 +46,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
 
     public static final String DIVERSIFICATION_TYPE_MMR = "mmr";
     public static final Float DEFAULT_LAMBDA_VALUE = 0.7f;
-    public static final Integer DEFAULT_NUM_CANDIDATES = 10;
 
     public static final String NAME = "diversify";
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
@@ -53,7 +53,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_FIELD = new ParseField("query_vector");
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
-    public static final ParseField NUM_CANDIDATES = new ParseField("num_candidates");
 
     public static class RankDocWithSearchHit extends RankDoc {
         private final SearchHit hit;
@@ -73,17 +72,25 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             String diversificationType = (String) args[1];
             String diversificationField = (String) args[2];
             int rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
-            float[] queryVector = args[4] == null ? null : (float[]) args[4];
-            Float lambda = args[5] == null ? DEFAULT_LAMBDA_VALUE : (Float) args[5];
-            int numCandidates = args[6] == null ? DEFAULT_NUM_CANDIDATES : (Integer) args[6];
+
+            @SuppressWarnings("unchecked")
+            ArrayList<Float> queryVectorList = args[4] == null ? null : (ArrayList<Float>) args[4];
+            float[] queryVector = null;
+            if (queryVectorList != null) {
+                queryVector = new float[queryVectorList.size()];
+                for (int i = 0; i < queryVectorList.size(); i++) {
+                    queryVector[i] = queryVectorList.get(i);
+                }
+            }
+
+            Float lambda = (Float) args[5];
             return new ResultDiversificationRetrieverBuilder(
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
                 diversificationField,
                 rankWindowSize,
                 queryVector,
-                lambda,
-                numCandidates
+                lambda
             );
         });
 
@@ -98,7 +105,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareFloatArray(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), LAMBDA_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), NUM_CANDIDATES);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -106,7 +112,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     private final String diversificationField;
     private final float[] queryVector;
     private final Float lambda;
-    private final Integer numCandidates;
     private ResultDiversificationContext diversificationContext = null;
 
     ResultDiversificationRetrieverBuilder(
@@ -115,15 +120,13 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         String diversificationField,
         int rankWindowSize,
         @Nullable float[] queryVector,
-        @Nullable Float lambda,
-        @Nullable Integer numCandidates
+        @Nullable Float lambda
     ) {
         super(List.of(innerRetriever), rankWindowSize);
         this.diversificationType = diversificationType;
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
         this.lambda = lambda;
-        this.numCandidates = numCandidates;
     }
 
     @Override
@@ -138,8 +141,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             diversificationField,
             rankWindowSize,
             queryVector,
-            lambda,
-            numCandidates
+            lambda
         );
     }
 
@@ -159,30 +161,16 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         }
 
         // if MMR, ensure we have a lambda between 0.0 and 1.0
-        // and numCandidates of at least 1
-        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
-            if (lambda == null || lambda < 0.0 || lambda > 1.0) {
-                validationException = addValidationError(
-                    String.format(
-                        Locale.ROOT,
-                        "[%s] MMR result diversification must have a [%s]] between 0.0 and 1.0",
-                        getName(),
-                        LAMBDA_FIELD.getPreferredName()
-                    ),
-                    validationException
-                );
-            }
-            if (numCandidates == null || numCandidates < 1) {
-                validationException = addValidationError(
-                    String.format(
-                        Locale.ROOT,
-                        "[%s] MMR result diversification must set the [%s] >= 1",
-                        getName(),
-                        NUM_CANDIDATES.getPreferredName()
-                    ),
-                    validationException
-                );
-            }
+        if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) && (lambda == null || lambda < 0.0 || lambda > 1.0)) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] MMR result diversification must have a [%s]] between 0.0 and 1.0",
+                    getName(),
+                    LAMBDA_FIELD.getPreferredName()
+                ),
+                validationException
+            );
         }
 
         return validationException;
@@ -199,8 +187,8 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
             diversificationContext = new MMRResultDiversificationContext(
                 diversificationField,
-                lambda,
-                numCandidates,
+                lambda == null ? DEFAULT_LAMBDA_VALUE : lambda,
+                rankWindowSize,
                 (DenseVectorFieldMapper) mapper,
                 indexVersion,
                 queryVector == null ? null : new VectorData(queryVector),
@@ -284,9 +272,6 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR)) {
             if (lambda != null) {
                 builder.field(LAMBDA_FIELD.getPreferredName(), lambda);
-            }
-            if (numCandidates != null) {
-                builder.field(NUM_CANDIDATES.getPreferredName(), numCandidates);
             }
         }
     }

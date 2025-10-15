@@ -25,9 +25,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
@@ -243,7 +247,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
+        List<Alias> packDimensions = new ArrayList<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
+        List<Alias> unpackDimensions = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
@@ -262,20 +268,34 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
-        for (Expression group : aggregate.groupings()) {
+        for (var group : aggregate.groupings()) {
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
             final Attribute g = (Attribute) group;
-            final NamedExpression newFinalGroup;
             if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                newFinalGroup = timeBucket.toAttribute();
+                var newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
+                secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
             } else {
-                newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
-                firstPassAggs.add(newFinalGroup);
+                var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), g));
+                firstPassAggs.add(valuesAgg);
+                Alias pack = new Alias(
+                    g.source(),
+                    internalNames.next("pack" + g.name()),
+                    new PackDimension(g.source(), valuesAgg.toAttribute())
+                );
+                packDimensions.add(pack);
+                Alias grouping = new Alias(g.source(), internalNames.next("group" + g.name()), pack.toAttribute());
+                secondPassGroupings.add(grouping);
+                Alias unpack = new Alias(
+                    g.source(),
+                    g.name(),
+                    new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
+                    g.id()
+                );
+                unpackDimensions.add(unpack);
             }
-            secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = requiredTimeSeriesSource.get() ? r.indexMode() : IndexMode.STANDARD;
@@ -298,7 +318,37 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket)
         );
-        return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
+        if (packDimensions.isEmpty()) {
+            return new Aggregate(
+                firstPhase.source(),
+                firstPhase,
+                secondPassGroupings,
+                mergeExpressions(secondPassAggs, secondPassGroupings)
+            );
+        } else {
+            Eval packValues = new Eval(firstPhase.source(), firstPhase, packDimensions);
+            Aggregate secondPhase = new Aggregate(
+                firstPhase.source(),
+                packValues,
+                secondPassGroupings,
+                mergeExpressions(secondPassAggs, secondPassGroupings)
+            );
+            Eval unpackValues = new Eval(secondPhase.source(), secondPhase, unpackDimensions);
+            List<NamedExpression> projects = new ArrayList<>();
+            for (NamedExpression agg : secondPassAggs) {
+                projects.add(Expressions.attribute(agg));
+            }
+            int pos = 0;
+            for (Expression group : secondPassGroupings) {
+                Attribute g = Expressions.attribute(group);
+                if (timeBucket != null && g.id().equals(timeBucket.id())) {
+                    projects.add(g);
+                } else {
+                    projects.add(unpackDimensions.get(pos++).toAttribute());
+                }
+            }
+            return new Project(newChild.source(), unpackValues, projects);
+        }
     }
 
     private static List<? extends NamedExpression> mergeExpressions(

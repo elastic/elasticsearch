@@ -46,16 +46,17 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -64,27 +65,40 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES93HnswBinaryQuantizedVectorsFormat());
+    private KnnVectorsFormat format;
+
+    boolean useBFloat16() {
+        return false;
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        format = new ES93HnswBinaryQuantizedVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, useBFloat16(), random().nextBoolean());
+        super.setUp();
+    }
 
     @Override
     protected Codec getCodec() {
-        return codec;
+        return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
     public void testToString() {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, 1, null);
+                return new ES93HnswBinaryQuantizedVectorsFormat(10, 20, false, false, 1, null);
             }
         };
-        String expectedPattern = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20,"
-            + " writeFlatVectorFormat=ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
-            + " flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=%s";
+        String expectedPattern = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat,"
+            + " maxConn=10, beamWidth=20,"
+            + " flatVectorFormat=ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
+            + " rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+            + " format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())),"
+            + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}())))";
 
-        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), either(startsWith(defaultScorer)).or(startsWith(memSegScorer)));
+        var defaultScorer = expectedPattern.replaceAll("\\{}", "DefaultFlatVectorScorer");
+        var memSegScorer = expectedPattern.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+        assertThat(customCodec.knnVectorsFormat().toString(), oneOf(defaultScorer, memSegScorer));
     }
 
     public void testSingleVectorCase() throws Exception {
@@ -128,15 +142,15 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(-1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(0, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 0));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, -1));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(512 + 1, 20));
-        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 3201));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(-1, 20, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(0, 20, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 0, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, -1, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(512 + 1, 20, false, false));
+        expectThrows(IllegalArgumentException.class, () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 3201, false, false));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, 1, new SameThreadExecutorService())
+            () -> new ES93HnswBinaryQuantizedVectorsFormat(20, 100, false, false, 1, new SameThreadExecutorService())
         );
     }
 
@@ -180,7 +194,8 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFor
                     assertEquals(1L, (long) offHeap.get("vex"));
                     assertTrue(offHeap.get("veb") > 0L);
                     if (expectVecOffHeap) {
-                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                        int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
+                        assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
                     }
                 }
             }

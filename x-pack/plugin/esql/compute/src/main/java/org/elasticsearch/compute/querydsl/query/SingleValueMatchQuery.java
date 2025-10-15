@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -113,7 +113,7 @@ public final class SingleValueMatchQuery extends Query {
                 final LeafFieldData lfd = fieldData.load(ctx);
                 // If field is singleton, then it is safe to cache this query, because no warning will ever be emitted.
                 if (lfd instanceof LeafNumericFieldData n) {
-                    if (DocValues.unwrapSingleton(n.getLongValues()) != null) {
+                    if (SortedNumericLongValues.unwrapSingleton(n.getLongValues()) != null) {
                         return true;
                     }
                 } else if (lfd instanceof LeafOrdinalsFieldData o) {
@@ -127,13 +127,14 @@ public final class SingleValueMatchQuery extends Query {
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                SortedNumericDocValues sortedNumerics,
+                SortedNumericLongValues sortedNumerics,
                 float boost,
                 ScoreMode scoreMode
-            ) {
+            ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedNumerics) != null) {
-                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sortedNumerics);
+                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                if (ndv != null) {
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedNumerics.advanceExact(doc)) {

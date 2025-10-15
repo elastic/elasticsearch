@@ -27,6 +27,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
+
 public class EsRelation extends LeafPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -61,20 +63,36 @@ public class EsRelation extends LeafPlan {
         Source source = Source.readFrom((PlanStreamInput) in);
         String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
-        indexPattern = in.readString();
-        indexNameWithModes = in.readMap(IndexMode::readFrom);
+        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            indexPattern = in.readString();
+            indexNameWithModes = in.readMap(IndexMode::readFrom);
+        } else {
+            var index = EsIndex.readFrom(in);
+            indexPattern = index.name();
+            indexNameWithModes = index.indexNameWithModes();
+        }
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
+        if (in.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            in.readBoolean();
+        }
         return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeString(indexPattern);
-        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            out.writeString(indexPattern);
+            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        } else {
+            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
+        }
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
+        if (out.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            out.writeBoolean(false);
+        }
     }
 
     @Override

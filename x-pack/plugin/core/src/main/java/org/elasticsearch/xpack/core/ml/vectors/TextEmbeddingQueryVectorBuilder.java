@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -63,7 +64,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        this.modelId = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
+            this.modelId = in.readOptionalString();
+        } else {
+            this.modelId = in.readString();
+        }
         this.modelText = in.readString();
     }
 
@@ -79,7 +84,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(modelId);
+        if (out.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
+            out.writeOptionalString(modelId);
+        } else {
+            out.writeString(modelId);
+        }
         out.writeString(modelText);
     }
 

@@ -636,15 +636,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSlmPolicyAndStats {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136399
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/160_knn_query_missing_params/kNN query in a bool clause - missing num_candidates}
-  issue: https://github.com/elastic/elasticsearch/issues/136402
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/220_dense_vector_node_index_stats/index node stats non-quantized}
-  issue: https://github.com/elastic/elasticsearch/issues/136403
-- class: org.elasticsearch.TransportVersionTests
-  method: testVersionComparison
-  issue: https://github.com/elastic/elasticsearch/issues/136410
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testRollupAfterRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/136437
@@ -663,9 +654,15 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136493
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIOUsed {p0=bbq_disk}
-  issue: https://github.com/elastic/elasticsearch/issues/136512
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
+  method: testFloatVectorScorerIteration
+  issue: https://github.com/elastic/elasticsearch/issues/136566
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/136584
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/136584
 
 # Examples:
 #

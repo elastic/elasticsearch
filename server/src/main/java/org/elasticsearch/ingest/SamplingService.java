@@ -584,22 +584,22 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     private void checkTTLs() {
-        long now = Instant.now().toEpochMilli();
+        long now = clock.instant().toEpochMilli();
         for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
             if (samplingMetadata != null) {
                 for (Map.Entry<String, SamplingConfiguration> entry : samplingMetadata.getIndexToSamplingConfigMap().entrySet()) {
                     SamplingConfiguration samplingConfiguration = entry.getValue();
                     if (samplingConfiguration.creationTime() + samplingConfiguration.timeToLive().millis() < now) {
+                        String indexName = entry.getKey();
                         logger.debug(
-                            "Configuration created at "
-                                + ZonedDateTime.ofInstant(Instant.ofEpochMilli(samplingConfiguration.creationTime()), ZoneOffset.UTC)
-                                + " is older than "
-                                + samplingConfiguration.timeToLive()
-                                + " because it is now "
-                                + ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
+                            "Deleting configuration for {} created at {} because it is older than {} now at {}",
+                            indexName,
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(samplingConfiguration.creationTime()), ZoneOffset.UTC),
+                            samplingConfiguration.timeToLive(),
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
                         );
-                        deleteSampleConfiguration(projectMetadata.id(), entry.getKey());
+                        deleteSampleConfiguration(projectMetadata.id(), indexName);
                     }
                 }
             }

@@ -84,7 +84,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlQueryClusterSettings;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;

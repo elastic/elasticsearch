@@ -39,7 +39,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                       "task_types": ["chat"]
                     },
                     {
-                      "model_name": "elser_model_2",
+                      "model_name": "elastic-elser-v2",
                       "task_types": ["embed/text/sparse"]
                     },
                     {

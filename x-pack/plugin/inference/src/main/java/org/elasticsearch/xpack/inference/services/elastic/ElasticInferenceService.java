@@ -109,19 +109,19 @@ public class ElasticInferenceService extends SenderService {
     private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
-    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
+    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "gp-llm-v1";
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
-    // elser-2
-    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
+    // elastic-elser-v2
+    static final String DEFAULT_ELSER_2_MODEL_ID = "elastic-elser-v2";
+    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId(DEFAULT_ELSER_2_MODEL_ID);
 
-    // multilingual-text-embed
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
+    // jina-embeddings-v3
+    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
     static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
 
-    // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
+    // elastic-rerank-v1
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
     static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
 
     /**
@@ -134,7 +134,7 @@ public class ElasticInferenceService extends SenderService {
     );
 
     public static String defaultEndpointId(String modelId) {
-        return Strings.format(".%s-elastic", modelId);
+        return Strings.format(".%s", modelId);
     }
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;

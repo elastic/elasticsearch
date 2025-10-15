@@ -406,7 +406,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     elserServiceSettings,
                     null,
                     "The [elser] service is deprecated and will be removed in a future release. Use the [elasticsearch] service "
-                        + "instead, with [model_id] set to [.elser_model_2] in the [service_settings]",
+                        + "instead, with [model_id] set to [.elastic-elser-v2] in the [service_settings]",
                     false
                 )
             );
@@ -435,7 +435,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     + " deprecated and will be removed in a future release. Please specify a model_id field.";
             String warnWarning =
                 "The [elser] service is deprecated and will be removed in a future release. Use the [elasticsearch] service "
-                    + "instead, with [model_id] set to [.elser_model_2] in the [service_settings]";
+                    + "instead, with [model_id] set to [.elastic-elser-v2] in the [service_settings]";
             service.parseRequestConfig(
                 randomInferenceEntityId,
                 TaskType.SPARSE_EMBEDDING,
@@ -509,7 +509,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     elserServiceSettings,
                     null,
                     "The [elser] service is deprecated and will be removed in a future release. Use the [elasticsearch] service "
-                        + "instead, with [model_id] set to [.elser_model_2] in the [service_settings]",
+                        + "instead, with [model_id] set to [.elastic-elser-v2] in the [service_settings]",
                     true
                 )
             );
@@ -547,7 +547,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     elserServiceSettings,
                     null,
                     "The [elser] service is deprecated and will be removed in a future release. Use the [elasticsearch] service "
-                        + "instead, with [model_id] set to [.elser_model_2] in the [service_settings]",
+                        + "instead, with [model_id] set to [.elastic-elser-v2] in the [service_settings]",
                     true
                 )
             );
@@ -756,7 +756,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         "model_version",
-                        ".elser_model_2"
+                        ".elastic-elser-v2"
                     )
                 )
             );
@@ -764,7 +764,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings);
             assertThat(model, instanceOf(ElserInternalModel.class));
             ElserInternalModel elserInternalModel = (ElserInternalModel) model;
-            assertThat(elserInternalModel.getServiceSettings().modelId(), is(".elser_model_2"));
+            assertThat(elserInternalModel.getServiceSettings().modelId(), is(".elastic-elser-v2"));
         }
 
         // Null model variant

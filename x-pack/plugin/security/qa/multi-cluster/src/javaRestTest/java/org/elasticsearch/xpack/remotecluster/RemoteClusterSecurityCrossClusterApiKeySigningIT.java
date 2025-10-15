@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import io.netty.handler.codec.http.HttpMethod;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;

@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,13 +35,19 @@ public class QuerySettingsSerializationTests extends AbstractWireSerializingTest
 
     private static final Map<QuerySettings.QuerySettingDef<?>, Supplier<Literal>> SETTINGS_GENERATORS = Map.of(
         QuerySettings.PROJECT_ROUTING,
-        () -> Literal.keyword(Source.EMPTY, randomAlphaOfLength(15)),
-        QuerySettings.TIME_ZONE,
-        () -> Literal.keyword(Source.EMPTY, randomZone().normalized().toString())
+        () -> Literal.keyword(Source.EMPTY, randomAlphaOfLength(15))
     );
 
+    public void testSettingsGenerators() {
+        for (var settingDef : QuerySettings.SETTINGS_BY_NAME.values()) {
+            var settingValueSupplier = SETTINGS_GENERATORS.get(settingDef);
+            assertNotNull("expected a generator for setting [" + settingDef.name() + "]", settingValueSupplier);
+            settingDef.validator().validate(settingValueSupplier.get(), null);
+        }
+    }
+
     public static QuerySettings randomSettings() {
-        var settings = new HashMap<QuerySettings.QuerySettingDef<?>, Literal>();
+        var settings = new HashMap<QuerySettings.QuerySettingDef<?>, Object>();
 
         for (var settingGenerator : SETTINGS_GENERATORS.entrySet()) {
             var settingDef = settingGenerator.getKey();
@@ -52,15 +56,12 @@ public class QuerySettingsSerializationTests extends AbstractWireSerializingTest
             if (randomBoolean()) {
                 settings.remove(settingDef);
             } else {
-                settings.put(settingDef, settingValueSupplier.get());
+                var rawValue = settingValueSupplier.get();
+                var parsed = settingDef.parse(rawValue);
+                settings.put(settingDef, parsed);
             }
         }
 
         return new QuerySettings(settings);
-    }
-
-    @Override
-    protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(ExpressionWritables.getNamedWriteables());
     }
 }

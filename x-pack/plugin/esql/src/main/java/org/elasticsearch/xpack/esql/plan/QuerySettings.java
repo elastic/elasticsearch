@@ -12,17 +12,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -38,7 +34,7 @@ import java.util.stream.Stream;
  *     The value is the literal value of the setting.
  * </p>
  */
-public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implements Writeable {
+public record QuerySettings(Map<QuerySettingDef<?>, Object> settings) implements Writeable {
     // TODO check cluster state and see if project routing is allowed
     // see https://github.com/elastic/elasticsearch/pull/134446
     // PROJECT_ROUTING(..., state -> state.getRemoteClusterNames().crossProjectEnabled());
@@ -55,33 +51,22 @@ public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implement
         null
     );
 
-    public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
-        "time_zone",
-        DataType.KEYWORD,
-        false,
-        true,
-        true,
-        "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC",
-        (value) -> {
-            String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
-            try {
-                return ZoneId.of(timeZone);
-            } catch (Exception exc) {
-                throw new IllegalArgumentException("Invalid time zone [" + timeZone + "]");
-            }
-        },
-        ZoneOffset.UTC
-    );
-
     public static final QuerySettings EMPTY = new QuerySettings(Map.of());
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static QuerySettings from(EsqlStatement statement) {
-        return new QuerySettings(
-            statement.settings().stream().collect(Collectors.toMap(s -> SETTINGS_BY_NAME.get(s.name()), s -> (Literal) s.value()))
-        );
+        var settings = new HashMap<QuerySettingDef<?>, Object>();
+
+        for (QuerySetting setting : statement.settings()) {
+            QuerySettingDef<?> def = SETTINGS_BY_NAME.get(setting.name());
+            assert def != null : "Unknown setting [" + setting.name() + "]. Settings must be validated before parsing";
+            Literal literal = (Literal) setting.value();
+            settings.put(def, def.parse(literal));
+        }
+
+        return new QuerySettings(settings);
     }
 
     public static void validate(EsqlStatement statement, RemoteClusterService clusterService) {
@@ -110,22 +95,20 @@ public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implement
     }
 
     public QuerySettings(StreamInput in) throws IOException {
-        this(
-            new PlanStreamInput(in, in.namedWriteableRegistry(), null).readMap(
-                i -> SETTINGS_BY_NAME.get(i.readString()),
-                i -> (Literal) i.readNamedWriteable(Expression.class)
-            )
-        );
+        this(in.readMap(i -> SETTINGS_BY_NAME.get(i.readString()), StreamInput::readGenericValue));
     }
 
+    /**
+     * Returns the setting value, casted to the expected type
+     */
+    @SuppressWarnings("unchecked")
     public <T> T get(QuerySettingDef<T> def) {
-        var value = settings.get(def);
-        return def.parse(value);
+        return (T) settings.get(def);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        new PlanStreamOutput(out, null).writeMap(settings, (o, k) -> o.writeString(k.name()), StreamOutput::writeNamedWriteable);
+        out.writeMap(settings, (o, k) -> o.writeString(k.name()), StreamOutput::writeGenericValue);
     }
 
     @Override

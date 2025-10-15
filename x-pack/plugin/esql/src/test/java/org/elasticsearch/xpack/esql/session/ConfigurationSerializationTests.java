@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -19,7 +18,6 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettingsSerializationTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -113,10 +111,5 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             in.resultTruncationMaxSize(true),
             in.resultTruncationDefaultSize(true)
         );
-    }
-
-    @Override
-    protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(ExpressionWritables.getNamedWriteables());
     }
 }

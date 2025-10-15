@@ -18,11 +18,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -44,26 +41,6 @@ public class QuerySettingsTests extends ESTestCase {
             setting.name(),
             new Literal(Source.EMPTY, 12, DataType.INTEGER),
             "Setting [" + setting.name() + "] must be of type KEYWORD"
-        );
-    }
-
-    public void testValidate_TimeZone() {
-        var setting = QuerySettings.TIME_ZONE;
-
-        assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
-
-        assertValid(setting, Literal.keyword(Source.EMPTY, "UTC"), equalTo(ZoneId.of("UTC")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+05:00"), equalTo(ZoneId.of("+05:00")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+05"), equalTo(ZoneId.of("+05")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+07:15"), equalTo(ZoneId.of("+07:15")));
-
-        assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 12), "Setting [" + setting.name() + "] must be of type KEYWORD");
-        assertInvalid(
-            setting.name(),
-            Literal.keyword(Source.EMPTY, "Europe/New York"),
-            "Error validating setting [" + setting.name() + "]: Invalid time zone [Europe/New York]"
         );
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -55,6 +56,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -2186,6 +2188,104 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
             .get();
+    }
+
+    // Test race where a target shard gets marked as splitting and copies the source directory in the middle of an upload
+    public void testUploadCopyRace() throws Exception {
+        var reshardStarted = new AtomicBoolean(false);
+        var startSplitLatch = new CountDownLatch(1);
+        var uploadLatch = new CountDownLatch(1);
+
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build(),
+            new StatelessMockRepositoryStrategy() {
+                @Override
+                public void blobContainerWriteBlobAtomic(
+                    CheckedRunnable<IOException> originalRunnable,
+                    OperationPurpose purpose,
+                    String blobName,
+                    InputStream inputStream,
+                    long blobSize,
+                    boolean failIfAlreadyExists
+                ) throws IOException {
+                    if (reshardStarted.get()) {
+                        startSplitLatch.countDown();
+                        try {
+                            uploadLatch.await();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    originalRunnable.run();
+                }
+            }
+        );
+        var searchNode = startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        indexDocs(indexName, 100);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+
+        var indexTransportService = MockTransportService.getInstance(indexNode);
+        indexTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportReshardSplitAction.START_SPLIT_ACTION_NAME.equals(action)) {
+                try {
+                    startSplitLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        splitSourceService.setPreHandoffHook(uploadLatch::countDown);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+        reshardStarted.set(true);
+
+        // upload will unblock split and wait for pre-handoff hook
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+    }
+
+    public void testSourceRelocationDuringReshard() {
+        var masterNode = startMasterOnlyNode();
+        var indexNodeA = startIndexNode();
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNodeA, indexName, 1);
+
+        indexDocs(indexName, 100);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
+
+        // spin up new index node
+        var indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+
+        // relocate source shard
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
     }
 
     @Override

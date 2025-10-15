@@ -361,6 +361,10 @@ public class Top extends AggregateFunction
     @Override
     public Expression surrogate() {
         var s = source();
+        // If the `outputField` is specified but its value is the same as `field` then we do not need to handle `outputField` separately.
+        if (outputField() != null && field().semanticEquals(outputField())) {
+            return new Top(s, field(), limitField(), orderField(), null);
+        }
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1) {
             if (orderValue()) {
                 return new Min(s, field(), filter());

@@ -640,20 +640,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.estimatedRowSize(), equalTo(estimatedSize));
     }
 
-
-     /** Expects
-     * LimitExec[1000[INTEGER],2284]
-     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
-     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4],false]
-     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
-     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4]]
-     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
-     *       \_LimitExec[1000[INTEGER],78]
-     *         \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
-     *           \_FieldExtractExec[first_name{f}#6]
-     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[1000], sort[] estimatedRowSize[2288] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
-     *
-     */
+    /** Expects
+    * LimitExec[1000[INTEGER],2284]
+    * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+    * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4],false]
+    *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+    * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10, s{r}#4]]
+    *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
+    *       \_LimitExec[1000[INTEGER],78]
+    *         \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
+    *           \_FieldExtractExec[first_name{f}#6]
+    *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[1000], sort[] estimatedRowSize[2288] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+    *
+    */
     public void testEvalWithScoreImplicitLimit() {
         var plan = physicalPlan("""
             from test
@@ -712,46 +711,56 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.limit(), is(l(42)));
     }
 
-
     /**
      * Expects
-     * ProjectExec[[first_name{f}#9]]
-     * \_TopNExec[[Order[emp_no{f}#8,ASC,LAST]],2[INTEGER],54]
+     * ProjectExec[[last_name{f}#13]]
+     * \_TopNExec[[Order[emp_no{f}#9,ASC,LAST]],2[INTEGER],54]
      *   \_LimitExec[42[INTEGER],54]
-     *     \_ExchangeExec[[emp_no{f}#8, first_name{f}#9],false]
-     *       \_ProjectExec[[emp_no{f}#8, first_name{f}#9]]
-     *         \_FieldExtractExec[emp_no{f}#8]
+     *     \_ExchangeExec[[emp_no{f}#9, last_name{f}#13],false]
+     *       \_ProjectExec[[emp_no{f}#9, last_name{f}#13]]
+     *         \_FieldExtractExec[emp_no{f}#9, last_name{f}#13]
      *           \_LimitExec[42[INTEGER],78]
      *             \_FilterExec[s{r}#4 > 0.5[DOUBLE]]
-     *               \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
-     *                 \_FieldExtractExec[first_name{f}#9]
-     *                   \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[42], sort[] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
-     */
+     *               \_EvalExec[[SCORE(MATCH(first_name{f}#10,foo[KEYWORD])) AS s#4]]
+     *                 \_FieldExtractExec[first_name{f}#10]
+     *                   \_EsQueryExec[test], indexMode[standard], [_doc{f}#32], limit[42], sort[] estimatedRowSize[116] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[{
+     *   "exists" : {
+     *     "field" : "last_name",
+     *     "boost" : 0.0
+     *   }
+     * }], tags=[]}]]
+     **/
     public void testEvalWithScoreAndTopN() {
         var plan = physicalPlan("""
-            from test
-            | eval s = score(match(first_name, "foo"))
-            | where s > 0.5
-            | limit 42
-            | sort emp_no
-            | keep first_name
-            | limit 2
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | WHERE s > 0.5 AND last_name IS NOT NULL
+            | LIMIT 42
+            | SORT emp_no
+            | KEEP last_name
+            | LIMIT 2
             """);
 
         var optimized = optimizedPlan(plan);
-        var limit = as(optimized, LimitExec.class);
+        var project = as(optimized, ProjectExec.class);
+        assertThat(names(project.projections()), contains("last_name"));
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.limit(), is(l(2)));
+        var limit = as(topN.child(), LimitExec.class);
         assertThat(limit.limit(), is(l(42)));
         var exchange = asRemoteExchange(limit.child());
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var project2 = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project2.child(), FieldExtractExec.class);
         var dataNodeLimit = as(fieldExtract.child(), LimitExec.class);
         assertThat(dataNodeLimit.limit(), is(l(42)));
-        var eval = as(dataNodeLimit.child(), EvalExec.class);
+        var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var eval = as(filter.child(), EvalExec.class);
         assertThat(eval.fields(), hasSize(1));
         assertThat(eval.fields().get(0).child(), isA(Score.class));
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
+        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
     }
 
     /**

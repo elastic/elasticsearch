@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -210,12 +209,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testEvalWithScoreImplicitLimit() {
         var plan = plan("""
-            from test
-            | eval s = score(match(last_name, "high"))
+            FROM test
+            | EVAL s = SCORE(MATCH(last_name, "high"))
             """);
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), instanceOf(Eval.class));
-        assertThat(((Literal)limit.limit()).value(), equalTo(1000));
+        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child(), instanceOf(Score.class));
@@ -223,13 +222,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testEvalWithScoreExplicitLimit() {
         var plan = plan("""
-            from test
-            | eval s = score(match(last_name, "high"))
-            | limit 42
+            FROM test
+            | EVAL s = SCORE(MATCH(last_name, "high"))
+            | LIMIT 42
             """);
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), instanceOf(Eval.class));
-        assertThat(((Literal)limit.limit()).value(), equalTo(42));
+        assertThat(((Literal) limit.limit()).value(), equalTo(42));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child(), instanceOf(Score.class));

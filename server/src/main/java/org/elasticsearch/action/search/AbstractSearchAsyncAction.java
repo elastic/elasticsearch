@@ -639,6 +639,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger
                 );
             } else {
+                logger.info("---> feature flag disabled");
                 return source.pointInTimeBuilder().getEncodedId();
             }
         } else {
@@ -682,6 +683,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         }
+        logger.info("re-encoding PIT [{}]", idChanged);
         if (idChanged) {
             // we free all old contexts that have moved, just in case we have re-tried them elsewhere but they still exist in the old
             // location

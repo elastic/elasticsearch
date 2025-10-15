@@ -21,7 +21,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
@@ -107,8 +106,6 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
  * </code></pre>
  */
 public class ExponentialHistogramFieldMapper extends FieldMapper {
-
-    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
 
     public static final String CONTENT_TYPE = "exponential_histogram";
 

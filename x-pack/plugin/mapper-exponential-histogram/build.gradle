@@ -25,6 +25,7 @@ restResources {
 }
 dependencies {
   api project(":libs:exponential-histogram")
+  api project(xpackModule('analytics'))
   compileOnly project(path: xpackModule('core'))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }

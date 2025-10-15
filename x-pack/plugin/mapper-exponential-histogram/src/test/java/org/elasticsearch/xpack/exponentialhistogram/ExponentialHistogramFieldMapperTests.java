@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldParser;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
@@ -46,7 +47,7 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     public void setup() {
         assumeTrue(
             "Only when exponential_histogram feature flag is enabled",
-            ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
+            ExponentialHistogramFieldParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
         );
     }
 

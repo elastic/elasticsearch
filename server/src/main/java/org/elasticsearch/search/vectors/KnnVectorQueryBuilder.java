@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -297,7 +298,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.queryVectorBuilder = null;
         }
-        this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
+        if (in.getTransportVersion().onOrAfter(KNN_QUERY_RESCORE_OVERSAMPLE)) {
+            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
+        } else {
+            this.rescoreVectorBuilder = null;
+        }
+
         this.queryVectorSupplier = null;
     }
 
@@ -409,7 +415,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        out.writeOptionalWriteable(rescoreVectorBuilder);
+        if (out.getTransportVersion().onOrAfter(KNN_QUERY_RESCORE_OVERSAMPLE)) {
+            out.writeOptionalWriteable(rescoreVectorBuilder);
+        }
     }
 
     @Override

@@ -1834,7 +1834,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert electionScheduler == null : electionScheduler;
 
         if (getLocalNode().isMasterNode() == false) {
-            logger.debug("local node is not the master, so skipping election scheduler");
+            logger.debug("local node is not the master, skipping election scheduler");
             return;
         }
 

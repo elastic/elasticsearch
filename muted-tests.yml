@@ -657,12 +657,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
   method: testFloatVectorScorerIteration
   issue: https://github.com/elastic/elasticsearch/issues/136566
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/136584
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/136584
 
 # Examples:
 #

@@ -596,7 +596,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 out.writeBoolean(false);
             }
             if (out.getTransportVersion().supports(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-                && out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
                 // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
                 // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
                 out.writeBoolean(false);

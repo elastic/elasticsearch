@@ -40,7 +40,7 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         block = APIBlock.readFrom(in);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             markVerified = in.readBoolean();
         } else {
             markVerified = false;
@@ -132,7 +132,7 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         block.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_18_0) == false) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(markVerified);
         }
     }

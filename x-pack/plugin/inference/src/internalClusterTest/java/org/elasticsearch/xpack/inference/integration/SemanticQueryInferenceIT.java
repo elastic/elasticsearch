@@ -8,15 +8,24 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
@@ -33,6 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.inference.integration.InferenceUtils.createInferenceEndpoint;
 import static org.hamcrest.CoreMatchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SemanticQueryInferenceIT extends ESIntegTestCase {
     private static final Map<String, Object> SPARSE_EMBEDDING_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
 
@@ -47,13 +57,13 @@ public class SemanticQueryInferenceIT extends ESIntegTestCase {
             LocalStateInferencePlugin.class,
             TestInferenceServicePlugin.class,
             ReindexPlugin.class,
-            SemanticTextInferenceFieldsIT.FakeMlPlugin.class
+            FakeMlPlugin.class
         );
     }
 
-    public void testManyInferenceRequests() throws Exception {
+    public void testManyInferenceRequests_SemanticQuery() throws Exception {
         final String semanticTextFieldName = randomAlphaOfLength(10);
-        int indexCount = randomIntBetween(16, 20);
+        int indexCount = 20;
         List<String> indices = new ArrayList<>(indexCount);
         for (int i = 0; i < indexCount; i++) {
             String indexName = randomIdentifier();
@@ -75,6 +85,85 @@ public class SemanticQueryInferenceIT extends ESIntegTestCase {
         });
     }
 
+    public void testManyInferenceRequests_KnnQuery() throws Exception {
+        final String semanticTextFieldName = randomAlphaOfLength(10);
+        int indexCount = 20;
+        List<String> indices = new ArrayList<>(indexCount);
+        for (int i = 0; i < indexCount; i++) {
+            String indexName = randomIdentifier();
+            String inferenceId = randomIdentifier();
+            XContentBuilder mapping = generateMapping(semanticTextFieldName, inferenceId);
+
+            createInferenceEndpoint(client(), TaskType.SPARSE_EMBEDDING, inferenceId, SPARSE_EMBEDDING_SERVICE_SETTINGS);
+            assertAcked(prepareCreate(indexName).setMapping(mapping));
+
+            indices.add(indexName);
+        }
+
+        QueryBuilder query = new KnnVectorQueryBuilder(
+            semanticTextFieldName,
+            new TextEmbeddingQueryVectorBuilder(null, randomAlphanumericOfLength(10)),
+            10,
+            100,
+            10f,
+            null
+        );
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query);
+        SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0]), searchSourceBuilder);
+        assertResponse(client().search(searchRequest), response -> {
+            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
+        });
+    }
+
+    public void testManyInferenceRequests_SparseVectorQuery() throws Exception {
+        final String semanticTextFieldName = randomAlphaOfLength(10);
+        int indexCount = 20;
+        List<String> indices = new ArrayList<>(indexCount);
+        for (int i = 0; i < indexCount; i++) {
+            String indexName = randomIdentifier();
+            String inferenceId = randomIdentifier();
+            XContentBuilder mapping = generateMapping(semanticTextFieldName, inferenceId);
+
+            createInferenceEndpoint(client(), TaskType.SPARSE_EMBEDDING, inferenceId, SPARSE_EMBEDDING_SERVICE_SETTINGS);
+            assertAcked(prepareCreate(indexName).setMapping(mapping));
+
+            indices.add(indexName);
+        }
+
+        QueryBuilder query = new SparseVectorQueryBuilder(semanticTextFieldName, null, randomAlphanumericOfLength(10));
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query);
+        SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0]), searchSourceBuilder);
+        assertResponse(client().search(searchRequest), response -> {
+            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
+        });
+    }
+
+    public void testManyInferenceRequests_MatchQuery() throws Exception {
+        final String semanticTextFieldName = randomAlphaOfLength(10);
+        int indexCount = 20;
+        List<String> indices = new ArrayList<>(indexCount);
+        for (int i = 0; i < indexCount; i++) {
+            String indexName = randomIdentifier();
+            String inferenceId = randomIdentifier();
+            XContentBuilder mapping = generateMapping(semanticTextFieldName, inferenceId);
+
+            createInferenceEndpoint(client(), TaskType.SPARSE_EMBEDDING, inferenceId, SPARSE_EMBEDDING_SERVICE_SETTINGS);
+            assertAcked(prepareCreate(indexName).setMapping(mapping));
+
+            indices.add(indexName);
+        }
+
+        QueryBuilder query = new MatchQueryBuilder(semanticTextFieldName, randomAlphaOfLength(10));
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query);
+        SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0]), searchSourceBuilder);
+        assertResponse(client().search(searchRequest), response -> {
+            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
+        });
+    }
+
     private static XContentBuilder generateMapping(String semanticTextFieldName, String inferenceId) throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
@@ -85,5 +174,23 @@ public class SemanticQueryInferenceIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
+    }
+
+    public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return new MlInferenceNamedXContentProvider().getNamedWriteables();
+        }
+
+        @Override
+        public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+            return List.of(
+                new QueryVectorBuilderSpec<>(
+                    TextEmbeddingQueryVectorBuilder.NAME,
+                    TextEmbeddingQueryVectorBuilder::new,
+                    TextEmbeddingQueryVectorBuilder.PARSER
+                )
+            );
+        }
     }
 }

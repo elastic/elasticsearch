@@ -112,7 +112,7 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertThat(spec.sourcePaths(), containsInAnyOrder("cat", "dog", "hamster"));
         var pref = spec.sourcePaths();
 
-        spec = spec.merge(new StoredFieldsSpec(true, false, Set.of("other_field"), IgnoredFieldsSpec.NONE, null));
+        spec = spec.merge(new StoredFieldsSpec(true, false, Set.of("other_field"), IgnoredFieldsSpec.NONE, Set.of()));
         assertThat(spec.ignoredFieldsSpec(), equalTo(IgnoredFieldsSpec.NONE));
         assertThat(spec.requiresSource(), equalTo(true));
         assertThat(spec.requiresMetadata(), equalTo(false));

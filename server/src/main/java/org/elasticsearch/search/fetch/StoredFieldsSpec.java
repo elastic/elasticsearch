@@ -30,7 +30,7 @@ public record StoredFieldsSpec(
     Set<String> sourcePaths
 ) {
     public StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
-        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredFieldsSpec.NONE, null);
+        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredFieldsSpec.NONE, Set.of());
     }
 
     public boolean noRequirements() {
@@ -85,15 +85,15 @@ public record StoredFieldsSpec(
             mergedFields.addAll(other.requiredStoredFields);
         }
         Set<String> mergedSourcePaths;
-        if (this.sourcePaths != null && other.sourcePaths != null) {
+        if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {
             mergedSourcePaths = new HashSet<>(this.sourcePaths);
             mergedSourcePaths.addAll(other.sourcePaths);
-        } else if (this.sourcePaths != null) {
+        } else if (this.sourcePaths.isEmpty() == false) {
             mergedSourcePaths = this.sourcePaths;
-        } else if (other.sourcePaths != null) {
+        } else if (other.sourcePaths.isEmpty() == false) {
             mergedSourcePaths = other.sourcePaths;
         } else {
-            mergedSourcePaths = null;
+            mergedSourcePaths = Set.of();
         }
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,

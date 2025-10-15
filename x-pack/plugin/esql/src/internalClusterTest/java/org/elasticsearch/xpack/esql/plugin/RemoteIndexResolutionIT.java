@@ -35,14 +35,28 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testDoesNotResolveUnknownRemoteIndex() {
-        for (Boolean skipUnavailable : new Boolean[] { true, false, null }) {
-            setSkipUnavailable(REMOTE_CLUSTER_1, skipUnavailable);
-            expectThrows(
-                VerificationException.class,
-                containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-                () -> run(syncEsqlQueryRequest().query("FROM " + REMOTE_CLUSTER_1 + ":fake"))
-            );
+    public void testResolveRemoteUnknownIndex() {
+        // Today we do not allow empty index resolution.
+        // This index is mixed into the resultset to test error handling of the missing concrete remote, not the empty result.
+        indexRandom(LOCAL_CLUSTER, true, "data", 1);
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
+            () -> run(syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake"))
+        );
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        try (var response = run(syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index"))) {
+            assertPartial(response);
+            assertResultConcreteIndices(response, "data");
+        }
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, null);
+        try (var response = run(syncEsqlQueryRequest().query("FROM data," + REMOTE_CLUSTER_1 + ":fake METADATA _index"))) {
+            assertPartial(response);
+            assertResultConcreteIndices(response, "data");
         }
     }
 
@@ -98,6 +112,10 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
 
     private static void assertOk(EsqlQueryResponse response) {
         assertThat(response.isPartial(), equalTo(false));
+    }
+
+    private static void assertPartial(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(true));
     }
 
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {

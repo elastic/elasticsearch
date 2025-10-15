@@ -41,16 +41,13 @@ public class InferenceStatsTests extends ESTestCase {
         return new InferenceStats(mock(), mock(), mock());
     }
 
-    public void testRecordWithModel() {
+    public void testRecordWithService() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock());
 
         stats.requestCount().incrementBy(1, serviceAttributes(model("service", TaskType.ANY, "modelId")));
 
-        verify(longCounter).incrementBy(
-            eq(1L),
-            eq(Map.of("service", "service", "task_type", TaskType.ANY.toString(), "model_id", "modelId"))
-        );
+        verify(longCounter).incrementBy(eq(1L), eq(Map.of("service", "service", "task_type", TaskType.ANY.toString())));
     }
 
     public void testRecordWithoutModel() {
@@ -80,7 +77,6 @@ public class InferenceStatsTests extends ESTestCase {
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
-            assertThat(attributes.get("model_id"), is("modelId"));
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
         }));
@@ -108,7 +104,6 @@ public class InferenceStatsTests extends ESTestCase {
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
-            assertThat(attributes.get("model_id"), is("modelId"));
             assertThat(attributes.get("status_code"), is(statusCode.getStatus()));
             assertThat(attributes.get("error.type"), is(expectedError));
         }));
@@ -135,7 +130,6 @@ public class InferenceStatsTests extends ESTestCase {
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
             assertThat(attributes.get("task_type"), is(TaskType.ANY.toString()));
-            assertThat(attributes.get("model_id"), is("modelId"));
             assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error.type"), is(expectedError));
         }));

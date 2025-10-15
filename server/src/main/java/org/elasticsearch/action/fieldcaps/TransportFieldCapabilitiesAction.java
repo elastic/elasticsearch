@@ -159,6 +159,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final List<ResolvedIndexExpression> resolvedLocallyList;
         if (request.getResolvedIndexExpressions() != null) {
             // in CPS the SAF would populate resolvedExpressions for the local project
+            // TODO MP Might need to expand local indices?
             resolvedLocallyList = request.getResolvedIndexExpressions().expressions();
         } else {
             resolvedLocallyList = new ArrayList<>();
@@ -473,7 +474,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     FieldCapabilitiesResponse.builder()
                         .withIndexResponses(indexResponses.values())
                         .withResolvedLocally(resolvedLocally)
-                        .withResolvedRemotelyBuilder(resolvedRemotely) // TODO MP CHECK THIS fo CCS/CPS
+                        .withResolvedRemotelyBuilder(resolvedRemotely)
                         .withFailures(failures)
                         .build()
                 );
@@ -493,7 +494,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     listener.onResponse(
                         FieldCapabilitiesResponse.builder()
                             .withResolvedLocally(resolvedLocally)
-                            .withResolvedRemotelyBuilder(resolvedRemotely) // TODO MP check this for CCS/CPS
+                            .withResolvedRemotelyBuilder(resolvedRemotely)
                             .withFailures(failures)
                             .build()
 
@@ -604,7 +605,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return FieldCapabilitiesResponse.builder()
             .withIndices(indices)
             .withResolvedLocally(new ResolvedIndexExpressions(collect))
-            .withResolvedRemotelyBuilder(resolvedRemotely)// TODO MP check this, should be good
+            .withResolvedRemotelyBuilder(resolvedRemotely)
             .withFields(fields)
             .withFailures(failures)
             .build();

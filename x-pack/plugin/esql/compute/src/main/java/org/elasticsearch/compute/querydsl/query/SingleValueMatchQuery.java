@@ -156,22 +156,9 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
-                    // check for dense field
-                    // TODO: check doc values skippers
-                    // TODO: can we make Ordinals implement nextDoc() and always use DocIdSetIteratorScorerSupplier
-                    final Terms terms = context.reader().terms(fieldData.getFieldName());
-                    if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(
-                            boost,
-                            scoreMode,
-                            maxDoc,
-                            MULTI_VALUE_MATCH_COST,
-                            sortedSetDocValues::advanceExact
-                        );
-                    }
+                SortedDocValues sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                if (sdv != null) {
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sdv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedSetDocValues.advanceExact(doc)) {

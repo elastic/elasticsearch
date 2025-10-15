@@ -13,7 +13,7 @@ $$$remove-options$$$
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
-| `field` | yes | - | Fields to be removed. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). |
+| `field` | yes | - | Fields to be removed. Supports [template snippets](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#template-snippets). This parameter is not required if you use `keep` instead. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document |
 | `keep` | no | - | Fields to be kept. When set, all fields other than those specified are removed. |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
@@ -21,6 +21,7 @@ $$$remove-options$$$
 | `ignore_failure` | no | `false` | Ignore failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `on_failure` | no | - | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
+
 
 Here is an example to remove a single field:
 

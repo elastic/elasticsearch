@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -53,8 +54,17 @@ public final class DfsSearchResult extends SearchPhaseResult {
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
-        searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
+            } else {
+                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
+                knnResults = results != null ? List.of(results) : List.of();
+            }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        }
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -124,8 +134,25 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
-        out.writeOptionalCollection(knnResults);
-        out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                out.writeOptionalCollection(knnResults);
+            } else {
+                if (knnResults != null && knnResults.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Cannot serialize multiple KNN results to nodes using previous transport version ["
+                            + out.getTransportVersion().toReleaseVersion()
+                            + "], minimum required transport version is ["
+                            + TransportVersions.V_8_7_0.toReleaseVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
+            }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

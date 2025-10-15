@@ -298,7 +298,13 @@ class IndicesAndAliasesResolver {
         ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
-        return resolveIndicesAndAliases(action, indicesRequest, projectMetadata, authorizedIndices, TargetProjects.NOT_CROSS_PROJECT);
+        return resolveIndicesAndAliases(
+            action,
+            indicesRequest,
+            projectMetadata,
+            authorizedIndices,
+            TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+        );
     }
 
     ResolvedIndices resolveIndicesAndAliases(
@@ -405,11 +411,13 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 assert indicesRequest.indices() != null : "indices() cannot be null when resolving non-all-index expressions";
+                // TODO: consider short-circuit when authorizedProjects.linkedProjects is empty or is filtered to empty
                 if (crossProjectModeDecider.resolvesCrossProject(replaceable)
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
-                    assert replaceable.allowsRemoteIndices() : "cross-project requests must allow remote indices";
-                    assert authorizedProjects.crossProject() : "cross-project requests must have cross-project target set";
+                    assert replaceable.allowsRemoteIndices() : "cross-project request [" + indicesRequest + "] must allow remote indices";
+                    assert authorizedProjects.crossProject()
+                        : "cross-project request [" + indicesRequest + "] must have cross-project target set";
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),

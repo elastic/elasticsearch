@@ -112,7 +112,13 @@ class ExpressionBuilder extends IdentifierBuilder {
         }
         // convert - into a binary operator
         if (ctx.operator.getType() == MINUS) {
-            expression = new VectorBinaryArithmetic(source, Literal.fromDouble(source, 0.0), expression, VectorMatch.NONE, ArithmeticOp.SUB);
+            expression = new VectorBinaryArithmetic(
+                source,
+                Literal.fromDouble(source, 0.0),
+                expression,
+                VectorMatch.NONE,
+                ArithmeticOp.SUB
+            );
         }
 
         return expression;
@@ -350,7 +356,7 @@ class ExpressionBuilder extends IdentifierBuilder {
                 if (v >= Long.MAX_VALUE || v <= Long.MIN_VALUE) {
                     throw new ParsingException(source, "Timestamp out of bounds [{}]", v);
                 }
-                if (v - (long)v > 0) {
+                if (v - (long) v > 0) {
                     throw new ParsingException(source, "Timestamps must be in seconds precision");
                 }
             }

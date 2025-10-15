@@ -173,7 +173,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testLabelSelector() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
+        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
+        // \"{{from}}\"
         // | WHERE host.name IN(\"host-0\", \"host-1\", \"host-2\")
         // | STATS AVG(AVG_OVER_TIME(`system.cpu.load_average.1m`)) BY host.name, TBUCKET(5m) | LIMIT 10000"
         String testQuery = """
@@ -191,7 +192,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testLabelSelectorPrefix() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
+        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
+        // \"{{from}}\"
         // | WHERE host.name LIKE \"host-*\"
         // STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"
         String testQuery = """
@@ -238,13 +240,14 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     @Ignore("Proper assertions need to be added")
     public void testFsUsageTop5() {
-        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
+        // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
+        // \"{{from}}\"
         // | WHERE attributes.state IN (\"used\", \"free\")
         // | STATS sums = SUM(LAST_OVER_TIME(system.filesystem.usage)) by host.name, attributes.mountpoint
         // | STATS top = TOP(sums, 5, \"desc\") by host.name, attributes.mountpoint
         // | LIMIT 5
 
-//                topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
+        // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
         String testQuery = """
             TS k8s
             | promql
@@ -255,7 +258,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql(testQuery);
         System.out.println(plan);
     }
-
 
     protected LogicalPlan planPromql(String query) {
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -17,9 +16,9 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher.NEQ;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher.NREG;
-import static org.elasticsearch.xpack.esql.core.util.StringUtils.EMPTY;
 
 /**
  * PromQL label matcher between a label name, a value pattern and match type (=, !=, =~, !~).
@@ -131,9 +130,7 @@ public class LabelMatcher {
             return false;
         }
         LabelMatcher label = (LabelMatcher) o;
-        return matcher == label.matcher
-            && Objects.equals(name, label.name)
-            && Objects.equals(value, label.value);
+        return matcher == label.matcher && Objects.equals(name, label.name) && Objects.equals(value, label.value);
     }
 
     @Override

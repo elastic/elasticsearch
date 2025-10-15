@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
-import org.elasticsearch.xpack.core.watcher.input.Input;
-
 /**
  * Classifies PromQL functions by their input vector type and aggregation behavior.
  * This classification is independent of how the function is transformed to ESQL.
@@ -126,8 +124,6 @@ public enum FunctionType {
      * Returns whether this function transforms values element-wise.
      */
     public boolean isElementWise() {
-        return this == VALUE_TRANSFORMATION
-            || this == TIME_EXTRACTION
-            || this == METADATA_MANIPULATION;
+        return this == VALUE_TRANSFORMATION || this == TIME_EXTRACTION || this == METADATA_MANIPULATION;
     }
 }

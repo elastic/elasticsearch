@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
-
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -89,8 +86,7 @@ public class PromqlFunctionRegistry {
                 acrossSeries("min", Min::new),
                 acrossSeries("sum", Sum::new) },
             // Across-series aggregations with parameters
-            new FunctionDefinition[] {
-                acrossSeriesBinary("quantile", Percentile::new) }
+            new FunctionDefinition[] { acrossSeriesBinary("quantile", Percentile::new) }
             // Note: group, stddev, stdvar, count_values not yet available in ESQL
         };
     }
@@ -115,7 +111,7 @@ public class PromqlFunctionRegistry {
         }
 
         public static Arity fixed(int count) {
-            return switch(count) {
+            return switch (count) {
                 case 0 -> NONE;
                 case 1 -> ONE;
                 case 2 -> TWO;
@@ -139,6 +135,7 @@ public class PromqlFunctionRegistry {
             return paramCount >= min && paramCount <= max;
         }
     }
+
     /**
      * Function definition record for registration and metadata.
      */
@@ -186,16 +183,11 @@ public class PromqlFunctionRegistry {
     }
 
     private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.ONE,
-            (source, params) -> {
-                Expression valueField = params.get(0);
-                Expression timestampField = params.get(1);
-                return builder.build(source, valueField, timestampField);
-            }
-        );
+        return new FunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, Arity.ONE, (source, params) -> {
+            Expression valueField = params.get(0);
+            Expression timestampField = params.get(1);
+            return builder.build(source, valueField, timestampField);
+        });
     }
 
     private static FunctionDefinition acrossSeries(String name, AcrossSeriesUnary<?> builder) {
@@ -208,16 +200,11 @@ public class PromqlFunctionRegistry {
     }
 
     private static FunctionDefinition acrossSeriesBinary(String name, AcrossSeriesBinary<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.ACROSS_SERIES_AGGREGATION,
-            Arity.TWO,
-            (source, params) -> {
-                Expression param = params.get(0);  // First param (k, quantile, etc.)
-                Expression field = params.get(1);   // Second param (the vector field)
-                return builder.build(source, field, param);
-            }
-        );
+        return new FunctionDefinition(name, FunctionType.ACROSS_SERIES_AGGREGATION, Arity.TWO, (source, params) -> {
+            Expression param = params.get(0);  // First param (k, quantile, etc.)
+            Expression field = params.get(1);   // Second param (the vector field)
+            return builder.build(source, field, param);
+        });
     }
 
     private void register(FunctionDefinition[][] definitionGroups) {

@@ -33,15 +33,7 @@ public class PromqlAstTests extends ESTestCase {
                 PromqlParser parser = new PromqlParser();
                 LogicalPlan plan = parser.createStatement(q, null, null);
             } catch (ParsingException pe) {
-                fail(
-                    format(null,
-                        "Error parsing line {}:{} '{}' [{}]",
-                        line.v2(),
-                        pe.getColumnNumber(),
-                        pe.getErrorMessage(),
-                        q
-                    )
-                );
+                fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));
             } catch (Exception e) {
                 fail(format(null, "Unexpected exception for line {}: [{}] \n {}", line.v2(), line.v1(), e));
             }
@@ -59,7 +51,7 @@ public class PromqlAstTests extends ESTestCase {
         new PromqlParser().createStatement(query);
     }
 
-    //@AwaitsFix(bugUrl = "requires parsing validation, not the focus for now")
+    // @AwaitsFix(bugUrl = "requires parsing validation, not the focus for now")
     public void testUnsupportedQueries() throws Exception {
         List<Tuple<String, Integer>> lines = PromqlGrammarTests.readQueries("/promql/grammar/queries-invalid.promql");
         for (Tuple<String, Integer> line : lines) {
@@ -72,13 +64,13 @@ public class PromqlAstTests extends ESTestCase {
                     () -> parser.createStatement(q)
                 );
                 parser.createStatement(q);
-                //System.out.printf(pe.getMessage());
+                // System.out.printf(pe.getMessage());
             } catch (QlClientException | UnsupportedOperationException ex) {
                 // Expected
             }
-//            } catch (AssertionError ae) {
-//                fail(format(null, "Unexpected exception for line {}: [{}] \n {}", line.v2(), line.v1(), ae.getCause()));
-//            }
+            // } catch (AssertionError ae) {
+            // fail(format(null, "Unexpected exception for line {}: [{}] \n {}", line.v2(), line.v1(), ae.getCause()));
+            // }
         }
     }
 }

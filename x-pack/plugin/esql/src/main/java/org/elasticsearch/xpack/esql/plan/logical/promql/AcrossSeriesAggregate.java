@@ -63,10 +63,10 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
         return new AcrossSeriesAggregate(source(), newChild, functionName(), parameters(), grouping(), groupings());
     }
 
-//    @Override
-//    public String telemetryLabel() {
-//        return "PROMQL_ACROSS_SERIES_AGGREGATION";
-//    }
+    // @Override
+    // public String telemetryLabel() {
+    // return "PROMQL_ACROSS_SERIES_AGGREGATION";
+    // }
 
     @Override
     public boolean equals(Object o) {

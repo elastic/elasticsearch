@@ -30,7 +30,7 @@ import java.util.Objects;
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
 public class PromqlFunctionCall extends UnaryPlan {
-    //implements TelemetryAware {
+    // implements TelemetryAware {
 
     private final String functionName;
     private final List<Expression> parameters;
@@ -92,9 +92,9 @@ public class PromqlFunctionCall extends UnaryPlan {
     }
 
     // @Override
-//    public String telemetryLabel() {
-//        return "PROMQL_FUNCTION_CALL";
-//    }
+    // public String telemetryLabel() {
+    // return "PROMQL_FUNCTION_CALL";
+    // }
 
     @Override
     public int hashCode() {

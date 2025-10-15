@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.joni.exception.SyntaxException;
@@ -1058,7 +1057,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return completion;
     }
 
-
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(
         InferencePlanType inferencePlan,
         Expression inferenceId
@@ -1100,9 +1098,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         int promqlStartLine = source.source().getLineNumber();
-        int promqlStartColumn = terminalNode != null
-            ? terminalNode.getSymbol().getCharPositionInLine()
-            : source.source().getColumnNumber();
+        int promqlStartColumn = terminalNode != null ? terminalNode.getSymbol().getCharPositionInLine() : source.source().getColumnNumber();
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;
@@ -1119,9 +1115,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private static ParsingException getParsingException(ParsingException pe, int promqlStartLine, int promqlStartColumn) {
         int adjustedLine = promqlStartLine + (pe.getLineNumber() - 1);
-        int adjustedColumn = (pe.getLineNumber() == 1
-            ? promqlStartColumn + pe.getColumnNumber()
-            : pe.getColumnNumber()) - 1;
+        int adjustedColumn = (pe.getLineNumber() == 1 ? promqlStartColumn + pe.getColumnNumber() : pe.getColumnNumber()) - 1;
 
         ParsingException adjusted = new ParsingException(
             pe.getErrorMessage(),

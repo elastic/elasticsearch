@@ -15,5 +15,4 @@ import java.util.function.Function;
  * A factory that takes a {@link LogicalPlan} and returns another {@link LogicalPlan}.
  * This is used to chaining sub-plans after they've been created by the parser.
  */
-public interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {
-}
+public interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

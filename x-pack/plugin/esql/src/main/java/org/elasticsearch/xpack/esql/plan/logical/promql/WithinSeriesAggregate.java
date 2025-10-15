@@ -84,11 +84,7 @@ public class WithinSeriesAggregate extends PromqlFunctionCall implements Surroga
         functionParams.add(timestampField);
         functionParams.addAll(parameters());
 
-        Function esqlFunction = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
-            functionName(),
-            source(),
-            functionParams
-        );
+        Function esqlFunction = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(functionName(), source(), functionParams);
 
         String internalName = functionName() + "_$result";
         Alias functionAlias = new Alias(source(), internalName, esqlFunction);
@@ -103,8 +99,8 @@ public class WithinSeriesAggregate extends PromqlFunctionCall implements Surroga
         return new TimeSeriesAggregate(source(), childPlan, groupings, aggregates, null);
     }
 
-//    @Override
-//    public String telemetryLabel() {
-//        return "PROMQL_WITHIN_SERIES_AGGREGATION";
-//    }
+    // @Override
+    // public String telemetryLabel() {
+    // return "PROMQL_WITHIN_SERIES_AGGREGATION";
+    // }
 }

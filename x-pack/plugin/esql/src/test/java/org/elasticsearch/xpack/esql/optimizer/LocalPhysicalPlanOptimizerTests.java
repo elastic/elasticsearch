@@ -151,6 +151,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
@@ -233,7 +234,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         timeSeriesAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 timeSeriesIndex,
@@ -251,7 +252,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 config,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
@@ -269,7 +270,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private Analyzer makeAnalyzer(IndexResolution indexResolution) {
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
+            testAnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }

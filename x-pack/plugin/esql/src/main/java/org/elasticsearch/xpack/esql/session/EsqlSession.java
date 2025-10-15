@@ -225,9 +225,7 @@ public class EsqlSession {
                     LogicalPlan plan = analyzedPlan.inner();
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
-                    var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
-                        new LogicalPreOptimizerContext(foldContext, minimumVersion)
-                    );
+                    var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext, minimumVersion));
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
                     );
@@ -529,7 +527,9 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<Versioned<LogicalPlan>>andThen((l, r) -> analyzeWithRetry(parsed, configuration, requestFilter, preAnalysis, executionInfo, r, l))
+            .<Versioned<LogicalPlan>>andThen(
+                (l, r) -> analyzeWithRetry(parsed, configuration, requestFilter, preAnalysis, executionInfo, r, l)
+            )
             .addListener(logicalPlanListener);
     }
 
@@ -832,19 +832,25 @@ public class EsqlSession {
                 listener.onFailure(ve);
             } else {
                 // retrying and make the index resolution work without any index filtering.
-                preAnalyzeMainIndicesAndRetrieveMinTransportVersion(preAnalysis, executionInfo, result, null, listener.delegateFailure((l, r) -> {
-                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-                    try {
-                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
-                        LogicalPlan plan = analyzedPlan(parsed, configuration, r, executionInfo);
-                        LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
-                        l.onResponse(new Versioned<>(plan, r.minimumTransportVersion()));
-                    } catch (Exception e) {
-                        l.onFailure(e);
-                    }
-                }));
+                preAnalyzeMainIndicesAndRetrieveMinTransportVersion(
+                    preAnalysis,
+                    executionInfo,
+                    result,
+                    null,
+                    listener.delegateFailure((l, r) -> {
+                        LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+                        try {
+                            // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                            // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
+                            LogicalPlan plan = analyzedPlan(parsed, configuration, r, executionInfo);
+                            LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
+                            l.onResponse(new Versioned<>(plan, r.minimumTransportVersion()));
+                        } catch (Exception e) {
+                            l.onFailure(e);
+                        }
+                    })
+                );
             }
         } catch (Exception e) {
             listener.onFailure(e);

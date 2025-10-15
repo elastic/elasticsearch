@@ -615,9 +615,7 @@ public class CsvTests extends ESTestCase {
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
-        var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
-            new LogicalPreOptimizerContext(foldCtx, minimumVersion)
-        );
+        var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx, minimumVersion));
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(

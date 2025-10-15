@@ -38,7 +38,7 @@ public class TimeSeriesFeatureSetUsageTests extends AbstractWireSerializingTestC
                 randomIntBetween(0, 100),
                 randomIntBetween(100, 100000),
                 randomDownsamplingFeatureStats(),
-                randomPhaseMap(),
+                randomIlmPolicyStats(),
                 randomDownsamplingFeatureStats(),
                 randomIntervalMap()
             );
@@ -65,7 +65,7 @@ public class TimeSeriesFeatureSetUsageTests extends AbstractWireSerializingTestC
         }
         var indexCount = instance.getTimeSeriesIndexCount();
         var ilm = instance.getDownsamplingUsage().ilmDownsamplingStats();
-        var ilmPhases = instance.getDownsamplingUsage().phasesUsedInDownsampling();
+        var ilmPhases = instance.getDownsamplingUsage().ilmPolicyStats();
         var dlm = instance.getDownsamplingUsage().dlmDownsamplingStats();
         var indexPerInterval = instance.getDownsamplingUsage().indexCountPerInterval();
         int randomisationBranch = between(0, 5);
@@ -73,7 +73,7 @@ public class TimeSeriesFeatureSetUsageTests extends AbstractWireSerializingTestC
             case 0 -> dataStreamCount += randomIntBetween(1, 100);
             case 1 -> indexCount += randomIntBetween(1, 100);
             case 2 -> ilm = randomValueOtherThan(ilm, this::randomDownsamplingFeatureStats);
-            case 3 -> ilmPhases = randomValueOtherThan(ilmPhases, this::randomPhaseMap);
+            case 3 -> ilmPhases = randomValueOtherThan(ilmPhases, this::randomIlmPolicyStats);
             case 4 -> dlm = randomValueOtherThan(dlm, this::randomDownsamplingFeatureStats);
             case 5 -> indexPerInterval = randomValueOtherThan(indexPerInterval, this::randomIntervalMap);
             default -> throw new AssertionError("Illegal randomisation branch: " + randomisationBranch);
@@ -91,9 +91,15 @@ public class TimeSeriesFeatureSetUsageTests extends AbstractWireSerializingTestC
         );
     }
 
-    private Map<String, Long> randomPhaseMap() {
-        return randomNonEmptySubsetOf(Set.of("hot", "warm", "cold")).stream()
-            .collect(Collectors.toMap(k -> k, ignored -> randomNonNegativeLong()));
+    private TimeSeriesFeatureSetUsage.IlmPolicyStats randomIlmPolicyStats() {
+        return new TimeSeriesFeatureSetUsage.IlmPolicyStats(
+            randomNonEmptySubsetOf(Set.of("hot", "warm", "cold")).stream()
+                .collect(Collectors.toMap(k -> k, ignored -> randomNonNegativeLong())),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100)
+        );
     }
 
     private Map<String, Long> randomIntervalMap() {

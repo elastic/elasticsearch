@@ -1,0 +1,5 @@
+pr: 136299
+summary: Validate certificate identity from cross cluster creds
+area: Security
+type: enhancement
+issues: []

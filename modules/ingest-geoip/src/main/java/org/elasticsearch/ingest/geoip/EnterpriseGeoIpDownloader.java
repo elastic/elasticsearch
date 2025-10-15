@@ -110,9 +110,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     protected volatile EnterpriseGeoIpTaskState state;
     /**
-     * The currently scheduled periodic run, or null if no periodic run is currently scheduled. Note: _not_ the currently running thread!
+     * The currently scheduled periodic run. Only null before first periodic run.
      */
-    private volatile Scheduler.ScheduledCancellable scheduled;
+    private volatile Scheduler.ScheduledCancellable scheduledPeriodicRun;
     /**
      * The number of requested runs. If this is greater than 0, then a run is either in progress or scheduled to run as soon as possible.
      */
@@ -398,18 +398,28 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     }
 
     /**
-     * Cancels the currently scheduled run (if any) and schedules a new (periodic) run to happen immediately, which will then schedule
-     * the next periodic run using the poll interval.
+     * Cancels the currently scheduled run (if any) and schedules a new periodic run using the current poll interval, then requests
+     * that the downloader runs on demand now. The main reason we need that last step is that if this persistent task
+     * gets reassigned to a different node, we want to run the downloader immediately on that new node, not wait for the next periodic run.
      */
     public void restartPeriodicRun() {
+        if (threadPool.scheduler().isShutdown()) {
+            return;
+        }
         logger.trace("Restarting periodic run");
-        if (scheduled != null) {
-            final boolean cancelSuccessful = scheduled.cancel();
-            logger.trace("Cancelled scheduled run: [{}]", cancelSuccessful);
+        // We synchronize to ensure we only have one scheduledPeriodicRun at a time.
+        synchronized (this) {
+            if (scheduledPeriodicRun != null) {
+                final boolean cancelSuccessful = scheduledPeriodicRun.cancel();
+                logger.trace("Cancelled scheduled run: [{}]", cancelSuccessful);
+            }
+            // This is based on the premise that the poll interval is sufficiently large that we don't need to worry about
+            // the scheduled `runPeriodic` running before this method completes.
+            scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
         }
-        if (threadPool.scheduler().isShutdown() == false) {
-            threadPool.generic().submit(this::runPeriodic);
-        }
+        // Technically, with multiple rapid calls to restartPeriodicRun, we could end up with multiple calls to requestRunOnDemand, but
+        // that's unlikely to happen and harmless if it does, as we only end up running the downloader more often than strictly necessary.
+        requestRunOnDemand();
     }
 
     /**
@@ -438,9 +448,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             }
         }
         if (threadPool.scheduler().isShutdown() == false) {
-            logger.trace("Scheduling next periodic run, current scheduled run is [{}]", scheduled);
-            scheduled = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
-            logger.trace("Next periodic run scheduled: [{}]", scheduled);
+            logger.trace("Scheduling next periodic run, current scheduled run is [{}]", scheduledPeriodicRun);
+            scheduledPeriodicRun = threadPool.schedule(this::runPeriodic, pollIntervalSupplier.get(), threadPool.generic());
+            logger.trace("Next periodic run scheduled: [{}]", scheduledPeriodicRun);
         }
     }
 
@@ -528,8 +538,8 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     protected void onCancelled() {
-        if (scheduled != null) {
-            scheduled.cancel();
+        if (scheduledPeriodicRun != null) {
+            scheduledPeriodicRun.cancel();
         }
         markAsCompleted();
     }

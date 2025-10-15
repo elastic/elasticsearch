@@ -39,18 +39,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
@@ -66,6 +60,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.inference.integration.InferenceUtils.createInferenceEndpoint;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -163,35 +158,6 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
-    }
-
-    protected static void createInferenceEndpoint(Client client, TaskType taskType, String inferenceId, Map<String, Object> serviceSettings)
-        throws IOException {
-        final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
-            case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
-            default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
-        };
-
-        final BytesReference content;
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            builder.field("service", service);
-            builder.field("service_settings", serviceSettings);
-            builder.endObject();
-
-            content = BytesReference.bytes(builder);
-        }
-
-        PutInferenceModelAction.Request request = new PutInferenceModelAction.Request(
-            taskType,
-            inferenceId,
-            content,
-            XContentType.JSON,
-            TEST_REQUEST_TIMEOUT
-        );
-        var responseFuture = client.execute(PutInferenceModelAction.INSTANCE, request);
-        assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
     }
 
     protected void assertSearchResponse(QueryBuilder queryBuilder, List<IndexWithBoost> indices, List<SearchResult> expectedSearchResults)

@@ -576,7 +576,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                                 + "."
                         );
                     }
-                    DownsampleConfig.validateSourceAndTargetIntervals(previous.config(), round.config());
+                    DownsampleConfig.validateSourceAndTargetConfiguration(previous.config(), round.config());
                 }
             }
         }

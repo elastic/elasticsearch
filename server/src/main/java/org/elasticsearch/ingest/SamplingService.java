@@ -486,7 +486,7 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 if (isMaster) {
                     ProjectMetadata currentProject = event.state().metadata().projects().get(projectId);
                     ProjectMetadata previousProject = event.previousState().metadata().projects().get(projectId);
-                    if (previousProject == null) {
+                    if (currentProject == null || previousProject == null) {
                         continue;
                     }
                     if (currentProject.indices() != previousProject.indices()) {

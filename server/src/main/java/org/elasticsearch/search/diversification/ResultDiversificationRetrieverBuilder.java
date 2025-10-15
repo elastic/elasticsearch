@@ -75,7 +75,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             int rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
             float[] queryVector = args[4] == null ? null : (float[]) args[4];
             Float lambda = args[5] == null ? DEFAULT_LAMBDA_VALUE : (Float) args[5];
-            int numCandidates = args[6] == null? DEFAULT_NUM_CANDIDATES : (Integer) args[6];
+            int numCandidates = args[6] == null ? DEFAULT_NUM_CANDIDATES : (Integer) args[6];
             return new ResultDiversificationRetrieverBuilder(
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
@@ -153,12 +153,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         // ensure the type is one we know of - at the moment, only "mmr" is valid
         if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) == false) {
             validationException = addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "[%s] diversification type must be set to `[%s]`",
-                    getName(),
-                    DIVERSIFICATION_TYPE_MMR
-                ),
+                String.format(Locale.ROOT, "[%s] diversification type must be set to `[%s]`", getName(), DIVERSIFICATION_TYPE_MMR),
                 validationException
             );
         }
@@ -166,11 +161,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         // if MMR, ensure we have a lambda between 0.0 and 1.0
         if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) && (lambda < 0.0 || lambda > 1.0)) {
             validationException = addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "[%s] MMR result diversification must have a lambda between 0.0 and 1.0",
-                    getName()
-                ),
+                String.format(Locale.ROOT, "[%s] MMR result diversification must have a lambda between 0.0 and 1.0", getName()),
                 validationException
             );
         }
@@ -192,7 +183,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
                 lambda,
                 numCandidates,
                 new VectorData(queryVector),
-                (DenseVectorFieldMapper)mapper,
+                (DenseVectorFieldMapper) mapper,
                 indexVersion,
                 null
             );
@@ -235,9 +226,9 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             if (field != null) {
                 var fieldValue = field.getValue();
                 if (fieldValue instanceof float[]) {
-                    fieldVectors.put(asRankDoc.doc, new VectorData((float[])field.getValue()));
+                    fieldVectors.put(asRankDoc.doc, new VectorData((float[]) field.getValue()));
                 } else if (fieldValue instanceof byte[]) {
-                    fieldVectors.put(asRankDoc.doc, new VectorData((byte[])field.getValue()));
+                    fieldVectors.put(asRankDoc.doc, new VectorData((byte[]) field.getValue()));
                 }
             }
         }

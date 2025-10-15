@@ -10,7 +10,6 @@
 package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
 

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.core.PathUtils;
 import org.junit.runners.model.TestClass;
 
 import java.io.IOException;

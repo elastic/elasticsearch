@@ -72,7 +72,7 @@ public abstract class Assertion implements ExecutableSection {
     /**
      * Execute the assertion softly, collecting any errors instead of throwing immediately.
      * This allows multiple assertions to be executed and all failures reported together.
-     * 
+     *
      * @param executionContext the execution context
      * @param errors list to collect any assertion errors
      */

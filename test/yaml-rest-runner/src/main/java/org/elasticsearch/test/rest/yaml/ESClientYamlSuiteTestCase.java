@@ -502,16 +502,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         try {
             List<ExecutableSection> sections = testCandidate.getTestSection().getExecutableSections();
             List<AssertionError> allAssertionErrors = new ArrayList<>();
-            
+
             int i = 0;
             while (i < sections.size()) {
                 ExecutableSection section = sections.get(i);
-                
+
                 // Execute non-assertion sections normally
                 if (!(section instanceof Assertion)) {
                     executeSection(section);
                     i++;
-                    
+
                     // After a "do" section, batch any following assertions
                     if (section instanceof DoSection) {
                         // Execute all consecutive assertions, collecting errors
@@ -527,7 +527,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     i++;
                 }
             }
-            
+
             // After executing all sections, throw if any assertions failed
             if (!allAssertionErrors.isEmpty()) {
                 throw combineAssertionErrors(allAssertionErrors);
@@ -583,7 +583,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**
      * Combine multiple assertion errors into a single AssertionError with a detailed message.
-     * 
+     *
      * @param errors list of assertion errors to combine
      * @return a single AssertionError containing all failure information
      */
@@ -591,21 +591,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (errors.size() == 1) {
             return errors.get(0);
         }
-        
+
         StringBuilder message = new StringBuilder();
         message.append("Multiple assertion failures (").append(errors.size()).append("):\n");
-        
+
         for (int i = 0; i < errors.size(); i++) {
             message.append("  ").append(i + 1).append(") ").append(errors.get(i).getMessage()).append("\n");
         }
-        
+
         AssertionError combinedError = new AssertionError(message.toString());
-        
+
         // Add all errors as suppressed exceptions to preserve stack traces
         for (AssertionError error : errors) {
             combinedError.addSuppressed(error);
         }
-        
+
         return combinedError;
     }
 

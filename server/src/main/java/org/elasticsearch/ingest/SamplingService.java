@@ -90,7 +90,6 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     );
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
     private static final String TTL_JOB_ID = "sampling_ttl";
-    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(SamplingService.class);
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -483,18 +482,16 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
     }
 
     private void maybeScheduleJob() {
-        if (scheduler.get() == null) {
+        if (isClusterServiceStoppedOrClosed()) {
             // don't create scheduler if the node is shutting down
-            if (isClusterServiceStoppedOrClosed() == false) {
-                scheduler.set(new SchedulerEngine(settings, clock));
-                scheduler.get().register(this);
-            }
+            return;
         }
-        // scheduler could be null if the node is shutting down
-        if (scheduler.get() != null && (lifecycleState() == Lifecycle.State.STARTED || lifecycleState() == Lifecycle.State.INITIALIZED)) {
-            scheduledJob = new SchedulerEngine.Job(TTL_JOB_ID, new TimeValueSchedule(pollInterval));
-            scheduler.get().add(scheduledJob);
+        if (scheduler.get() == null) {
+            scheduler.set(new SchedulerEngine(settings, clock));
+            scheduler.get().register(this);
         }
+        scheduledJob = new SchedulerEngine.Job(TTL_JOB_ID, new TimeValueSchedule(pollInterval));
+        scheduler.get().add(scheduledJob);
     }
 
     private void cancelJob() {

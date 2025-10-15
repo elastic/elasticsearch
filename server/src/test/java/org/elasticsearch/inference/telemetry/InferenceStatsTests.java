@@ -25,8 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
-import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAttributes;
 import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAttributes;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.assertArg;

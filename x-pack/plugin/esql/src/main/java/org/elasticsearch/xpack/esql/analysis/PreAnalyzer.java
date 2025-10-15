@@ -29,9 +29,10 @@ public class PreAnalyzer {
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
         boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector
+        boolean supportsDenseVector,
+        boolean supportDateRange
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of(), false, false, false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -71,6 +72,7 @@ public class PreAnalyzer {
          */
         Holder<Boolean> supportsAggregateMetricDouble = new Holder<>(false);
         Holder<Boolean> supportsDenseVector = new Holder<>(false);
+        Holder<Boolean> supportsDateRange = new Holder<>(false);
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
             if (fn.name().equalsIgnoreCase("knn")
                 || fn.name().equalsIgnoreCase("to_dense_vector")
@@ -96,7 +98,8 @@ public class PreAnalyzer {
             unresolvedEnriches,
             lookupIndices,
             indexMode.get() == IndexMode.TIME_SERIES || supportsAggregateMetricDouble.get(),
-            supportsDenseVector.get()
+            supportsDenseVector.get(),
+            supportsDateRange.get()
         );
     }
 }

@@ -90,6 +90,7 @@ public class IndexResolver {
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
+        boolean supportsDateRange,
         ActionListener<IndexResolution> listener
     ) {
         client.execute(
@@ -98,13 +99,21 @@ public class IndexResolver {
             listener.delegateFailureAndWrap((l, response) -> {
                 LOGGER.debug("minimum transport version {}", response.minTransportVersion());
                 l.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
+                    mergedMappings(
+                        indexWildcard,
+                        new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector, supportsDateRange)
+                    )
                 );
             })
         );
     }
 
-    public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}
+    public record FieldsInfo(
+        FieldCapabilitiesResponse caps,
+        boolean supportAggregateMetricDouble,
+        boolean supportDenseVector,
+        boolean supportDateRange
+    ) {}
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -242,6 +251,7 @@ public class IndexResolver {
         type = switch (type) {
             case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.supportAggregateMetricDouble ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED;
             case DENSE_VECTOR -> fieldsInfo.supportDenseVector ? DENSE_VECTOR : UNSUPPORTED;
+            case DATE_RANGE -> fieldsInfo.supportDateRange ? DATETIME : UNSUPPORTED;
             default -> type;
         };
         boolean aggregatable = first.isAggregatable();
@@ -329,7 +339,6 @@ public class IndexResolver {
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
         req.indexFilter(requestFilter);
-        req.returnLocalAll(false);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);

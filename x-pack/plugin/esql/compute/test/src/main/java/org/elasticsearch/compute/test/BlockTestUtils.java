@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DateRangeBlock;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -33,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -41,6 +44,8 @@ import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,6 +69,11 @@ public class BlockTestUtils {
                 randomDouble(),
                 randomNonNegativeInt()
             );
+            case DATE_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new DateRangeBlockBuilder.DateRangeLiteral(from, to);
+            }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
                 randomInt(),
@@ -212,6 +222,11 @@ public class BlockTestUtils {
             b.count().appendInt(aggMetric.count());
             return;
         }
+        if (builder instanceof DateRangeBlockBuilder b && value instanceof DateRangeBlockBuilder.DateRangeLiteral lit) {
+            b.from().appendLong(lit.from());
+            b.to().appendLong(lit.to());
+            return;
+        }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
@@ -300,6 +315,12 @@ public class BlockTestUtils {
                         i += 1;
                         yield literal;
 
+                    }
+                    case DATE_RANGE -> {
+                        var b = (DateRangeBlock) block;
+                        var lit = new DateRangeBlockBuilder.DateRangeLiteral(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                        i++;
+                        yield lit;
                     }
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });

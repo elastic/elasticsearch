@@ -231,6 +231,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_4_0;
     }
 }

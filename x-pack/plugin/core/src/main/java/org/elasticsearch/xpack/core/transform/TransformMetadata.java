@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
@@ -86,13 +87,19 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
     public TransformMetadata(StreamInput in) throws IOException {
         this.resetMode = in.readBoolean();
-        this.upgradeMode = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+            this.upgradeMode = in.readBoolean();
+        } else {
+            this.upgradeMode = false;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(resetMode);
-        out.writeBoolean(upgradeMode);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+            out.writeBoolean(upgradeMode);
+        }
     }
 
     @Override
@@ -115,7 +122,11 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
         public TransformMetadataDiff(StreamInput in) throws IOException {
             resetMode = in.readBoolean();
-            this.upgradeMode = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+                this.upgradeMode = in.readBoolean();
+            } else {
+                this.upgradeMode = false;
+            }
         }
 
         /**
@@ -131,7 +142,9 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(resetMode);
-            out.writeBoolean(upgradeMode);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORMS_UPGRADE_MODE)) {
+                out.writeBoolean(upgradeMode);
+            }
         }
 
         @Override

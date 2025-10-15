@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Releasable;
@@ -81,8 +80,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     private final MutableSearchResponse searchResponse;
 
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
-
-    private static final TimeValue STORE_FETCH_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -215,12 +212,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            try {
-                AsyncSearchResponse resp = getResponseWithHeaders();
-                ActionListener.respondAndRelease(listener, resp);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            getResponseWithHeaders(listener);
         }
         return true; // unused
     }
@@ -239,12 +231,36 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            var response = getResponseWithHeaders();
-            try {
-                listener.accept(response);
-            } finally {
-                response.decRef();
-            }
+            getResponseWithHeaders( new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse resp) {
+                    // We don't decRef here, respondAndRelease will do it.
+                    listener.accept(resp);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    ElasticsearchException ex = (e instanceof ElasticsearchException)
+                        ? (ElasticsearchException) e
+                        : ExceptionsHelper.convertToElastic(e);
+                    ex.setStackTrace(new StackTraceElement[0]);
+
+                    AsyncSearchResponse failureResponse = new AsyncSearchResponse(
+                        searchId.getEncoded(),
+                        null,
+                        ex,
+                        false,
+                        false,
+                        getStartTime(),
+                        expirationTimeMillis
+                    );
+                    try {
+                        listener.accept(failureResponse);
+                    } finally {
+                        failureResponse.decRef();
+                    }
+                }
+            });
         }
     }
 
@@ -263,13 +279,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-
-                            try {
-                                AsyncSearchResponse resp = getResponseWithHeaders();
-                                ActionListener.respondAndRelease(listener, resp);
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
+                            getResponseWithHeaders(listener);
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -286,12 +296,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            try {
-                AsyncSearchResponse resp = getResponseWithHeaders();
-                ActionListener.respondAndRelease(listener, resp);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            getResponseWithHeaders( listener);
         }
     }
 
@@ -342,82 +347,101 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        AsyncSearchResponse finalResponse;
-
-        try {
-            finalResponse = getResponse();
-        } catch (Exception e) {
-            ElasticsearchException ex = (e instanceof ElasticsearchException)
-                ? (ElasticsearchException) e
-                : ExceptionsHelper.convertToElastic(e);
-            ex.setStackTrace(new StackTraceElement[0]);
-
-            finalResponse = new AsyncSearchResponse(searchId.getEncoded(), null, ex, false, false, getStartTime(), expirationTimeMillis);
-        }
-
-        try {
-            for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
-                consumer.accept(finalResponse);
+        getResponse( new ActionListener<>() {
+            @Override
+            public void onResponse(AsyncSearchResponse finalResponse) {
+                for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                    consumer.accept(finalResponse);
+                }
             }
-        } finally {
-            finalResponse.decRef();
-        }
+
+            @Override
+            public void onFailure(Exception e) {
+                ElasticsearchException ex = (e instanceof ElasticsearchException)
+                    ? (ElasticsearchException) e
+                    : ExceptionsHelper.convertToElastic(e);
+                ex.setStackTrace(new StackTraceElement[0]);
+
+                AsyncSearchResponse failureResponse = new AsyncSearchResponse(
+                    searchId.getEncoded(),
+                    null,
+                    ex,
+                    false,
+                    false,
+                    getStartTime(),
+                    expirationTimeMillis
+                );
+                try {
+                    for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+                        consumer.accept(failureResponse);
+                    }
+                } finally {
+                    failureResponse.decRef();
+                }
+            }
+        });
     }
 
     /**
-     * Returns the current {@link AsyncSearchResponse}.
+     * Invokes the listener with the current {@link AsyncSearchResponse}
+     * without restoring response headers into the calling thread context.
      */
-    private AsyncSearchResponse getResponse() {
-        return getResponse(false);
+    private void getResponse(ActionListener<AsyncSearchResponse> listener) {
+         getResponse(false, listener);
     }
 
     /**
-     * Returns the current {@link AsyncSearchResponse} and restores the response headers
-     * in the local thread context.
+     * Invokes the listener with the current {@link AsyncSearchResponse},
+     * restoring response headers into the calling thread context.
      */
-    private AsyncSearchResponse getResponseWithHeaders() {
-        return getResponse(true);
+    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener) {
+         getResponse(true, listener);
     }
 
-    private AsyncSearchResponse getResponse(boolean restoreResponseHeaders) {
-        MutableSearchResponse mutableSearchResponse = searchResponse;
+    private void getResponse(boolean restoreResponseHeaders, ActionListener<AsyncSearchResponse> listener) {
+        final MutableSearchResponse mutableSearchResponse = searchResponse;
         assert mutableSearchResponse != null;
         checkCancellation();
-        AsyncSearchResponse asyncSearchResponse;
 
-        // Fallback: in-memory state was released → read from .async-search
+        // Fallback: fetch from store asynchronously
         if (mutableSearchResponse.tryIncRef() == false) {
-            PlainActionFuture<AsyncSearchResponse> future = new PlainActionFuture<>();
-            try {
-                store.getResponse(searchId, restoreResponseHeaders, future);
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
-
-            try {
-                return future.actionGet(STORE_FETCH_TIMEOUT);
-            } catch (Exception e) {
-                RestStatus st = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e));
-                if (st == RestStatus.NOT_FOUND || st == RestStatus.GONE) {
-                    throw new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, e);
+            store.getResponse(searchId, restoreResponseHeaders, new ActionListener<>() {
+                @Override
+                public void onResponse(AsyncSearchResponse resp) {
+                    if (resp.tryIncRef() == false) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE));
+                        return;
+                    }
+                    ActionListener.respondAndRelease(listener, resp);
                 }
-                throw ExceptionsHelper.convertToElastic(e);
-            }
+
+                @Override
+                public void onFailure(Exception e) {
+                    final Exception unwrapped = (Exception) ExceptionsHelper.unwrapCause(e);
+                    listener.onFailure(
+                        new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, unwrapped));
+                }
+            });
+            return;
         }
 
         try {
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
-        } catch (Exception e) {
-            ElasticsearchException exception = new ElasticsearchStatusException(
-                "Async search: error while reducing partial results",
-                ExceptionsHelper.status(e),
-                e
-            );
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
+            AsyncSearchResponse asyncSearchResponse;
+            try {
+                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+            } catch (Exception e) {
+                final ElasticsearchException ex = new ElasticsearchStatusException(
+                    "Async search: error while reducing partial results",
+                    ExceptionsHelper.status(e),
+                    e
+                );
+                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, ex);
+            }
+            ActionListener.respondAndRelease(listener, asyncSearchResponse);
         } finally {
             mutableSearchResponse.decRef();
         }
-        return asyncSearchResponse;
     }
 
     // checks if the search task should be cancelled

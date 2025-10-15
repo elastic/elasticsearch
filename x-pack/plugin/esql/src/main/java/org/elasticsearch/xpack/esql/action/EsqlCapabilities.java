@@ -1608,7 +1608,12 @@ public class EsqlCapabilities {
         /**
          * Pack dimension values in TS command
          */
-        PACK_DIMENSIONS_IN_TS
+        PACK_DIMENSIONS_IN_TS,
+
+        /**
+         * Create new block when filtering OrdinalBytesRefBlock
+         */
+        FIX_FILTER_ORDINALS,
 
         ;
 

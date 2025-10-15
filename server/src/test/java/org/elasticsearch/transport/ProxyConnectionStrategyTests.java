@@ -61,7 +61,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     private final Settings settings = Settings.builder().put(modeKey, "proxy").build();
     private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
         RemoteClusterSettings.toConfig("cluster", settings),
-        false
+        TransportSettings.DEFAULT_PROFILE
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 

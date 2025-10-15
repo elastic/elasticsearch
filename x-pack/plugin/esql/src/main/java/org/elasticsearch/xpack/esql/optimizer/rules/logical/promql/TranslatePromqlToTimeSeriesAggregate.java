@@ -154,10 +154,9 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 List.of(target, extras.get("timestamp"))
             );
 
-           extras.put("field", esqlFunction);
-           result = new MapResult(childResult.plan, extras);
-        }
-        else if (functionCall instanceof AcrossSeriesAggregate acrossAggregate) {
+            extras.put("field", esqlFunction);
+            result = new MapResult(childResult.plan, extras);
+        } else if (functionCall instanceof AcrossSeriesAggregate acrossAggregate) {
             // expects
             Function esqlFunction = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
                 acrossAggregate.functionName(),
@@ -296,11 +295,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
      * @param fragments the list of pattern fragments
      * @return the ESQL Expression combining all fragments
      */
-    private static Expression translateDisjointPatterns(
-        Source source,
-        Expression field,
-        List<AutomatonUtils.PatternFragment> fragments
-    ) {
+    private static Expression translateDisjointPatterns(Source source, Expression field, List<AutomatonUtils.PatternFragment> fragments) {
         // Sort fragments by type priority using enum ordinal: EXACT -> PREFIX -> SUFFIX -> REGEX
         List<AutomatonUtils.PatternFragment> sortedFragments = new ArrayList<>(fragments);
         sortedFragments.sort(Comparator.comparingInt(a -> a.type().ordinal()));

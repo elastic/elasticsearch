@@ -38,7 +38,14 @@ import java.util.List;
  */
 public class InstantSelector extends Selector {
 
-    public InstantSelector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation, Expression timestamp) {
+    public InstantSelector(
+        Source source,
+        Expression series,
+        List<Expression> labels,
+        LabelMatchers labelMatchers,
+        Evaluation evaluation,
+        Expression timestamp
+    ) {
         this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation, timestamp);
     }
 
@@ -64,10 +71,10 @@ public class InstantSelector extends Selector {
         return new InstantSelector(source(), newChild, series(), labels(), labelMatchers(), evaluation(), timestamp());
     }
 
-//    @Override
-//    public String telemetryLabel() {
-//        return "PROMQL_SELECTOR_INSTANT";
-//    }
+    // @Override
+    // public String telemetryLabel() {
+    // return "PROMQL_SELECTOR_INSTANT";
+    // }
 
     @Override
     public boolean equals(Object o) {

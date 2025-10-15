@@ -44,7 +44,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware {
         return new PromqlCommand(source(), child(), newPromqlPlan);
     }
 
-
     @Override
     public boolean expressionsResolved() {
         return promqlPlan.resolved();
@@ -84,8 +83,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware {
         }
 
         PromqlCommand other = (PromqlCommand) obj;
-        return Objects.equals(child(), other.child())
-            && Objects.equals(promqlPlan, other.promqlPlan);
+        return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
     }
 
     @Override

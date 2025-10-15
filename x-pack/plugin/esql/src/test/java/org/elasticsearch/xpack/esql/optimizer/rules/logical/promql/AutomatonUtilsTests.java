@@ -58,11 +58,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(3));
 
-        Object[][] expected = {
-            { PREFIX, "prod-" },
-            { EXACT, "staging" },
-            { SUFFIX, "-dev" }
-        };
+        Object[][] expected = { { PREFIX, "prod-" }, { EXACT, "staging" }, { SUFFIX, "-dev" } };
 
         assertFragments(fragments, expected);
     }
@@ -74,11 +70,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(3));
 
-        Object[][] expected = {
-            { EXACT, "api" },
-            { EXACT, "web" },
-            { EXACT, "service" }
-        };
+        Object[][] expected = { { EXACT, "api" }, { EXACT, "web" }, { EXACT, "service" } };
 
         assertFragments(fragments, expected);
     }
@@ -90,11 +82,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(3));
 
-        Object[][] expected = {
-            { PREFIX, "prod-" },
-            { PREFIX, "staging-" },
-            { PREFIX, "dev-" }
-        };
+        Object[][] expected = { { PREFIX, "prod-" }, { PREFIX, "staging-" }, { PREFIX, "dev-" } };
 
         assertFragments(fragments, expected);
     }
@@ -106,11 +94,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(3));
 
-        Object[][] expected = {
-            { SUFFIX, "-prod" },
-            { SUFFIX, "-staging" },
-            { SUFFIX, "-dev" }
-        };
+        Object[][] expected = { { SUFFIX, "-prod" }, { SUFFIX, "-staging" }, { SUFFIX, "-dev" } };
 
         assertFragments(fragments, expected);
     }
@@ -122,11 +106,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(3));
 
-        Object[][] expected = {
-            { PREFIX, "prod-" },
-            { EXACT, "staging" },
-            { SUFFIX, "-dev" }
-        };
+        Object[][] expected = { { PREFIX, "prod-" }, { EXACT, "staging" }, { SUFFIX, "-dev" } };
 
         assertFragments(fragments, expected);
     }
@@ -156,12 +136,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(4));
 
-        Object[][] expected = {
-            { EXACT, "api" },
-            { PREFIX, "prod-" },
-            { REGEX, "[0-9]+" },
-            { SUFFIX, "-dev" }
-        };
+        Object[][] expected = { { EXACT, "api" }, { PREFIX, "prod-" }, { REGEX, "[0-9]+" }, { SUFFIX, "-dev" } };
 
         assertFragments(fragments, expected);
     }
@@ -205,10 +180,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(2));
 
-        Object[][] expected = {
-            { PREFIX, "test" },
-            { REGEX, "prod[0-9]" }
-        };
+        Object[][] expected = { { PREFIX, "test" }, { REGEX, "prod[0-9]" } };
 
         assertFragments(fragments, expected);
     }

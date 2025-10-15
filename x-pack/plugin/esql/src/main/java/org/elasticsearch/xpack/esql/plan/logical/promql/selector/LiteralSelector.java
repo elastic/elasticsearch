@@ -13,11 +13,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -67,7 +65,7 @@ public class LiteralSelector extends Selector {
         return new LiteralSelector(source(), newChild, literal);
     }
 
-//    @Override
+    // @Override
     public String telemetryLabel() {
         return "PROMQL_SELECTOR_LITERAL";
     }

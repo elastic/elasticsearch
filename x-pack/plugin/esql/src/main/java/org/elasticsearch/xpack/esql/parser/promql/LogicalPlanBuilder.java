@@ -176,12 +176,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             var grouping = groupingContext.BY() != null ? AcrossSeriesAggregate.Grouping.BY : AcrossSeriesAggregate.Grouping.WITHOUT;
 
             if (grouping != AcrossSeriesAggregate.Grouping.BY) {
-                throw new ParsingException(
-                    source,
-                    "[{}] clause not supported yet",
-                    grouping.name().toLowerCase(Locale.ROOT),
-                    name
-                );
+                throw new ParsingException(source, "[{}] clause not supported yet", grouping.name().toLowerCase(Locale.ROOT), name);
             }
 
             if (metadata.functionType() != ACROSS_SERIES_AGGREGATION) {

@@ -11,8 +11,8 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
-import org.elasticsearch.xpack.esql.parser.PromqlBaseParserBaseVisitor;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.PromqlBaseParserBaseVisitor;
 
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 

@@ -78,10 +78,10 @@ public class RangeSelector extends Selector {
         return new RangeSelector(source(), newChild, series(), labels(), labelMatchers(), range, evaluation(), timestamp());
     }
 
-//    @Override
-//    public String telemetryLabel() {
-//        return "PROMQL_SELECTOR_RANGE";
-//    }
+    // @Override
+    // public String telemetryLabel() {
+    // return "PROMQL_SELECTOR_RANGE";
+    // }
 
     @Override
     public boolean equals(Object o) {

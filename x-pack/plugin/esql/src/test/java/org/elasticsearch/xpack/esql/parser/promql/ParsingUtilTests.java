@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.List;
 import java.util.function.Function;

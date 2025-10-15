@@ -44,13 +44,7 @@ public class VectorBinaryArithmetic extends VectorBinaryOperator {
 
     private final ArithmeticOp op;
 
-    public VectorBinaryArithmetic(
-        Source source,
-        Expression left,
-        Expression right,
-        VectorMatch match,
-        ArithmeticOp op
-    ) {
+    public VectorBinaryArithmetic(Source source, Expression left, Expression right, VectorMatch match, ArithmeticOp op) {
         super(source, left, right, match, true, op);
         this.op = op;
     }

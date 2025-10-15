@@ -117,9 +117,7 @@ public abstract class VectorBinaryOperator extends Expression {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             VectorBinaryOperator that = (VectorBinaryOperator) o;
-            return dropMetricName == that.dropMetricName
-                && Objects.equals(match, that.match)
-                && Objects.equals(binaryOp, that.binaryOp);
+            return dropMetricName == that.dropMetricName && Objects.equals(match, that.match) && Objects.equals(binaryOp, that.binaryOp);
         }
         return false;
     }

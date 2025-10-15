@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.parser.PlanFactory;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.time.Instant;

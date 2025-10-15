@@ -80,10 +80,7 @@ public class VectorMatch {
     public String toString() {
         String filterString = filter != Filter.NONE ? filter.name().toLowerCase(Locale.ROOT) + "(" + filterLabels + ")" : EMPTY;
         String groupingString = joining != Joining.NONE
-            ? " "
-            + joining.name().toLowerCase(Locale.ROOT)
-            + (groupingLabels.isEmpty() == false ? "(" + groupingLabels + ")" : EMPTY)
-            + " "
+            ? " " + joining.name().toLowerCase(Locale.ROOT) + (groupingLabels.isEmpty() == false ? "(" + groupingLabels + ")" : EMPTY) + " "
             : EMPTY;
         return filterString + groupingString;
     }

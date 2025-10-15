@@ -86,7 +86,7 @@ public class PromqlGrammarTests extends ESTestCase {
     }
 
     @Test
-    //@AwaitsFix(bugUrl = "requires the parser to be implemented to perform validation")
+    // @AwaitsFix(bugUrl = "requires the parser to be implemented to perform validation")
     public void testInvalidQueries() throws Exception {
         List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
         for (Tuple<String, Integer> line : lines) {

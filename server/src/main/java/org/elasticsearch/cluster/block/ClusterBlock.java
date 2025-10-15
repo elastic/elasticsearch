@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.block;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -143,7 +144,12 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         out.writeVInt(id);
         out.writeOptionalString(uuid);
         out.writeString(description);
-        out.writeEnumSet(levels);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)) {
+            out.writeEnumSet(levels);
+        } else {
+            // do not send ClusterBlockLevel.REFRESH to old nodes
+            out.writeEnumSet(filterLevels(levels, level -> ClusterBlockLevel.REFRESH.equals(level) == false));
+        }
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);

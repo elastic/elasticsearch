@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -466,6 +467,22 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         + secondDownsample.v1()
                         + "] must be a multiple of the interval ["
                         + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
+            var firstEffectiveSamplingLabel = DownsampleConfig.SamplingMethod.getEffectiveLabel(firstDownsample.v2().samplingMethod());
+            var secondEffectiveSamplingLabel = DownsampleConfig.SamplingMethod.getEffectiveLabel(secondDownsample.v2().samplingMethod());
+            if (Objects.equals(firstEffectiveSamplingLabel, secondEffectiveSamplingLabel) == false) {
+                // Downsampling interval must be a multiple of the source interval
+                throw new IllegalArgumentException(
+                    "Downsampling method ["
+                        + secondEffectiveSamplingLabel
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be compatible with the method ["
+                        + firstEffectiveSamplingLabel
                         + "] for phase ["
                         + firstDownsample.v1()
                         + "]"

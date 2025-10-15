@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.downsample.DownsampleConfig.ADD_LAST_VALUE_DOWNSAMPLING;
 import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -57,6 +58,7 @@ public class DownsampleAction implements LifecycleAction {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
     private static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
+    private static final ParseField SAMPLING_METHOD_FIELD = new ParseField("sampling_method");
     private static final ParseField WAIT_TIMEOUT_FIELD = new ParseField("wait_timeout");
     static final String BWC_CLEANUP_TARGET_INDEX_NAME = "cleanup-target-index";
     private static final BiFunction<String, LifecycleExecutionState, String> DOWNSAMPLED_INDEX_NAME_SUPPLIER = (
@@ -65,7 +67,7 @@ public class DownsampleAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1], (Boolean) a[2])
+        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1], (Boolean) a[2], (DownsampleConfig.SamplingMethod) a[3])
     );
 
     static {
@@ -82,9 +84,16 @@ public class DownsampleAction implements LifecycleAction {
             ObjectParser.ValueType.STRING
         );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> DownsampleConfig.SamplingMethod.fromLabel(p.text()),
+            SAMPLING_METHOD_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private final DateHistogramInterval fixedInterval;
+    private final DownsampleConfig.SamplingMethod samplingMethod;
     private final TimeValue waitTimeout;
     private final Boolean forceMergeIndex;
 
@@ -92,13 +101,19 @@ public class DownsampleAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout, Boolean forceMergeIndex) {
+    public DownsampleAction(
+        final DateHistogramInterval fixedInterval,
+        final TimeValue waitTimeout,
+        Boolean forceMergeIndex,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
         this.forceMergeIndex = forceMergeIndex;
+        this.samplingMethod = samplingMethod;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
@@ -107,7 +122,10 @@ public class DownsampleAction implements LifecycleAction {
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
                 : DEFAULT_WAIT_TIMEOUT,
-            in.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING) ? in.readOptionalBoolean() : null
+            in.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING) ? in.readOptionalBoolean() : null,
+            in.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLING)
+                ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
+                : null
         );
     }
 
@@ -122,6 +140,9 @@ public class DownsampleAction implements LifecycleAction {
         if (out.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING)) {
             out.writeOptionalBoolean(forceMergeIndex);
         }
+        if (out.getTransportVersion().supports(ADD_LAST_VALUE_DOWNSAMPLING)) {
+            out.writeOptionalWriteable(samplingMethod);
+        }
     }
 
     @Override
@@ -131,6 +152,9 @@ public class DownsampleAction implements LifecycleAction {
         builder.field(WAIT_TIMEOUT_FIELD.getPreferredName(), waitTimeout.getStringRep());
         if (forceMergeIndex != null) {
             builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
+        }
+        if (samplingMethod != null) {
+            builder.field(SAMPLING_METHOD_FIELD.getPreferredName(), samplingMethod.label());
         }
         builder.endObject();
         return builder;
@@ -151,6 +175,10 @@ public class DownsampleAction implements LifecycleAction {
 
     public Boolean forceMergeIndex() {
         return forceMergeIndex;
+    }
+
+    public DownsampleConfig.SamplingMethod samplingMethod() {
+        return samplingMethod;
     }
 
     @Override
@@ -246,7 +274,14 @@ public class DownsampleAction implements LifecycleAction {
         );
 
         // Here is where the actual downsample action takes place
-        DownsampleStep downsampleStep = new DownsampleStep(downsampleKey, waitForDownsampleIndexKey, client, fixedInterval, waitTimeout);
+        DownsampleStep downsampleStep = new DownsampleStep(
+            downsampleKey,
+            waitForDownsampleIndexKey,
+            fixedInterval,
+            waitTimeout,
+            samplingMethod,
+            client
+        );
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
         // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-downsample-index"
@@ -345,12 +380,13 @@ public class DownsampleAction implements LifecycleAction {
         DownsampleAction that = (DownsampleAction) o;
         return Objects.equals(this.fixedInterval, that.fixedInterval)
             && Objects.equals(this.waitTimeout, that.waitTimeout)
-            && Objects.equals(this.forceMergeIndex, that.forceMergeIndex);
+            && Objects.equals(this.forceMergeIndex, that.forceMergeIndex)
+            && Objects.equals(this.samplingMethod, that.samplingMethod);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fixedInterval, waitTimeout, forceMergeIndex);
+        return Objects.hash(fixedInterval, waitTimeout, forceMergeIndex, samplingMethod);
     }
 
     @Override

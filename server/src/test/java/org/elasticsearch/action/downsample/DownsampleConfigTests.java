@@ -46,7 +46,7 @@ public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<D
     }
 
     private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
-        return randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.AGGREGATE, DownsampleConfig.SamplingMethod.LAST_VALUE);
+        return randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.values());
     }
 
     @Override

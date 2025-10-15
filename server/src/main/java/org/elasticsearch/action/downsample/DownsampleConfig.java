@@ -160,14 +160,15 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
                     + "]."
             );
         }
-        // Ensure that the source and requests sampling method are effectively the same.
-        if (Objects.equals(source.samplingMethod, target.samplingMethod) == false
-            && (source.samplingMethod == SamplingMethod.LAST_VALUE || target.samplingMethod == SamplingMethod.LAST_VALUE)) {
+        // Ensure that the source and target sampling method are effectively the same.
+        var sourceEffectiveSamplingLabel = SamplingMethod.getEffectiveLabel(source.samplingMethod);
+        var targetEffectiveSamplingLabel = SamplingMethod.getEffectiveLabel(target.samplingMethod);
+        if (Objects.equals(sourceEffectiveSamplingLabel, targetEffectiveSamplingLabel) == false) {
             throw new IllegalArgumentException(
                 "Downsampling method ["
-                    + (target.samplingMethod == null ? SamplingMethod.AGGREGATE.label : target.samplingMethod.label)
+                    + targetEffectiveSamplingLabel
                     + "] is not compatible with the source index downsampling method ["
-                    + (source.samplingMethod == null ? SamplingMethod.AGGREGATE.label : source.samplingMethod.label)
+                    + sourceEffectiveSamplingLabel
                     + "]."
             );
         }
@@ -353,6 +354,10 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
                 case "last_value" -> LAST_VALUE;
                 default -> throw new IllegalArgumentException("Unknown sampling method label [" + label + "]");
             };
+        }
+
+        public static String getEffectiveLabel(@Nullable SamplingMethod samplingMethod) {
+            return samplingMethod == null ? SamplingMethod.AGGREGATE.label : samplingMethod.label;
         }
 
         @Override

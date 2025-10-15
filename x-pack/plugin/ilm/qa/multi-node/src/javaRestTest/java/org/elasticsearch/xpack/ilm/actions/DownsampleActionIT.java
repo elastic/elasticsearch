@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
+import org.elasticsearch.xpack.core.ilm.DownsampleActionTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -198,7 +199,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             client(),
             policy,
             phaseName,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
 
         // Create a time series index managed by the policy
@@ -233,7 +239,12 @@ public class DownsampleActionIT extends ESRestTestCase {
                 client(),
                 policy,
                 "hot",
-                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+                new DownsampleAction(
+                    ConfigTestHelpers.randomInterval(),
+                    DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                    randomBoolean(),
+                    DownsampleActionTests.randomSamplingMethod()
+                )
             )
         );
         assertTrue(
@@ -251,7 +262,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             DownsampleAction.NAME,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -314,7 +330,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             client(),
             policy,
             "warm",
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
 
         // Create a template
@@ -367,7 +388,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             client(),
             policy,
             "warm",
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
 
         // Create a template
@@ -415,7 +441,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             client(),
             policy,
             phaseName,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
 
         // Create a non TSDB managed index

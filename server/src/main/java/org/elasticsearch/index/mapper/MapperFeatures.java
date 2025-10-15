@@ -54,6 +54,10 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
     static final NodeFeature DISKBBQ_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.diskbbq_on_disk_rescoring");
     static final NodeFeature PROVIDE_INDEX_SORT_SETTING_DEFAULTS = new NodeFeature("mapper.provide_index_sort_setting_defaults");
+    static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
+        "mapper.ignore_dynamic_field_names_beyond_limit"
+    );
+    static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -93,7 +97,9 @@ public class MapperFeatures implements FeatureSpecification {
             MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
             PATTERN_TEXT_RENAME,
             DISKBBQ_ON_DISK_RESCORING,
-            PROVIDE_INDEX_SORT_SETTING_DEFAULTS
+            PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX
         );
     }
 }

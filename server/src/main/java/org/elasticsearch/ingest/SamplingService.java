@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
@@ -75,6 +76,7 @@ public class SamplingService implements ClusterStateListener {
     private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
+    private final MasterServiceTaskQueue<DeleteSampleConfigurationTask> deleteSamplingConfigurationTaskQueue;
 
     private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
         "sampling.max_configurations",
@@ -105,6 +107,11 @@ public class SamplingService implements ClusterStateListener {
             "update-sampling-configuration",
             Priority.NORMAL,
             new UpdateSamplingConfigurationExecutor()
+        );
+        this.deleteSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
+            "delete-sampling-configuration",
+            Priority.NORMAL,
+            new DeleteSampleConfigurationExecutor()
         );
     }
 
@@ -320,6 +327,20 @@ public class SamplingService implements ClusterStateListener {
         updateSamplingConfigurationTaskQueue.submitTask(
             "Updating Sampling Configuration",
             new UpdateSamplingConfigurationTask(projectId, index, samplingConfiguration, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
+    public void deleteSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        deleteSamplingConfigurationTaskQueue.submitTask(
+            "deleting sampling configuration for index " + index,
+            new DeleteSampleConfigurationTask(projectId, index, ackTimeout, listener),
             masterNodeTimeout
         );
     }
@@ -932,19 +953,19 @@ public class SamplingService implements ClusterStateListener {
         ) {
             logger.debug(
                 "Updating sampling configuration for index [{}] with rate [{}],"
-                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
+                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition [{}], creationTime [{}]",
                 updateSamplingConfigurationTask.indexName,
                 updateSamplingConfigurationTask.samplingConfiguration.rate(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
                 updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
-                updateSamplingConfigurationTask.samplingConfiguration.condition()
+                updateSamplingConfigurationTask.samplingConfiguration.condition(),
+                updateSamplingConfigurationTask.samplingConfiguration.creationTime()
             );
 
             // Get sampling metadata
             Metadata metadata = clusterState.getMetadata();
             ProjectMetadata projectMetadata = metadata.getProject(updateSamplingConfigurationTask.projectId);
-            ;
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
 
             boolean isNewConfiguration = samplingMetadata == null; // for logging
@@ -1002,6 +1023,76 @@ public class SamplingService implements ClusterStateListener {
                 updateSamplingConfigurationTask.indexName
             );
             return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
+        }
+    }
+
+    static final class DeleteSampleConfigurationTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String indexName;
+
+        DeleteSampleConfigurationTask(
+            ProjectId projectId,
+            String indexName,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+        }
+    }
+
+    static final class DeleteSampleConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<DeleteSampleConfigurationTask> {
+        private static final Logger logger = LogManager.getLogger(DeleteSampleConfigurationExecutor.class);
+
+        DeleteSampleConfigurationExecutor() {}
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+            DeleteSampleConfigurationTask deleteSampleConfigurationTask,
+            ClusterState clusterState
+        ) {
+            // Get sampling metadata
+            Metadata metadata = clusterState.getMetadata();
+            ProjectMetadata projectMetadata = metadata.getProject(deleteSampleConfigurationTask.projectId);
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            Map<String, SamplingConfiguration> oldConfigMap = validateConfigExists(
+                deleteSampleConfigurationTask.indexName,
+                samplingMetadata
+            );
+            logger.debug("Deleting sampling configuration for index [{}]", deleteSampleConfigurationTask.indexName);
+
+            // Delete the sampling configuration if it exists
+            Map<String, SamplingConfiguration> updatedConfigMap = new HashMap<>(oldConfigMap);
+            updatedConfigMap.remove(deleteSampleConfigurationTask.indexName);
+            SamplingMetadata newSamplingMetadata = new SamplingMetadata(updatedConfigMap);
+
+            // Update cluster state
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+
+            // Return tuple with updated cluster state and the original listener
+            ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+            logger.debug(
+                "Successfully deleted sampling configuration for index [{}], total configurations after deletion: [{}]",
+                deleteSampleConfigurationTask.indexName,
+                updatedConfigMap.size()
+            );
+            return new Tuple<>(updatedClusterState, deleteSampleConfigurationTask);
+        }
+
+        // Validates that the configuration exists, returns the index to config map if it does.
+        private static Map<String, SamplingConfiguration> validateConfigExists(String indexName, SamplingMetadata samplingMetadata) {
+            final String exceptionMessage = "provided index [" + indexName + "] has no sampling configuration";
+            if (samplingMetadata == null) {
+                throw new ResourceNotFoundException(exceptionMessage);
+            }
+            Map<String, SamplingConfiguration> configMap = samplingMetadata.getIndexToSamplingConfigMap();
+            if (configMap == null || configMap.containsKey(indexName) == false) {
+                throw new ResourceNotFoundException(exceptionMessage);
+            }
+            return configMap;
         }
     }
 

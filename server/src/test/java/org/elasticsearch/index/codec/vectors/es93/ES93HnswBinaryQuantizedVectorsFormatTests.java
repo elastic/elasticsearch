@@ -59,25 +59,32 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, useBFloat16(), random().nextBoolean(), numMergeWorkers, service);
+        return new ES93HnswBinaryQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            useBFloat16(),
+            random().nextBoolean(),
+            numMergeWorkers,
+            service
+        );
     }
 
     public void testToString() {
-        String expected =
-            "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
+        String expected = "ES93HnswBinaryQuantizedVectorsFormat("
+            + "name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s," +
-                " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))"
+            "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
+                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))"
         );
-        expected = format(
-            Locale.ROOT,
-            expected,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
-        );
+        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
         if (useBFloat16()) {
-            expected = format(Locale.ROOT, expected, "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer={}())");
+            expected = format(
+                Locale.ROOT,
+                expected,
+                "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer={}())"
+            );
         } else {
             expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())");
         }

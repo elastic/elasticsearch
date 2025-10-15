@@ -28,6 +28,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -118,6 +119,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             transportService.getRemoteClusterService(),
             null,
             null,
+            new CrossProjectModeDecider(clusterService.getSettings()).crossProjectEnabled(),
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );

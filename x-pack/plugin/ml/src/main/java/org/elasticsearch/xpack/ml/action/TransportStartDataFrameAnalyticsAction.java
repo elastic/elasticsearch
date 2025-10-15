@@ -44,6 +44,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -156,6 +157,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             transportService.getRemoteClusterService(),
             null,
             null,
+            new CrossProjectModeDecider(clusterService.getSettings()).crossProjectEnabled(),
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );

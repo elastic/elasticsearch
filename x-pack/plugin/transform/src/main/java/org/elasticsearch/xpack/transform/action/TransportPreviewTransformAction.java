@@ -32,6 +32,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -116,6 +117,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 ? new RemoteClusterLicenseChecker(client, null)
                 : null,
             ingestService,
+            new CrossProjectModeDecider(clusterService.getSettings()).crossProjectEnabled(),
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );

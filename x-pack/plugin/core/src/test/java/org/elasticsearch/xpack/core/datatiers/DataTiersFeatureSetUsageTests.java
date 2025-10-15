@@ -26,7 +26,7 @@ public class DataTiersFeatureSetUsageTests extends AbstractWireSerializingTestCa
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> originalTierStats = instance.getTierStats();
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> newTierStats = randomValueOtherThan(
             originalTierStats,
-            () -> randomValueOtherThan(originalTierStats, DataTiersFeatureSetUsageTests::randomTierStats)
+            DataTiersFeatureSetUsageTests::randomTierStats
         );
         return new DataTiersFeatureSetUsage(newTierStats);
     }

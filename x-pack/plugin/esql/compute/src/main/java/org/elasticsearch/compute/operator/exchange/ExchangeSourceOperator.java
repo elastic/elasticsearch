@@ -117,14 +117,22 @@ public class ExchangeSourceOperator extends SourceOperator {
         Status(StreamInput in) throws IOException {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
-            rowsEmitted = in.readVLong();
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsEmitted = 0;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(pagesWaiting);
             out.writeVInt(pagesEmitted);
-            out.writeVLong(rowsEmitted);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override

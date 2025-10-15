@@ -71,10 +71,7 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, notNullValue());
         assertThat(fragments, hasSize(2));
 
-        Object[][] expected = {
-            { PROPER_PREFIX, "prod-" },
-            { PROPER_SUFFIX, "-dev" }
-        };
+        Object[][] expected = { { PROPER_PREFIX, "prod-" }, { PROPER_SUFFIX, "-dev" } };
 
         assertFragments(fragments, expected);
     }

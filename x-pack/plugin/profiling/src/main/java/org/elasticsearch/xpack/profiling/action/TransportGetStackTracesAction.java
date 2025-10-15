@@ -854,7 +854,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     /**
      * Collects stack trace details which are retrieved concurrently and sends a response only when all details are known.
      */
-    private static class DetailsHandler {
+    static class DetailsHandler {
         private static final String[] PATH_FILE_NAME = new String[] { "Executable", "file", "name" };
         private final GetStackTracesResponseBuilder builder;
         private final ActionListener<GetStackTracesResponse> submitListener;
@@ -864,7 +864,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
-        private DetailsHandler(
+        DetailsHandler(
             GetStackTracesResponseBuilder builder,
             ActionListener<GetStackTracesResponse> submitListener,
             int executableCount,
@@ -881,10 +881,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
-        public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
+        void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse frame : multiGetItemResponses) {
                 if (frame.isFailed()) {
-                    submitListener.onFailure(frame.getFailure().getFailure());
+                    finishWithFirstFailure(frame.getFailure().getFailure());
                     return;
                 }
                 if (frame.getResponse().isExists()) {
@@ -904,10 +904,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             mayFinish();
         }
 
-        public void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
+        void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse executable : multiGetItemResponses) {
                 if (executable.isFailed()) {
-                    submitListener.onFailure(executable.getFailure().getFailure());
+                    finishWithFirstFailure(executable.getFailure().getFailure());
                     return;
                 }
                 if (executable.getResponse().isExists()) {
@@ -934,7 +934,18 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             mayFinish();
         }
 
-        public void mayFinish() {
+        private void finishWithFirstFailure(Exception failure) {
+            int remaining;
+            // ensure we only report a single failure, even if multiple slices fail concurrently
+            while ((remaining = expectedSlices.get()) > 0) {
+                if (expectedSlices.compareAndSet(remaining, 0)) {
+                    submitListener.onFailure(failure);
+                    return;
+                }
+            }
+        }
+
+        private void mayFinish() {
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);

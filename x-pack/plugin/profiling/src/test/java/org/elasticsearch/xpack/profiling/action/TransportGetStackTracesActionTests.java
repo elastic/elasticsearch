@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 
 public class TransportGetStackTracesActionTests extends ESTestCase {
     public void testSliceEmptyList() {
@@ -57,5 +64,21 @@ public class TransportGetStackTracesActionTests extends ESTestCase {
         List<String> input = randomList(slices + 1, 20000, () -> "s");
         List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
+    }
+
+    public void testDetailsHandlerOnConcurrentFailure() throws InterruptedException {
+        ActionListener<GetStackTracesResponse> listener = mock();
+
+        var handler = new TransportGetStackTracesAction.DetailsHandler(mock(), listener, 0, 0, 1, 1);
+
+        var failure = new MultiGetResponse(
+            new MultiGetItemResponse[] { new MultiGetItemResponse(null, new MultiGetResponse.Failure("idx", "id", new RuntimeException())) }
+        );
+        var t1 = Thread.ofVirtual().start(() -> handler.onStackFramesResponse(failure));
+        var t2 = Thread.ofVirtual().start(() -> handler.onExecutableDetailsResponse(failure));
+        t1.join();
+        t2.join();
+
+        Mockito.verify(listener, times(1)).onFailure(Mockito.any());
     }
 }

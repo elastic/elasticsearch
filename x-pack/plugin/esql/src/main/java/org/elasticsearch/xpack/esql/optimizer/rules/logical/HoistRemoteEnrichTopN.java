@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
@@ -150,22 +149,16 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
         return en;
     }
 
-    private record AttributeIdentity(String name, String qualifier, NameId id) {
-        static AttributeIdentity of(Attribute a) {
-            return new AttributeIdentity(a.name(), a.qualifier(), a.id());
-        }
-    }
-
     /**
      * Checks if all attributes used in the order expressions are present in outputs.
      * Returns the set of missing attributes.
      */
     private Set<Attribute> checkOrderInOutputs(List<Order> orderList, List<Attribute> outputs) {
-        var outputsSet = outputs.stream().map(AttributeIdentity::of).collect(Collectors.toSet());
+        var outputsSet = outputs.stream().map(Attribute::id).collect(Collectors.toSet());
         Set<Attribute> missingAttributes = new HashSet<>();
         for (Order o : orderList) {
             o.child().forEachDown(Attribute.class, a -> {
-                if (outputsSet.contains(AttributeIdentity.of(a)) == false) {
+                if (outputsSet.contains(a.id()) == false) {
                     missingAttributes.add(a);
                 }
             });

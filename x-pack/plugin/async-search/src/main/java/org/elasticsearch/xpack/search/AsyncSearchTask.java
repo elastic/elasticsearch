@@ -231,7 +231,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders( new ActionListener<>() {
+            getResponseWithHeaders(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse resp) {
                     // We don't decRef here, respondAndRelease will do it.
@@ -296,7 +296,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders( listener);
+            getResponseWithHeaders(listener);
         }
     }
 
@@ -347,7 +347,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        getResponse( new ActionListener<>() {
+        getResponse(new ActionListener<>() {
             @Override
             public void onResponse(AsyncSearchResponse finalResponse) {
                 for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
@@ -387,7 +387,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * without restoring response headers into the calling thread context.
      */
     private void getResponse(ActionListener<AsyncSearchResponse> listener) {
-         getResponse(false, listener);
+        getResponse(false, listener);
     }
 
     /**
@@ -395,7 +395,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * restoring response headers into the calling thread context.
      */
     private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener) {
-         getResponse(true, listener);
+        getResponse(true, listener);
     }
 
     private void getResponse(boolean restoreResponseHeaders, ActionListener<AsyncSearchResponse> listener) {
@@ -409,8 +409,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 @Override
                 public void onResponse(AsyncSearchResponse resp) {
                     if (resp.tryIncRef() == false) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE));
+                        listener.onFailure(new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE));
                         return;
                     }
                     ActionListener.respondAndRelease(listener, resp);
@@ -420,7 +419,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 public void onFailure(Exception e) {
                     final Exception unwrapped = (Exception) ExceptionsHelper.unwrapCause(e);
                     listener.onFailure(
-                        new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, unwrapped));
+                        new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, unwrapped)
+                    );
                 }
             });
             return;

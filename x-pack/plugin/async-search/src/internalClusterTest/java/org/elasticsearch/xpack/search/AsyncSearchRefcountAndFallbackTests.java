@@ -265,7 +265,7 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
                 now + TimeValue.timeValueMinutes(1).millis()
             );
         } finally {
-            if(asr != null) {
+            if (asr != null) {
                 asr.decRef();
             }
         }
@@ -290,8 +290,7 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
                         resp.decRef();
                     } catch (Exception e) {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if ((cause instanceof ElasticsearchStatusException) == false
-                            || ExceptionsHelper.status(cause) != RestStatus.GONE) {
+                        if ((cause instanceof ElasticsearchStatusException) == false || ExceptionsHelper.status(cause) != RestStatus.GONE) {
                             failures.add(e);
                         }
                     }

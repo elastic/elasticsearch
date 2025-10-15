@@ -11,13 +11,13 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.core.PathUtils;
 import org.junit.runners.model.TestClass;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CefProcessorTests extends ESTestCase {
     private static String readCefMessageFile(String fileName) throws IOException, URISyntaxException {
         URL resource = TestClass.class.getResource("/" + fileName);
-        return Files.readString(Paths.get(Objects.requireNonNull(resource).toURI()));
+        return Files.readString(PathUtils.get((Objects.requireNonNull(resource).toURI())));
     }
 
     private IngestDocument document;

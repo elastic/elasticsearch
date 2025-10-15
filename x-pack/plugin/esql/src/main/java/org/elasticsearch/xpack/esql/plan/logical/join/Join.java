@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -97,7 +98,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         PARTIAL_AGG,
         AGGREGATE_METRIC_DOUBLE,
         DENSE_VECTOR,
-        AGGREGATE_METRIC_DOUBLE };
+        DATE_RANGE};
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;

@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,6 +81,17 @@ public class InlineJoin extends Join {
         } else {
             return target.replaceRight(data);
         }
+    }
+
+    public static LogicalPlan materializeLocalRelations(InlineJoin inlineJoin) {
+        LogicalPlan left = inlineJoin.left().transformUp(LocalRelation.class, localRelation -> {
+            LocalSupplier supplier = localRelation.supplier();
+            if (supplier instanceof CopyingLocalSupplier == false) {
+                return new LocalRelation(localRelation.source(), localRelation.output(), new CopyingLocalSupplier(supplier.get()));
+            }
+            return localRelation;
+        });
+        return inlineJoin.replaceLeft(left);
     }
 
     @Override

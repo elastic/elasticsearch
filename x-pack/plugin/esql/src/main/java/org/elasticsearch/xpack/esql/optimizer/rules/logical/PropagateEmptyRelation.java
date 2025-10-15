@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -44,7 +43,7 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
                 List<Block> emptyBlocks = aggsFromEmpty(ctx.foldCtx(), agg.aggregates());
                 p = replacePlanByRelation(
                     plan,
-                    new CopyingLocalSupplier(emptyBlocks.isEmpty() ? new Page(0) : new Page(emptyBlocks.toArray(Block[]::new)))
+                    LocalSupplier.of(emptyBlocks.isEmpty() ? new Page(0) : new Page(emptyBlocks.toArray(Block[]::new)))
                 );
             } else {
                 p = PruneEmptyPlans.skipPlan(plan);

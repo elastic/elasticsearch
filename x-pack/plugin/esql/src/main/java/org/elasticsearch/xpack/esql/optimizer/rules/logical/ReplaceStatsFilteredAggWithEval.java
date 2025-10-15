@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
@@ -137,6 +137,6 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
             attributes.add(alias.toAttribute());
             blocks[i] = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, ((Literal) alias.child()).value(), 1);
         }
-        return new LocalRelation(source, attributes, new CopyingLocalSupplier(new Page(blocks)));
+        return new LocalRelation(source, attributes, LocalSupplier.of(new Page(blocks)));
     }
 }

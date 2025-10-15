@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -111,7 +111,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = new LocalRelation(
                     aggregate.source(),
                     List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
-                    new CopyingLocalSupplier(new Page(BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)))
+                    LocalSupplier.of(new Page(BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)))
                 );
             } else {
                 // Aggs cannot produce pages with 0 columns, so retain one grouping.

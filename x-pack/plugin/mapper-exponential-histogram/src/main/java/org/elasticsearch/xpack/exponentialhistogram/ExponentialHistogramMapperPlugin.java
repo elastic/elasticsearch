@@ -12,7 +12,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldParser;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramAggregatorsRegistrar;
 
 import java.util.Collections;
@@ -28,7 +28,7 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        if (ExponentialHistogramFieldParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
+        if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
             mappers.put(ExponentialHistogramFieldMapper.CONTENT_TYPE, ExponentialHistogramFieldMapper.PARSER);
         }
         return Collections.unmodifiableMap(mappers);
@@ -36,7 +36,7 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        if (ExponentialHistogramFieldParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
+        if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
             return List.of(ExponentialHistogramAggregatorsRegistrar::registerValueCountAggregator);
         }
         return Collections.emptyList();

@@ -17,7 +17,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.xpack.exponentialhistogram.CompressedExponentialHistogram;
-import org.elasticsearch.xpack.exponentialhistogram.IndexWithCount;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

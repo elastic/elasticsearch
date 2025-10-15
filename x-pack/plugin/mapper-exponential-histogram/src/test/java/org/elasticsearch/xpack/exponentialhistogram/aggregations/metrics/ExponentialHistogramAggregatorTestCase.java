@@ -14,9 +14,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
-import org.elasticsearch.xpack.exponentialhistogram.IndexWithCount;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -73,17 +73,13 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
                 histogram.zeroBucket().zeroThreshold(),
                 histogram.valueCount(),
                 histogram.sum(),
-                nanToNull(histogram.min()),
-                nanToNull(histogram.max())
+                histogram.min(),
+                histogram.max()
             );
             iw.addDocument(Stream.concat(docValues.fieldsAsList().stream(), Arrays.stream(additionalFields)).toList());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Double nanToNull(double value) {
-        return Double.isNaN(value) ? null : value;
     }
 
 }

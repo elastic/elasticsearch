@@ -93,12 +93,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
-            this.coerce = Parameter.explicitBoolParam(
-                "coerce",
-                true,
-                m -> toType(m).coerce,
-                coerceByDefault
-            );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
         }
 
         @Override

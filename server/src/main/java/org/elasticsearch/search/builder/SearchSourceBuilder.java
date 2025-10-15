@@ -277,11 +277,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-            KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
-            knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
-        } else {
-            knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
+                KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
+                knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
+            } else {
+                knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
+            }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
@@ -311,7 +313,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        out.writeCollection(subSearchSourceBuilders);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeCollection(subSearchSourceBuilders);
+        } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
+            throw new IllegalArgumentException(
+                "cannot serialize [sub_searches] to version [" + out.getTransportVersion().toReleaseVersion() + "]"
+            );
+        } else {
+            out.writeOptionalNamedWriteable(query());
+        }
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
@@ -351,19 +361,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-            if (knnSearch.size() > 1) {
-                throw new IllegalArgumentException(
-                    "Versions before ["
-                        + TransportVersions.V_8_7_0.toReleaseVersion()
-                        + "] don't support multiple [knn] search clauses and search was sent to ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                );
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
+                if (knnSearch.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Versions before ["
+                            + TransportVersions.V_8_7_0.toReleaseVersion()
+                            + "] don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getTransportVersion().toReleaseVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
+            } else {
+                out.writeCollection(knnSearch);
             }
-            out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
-        } else {
-            out.writeCollection(knnSearch);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankBuilder);

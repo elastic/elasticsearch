@@ -41,11 +41,10 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
     private static final String indexName = "test_coordinator_search_phase_metrics";
     private final int num_primaries = randomIntBetween(2, 7);
 
-    // es.search_response.coordinator_phases.%s.duration.histogram
-    // es.search_response.took_durations.
     private static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.took_durations.query.histogram";
     private static final String DFS_SEARCH_PHASE_METRIC = "es.search_response.took_durations.dfs.histogram";
     private static final String OPEN_PIT_SEARCH_PHASE_METRIC = "es.search_response.took_durations.open_pit.histogram";
+    private static final String DFS_QUERY_SEARCH_PHASE_METRIC = "es.search_response.took_durations.dfs_query.histogram";
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -90,7 +89,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC));
+        assertMeasurements(List.of(DFS_SEARCH_PHASE_METRIC, DFS_QUERY_SEARCH_PHASE_METRIC));
     }
 
     public void testPointInTime() {

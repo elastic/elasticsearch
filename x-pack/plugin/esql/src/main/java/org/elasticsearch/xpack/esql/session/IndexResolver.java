@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -16,11 +18,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -53,14 +58,15 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
-    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
+    private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
-        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             IndicesOptions.WildcardOptions.builder()
                 .matchOpen(true)
@@ -87,6 +93,7 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
+        Predicate<String> canSkip,
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
@@ -95,11 +102,36 @@ public class IndexResolver {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
-            listener.delegateFailureAndWrap((l, response) -> {
+            ActionListener.wrap(response -> {
                 LOGGER.debug("minimum transport version {}", response.minTransportVersion());
-                l.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
-                );
+                var missingIndices = new TreeSet<String>();
+                for (FieldCapabilitiesFailure failure : response.caps().getFailures()) {
+                    var cause = ExceptionsHelper.unwrapCause(failure.getException());
+                    var clusterAlias = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+                    if (canSkip.test(clusterAlias)) {
+                        continue;
+                    }
+                    if (cause instanceof IndexNotFoundException) {
+                        missingIndices.addAll(Arrays.asList(failure.getIndices()));
+                    } else {
+                        listener.onFailure(failure.getException());
+                        return;
+                    }
+                }
+                if (missingIndices.isEmpty()) {
+                    listener.onResponse(
+                        mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector))
+                    );
+                } else {
+                    listener.onResponse(IndexResolution.notFound(String.join(",", missingIndices)));
+                }
+            }, failure -> {
+                var cause = ExceptionsHelper.unwrapCause(failure);
+                if (cause instanceof IndexNotFoundException e) {
+                    listener.onResponse(IndexResolution.notFound(e.getIndex().getName()));
+                } else {
+                    listener.onFailure(failure);
+                }
             })
         );
     }
@@ -111,7 +143,7 @@ public class IndexResolver {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
-            return IndexResolution.notFound(indexPattern);
+            return IndexResolution.empty(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index

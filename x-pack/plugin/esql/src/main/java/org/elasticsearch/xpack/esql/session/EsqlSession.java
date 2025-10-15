@@ -572,6 +572,7 @@ public class EsqlSession {
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
+            executionInfo::shouldSkipOnFailure,
             false,
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
             false,
@@ -773,9 +774,7 @@ public class EsqlSession {
         if (preAnalysis.indexPattern() != null) {
             if (executionInfo.clusterAliases().isEmpty()) {
                 // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
-                listener.onResponse(
-                    result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
-                );
+                listener.onResponse(result.withIndices(IndexResolution.empty(preAnalysis.indexPattern().indexPattern())));
             } else {
                 indexResolver.resolveAsMergedMapping(
                     preAnalysis.indexPattern().indexPattern(),
@@ -790,6 +789,7 @@ public class EsqlSession {
                         }
                         default -> requestFilter;
                     },
+                    executionInfo::shouldSkipOnFailure,
                     preAnalysis.indexMode() == IndexMode.TIME_SERIES,
                     preAnalysis.supportsAggregateMetricDouble(),
                     preAnalysis.supportsDenseVector(),

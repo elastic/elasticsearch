@@ -38,7 +38,6 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         aliasName + "*,inexistent*",
         "inexistent*," + aliasName };
     private static final String[] existentAliasWithoutWildcard = new String[] { aliasName + ",inexistent", "inexistent," + aliasName };
-    private static final String[] inexistentIndexNameWithWildcard = new String[] { "inexistent*", "inexistent1*,inexistent2*" };
     private static final String[] inexistentIndexNameWithoutWildcard = new String[] { "inexistent", "inexistent1,inexistent2" };
     private static final String createAlias = "{\"actions\":[{\"add\":{\"index\":\"" + indexName + "\",\"alias\":\"" + aliasName + "\"}}]}";
     private static final String removeAlias = "{\"actions\":[{\"remove\":{\"index\":\""
@@ -73,21 +72,20 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         }
     }
 
-    private String getInexistentIndexErrorMessage() {
-        return "\"reason\" : \"Found 1 problem\\nline 1:1: Unknown index ";
-    }
-
-    public void testInexistentIndexNameWithWildcard() throws IOException {
-        assertErrorMessages(inexistentIndexNameWithWildcard, getInexistentIndexErrorMessage(), 400);
-    }
-
     public void testInexistentIndexNameWithoutWildcard() throws IOException {
-        assertErrorMessages(inexistentIndexNameWithoutWildcard, getInexistentIndexErrorMessage(), 400);
+        for (String indexName : inexistentIndexNameWithoutWildcard) {
+            // TODO ES-13095 all from indexName should be reported as missing.
+            assertErrorMessage(
+                indexName,
+                "\"reason\" : \"Found 1 problem\\nline 1:1: Unknown index [" + clusterSpecificIndexName("inexistent"),
+                400
+            );
+        }
     }
 
     public void testExistentIndexWithoutWildcard() throws IOException {
         for (String indexName : existentIndexWithoutWildcard) {
-            assertErrorMessage(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
+            assertErrorMessage(indexName, "\"reason\" : \"Found 1 problem\\nline 1:1: Unknown index [inexistent]\"", 400);
         }
     }
 
@@ -99,17 +97,11 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         createAlias();
 
         for (String indexName : existentAliasWithoutWildcard) {
-            assertErrorMessage(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
+            assertErrorMessage(indexName, "\"reason\" : \"Found 1 problem\\nline 1:1: Unknown index [inexistent]\"", 400);
         }
         assertValidRequestOnIndices(existentAliasWithWildcard);
 
         deleteAlias();
-    }
-
-    private void assertErrorMessages(String[] indices, String errorMessage, int statusCode) throws IOException {
-        for (String indexName : indices) {
-            assertErrorMessage(indexName, errorMessage + "[" + clusterSpecificIndexName(indexName) + "]", statusCode);
-        }
     }
 
     protected String clusterSpecificIndexName(String indexName) {

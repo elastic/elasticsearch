@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -138,13 +137,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices(), request.returnLocalAll());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
-        if (localIndices == null) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
-        } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
-        }
+        // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
+        final String[] concreteIndices = localIndices == null
+            ? Strings.EMPTY_ARRAY
+            : indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
             // No indices at all!
@@ -334,28 +330,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.isEmpty() == false) {
-            listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
-        } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                /*
-                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
-                 * Instead, they should always be passed through the response object, as part of "failures".
-                 */
-                if (failures.stream()
-                    .anyMatch(
-                        failure -> failure.getException() instanceof IllegalStateException ise
-                            && ise.getCause() instanceof ElasticsearchTimeoutException
-                    )) {
-                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
-                } else {
-                    // throw back the first exception
-                    listener.onFailure(failures.get(0).getException());
-                }
-            } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-            }
-        }
+        listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
     }
 }

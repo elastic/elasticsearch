@@ -76,8 +76,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        // https://github.com/elastic/elasticsearch/issues/134794
-        "Output has changed from \\[.*\\] to \\[.*\\]",
         "implicit time-series aggregation function .* doesn't support type .*"
     );
 

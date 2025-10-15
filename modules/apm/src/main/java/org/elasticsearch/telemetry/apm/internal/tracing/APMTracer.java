@@ -31,6 +31,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
@@ -378,6 +379,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (span != null) {
             logger.trace("Finishing trace [{}]", traceable);
             span.end();
+        }
+    }
+
+    @Override
+    public void stopTrace(TraceContext traceContext, Traceable traceable) {
+        try (var ignored = ((ThreadContext) traceContext).clearTraceContext()) {
+            stopTrace(traceable);
         }
     }
 

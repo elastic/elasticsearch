@@ -55,6 +55,8 @@ public interface Tracer {
      */
     void stopTrace(Traceable traceable);
 
+    void stopTrace(TraceContext traceContext, Traceable traceable);
+
     /**
      * Called when a span ends. This version of the method relies on context to select the span to stop.
      */
@@ -153,6 +155,11 @@ public interface Tracer {
 
         @Override
         public void stopTrace(Traceable traceable) {}
+
+        @Override
+        public void stopTrace(TraceContext traceContext, Traceable traceable) {
+
+        }
 
         @Override
         public void stopTrace() {}

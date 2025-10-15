@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -34,7 +35,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
+// @TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.optimizer:TRACE")
 public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
@@ -91,6 +94,9 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         var proj = as(plan, Project.class);
         var topn = as(proj.child(), TopN.class);
         assertFalse(topn.local());
+        Order topNOrder = topn.order().getFirst();
+        NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
+        assertThat(expr.name(), startsWith("$$emp_no$temp_name$"));
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         // EVAL emp_no = emp_no + 1
@@ -137,8 +143,8 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             "mapping-hosts.json"
         );
         var mapping = loadMapping("mapping-host_inventory.json");
-        EsIndex airports = new EsIndex("host_inventory", mapping, Map.of("host_inventory", IndexMode.STANDARD));
-        IndexResolution resolution = IndexResolution.valid(airports);
+        EsIndex inventory = new EsIndex("host_inventory", mapping, Map.of("host_inventory", IndexMode.STANDARD));
+        IndexResolution resolution = IndexResolution.valid(inventory);
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -166,6 +172,9 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         var proj2 = as(proj1.child(), Project.class);
         var topn = as(proj2.child(), TopN.class);
         assertFalse(topn.local());
+        Order topNOrder = topn.order().getFirst();
+        NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
+        assertThat(expr.name(), startsWith("$$emp_no$temp_name$"));
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         var eval = as(enrich.child(), Eval.class);

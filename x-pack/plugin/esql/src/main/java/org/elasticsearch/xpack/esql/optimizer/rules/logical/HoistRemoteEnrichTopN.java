@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.CardinalityPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -95,10 +96,14 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                          */
                         // Put Eval which renames the affected fields above the original TopN, and mark that one as local
                         Eval replacementTop = new Eval(topN.source(), topN.withLocal(true), new ArrayList<>(replacedAttributes.values()));
+                        Holder<Boolean> stop = new Holder<>(false);
                         LogicalPlan transformedEnrich = en.transformDown(p -> switch (p) {
-                            case TopN t when t == topN -> replacementTop;
+                            case TopN t when stop.get() == false && t == topN -> {
+                                stop.set(true);
+                                yield replacementTop;
+                            }
                             // We only need to take care of Project because Drop can't possibly drop our newly created fields
-                            case Project pr -> {
+                            case Project pr when stop.get() == false -> {
                                 List<NamedExpression> allFields = new LinkedList<>(pr.projections());
                                 allFields.addAll(replacementTop.fields());
                                 yield pr.withProjections(allFields);

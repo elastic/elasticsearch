@@ -1,0 +1,6 @@
+pr: 136141
+summary: Add settings for health indicator `shard_capacity` thresholds
+area: Health
+type: enhancement
+issues:
+ - 116697

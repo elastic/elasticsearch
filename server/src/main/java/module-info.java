@@ -436,7 +436,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,
             org.elasticsearch.ingest.IngestFeatures,
-            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures;
+            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures,
+            org.elasticsearch.health.HealthFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.common.settings.Settings.EMPTY;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
@@ -81,7 +82,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     public void testIndicatorYieldsGreenInCaseThereIsRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
         var clusterService = createClusterService(maxShardsPerNode, 1, 1, createIndex(maxShardsPerNode / 4));
-        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(HealthStatus.GREEN, indicatorResult.status());
         assertTrue(indicatorResult.impacts().isEmpty());
@@ -94,7 +95,9 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
                     "index",
                     Map.of("max_shards_in_cluster", maxShardsPerNode),
                     "search",
-                    Map.of("max_shards_in_cluster", maxShardsPerNode)
+                    Map.of("max_shards_in_cluster", maxShardsPerNode),
+                    "settings",
+                    Map.of("health.shard_capacity.unhealthy_threshold.yellow", 10, "health.shard_capacity.unhealthy_threshold.red", 5)
                 )
             )
         );
@@ -112,7 +115,10 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         {
             // Only index does not have enough space
             var clusterService = createClusterService(maxShardsPerNode, 1, 2, createIndex(indexNumShards));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
+                true,
+                HealthInfo.EMPTY_HEALTH_INFO
+            );
 
             assertEquals(indicatorResult.status(), status);
             assertEquals(
@@ -123,7 +129,10 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         {
             // Only search does not have enough space
             var clusterService = createClusterService(maxShardsPerNode, 2, 1, createIndex(indexNumShards));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
+                true,
+                HealthInfo.EMPTY_HEALTH_INFO
+            );
 
             assertEquals(indicatorResult.status(), status);
             assertEquals(
@@ -134,7 +143,10 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         {
             // Both data and frozen nodes does not have enough space
             var clusterService = createClusterService(maxShardsPerNode, 1, 1, createIndex(indexNumShards));
-            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService, EMPTY).calculate(
+                true,
+                HealthInfo.EMPTY_HEALTH_INFO
+            );
 
             assertEquals(indicatorResult.status(), status);
             assertEquals(

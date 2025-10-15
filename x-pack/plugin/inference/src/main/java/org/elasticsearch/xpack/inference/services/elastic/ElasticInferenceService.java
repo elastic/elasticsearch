@@ -109,16 +109,16 @@ public class ElasticInferenceService extends SenderService {
     private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
-    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
+    static final String DEFAULT_CHAT_COMPLETION_V1_MODEL_ID = "rainbow-sprinkles";
+    static final String DEFAULT_CHAT_COMPLETION_V1_ENDPOINT_ID = ".rainbow-sprinkles-elastic";
 
     // elastic-elser-v2
     static final String DEFAULT_ELSER_V2_MODEL_ID = "elastic-elser-v2";
     static final String DEFAULT_ELSER_V2_ENDPOINT_ID = defaultEndpointId(DEFAULT_ELSER_V2_MODEL_ID);
 
     // elastic-rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+    static final String DEFAULT_RERANK_V1_MODEL_ID = "elastic-rerank-v1";
+    static final String DEFAULT_RERANK_V1_ENDPOINT_ID = defaultEndpointId(DEFAULT_RERANK_V1_MODEL_ID);
 
     // jina-embeddings-v3
     static final String DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID = "jina-embeddings-v3";
@@ -191,13 +191,13 @@ public class ElasticInferenceService extends SenderService {
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         return Map.of(
-            DEFAULT_CHAT_COMPLETION_MODEL_ID_V1,
+            DEFAULT_CHAT_COMPLETION_V1_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceCompletionModel(
-                    DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
+                    DEFAULT_CHAT_COMPLETION_V1_ENDPOINT_ID,
                     TaskType.CHAT_COMPLETION,
                     NAME,
-                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
+                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_V1_MODEL_ID),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
@@ -217,6 +217,19 @@ public class ElasticInferenceService extends SenderService {
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
                 MinimalServiceSettings.sparseEmbedding(NAME)
+            ),
+            DEFAULT_RERANK_V1_MODEL_ID,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceRerankModel(
+                    DEFAULT_RERANK_V1_ENDPOINT_ID,
+                    TaskType.RERANK,
+                    NAME,
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_V1_MODEL_ID),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents
+                ),
+                MinimalServiceSettings.rerank(NAME)
             ),
             DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID,
             new DefaultModelConfig(
@@ -242,19 +255,19 @@ public class ElasticInferenceService extends SenderService {
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             ),
-            DEFAULT_RERANK_MODEL_ID_V1,
+            DEFAULT_JINA_RERANKER_V3_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceRerankModel(
-                    DEFAULT_RERANK_ENDPOINT_ID_V1,
+                    DEFAULT_JINA_RERANKER_V3_ENDPOINT_ID,
                     TaskType.RERANK,
                     NAME,
-                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1),
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_JINA_RERANKER_V3_MODEL_ID),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
                 MinimalServiceSettings.rerank(NAME)
-            )
+            ),
         );
     }
 

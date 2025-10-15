@@ -82,7 +82,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE);
     }
 
     public void testDownsamplingPassthroughMetrics() throws Exception {
@@ -124,14 +124,62 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE);
+    }
+
+    public void testDownsamplingDownsamplingMode() throws Exception {
+        String dataStreamName = "metrics-foo";
+        String mapping = """
+            {
+              "properties": {
+                "attributes": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "time_series_dimension": true,
+                  "properties": {
+                    "os.name": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
+                },
+                "metrics.cpu_usage": {
+                  "type": "double",
+                  "time_series_metric": "gauge"
+                }
+              }
+            }
+            """;
+
+        // Create data stream by indexing documents
+        final Instant now = Instant.now();
+        Supplier<XContentBuilder> sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
+                    .field("metrics.cpu_usage", randomDouble())
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, DownsampleConfig.SamplingMethod.LAST_VALUE);
     }
 
     /**
      * Create a data stream with the provided mapping and downsampled the first backing index of this data stream. After downsampling has
      *  completed, it asserts if the downsampled index is as expected.
      */
-    private void downsampleAndAssert(String dataStreamName, String mapping, Supplier<XContentBuilder> sourceSupplier) throws Exception {
+    private void downsampleAndAssert(
+        String dataStreamName,
+        String mapping,
+        Supplier<XContentBuilder> sourceSupplier,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) throws Exception {
         // Set up template
         putTSDBIndexTemplate("my-template", List.of(dataStreamName), null, mapping, null, null);
 
@@ -149,7 +197,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
         );
 
-        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval), samplingMethod);
         assertAcked(
             client().execute(
                 DownsampleAction.INSTANCE,

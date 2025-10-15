@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
@@ -35,16 +36,26 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
     public abstract void collect(SortedNumericDoubleValues docValues, IntArrayList buffer) throws IOException;
 
+    public static MetricFieldProducer createFieldProducerForCounter(String name) {
+        return new MetricFieldProducer.LastValueMetricFieldProducer(name);
+    }
+
+    public static MetricFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+        return samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE
+            ? new MetricFieldProducer.LastValueMetricFieldProducer(name)
+            : new AggregateMetricFieldProducer(name);
+    }
+
     /**
-     * {@link MetricFieldProducer} implementation for a counter metric field
+     * {@link MetricFieldProducer} implementation for downsampling a metric field by preserving the last value.
      */
-    static final class CounterMetricFieldProducer extends MetricFieldProducer {
+    static final class LastValueMetricFieldProducer extends MetricFieldProducer {
 
         static final double NO_VALUE = Double.MIN_VALUE;
 
         double lastValue = NO_VALUE;
 
-        CounterMetricFieldProducer(String name) {
+        LastValueMetricFieldProducer(String name) {
             super(name);
         }
 
@@ -82,16 +93,16 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     static final double MIN_NO_VALUE = Double.MAX_VALUE;
 
     /**
-     * {@link MetricFieldProducer} implementation for a gauge metric field
+     * {@link MetricFieldProducer} implementation for creating an aggregate gauge metric field
      */
-    static final class GaugeMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateMetricFieldProducer extends MetricFieldProducer {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        GaugeMetricFieldProducer(String name) {
+        AggregateMetricFieldProducer(String name) {
             super(name);
         }
 

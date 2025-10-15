@@ -536,7 +536,7 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
-                def(TRange.class, TRange::new, "trange") } };
+                def(TRange.class, bic(TRange::new), "trange") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -1267,6 +1267,10 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> BinaryConfigurationAwareBuilder<T> bic(BinaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 

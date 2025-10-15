@@ -88,8 +88,8 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), startTime, endTime, configuration);
     }
 
-    TRange(Source source, Expression timestamp, Expression startTime, Expression endTime, Configuration configuration) {
-        super(source, endTime != null ? List.of(startTime, endTime, timestamp) : List.of(startTime, timestamp), configuration);
+    public TRange(Source source, Expression timestamp, Expression startTime, Expression endTime, Configuration configuration) {
+        super(source, endTime != null ? List.of(timestamp, startTime, endTime) : List.of(timestamp, startTime), configuration);
         this.timestamp = timestamp;
         this.startTime = startTime;
         this.endTime = endTime;
@@ -177,9 +177,9 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         if (newChildren.size() == 3) {
-            return new TRange(source(), newChildren.get(2), newChildren.get(0), newChildren.get(1), configuration());
+            return new TRange(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
         }
-        return new TRange(source(), newChildren.get(1), newChildren.get(0), null, configuration());
+        return new TRange(source(), newChildren.get(0), newChildren.get(1), null, configuration());
     }
 
     @Override

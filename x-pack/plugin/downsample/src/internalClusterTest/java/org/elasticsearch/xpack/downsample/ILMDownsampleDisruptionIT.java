@@ -120,7 +120,12 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     "downsample",
-                    new org.elasticsearch.xpack.core.ilm.DownsampleAction(DateHistogramInterval.HOUR, null, randomBoolean())
+                    new org.elasticsearch.xpack.core.ilm.DownsampleAction(
+                        DateHistogramInterval.HOUR,
+                        null,
+                        randomBoolean(),
+                        randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.values())
+                    )
                 )
             )
         );

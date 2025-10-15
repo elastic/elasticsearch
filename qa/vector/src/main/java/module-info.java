@@ -18,4 +18,6 @@ module org.elasticsearch.test.knn {
     requires org.elasticsearch.logging;
     requires java.management;
     requires jdk.management;
+    requires org.apache.lucene.misc;
+    requires org.elasticsearch.gpu;
 }

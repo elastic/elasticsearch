@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +27,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";
     public static final String SECRET_PARAMETERS = "secret_parameters";
+
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     public static CustomSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -89,13 +90,12 @@ public class CustomSecretSettings implements SecretSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED)
-            || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+        return version.supports(INFERENCE_CUSTOM_SERVICE_ADDED);
     }
 
     @Override

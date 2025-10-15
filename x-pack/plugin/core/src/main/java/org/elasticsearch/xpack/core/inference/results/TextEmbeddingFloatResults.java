@@ -33,7 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Writes a text embedding result in the follow json format
@@ -58,16 +57,6 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
 
     public TextEmbeddingFloatResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(TextEmbeddingFloatResults.Embedding::new));
-    }
-
-    @SuppressWarnings("deprecation")
-    TextEmbeddingFloatResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
-        this(
-            legacyTextEmbeddingResults.embeddings()
-                .stream()
-                .map(embedding -> new Embedding(embedding.values()))
-                .collect(Collectors.toList())
-        );
     }
 
     public static TextEmbeddingFloatResults of(List<? extends InferenceResults> results) {

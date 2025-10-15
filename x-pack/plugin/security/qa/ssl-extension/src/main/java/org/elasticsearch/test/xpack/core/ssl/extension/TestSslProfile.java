@@ -7,12 +7,17 @@
 
 package org.elasticsearch.test.xpack.core.ssl.extension;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 
 import java.util.Set;
 
 public class TestSslProfile implements SslProfileExtension {
+
+    private final Logger logger = LogManager.getLogger(getClass());
+
     @Override
     public Set<String> getSettingPrefixes() {
         return Set.of("test.ssl");
@@ -20,6 +25,6 @@ public class TestSslProfile implements SslProfileExtension {
 
     @Override
     public void applyProfile(String prefix, SslProfile profile) {
-        // no-op
+        profile.addReloadListener(p -> logger.info("TEST SSL PROFILE RELOADED [{}] [{}]", prefix, p));
     }
 }

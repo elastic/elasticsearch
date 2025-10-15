@@ -17,8 +17,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -89,11 +88,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQueryDateMillisDocValueSkipper() throws IOException {
         DateFieldType ft = new DateFieldType(
             "my_date",
-            false,
-            false,
-            false,
-            true,
-            true,
+            IndexType.skippers(),
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
@@ -107,11 +102,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQueryDateNanosDocValueSkipper() throws IOException {
         DateFieldType ft = new DateFieldType(
             "my_date",
-            false,
-            false,
-            false,
-            true,
-            true,
+            IndexType.skippers(),
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.NANOSECONDS,
@@ -128,7 +119,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         LuceneDocument doc = new LuceneDocument();
         Field field;
-        if (ft.hasDocValuesSkipper()) {
+        if (ft.indexType.hasDocValuesSkipper()) {
             field = SortedNumericDocValuesField.indexedField("my_date", ft.parse("2015-10-12"));
         } else {
             field = new LongPoint("my_date", ft.parse("2015-10-12"));
@@ -535,10 +526,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         assertTrue(reader.leaves().size() > 0);
         LeafNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
-        SortedNumericDocValues docValues = a.getLongValues();
-        assertEquals(0, docValues.nextDoc());
-        assertEquals(1, docValues.nextDoc());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, docValues.nextDoc());
+        SortedNumericLongValues docValues = a.getLongValues();
+        assertTrue(docValues.advanceExact(0));
+        assertTrue(docValues.advanceExact(1));
         reader.close();
         w.close();
         dir.close();
@@ -546,7 +536,17 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {
         DateFormatter formatter = DateFormatter.forPattern(format);
-        return new DateFieldType("field", true, false, true, formatter, resolution, nullValue, null, Collections.emptyMap());
+        return new DateFieldType(
+            "field",
+            IndexType.points(true, true),
+            false,
+            true,
+            formatter,
+            resolution,
+            nullValue,
+            null,
+            Collections.emptyMap()
+        );
     }
 
     public void testFetchSourceValue() throws IOException {
@@ -627,7 +627,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     private void assertIndexUnsearchable(Resolution resolution, ThrowingConsumer<DateFieldType> runnable) {
         DateFieldType unsearchable = new DateFieldType(
             "field",
-            false,
+            IndexType.NONE,
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

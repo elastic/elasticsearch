@@ -526,10 +526,7 @@ public class JobResultsProvider {
             .addAggregation(
                 AggregationBuilders.filters(
                     results,
-                    new FiltersAggregator.KeyedFilter(
-                        dataCounts,
-                        QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId))
-                    ),
+                    new FiltersAggregator.KeyedFilter(dataCounts, QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
                     new FiltersAggregator.KeyedFilter(timingStats, QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId))),
                     new FiltersAggregator.KeyedFilter(
                         modelSizeStats,
@@ -588,7 +585,7 @@ public class JobResultsProvider {
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             // look for both old and new formats
-            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
+            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
             // We want to sort on log_time. However, this was added a long time later and before that we used to
             // sort on latest_record_time. Thus we handle older data counts where no log_time exists and we fall back
             // to the prior behaviour.
@@ -705,6 +702,7 @@ public class JobResultsProvider {
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)))
             .addSort(
                 SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                    .setNumericType("double")
                     .unmappedType("double")
                     .order(SortOrder.DESC)
             );

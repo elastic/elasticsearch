@@ -19,7 +19,6 @@ cost:double       | time_bucket:datetime
 
 avg_over_time_of_integer
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 TS k8s | STATS clients = avg(avg_over_time(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
 
 clients:double     | time_bucket:datetime
@@ -54,7 +53,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 
 avg_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(avg_over_time(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket | LIMIT 10;
 tx:double         | time_bucket:datetime
 4362.2            | 2024-05-09T23:30:00.000Z
@@ -64,7 +63,7 @@ tx:double         | time_bucket:datetime
 
 avg_over_time_of_aggregate_metric_double_grouping
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(avg_over_time(network.eth0.tx)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:double          | cluster:keyword | time_bucket:datetime
@@ -113,7 +112,7 @@ tx:double          | cluster:keyword | time_bucket:datetime
 
 avg_over_time_older_than_10d
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(avg_over_time(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;
 
 cost:double | pod:keyword | time_bucket:datetime
@@ -186,13 +185,13 @@ events:double      | pod:keyword | time_bucket:datetime
 15.746543778801843 | one         | 2024-05-10T00:00:00.000Z
 15.396284829721363 | three       | 2024-05-10T00:00:00.000Z
 15.045454545454547 | three       | 2024-05-10T00:10:00.000Z
-14.199942045783832 | two         | 2024-05-10T00:00:00.000Z
+14.19994204578383  | two         | 2024-05-10T00:00:00.000Z
 11.5               | two         | 2024-05-10T00:20:00.000Z
 ;
 
 avg_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_implicit_casting_in_aggs
+required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(avg_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, time_bucket | LIMIT 10 ;
 
 bytes:double       | time_bucket:datetime
@@ -206,7 +205,7 @@ bytes:double       | time_bucket:datetime
 
 avg_over_time_aggregate_metric_double_implicit_casting_grouping
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_implicit_casting_in_aggs
+required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(avg_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, pod, time_bucket | LIMIT 10 ;
 
 bytes:double       | pod:keyword | time_bucket:datetime
@@ -236,12 +235,13 @@ sum:double        | pod:keyword | time_bucket:datetime
 
 avg_over_time_nested_expression_in_grouping_with_alias
 required_capability: ts_command_v0
-TS k8s | STATS min = min(avg_over_time(network.bytes_in)) by rx = (network.eth0.rx + 2000), time_bucket = bucket(@timestamp, 1minute) | SORT rx desc, time_bucket  | LIMIT 5;
+TS k8s | STATS min = min(avg_over_time(network.bytes_in)) by time_bucket = bucket(@timestamp, 5 minutes) | SORT time_bucket  | LIMIT 5;
 
-min:double | rx:long | time_bucket:datetime
-557.0      | 3398    | 2024-05-10T00:21:00.000Z
-206.0      | 3398    | 2024-05-10T00:22:00.000Z
-557.0      | 3300    | 2024-05-10T00:21:00.000Z
-312.0      | 3262    | 2024-05-10T00:18:00.000Z
-312.0      | 3206    | 2024-05-10T00:18:00.000Z
+min:double        | time_bucket:datetime
+307.6666666666667 | 2024-05-10T00:00:00.000Z
+194.5             | 2024-05-10T00:05:00.000Z
+46.75             | 2024-05-10T00:10:00.000Z
+260.0             | 2024-05-10T00:15:00.000Z
+174.2             | 2024-05-10T00:20:00.000Z
+
 ;

@@ -12,6 +12,8 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.common.ssl.SslConfiguration;
 
+import java.util.function.Consumer;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -49,4 +51,10 @@ public interface SslProfile {
     TlsStrategy clientTlsStrategy();
 
     SSLEngine engine(String host, int port);
+
+    /**
+     * Add a listener that is called when this profile is reloaded (for example, because one of the {@link #configuration() configuration's}
+     * {@link SslConfiguration#getDependentFiles() dependent files} is modified.
+     */
+    void addReloadListener(Consumer<SslProfile> listener);
 }

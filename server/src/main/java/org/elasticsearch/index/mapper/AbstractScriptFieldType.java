@@ -62,7 +62,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         Map<String, String> meta,
         boolean isParsedFromSource
     ) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        super(name, IndexType.NONE, false, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
@@ -77,6 +77,11 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     @Override
     public final boolean isAggregatable() {
         return true;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     @Override

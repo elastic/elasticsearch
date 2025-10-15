@@ -1,4 +1,7 @@
 ---
+applies_to:
+   stack: preview 9.0, ga 9.1
+   serverless: ga
 navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
@@ -74,7 +77,7 @@ First let's create two indices with mappings: `threat_list` and `firewall_logs`.
 PUT threat_list
 {
   "settings": {
-    "index.mode": "lookup" # The lookup index must use this mode
+    "index.mode": "lookup" <1>
   },
   "mappings": {
     "properties": {
@@ -86,6 +89,8 @@ PUT threat_list
   }
 }
 ```
+1. The lookup index must use this mode
+  
 ```console
 PUT firewall_logs
 {

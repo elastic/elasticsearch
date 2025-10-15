@@ -10,9 +10,13 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
-import java.util.List;
+import java.io.IOException;
+import java.util.Set;
 
 /**
  * This class allows capturing context about index expression replacements performed on an {@link IndicesRequest.Replaceable} during
@@ -40,29 +44,64 @@ import java.util.List;
  *                         and failure info
  * @param remoteExpressions the remote expressions that replace the original
  */
-public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
+public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions)
+    implements
+        Writeable {
+
+    public ResolvedIndexExpression(StreamInput in) throws IOException {
+        this(in.readString(), new LocalExpressions(in), in.readCollectionAsImmutableSet(StreamInput::readString));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(original);
+        localExpressions.writeTo(out);
+        out.writeStringCollection(remoteExpressions);
+    }
+
     /**
      * Indicates if a local index resolution attempt was successful or failed.
-     * Failures can be due to missing concrete resources or unauthorized concrete resources.
+     * Failures can be due to concrete resources not being visible (either missing or not visible due to indices options)
+     * or unauthorized concrete resources.
      * A wildcard expression resolving to nothing is still considered a successful resolution.
+     * The NONE result indicates that no local resolution was attempted, because the expression is known to be remote-only.
      */
-    enum LocalIndexResolutionResult {
+    public enum LocalIndexResolutionResult {
+        NONE,
         SUCCESS,
-        CONCRETE_RESOURCE_MISSING,
+        CONCRETE_RESOURCE_NOT_VISIBLE,
         CONCRETE_RESOURCE_UNAUTHORIZED,
     }
 
     /**
-     * Represents local (non-remote) resolution results, including expanded indices, and the resolution result.
+     * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
      */
     public record LocalExpressions(
-        List<String> expressions,
+        Set<String> expressions,
         LocalIndexResolutionResult localIndexResolutionResult,
         @Nullable ElasticsearchException exception
-    ) {
+    ) implements Writeable {
         public LocalExpressions {
             assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
                 : "If the local resolution result is SUCCESS, exception must be null";
+        }
+
+        // Singleton for the case where all expressions in a ResolvedIndexExpression instance are remote
+        public static final LocalExpressions NONE = new LocalExpressions(Set.of(), LocalIndexResolutionResult.NONE, null);
+
+        public LocalExpressions(StreamInput in) throws IOException {
+            this(
+                in.readCollectionAsImmutableSet(StreamInput::readString),
+                in.readEnum(LocalIndexResolutionResult.class),
+                ElasticsearchException.readException(in)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringCollection(expressions);
+            out.writeEnum(localIndexResolutionResult);
+            ElasticsearchException.writeException(exception, out);
         }
     }
 }

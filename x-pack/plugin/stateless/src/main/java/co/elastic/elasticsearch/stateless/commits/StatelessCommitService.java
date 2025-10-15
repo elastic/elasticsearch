@@ -404,15 +404,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Marks the target shard as completing a split.
+     * Marks the target shard as ending a split.
      * Once the target shard has reached handoff, commits from the source are guaranteed not to contain documents belonging
      * to the target, and so we can stop copying commits.
+     * Also called in the case of a failure before reaching handoff.
      * @param sourceShardId the source shard ID.
      * @param targetShardId the target shard ID.
+     * @param failed true if transition to handoff failed
      */
-    public void markSplitCompleting(ShardId sourceShardId, ShardId targetShardId) {
+    public void markSplitEnding(ShardId sourceShardId, ShardId targetShardId, boolean failed) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
-        commitState.markSplitCompleting(targetShardId);
+        commitState.markSplitEnding(targetShardId, failed);
     }
 
     public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
@@ -741,9 +743,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    private ActionListener<BatchedCompoundCommit> copyToTarget(
+    private ActionListener<BatchedCompoundCommit> copyToTargets(
         ActionListener<BatchedCompoundCommit> afterCopyListener,
-        ShardId targetShardId,
+        ShardCommitState commitState,
         VirtualBatchedCompoundCommit virtualBcc
     ) {
         // ES-12456 This listener is called by the upload task and holds its thread.
@@ -752,38 +754,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return new ActionListener<BatchedCompoundCommit>() {
             @Override
             public void onResponse(BatchedCompoundCommit batchedCompoundCommit) {
-                try {
-                    objectStoreService.copyCommit(virtualBcc, targetShardId);
-                    afterCopyListener.onResponse(batchedCompoundCommit);
-                } catch (IOException e) {
-                    logger.warn("failed to copy target batched compound commit", e);
-                    afterCopyListener.onFailure(e);
+                for (final ShardId targetShardId : commitState.getSplitTargets()) {
+                    try {
+                        objectStoreService.copyCommit(virtualBcc, targetShardId);
+                    } catch (Exception e) {
+                        logger.warn("failed to copy target batched compound commit", e);
+                        afterCopyListener.onFailure(e);
+                        return;
+                    }
                 }
+                afterCopyListener.onResponse(batchedCompoundCommit);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException || e instanceof ShardNotFoundException || e instanceof AlreadyClosedException) {
-                    // The shard was closed, we can ignore this exception.
-                    logger.trace(() -> "shard closed while copying target", e);
-                } else {
-                    assert false : e;
-                    logger.warn("unexpected exception while copying target", e);
-                }
                 afterCopyListener.onFailure(e);
             }
         };
-    }
-
-    private ActionListener<BatchedCompoundCommit> copyToTargets(
-        ActionListener<BatchedCompoundCommit> afterCopyListener,
-        ShardCommitState commitState,
-        VirtualBatchedCompoundCommit virtualBcc
-    ) {
-        for (final ShardId targetShardId : commitState.getSplitTargets()) {
-            afterCopyListener = copyToTarget(afterCopyListener, targetShardId, virtualBcc);
-        }
-        return afterCopyListener;
     }
 
     private void createAndRunCommitUpload(
@@ -2278,10 +2265,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert absent : "target shard " + targetShardId + " already marked as splitting from " + shardId;
         }
 
-        private void markSplitCompleting(ShardId targetShardId) {
-            logger.debug("marking split completing for {}", targetShardId);
+        private void markSplitEnding(ShardId targetShardId, boolean failed) {
+            logger.debug("marking split ending for {}", targetShardId);
             var present = copyTargets.remove(targetShardId);
-            assert present : "target shard " + targetShardId + " not currently splitting from " + shardId;
+            assert failed || present : "target shard " + targetShardId + " not currently splitting from " + shardId;
         }
 
         private Set<ShardId> getSplitTargets() {

@@ -226,10 +226,19 @@ class KnnIndexer {
             }
         });
         iwc.setCodec(codec);
+        iwc.setUseCompoundFile(false);
         logger.debug("KnnIndexer: forceMerge in {}", indexPath);
         long startNS = System.nanoTime();
+        final int maxNumSegments;
+        if (this.numDocs <= 0 || this.dim <= 0) {
+            maxNumSegments = 1;
+        } else {
+            var dimInMB = this.numDocs * this.dim * 4 / 1_000_000.0;
+            maxNumSegments = (int) Math.ceil(dimInMB / 6_000_000.0);
+        }
+        logger.info("forceMerge into {} segments", maxNumSegments);
         try (IndexWriter iw = new IndexWriter(getDirectory(indexPath), iwc)) {
-            iw.forceMerge(1);
+            iw.forceMerge(maxNumSegments);
         }
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);

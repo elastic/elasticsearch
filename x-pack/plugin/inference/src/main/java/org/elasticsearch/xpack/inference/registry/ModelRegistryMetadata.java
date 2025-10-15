@@ -93,18 +93,7 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     );
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
-        final var existing = modelMap.get(inferenceEntityId);
-        if (existing != null && settings.equals(existing)) {
-            return this;
-        }
-        var settingsBuilder = ImmutableOpenMap.builder(modelMap);
-        settingsBuilder.fPut(inferenceEntityId, settings);
-        if (isUpgraded) {
-            return new ModelRegistryMetadata(settingsBuilder.build());
-        }
-        var newTombstone = new HashSet<>(tombstones);
-        newTombstone.remove(inferenceEntityId);
-        return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
+        return withAddedModels(List.of(new ModelRegistry.ModelAndSettings(inferenceEntityId, settings)));
     }
 
     public ModelRegistryMetadata withAddedModels(List<ModelRegistry.ModelAndSettings> models) {
@@ -285,7 +274,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
             return false;
         }
         ModelRegistryMetadata other = (ModelRegistryMetadata) obj;
-        return Objects.equals(this.modelMap, other.modelMap) && isUpgraded == other.isUpgraded;
+        return Objects.equals(this.modelMap, other.modelMap)
+            && isUpgraded == other.isUpgraded
+            && Objects.equals(this.tombstones, other.tombstones);
     }
 
     @Override

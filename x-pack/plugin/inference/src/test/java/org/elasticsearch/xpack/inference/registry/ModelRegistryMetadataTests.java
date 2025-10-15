@@ -19,11 +19,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCase<ModelRegistryMetadata> {
     public static ModelRegistryMetadata randomInstance() {
@@ -105,5 +108,146 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
         var exc = expectThrows(IllegalArgumentException.class, () -> metadata.withUpgradedModels(indexMetadata.getModelMap()));
         assertThat(exc.getMessage(), containsString("upgraded"));
+    }
+
+    public void testWithAddedModel_ReturnsSameMetadataInstance() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var newMetadata = metadata.withAddedModel(inferenceId, settings);
+        assertThat(newMetadata, sameInstance(metadata));
+        assertThat(newMetadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+    }
+
+    public void testWithAddedModel_ReturnsNewMetadataInstance_ForNewInferenceId() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var newInferenceId = "new_id";
+        var newSettings = MinimalServiceSettingsTests.randomInstance();
+        var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
+        assertThat(
+            newMetadata,
+            is(new ModelRegistryMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build()))
+        );
+    }
+
+    public void testWithAddedModel_ReturnsNewMetadataInstance_ForNewInferenceId_WithTombstoneRemoved() {
+        var inferenceId = "id";
+        var newInferenceId = "new_id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
+
+        var newSettings = MinimalServiceSettingsTests.randomInstance();
+        var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
+        assertThat(
+            newMetadata,
+            is(
+                new ModelRegistryMetadata(
+                    ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build(),
+                    new HashSet<>()
+                )
+            )
+        );
+    }
+
+    public void testWithAddedModels_ReturnsSameMetadataInstance() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var newMetadata = metadata.withAddedModels(
+            List.of(new ModelRegistry.ModelAndSettings(inferenceId, settings), new ModelRegistry.ModelAndSettings(inferenceId, settings))
+        );
+        assertThat(newMetadata, sameInstance(metadata));
+        assertThat(newMetadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+    }
+
+    public void testWithAddedModels_ReturnsSameMetadataInstance_MultipleEntriesInMap() {
+        var inferenceId = "id";
+        var inferenceId2 = "id2";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings, inferenceId2, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var newMetadata = metadata.withAddedModels(
+            List.of(
+                new ModelRegistry.ModelAndSettings(inferenceId, settings),
+                new ModelRegistry.ModelAndSettings(inferenceId, settings),
+                new ModelRegistry.ModelAndSettings(inferenceId2, settings)
+            )
+        );
+        assertThat(newMetadata, sameInstance(metadata));
+        assertThat(newMetadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+    }
+
+    public void testWithAddedModels_ReturnsNewMetadataInstance_ForNewInferenceId() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var inferenceId2 = "new_id";
+        var settings2 = MinimalServiceSettingsTests.randomInstance();
+        var inferenceId3 = "new_id2";
+        var settings3 = MinimalServiceSettingsTests.randomInstance();
+        var newMetadata = metadata.withAddedModels(
+            List.of(
+                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                // This should be ignored since it's a duplicate
+                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                new ModelRegistry.ModelAndSettings(inferenceId3, settings3)
+            )
+        );
+        assertThat(
+            newMetadata,
+            is(
+                new ModelRegistryMetadata(
+                    ImmutableOpenMap.builder(Map.of(inferenceId, settings, inferenceId2, settings2, inferenceId3, settings3)).build()
+                )
+            )
+        );
+    }
+
+    public void testWithAddedModels_ReturnsNewMetadataInstance_ForNewInferenceId_WithTombstoneRemoved() {
+        var inferenceId = "id";
+        var newInferenceId = "new_id";
+        var newInferenceId2 = "new_id2";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId));
+
+        var newSettings = MinimalServiceSettingsTests.randomInstance();
+        var newMetadata = metadata.withAddedModels(
+            List.of(
+                // This will cause the new settings to be used for inferenceId
+                new ModelRegistry.ModelAndSettings(inferenceId, newSettings),
+                new ModelRegistry.ModelAndSettings(newInferenceId, newSettings),
+                new ModelRegistry.ModelAndSettings(newInferenceId2, newSettings)
+            )
+        );
+        assertThat(
+            newMetadata,
+            is(
+                new ModelRegistryMetadata(
+                    ImmutableOpenMap.builder(Map.of(inferenceId, newSettings, newInferenceId, newSettings, newInferenceId2, newSettings))
+                        .build(),
+                    new HashSet<>()
+                )
+            )
+        );
     }
 }

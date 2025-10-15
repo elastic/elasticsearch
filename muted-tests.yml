@@ -290,9 +290,6 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
-  method: testSnapshotUpgrader
-  issue: https://github.com/elastic/elasticsearch/issues/98560
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517

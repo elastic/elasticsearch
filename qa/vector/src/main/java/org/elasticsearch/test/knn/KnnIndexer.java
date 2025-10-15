@@ -217,7 +217,7 @@ class KnnIndexer {
         result.numDocs = numDocsIndexed.get();
     }
 
-    void forceMerge(KnnIndexTester.Results results) throws Exception {
+    void forceMerge(KnnIndexTester.Results results, int maxNumSegments) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
@@ -227,16 +227,8 @@ class KnnIndexer {
         });
         iwc.setCodec(codec);
         iwc.setUseCompoundFile(false);
-        logger.debug("KnnIndexer: forceMerge in {}", indexPath);
+        logger.info("KnnIndexer: forceMerge in {} into {} segments", indexPath, maxNumSegments);
         long startNS = System.nanoTime();
-        final int maxNumSegments;
-        if (this.numDocs <= 0 || this.dim <= 0) {
-            maxNumSegments = 1;
-        } else {
-            var dimInMB = this.numDocs * this.dim * 4 / 1_000_000.0;
-            maxNumSegments = (int) Math.ceil(dimInMB / 6_000_000.0);
-        }
-        logger.info("forceMerge into {} segments", maxNumSegments);
         try (IndexWriter iw = new IndexWriter(getDirectory(indexPath), iwc)) {
             iw.forceMerge(maxNumSegments);
         }

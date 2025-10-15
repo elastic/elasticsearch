@@ -277,7 +277,7 @@ public class KnnIndexTester {
                     knnIndexer.createIndex(indexResults);
                 }
                 if (cmdLineArgs.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults);
+                    knnIndexer.forceMerge(indexResults, cmdLineArgs.forceMergeMaxNumSegments());
                 }
             }
             numSegments(indexPath, indexResults);

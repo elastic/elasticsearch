@@ -562,20 +562,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
         this.blobStoreSnapshotMetrics = new BlobStoreSnapshotMetrics(projectId, metadata, snapshotMetrics);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatch(
-            MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
-            maxHeapSizeForSnapshotDeletion -> {
-                /**
-                 * Calculates the maximum size of the ShardBlobsToDelete.shardDeleteResults BytesStreamOutput.
-                 * The size cannot exceed 2GB, without {@code BytesStreamOutput} throwing an IAE,
-                 * but should also be no more than 25% of the total remaining heap space.
-                 * A buffer of 1MB is maintained, so that even if the stream is of max size, there is room to flush
-                 */
-                this.maxHeapSizeForSnapshotDeletion = Math.toIntExact(
-                    Math.min(maxHeapSizeForSnapshotDeletion.getBytes(), Integer.MAX_VALUE - ByteSizeUnit.MB.toBytes(1))
-                );
-            }
-        );
+        clusterSettings.initializeAndWatch(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING, maxHeapSizeForSnapshotDeletion -> {
+            /**
+             * Calculates the maximum size of the ShardBlobsToDelete.shardDeleteResults BytesStreamOutput.
+             * The size cannot exceed 2GB, without {@code BytesStreamOutput} throwing an IAE,
+             * but should also be no more than 25% of the total remaining heap space.
+             * A buffer of 1MB is maintained, so that even if the stream is of max size, there is room to flush
+             */
+            this.maxHeapSizeForSnapshotDeletion = Math.toIntExact(
+                Math.min(maxHeapSizeForSnapshotDeletion.getBytes(), Integer.MAX_VALUE - ByteSizeUnit.MB.toBytes(1))
+            );
+        });
     }
 
     @Override

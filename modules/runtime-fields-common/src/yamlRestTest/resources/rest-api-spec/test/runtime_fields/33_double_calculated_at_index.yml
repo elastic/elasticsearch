@@ -17,6 +17,11 @@ setup:
                 type: double
               node:
                 type: keyword
+              random_double:
+                type: double
+                script:
+                  source: |
+                    emit(new Random().nextDouble());
               voltage_percent:
                 type: double
                 script:
@@ -88,17 +93,54 @@ setup:
         index: sensor
         body:
           sort: timestamp
-          fields: [voltage_percent, voltage_percent_no_dv, voltage_sqrts]
+          fields: [voltage_percent, voltage_sqrts]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
-  # Scripts that scripts that emit multiple values are supported
-  - match: {hits.hits.0.fields.voltage_sqrts: [4.0, 2.0, 1.4142135623730951] }
+  # Test that scripts that emit multiple values are supported and their results are sorted
+  - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
   - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
-  - match: {hits.hits.1.fields.voltage_percent_no_dv: [0.7241379310344828] }
   - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }
   - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
   - match: {hits.hits.4.fields.voltage_percent: [1.0] }
   - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+
+---
+"script runs at index time":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - random_double
+  - match: {hits.total.value: 6}
+  - set: { hits.hits.0.fields.random_double.0: random_value }
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              random_double: $random_value
+          aggs:
+            random_value:
+              terms:
+                field: random_double
+  - match: {hits.total.value: 1}
+  - match: {aggregations.random_value.buckets.0.key: $random_value}
+  - match: {aggregations.random_value.buckets.0.doc_count: 1}
+
+---
+"fetch fields no doc values":
+  - do:
+      catch: bad_request
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - voltage_percent_no_dv
 
 ---
 "docvalue_fields":
@@ -110,7 +152,7 @@ setup:
           docvalue_fields: [voltage_percent, voltage_sqrts]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
-  # Scripts that scripts that emit multiple values are supported and their results are sorted
+  # Test that scripts that emit multiple values are supported and their results are sorted
   - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
   - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
   - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }

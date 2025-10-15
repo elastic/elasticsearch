@@ -14,6 +14,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.EXACT;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PREFIX;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PROPER_PREFIX;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PROPER_SUFFIX;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.REGEX;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.SUFFIX;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.extractFragments;
@@ -62,6 +64,20 @@ public class AutomatonUtilsTests extends ESTestCase {
             { PREFIX, "prod-" },
             { EXACT, "staging" },
             { SUFFIX, "-dev" }
+        };
+
+        assertFragments(fragments, expected);
+    }
+
+    public void testExtractFragments_ProperPrefixSuffixAlternation() {
+        List<PatternFragment> fragments = extractFragments("prod-.+|.+-dev");
+
+        assertThat(fragments, notNullValue());
+        assertThat(fragments, hasSize(2));
+
+        Object[][] expected = {
+            { PROPER_PREFIX, "prod-" },
+            { PROPER_SUFFIX, "-dev" }
         };
 
         assertFragments(fragments, expected);

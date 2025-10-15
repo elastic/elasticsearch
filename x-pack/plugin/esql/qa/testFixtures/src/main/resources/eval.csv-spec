@@ -805,3 +805,44 @@ year:integer
 12
 12
 ;
+
+evalUsingScoreAndLimit
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+from employees
+| eval position = score(match(job_positions, "Senior Python Developer"))
+| limit 2
+| keep position
+;
+
+position:double
+1.957748532295227
+0
+;
+
+evalUsingScoreAndTopN
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+from employees
+| sort emp_no desc
+| eval position = score(match(job_positions, "Senior Python Developer"))
+| limit 10
+| keep position
+;
+
+position:double
+0
+0
+0
+0
+0
+0
+1.957748532295227
+0
+0
+0
+;

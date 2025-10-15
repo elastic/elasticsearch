@@ -1499,7 +1499,13 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Support for pushing down EVAL with SCORE
+         * https://github.com/elastic/elasticsearch/issues/133462
+         */
+        PUSHING_DOWN_EVAL_WITH_SCORE;
 
         private final boolean enabled;
 

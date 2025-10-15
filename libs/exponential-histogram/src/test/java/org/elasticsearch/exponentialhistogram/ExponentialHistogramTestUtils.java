@@ -9,7 +9,6 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import java.util.List;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
@@ -39,13 +38,9 @@ public abstract class ExponentialHistogramTestUtils {
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(numBuckets, breaker, rawValues);
         // Setup a proper zeroThreshold based on a random chance
         if (histo.zeroBucket().count() > 0 && randomBoolean()) {
-            double smallestNonZeroValue = DoubleStream.of(rawValues)
-                .map(Math::abs)
-                .filter(val -> val != 0)
-                .min()
-                .orElse(0.0);
+            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
             double zeroThreshold = smallestNonZeroValue * randomDouble();
-            try(ReleasableExponentialHistogram releaseAfterCopy = histo) {
+            try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
                 histo = ExponentialHistogram.builder(histo, breaker)
                     .zeroBucket(ZeroBucket.create(zeroThreshold, histo.zeroBucket().count()))
                     .build();

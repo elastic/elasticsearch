@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;

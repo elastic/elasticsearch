@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -41,12 +42,15 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
+    private static final TransportVersion ESQL_CONFIGURATION_SETTINGS = TransportVersion.fromName("esql_configuration_settings");
+
     private final String clusterName;
     private final String username;
     private final ZonedDateTime now;
     private final ZoneId zoneId;
 
     private final QueryPragmas pragmas;
+    private final QuerySettings settings;
 
     private final int resultTruncationMaxSizeRegular;
     private final int resultTruncationDefaultSizeRegular;
@@ -69,6 +73,7 @@ public class Configuration implements Writeable {
         String username,
         String clusterName,
         QueryPragmas pragmas,
+        QuerySettings settings,
         int resultTruncationMaxSizeRegular,
         int resultTruncationDefaultSizeRegular,
         String query,
@@ -85,6 +90,7 @@ public class Configuration implements Writeable {
         this.clusterName = clusterName;
         this.locale = locale;
         this.pragmas = pragmas;
+        this.settings = settings;
         this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
         this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
         this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
@@ -122,6 +128,11 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
+        if (in.getTransportVersion().supports(ESQL_CONFIGURATION_SETTINGS)) {
+            this.settings = new QuerySettings(in);
+        } else {
+            this.settings = QuerySettings.EMPTY;
+        }
     }
 
     @Override
@@ -147,6 +158,9 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
+        if (out.getTransportVersion().supports(ESQL_CONFIGURATION_SETTINGS)) {
+            this.settings.writeTo(out);
+        }
     }
 
     public ZoneId zoneId() {
@@ -167,6 +181,10 @@ public class Configuration implements Writeable {
 
     public QueryPragmas pragmas() {
         return pragmas;
+    }
+
+    public QuerySettings settings() {
+        return settings;
     }
 
     public int resultTruncationMaxSize(boolean isTimeseries) {
@@ -227,6 +245,7 @@ public class Configuration implements Writeable {
             username,
             clusterName,
             pragmas,
+            settings,
             resultTruncationMaxSizeRegular,
             resultTruncationDefaultSizeRegular,
             query,

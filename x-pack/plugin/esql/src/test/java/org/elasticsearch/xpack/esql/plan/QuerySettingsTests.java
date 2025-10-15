@@ -67,11 +67,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    private static <T> void assertValid(
-        QuerySettings.QuerySettingDef<T> settingDef,
-        Literal valueLiteral,
-        Matcher<T> parsedValueMatcher
-    ) {
+    private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Literal valueLiteral, Matcher<T> parsedValueMatcher) {
         QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), valueLiteral));
         QuerySettings.validate(new EsqlStatement(null, List.of(setting)), null);
 

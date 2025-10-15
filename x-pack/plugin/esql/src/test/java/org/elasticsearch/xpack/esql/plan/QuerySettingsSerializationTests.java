@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,28 +22,27 @@ public class QuerySettingsSerializationTests extends AbstractWireSerializingTest
 
     @Override
     protected Writeable.Reader<QuerySettings> instanceReader() {
-        return in -> new QuerySettings(
-            new PlanStreamInput(in, getNamedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
-        );
+        return QuerySettings::new;
     }
 
     @Override
     protected QuerySettings createTestInstance() {
-        return new QuerySettings(randomSettings());
+        return randomSettings();
     }
 
     @Override
     protected QuerySettings mutateInstance(QuerySettings in) {
-        var settings = randomValueOtherThan(in.settings(), this::randomSettings);
-        return new QuerySettings(settings);
+        return randomValueOtherThan(in, QuerySettingsSerializationTests::randomSettings);
     }
 
     private static final Map<QuerySettings.QuerySettingDef<?>, Supplier<Literal>> SETTINGS_GENERATORS = Map.of(
-        QuerySettings.PROJECT_ROUTING, () -> Literal.keyword(Source.EMPTY, randomAlphaOfLength(15)),
-        QuerySettings.TIME_ZONE, () -> Literal.keyword(Source.EMPTY, randomZone().normalized().toString())
+        QuerySettings.PROJECT_ROUTING,
+        () -> Literal.keyword(Source.EMPTY, randomAlphaOfLength(15)),
+        QuerySettings.TIME_ZONE,
+        () -> Literal.keyword(Source.EMPTY, randomZone().normalized().toString())
     );
 
-    private Map<QuerySettings.QuerySettingDef<?>, Literal> randomSettings() {
+    public static QuerySettings randomSettings() {
         var settings = new HashMap<QuerySettings.QuerySettingDef<?>, Literal>();
 
         for (var settingGenerator : SETTINGS_GENERATORS.entrySet()) {
@@ -59,7 +56,7 @@ public class QuerySettingsSerializationTests extends AbstractWireSerializingTest
             }
         }
 
-        return settings;
+        return new QuerySettings(settings);
     }
 
     @Override

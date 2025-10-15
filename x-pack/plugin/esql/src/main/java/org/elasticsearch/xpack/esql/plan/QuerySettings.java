@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -79,8 +80,7 @@ public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implement
 
     public static QuerySettings from(EsqlStatement statement) {
         return new QuerySettings(
-            statement.settings().stream()
-                .collect(Collectors.toMap(s -> SETTINGS_BY_NAME.get(s.name()), s -> (Literal) s.value()))
+            statement.settings().stream().collect(Collectors.toMap(s -> SETTINGS_BY_NAME.get(s.name()), s -> (Literal) s.value()))
         );
     }
 
@@ -111,7 +111,10 @@ public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implement
 
     public QuerySettings(StreamInput in) throws IOException {
         this(
-            in.readMap(i -> SETTINGS_BY_NAME.get(i.readString()), i -> (Literal) i.readNamedWriteable(Expression.class))
+            new PlanStreamInput(in, in.namedWriteableRegistry(), null).readMap(
+                i -> SETTINGS_BY_NAME.get(i.readString()),
+                i -> (Literal) i.readNamedWriteable(Expression.class)
+            )
         );
     }
 
@@ -122,8 +125,7 @@ public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implement
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        new PlanStreamOutput(out ,null)
-            .writeMap(settings, (o, k) -> o.writeString(k.name()), StreamOutput::writeNamedWriteable);
+        new PlanStreamOutput(out, null).writeMap(settings, (o, k) -> o.writeString(k.name()), StreamOutput::writeNamedWriteable);
     }
 
     @Override
@@ -141,10 +143,7 @@ public record QuerySettings(Map<QuerySettingDef<?>, Literal> settings) implement
 
     @Override
     public String toString() {
-        return "QuerySettings{"
-            + "settings="
-            + settings
-            + '}';
+        return "QuerySettings{settings=" + settings + '}';
     }
 
     /**

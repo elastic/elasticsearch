@@ -190,6 +190,7 @@ public class EsqlSession {
             null,
             clusterName,
             request.pragmas(),
+            QuerySettings.from(statement),
             clusterSettings.resultTruncationMaxSize(),
             clusterSettings.resultTruncationDefaultSize(),
             request.query(),

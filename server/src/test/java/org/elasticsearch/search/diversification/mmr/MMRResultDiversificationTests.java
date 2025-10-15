@@ -77,8 +77,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         assertEquals(3, diversifiedTopDocs.length);
         assertEquals(1, diversifiedTopDocs[0].doc);
-        assertEquals(6, diversifiedTopDocs[1].doc);
-        assertEquals(3, diversifiedTopDocs[2].doc);
+        assertEquals(3, diversifiedTopDocs[1].doc);
+        assertEquals(6, diversifiedTopDocs[2].doc);
     }
 
     public void testMMRDiversificationIfNoSearchHits() throws IOException {

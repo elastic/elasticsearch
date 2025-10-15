@@ -14,11 +14,14 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -201,6 +204,22 @@ public class TimeSeriesAggregate extends Aggregate {
                     failures.add(
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
+                    // reject COUNT(keyword), but allow COUNT(numeric)
+                } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
+                    Expression field = outer.field();
+                    var lastOverTime = new LastOverTime(source(), field, new Literal(source(), null, DataType.DATETIME));
+                    if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
+                        failures.add(
+                            fail(
+                                this,
+                                "implicit time-series aggregation function [{}] generated from [{}] doesn't support type [{}], "
+                                    + "only numeric types are supported; use the FROM command instead of the TS command",
+                                outer.sourceText().replace(field.sourceText(), "last_over_time(" + field.sourceText() + ")"),
+                                outer.sourceText(),
+                                field.dataType().typeName()
+                            )
+                        );
+                    }
                 }
                 if (outer instanceof TimeSeriesAggregateFunction ts) {
                     outer.field()

@@ -646,7 +646,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateIndexService metadataCreateIndexService,
+        IndexSettingProviders indexSettingProviders
     ) {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
             clusterService.getClusterSettings()
@@ -662,7 +663,7 @@ class NodeConstruction {
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings)
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings, indexSettingProviders)
         );
         return dataStreamGlobalRetentionSettings;
     }
@@ -990,7 +991,8 @@ class NodeConstruction {
             threadPool,
             clusterService,
             indicesService,
-            metadataCreateIndexService
+            metadataCreateIndexService,
+            indexSettingProviders
         );
 
         final MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(

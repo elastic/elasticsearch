@@ -1081,7 +1081,7 @@ public class ActionModule extends AbstractModule {
         return reservedClusterStateService;
     }
 
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(
                 ExtendedSearchUsageMetric.class,

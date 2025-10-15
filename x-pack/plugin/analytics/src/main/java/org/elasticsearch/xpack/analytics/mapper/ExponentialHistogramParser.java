@@ -96,7 +96,15 @@ public class ExponentialHistogramParser {
         static final ParsedZeroBucket DEFAULT = new ParsedZeroBucket(0, 0);
     }
 
-    public static ParsedExponentialHistogram parse(String mappedFieldName, XContentParser subParser) throws IOException {
+    /**
+     * Parses an XContent object into an exponential histogram.
+     * The parse is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
+     *
+     * @param mappedFieldName the name of the field being parsed, used for error messages
+     * @param parser the parser to use
+     * @return the parsed histogram
+     */
+    public static ParsedExponentialHistogram parse(String mappedFieldName, XContentParser parser) throws IOException {
         Double sum = null;
         Double min = null;
         Double max = null;
@@ -105,19 +113,19 @@ public class ExponentialHistogramParser {
         List<IndexWithCount> negativeBuckets = Collections.emptyList();
         List<IndexWithCount> positiveBuckets = Collections.emptyList();
 
-        XContentParser.Token token = subParser.currentToken();
+        XContentParser.Token token = parser.currentToken();
         while (token != XContentParser.Token.END_OBJECT) {
 
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
-            String fieldName = subParser.currentName();
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            String fieldName = parser.currentName();
             if (fieldName.equals(SCALE_FIELD.getPreferredName())) {
-                token = subParser.nextToken();
+                token = parser.nextToken();
 
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                scale = subParser.intValue();
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                scale = parser.intValue();
                 if (scale > ExponentialHistogram.MAX_SCALE || scale < ExponentialHistogram.MIN_SCALE) {
                     throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
+                        parser.getTokenLocation(),
                         "error parsing field ["
                             + mappedFieldName
                             + "], scale field must be in "
@@ -130,28 +138,28 @@ public class ExponentialHistogramParser {
                     );
                 }
             } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
-                sum = parseDoubleAllowingInfinity(mappedFieldName, subParser);
+                sum = parseDoubleAllowingInfinity(mappedFieldName, parser);
             } else if (fieldName.equals(MIN_FIELD.getPreferredName())) {
-                min = parseDoubleAllowingInfinity(mappedFieldName, subParser);
+                min = parseDoubleAllowingInfinity(mappedFieldName, parser);
             } else if (fieldName.equals(MAX_FIELD.getPreferredName())) {
-                max = parseDoubleAllowingInfinity(mappedFieldName, subParser);
+                max = parseDoubleAllowingInfinity(mappedFieldName, parser);
             } else if (fieldName.equals(ZERO_FIELD.getPreferredName())) {
-                zeroBucket = parseZeroBucket(mappedFieldName, subParser);
+                zeroBucket = parseZeroBucket(mappedFieldName, parser);
             } else if (fieldName.equals(POSITIVE_FIELD.getPreferredName())) {
-                positiveBuckets = readAndValidateBuckets(mappedFieldName, POSITIVE_FIELD.getPreferredName(), subParser);
+                positiveBuckets = readAndValidateBuckets(mappedFieldName, POSITIVE_FIELD.getPreferredName(), parser);
             } else if (fieldName.equals(NEGATIVE_FIELD.getPreferredName())) {
-                negativeBuckets = readAndValidateBuckets(mappedFieldName, NEGATIVE_FIELD.getPreferredName(), subParser);
+                negativeBuckets = readAndValidateBuckets(mappedFieldName, NEGATIVE_FIELD.getPreferredName(), parser);
             } else {
                 throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
+                    parser.getTokenLocation(),
                     "error parsing field [" + mappedFieldName + "], with unknown parameter [" + fieldName + "]"
                 );
             }
-            token = subParser.nextToken();
+            token = parser.nextToken();
         }
         if (scale == null) {
             throw new DocumentParsingException(
-                subParser.getTokenLocation(),
+                parser.getTokenLocation(),
                 "error parsing field [" + mappedFieldName + "], expected field called [" + SCALE_FIELD.getPreferredName() + "]"
             );
         }

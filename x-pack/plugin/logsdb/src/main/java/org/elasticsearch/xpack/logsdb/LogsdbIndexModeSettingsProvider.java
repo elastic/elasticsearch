@@ -157,7 +157,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                 additionalSettings.put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
             }
 
-            if (mappingHints.sortOnMessageTemplate) {
+            if (mappingHints.sortOnMessageTemplate
+                && (LogsDBPlugin.LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE.get(settings)
+                    || IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.get(settings))) {
                 additionalSettings.put(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), true);
             }
 

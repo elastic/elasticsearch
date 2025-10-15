@@ -795,6 +795,7 @@ public class EsqlSession {
                 // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
                 listener.onResponse(
                     result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of())))
+                        .withMinimumTransportVersion(TransportVersion.current())
                 );
             } else {
                 indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(

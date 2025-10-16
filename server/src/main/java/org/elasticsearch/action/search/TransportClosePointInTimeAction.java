@@ -66,7 +66,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
             searchTransportService,
             contextIds,
             listener.map(freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed)),
-                logger
+            logger
         );
     }
 
@@ -78,7 +78,8 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
         SearchTransportService searchTransportService,
         Collection<SearchContextIdForNode> contextIds,
         ActionListener<Integer> listener,
-            Logger logger) {
+        Logger logger
+    ) {
         final Set<String> clusters = contextIds.stream()
             .map(SearchContextIdForNode::getClusterAlias)
             .filter(clusterAlias -> Strings.isEmpty(clusterAlias) == false)

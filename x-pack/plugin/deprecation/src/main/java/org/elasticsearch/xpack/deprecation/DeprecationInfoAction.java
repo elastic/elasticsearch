@@ -141,7 +141,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 out.writeMap(getIndexSettingsIssues(), StreamOutput::writeCollection);
             }
             if (out.getTransportVersion().supports(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK)
-                && out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
                 out.writeMap(getDataStreamDeprecationIssues(), StreamOutput::writeCollection);
             }
             if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {

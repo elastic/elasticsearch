@@ -81,7 +81,7 @@ public final class WelfordAlgorithm {
     }
 
     public double evaluate() {
-        if (!stdDev) {
+        if (stdDev == false) {
             return count < 2 ? 0 : m2 / count;
         } else {
             return count < 2 ? 0 : Math.sqrt(m2 / count);

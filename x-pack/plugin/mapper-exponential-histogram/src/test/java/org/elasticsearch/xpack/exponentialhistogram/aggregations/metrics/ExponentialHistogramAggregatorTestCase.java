@@ -30,10 +30,7 @@ public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorT
 
     @Before
     public void setup() {
-        assumeTrue(
-            "Only when exponential_histogram feature flag is enabled",
-            EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
-        );
+        assumeTrue("Only when exponential_histogram feature flag is enabled", EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled());
     }
 
     @Override

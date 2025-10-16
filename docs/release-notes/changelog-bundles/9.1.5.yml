@@ -1,6 +1,6 @@
 version: 9.1.5
-released: false
-generated: 2025-10-03T13:40:06.241618847Z
+released: true
+generated: 2025-10-06T15:09:28.901349022Z
 changelogs:
   - pr: 134461
     summary: Propagates filter() to aggregation functions' surrogates
@@ -19,6 +19,12 @@ changelogs:
     type: enhancement
     issues:
       - 134136
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.1.5 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 134136
   - pr: 134656
     summary: Fix deadlock in `ThreadPoolMergeScheduler` when a failing merge closes the `IndexWriter`
     area: Engine

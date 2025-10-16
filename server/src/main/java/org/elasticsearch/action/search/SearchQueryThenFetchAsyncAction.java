@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -35,6 +35,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -82,6 +83,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+
     private final SearchProgressListener progressListener;
 
     // informations to track the best bottom top doc globally.
@@ -90,6 +93,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     private volatile BottomSortValuesCollector bottomSortCollector;
     private final Client client;
     private final boolean batchQueryPhase;
+    private long phaseStartTimeNanos;
 
     SearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -108,7 +112,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
-        boolean batchQueryPhase
+        boolean batchQueryPhase,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(
             "query",
@@ -127,7 +132,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            searchResponseMetrics
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
@@ -476,7 +482,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             // must check both node and transport versions to correctly deal with BwC on proxy connections
-            if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
+            if (connection.getTransportVersion().supports(BATCHED_QUERY_PHASE_VERSION) == false
                 || connection.getNode().getVersionInformation().nodeVersion().before(Version.V_9_1_0)) {
                 executeWithoutBatching(routing, request);
                 return;

@@ -63,8 +63,11 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     @Override
     protected Void createActionContext(Task task, Request request) {
         String indexName = request.indices()[0];
-        SamplingMetadata samplingMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(SamplingMetadata.TYPE);
-        if (samplingMetadata == null || samplingMetadata.getIndexToSamplingConfigMap().get(indexName) == null) {
+        SamplingConfiguration samplingConfiguration = samplingService.getSamplingConfiguration(
+            projectResolver.getProjectMetadata(clusterService.state()),
+            request.indices()[0]
+        );
+        if (samplingConfiguration == null) {
             throw new ResourceNotFoundException("No sampling configuration found for [" + indexName + "]");
         }
         return null;

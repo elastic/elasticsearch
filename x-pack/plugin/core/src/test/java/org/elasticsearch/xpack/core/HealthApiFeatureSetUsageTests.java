@@ -36,7 +36,12 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected HealthApiFeatureSetUsage mutateInstance(HealthApiFeatureSetUsage instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        Map<String, Object> originalStats = instance.stats();
+        Counters newStats = randomCounters();
+        while (originalStats.equals(newStats.toMutableNestedMap())) {
+            newStats = randomCounters();
+        }
+        return new HealthApiFeatureSetUsage(true, true, newStats);
     }
 
     @Override

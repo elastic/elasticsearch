@@ -95,12 +95,14 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId) && Objects.equals(synonymRuleId, request.synonymRuleId);
+            return Objects.equals(synonymsSetId, request.synonymsSetId)
+                && Objects.equals(synonymRuleId, request.synonymRuleId)
+                && refresh == request.refresh;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, synonymRuleId);
+            return Objects.hash(synonymsSetId, synonymRuleId, refresh);
         }
     }
 }

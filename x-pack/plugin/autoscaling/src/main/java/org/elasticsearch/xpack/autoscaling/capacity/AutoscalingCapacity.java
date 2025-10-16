@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +46,11 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
         public AutoscalingResources(StreamInput in) throws IOException {
             this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            this.processors = in.readOptionalWriteable(Processors::readFrom);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+                this.processors = in.readOptionalWriteable(Processors::readFrom);
+            } else {
+                this.processors = null;
+            }
         }
 
         @Nullable
@@ -83,7 +88,9 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
-            out.writeOptionalWriteable(processors);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+                out.writeOptionalWriteable(processors);
+            }
         }
 
         public static AutoscalingResources max(AutoscalingResources sm1, AutoscalingResources sm2) {

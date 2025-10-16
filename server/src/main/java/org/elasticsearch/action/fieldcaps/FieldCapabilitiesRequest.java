@@ -81,8 +81,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
         runtimeFields = in.readGenericMap();
-        filters = in.readStringArray();
-        types = in.readStringArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            filters = in.readStringArray();
+            types = in.readStringArray();
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
@@ -133,8 +135,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        out.writeStringArray(filters);
-        out.writeStringArray(types);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            out.writeStringArray(filters);
+            out.writeStringArray(types);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }

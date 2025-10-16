@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -137,6 +138,6 @@ public class LinearRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.LINEAR_RETRIEVER_SUPPORT;
     }
 }

@@ -28,6 +28,13 @@ public class GetSynonymRuleActionRequestSerializingTests extends AbstractWireSer
 
     @Override
     protected GetSynonymRuleAction.Request mutateInstance(GetSynonymRuleAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String synonymsSetId = instance.synonymsSetId();
+        String synonymRuleId = instance.synonymRuleId();
+        switch (between(0, 1)) {
+            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+            case 1 -> synonymRuleId = randomValueOtherThan(synonymRuleId, () -> randomIdentifier());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetSynonymRuleAction.Request(synonymsSetId, synonymRuleId);
     }
 }

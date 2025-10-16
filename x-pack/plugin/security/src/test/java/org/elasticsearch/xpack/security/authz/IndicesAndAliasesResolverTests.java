@@ -62,6 +62,8 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
+import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -101,6 +103,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -152,6 +155,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private Map<String, RoleDescriptor> roleMap;
     private String todaySuffix;
     private String tomorrowSuffix;
+    private CrossProjectModeDecider crossProjectModeDecider;
 
     @Before
     public void setup() {
@@ -161,7 +165,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ).put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399)).build();
 
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
-        CrossProjectModeDecider crossProjectModeDecider = mock(CrossProjectModeDecider.class);
+        crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
 
@@ -756,46 +760,36 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testResolveEmptyIndicesExpandWilcardsOpenAndClosed() {
+    public void testResolveEmptyIndicesExpandWildcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertIndicesMatch(request, "_all", indices, replacedIndices);
     }
 
-    public void testResolveEmptyIndicesExpandWilcardsOpen() {
+    public void testResolveEmptyIndicesExpandWildcardsOpen() {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "foofoobar", "foobarfoo", "foofoo" };
-        assertSameValues(indices, replacedIndices);
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertIndicesMatch(request, "_all", indices, replacedIndices);
     }
 
-    public void testResolveAllExpandWilcardsOpenAndClosed() {
+    public void testResolveAllExpandWildcardsOpenAndClosed() {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertIndicesMatch(request, "_all", indices, replacedIndices);
     }
 
-    public void testResolveAllExpandWilcardsOpen() {
+    public void testResolveAllExpandWildcardsOpen() {
         SearchRequest request = new SearchRequest("_all");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "foofoobar", "foobarfoo", "foofoo" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        assertIndicesMatch(request, "_all", indices, replacedIndices);
     }
 
     public void testResolveWildcardsStrictExpand() {
@@ -901,18 +895,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testResolveWildcardsMinusExpandWilcardsOpen() {
+    public void testResolveWildcardsMinusExpandWildcardsOpen() {
         SearchRequest request = new SearchRequest("*", "-foofoo*");
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "foobarfoo" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Set.of("bar", "foobarfoo"), SUCCESS)));
+        assertIndicesMatch(request, "*", indices, replacedIndices);
     }
 
     public void testResolveWildcardsMinusExpandWilcardsOpenAndClosed() {
@@ -920,13 +908,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
         String[] replacedIndices = new String[] { "bar", "foobarfoo", "bar-closed" };
-        assertThat(indices, hasSize(replacedIndices.length));
-        assertThat(request.indices().length, equalTo(replacedIndices.length));
-        assertThat(indices, hasItems(replacedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Set.of("bar", "foobarfoo", "bar-closed"), SUCCESS)));
+        assertIndicesMatch(request, "*", indices, replacedIndices);
     }
 
     public void testResolveWildcardsNoExpand() {
@@ -1102,6 +1084,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), true, true, randomBoolean()));
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(userNoIndices, TransportSearchAction.TYPE.name())));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression("_all", Collections.emptySet(), SUCCESS)));
     }
 
     public void testResolveNoAuthorizedIndicesDisallowNoIndices() {
@@ -2000,14 +1986,21 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testXPackSecurityUserHasAccessToSecurityIndex() {
-        SearchRequest request = new SearchRequest();
         {
+            SearchRequest request = new SearchRequest();
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(
                 InternalUsers.XPACK_SECURITY_USER,
                 TransportSearchAction.TYPE.name()
             );
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
+
+            var resolved = request.getResolvedIndexExpressions();
+            assertThat(resolved, is(notNullValue()));
+            assertEquals(1, resolved.expressions().size());
+            var expression = resolved.expressions().getFirst();
+            assertEquals("_all", expression.original());
+            assertThat(expression.localExpressions().expressions(), hasItem(SECURITY_MAIN_ALIAS));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
@@ -2026,6 +2019,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(InternalUsers.XPACK_USER, TransportSearchAction.TYPE.name());
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertEquals(1, resolved.expressions().size());
+        var expression = resolved.expressions().getFirst();
+        assertEquals("_all", expression.original());
+        assertThat(expression.localExpressions().expressions(), not(hasItem(SECURITY_MAIN_ALIAS)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {
@@ -2045,6 +2045,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(allAccessUser, TransportSearchAction.TYPE.name());
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
+
+            var resolved = request.getResolvedIndexExpressions();
+            assertThat(resolved, is(notNullValue()));
+            assertEquals(1, resolved.expressions().size());
+            var expression = resolved.expressions().getFirst();
+            assertEquals("_all", expression.original());
+            assertThat(expression.localExpressions().expressions(), not(hasItem(SECURITY_MAIN_ALIAS)));
         }
 
         {
@@ -2217,23 +2224,20 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(
-            resolvedIndices.getLocal(),
-            containsInAnyOrder(
-                "bar",
-                "bar-closed",
-                "foofoobar",
-                "foobarfoo",
-                "foofoo",
-                "foofoo-closed",
-                "hidden-open",
-                "hidden-closed",
-                ".hidden-open",
-                ".hidden-closed",
-                "date-hidden-" + todaySuffix,
-                "date-hidden-" + tomorrowSuffix
-            )
-        );
+        var replacedIndices = new String[] {
+            "bar",
+            "bar-closed",
+            "foofoobar",
+            "foobarfoo",
+            "foofoo",
+            "foofoo-closed",
+            "hidden-open",
+            "hidden-closed",
+            ".hidden-open",
+            ".hidden-closed",
+            "date-hidden-" + todaySuffix,
+            "date-hidden-" + tomorrowSuffix };
+        assertIndicesMatch(searchRequest, "_all", resolvedIndices.getLocal(), replacedIndices);
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // open + hidden
@@ -2245,23 +2249,21 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(
-            resolvedIndices.getLocal(),
-            containsInAnyOrder(
-                "bar",
-                "foofoobar",
-                "foobarfoo",
-                "foofoo",
-                "hidden-open",
-                ".hidden-open",
-                "date-hidden-" + todaySuffix,
-                "date-hidden-" + tomorrowSuffix
-            )
-        );
+        replacedIndices = new String[] {
+            "bar",
+            "foofoobar",
+            "foobarfoo",
+            "foofoo",
+            "hidden-open",
+            ".hidden-open",
+            "date-hidden-" + todaySuffix,
+            "date-hidden-" + tomorrowSuffix };
+        assertIndicesMatch(searchRequest, "_all", resolvedIndices.getLocal(), replacedIndices);
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // open + implicit hidden for . indices
-        searchRequest = new SearchRequest(randomFrom(".h*", ".hid*"));
+        var index = randomFrom(".h*", ".hid*");
+        searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
         authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name());
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
@@ -2270,7 +2272,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-open"));
+        assertIndicesMatch(searchRequest, index, resolvedIndices.getLocal(), new String[] { ".hidden-open" });
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // closed + hidden, ignore aliases
@@ -2283,11 +2285,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
+        replacedIndices = new String[] { "bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed" };
+        assertIndicesMatch(searchRequest, "_all", resolvedIndices.getLocal(), replacedIndices);
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // closed + implicit hidden for . indices
-        searchRequest = new SearchRequest(randomFrom(".h*", ".hid*"));
+        index = randomFrom(".h*", ".hid*");
+        searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name());
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
@@ -2296,7 +2300,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-closed"));
+        assertIndicesMatch(searchRequest, index, resolvedIndices.getLocal(), new String[] { ".hidden-closed" });
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // allow no indices, do not expand to open or closed, expand hidden, ignore aliases
@@ -2309,8 +2313,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), contains("-*"));
+        assertThat(resolvedIndices.getLocal(), contains(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
+        assertThat(searchRequest.getResolvedIndexExpressions(), is(notNullValue()));
+        assertThat(searchRequest.getResolvedIndexExpressions().expressions(), empty());
 
         // date math with default indices options
         searchRequest = new SearchRequest("<date-hidden-{now/d}>");
@@ -2338,7 +2344,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-visible", "alias-visible-mixed"));
+        assertIndicesMatch(searchRequest, "_all", resolvedIndices.getLocal(), new String[] { "alias-visible", "alias-visible-mixed" });
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Include hidden explicitly
@@ -2350,18 +2356,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(
-            resolvedIndices.getLocal(),
-            containsInAnyOrder(
-                "alias-visible",
-                "alias-visible-mixed",
-                "alias-hidden",
-                "alias-hidden-datemath-" + todaySuffix,
-                ".alias-hidden",
-                ".alias-hidden-datemath-" + todaySuffix,
-                "hidden-open"
-            )
-        );
+        var replacedIndices = new String[] {
+            "alias-visible",
+            "alias-visible-mixed",
+            "alias-hidden",
+            "alias-hidden-datemath-" + todaySuffix,
+            ".alias-hidden",
+            ".alias-hidden-datemath-" + todaySuffix,
+            "hidden-open" };
+        assertIndicesMatch(searchRequest, "_all", resolvedIndices.getLocal(), replacedIndices);
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Include hidden with a wildcard
@@ -2373,7 +2376,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden", "alias-hidden-datemath-" + todaySuffix));
+        assertIndicesMatch(
+            searchRequest,
+            "alias-h*",
+            resolvedIndices.getLocal(),
+            new String[] { "alias-hidden", "alias-hidden-datemath-" + todaySuffix }
+        );
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Dot prefix, implicitly including hidden
@@ -2385,7 +2393,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden", ".alias-hidden-datemath-" + todaySuffix));
+        assertIndicesMatch(
+            searchRequest,
+            ".a*",
+            resolvedIndices.getLocal(),
+            new String[] { ".alias-hidden", ".alias-hidden-datemath-" + todaySuffix }
+        );
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (visible only)
@@ -2397,8 +2410,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), contains("-*"));
+        assertThat(resolvedIndices.getLocal(), contains(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        var resolved = searchRequest.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression("_all", Collections.emptySet(), SUCCESS)));
 
         // Make sure ignoring aliases works (including hidden)
         searchRequest = new SearchRequest();
@@ -2409,7 +2426,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             projectMetadata,
             authorizedIndices
         );
-        assertThat(resolvedIndices.getLocal(), containsInAnyOrder("hidden-open"));
+        assertIndicesMatch(searchRequest, "_all", resolvedIndices.getLocal(), new String[] { "hidden-open" });
         assertThat(resolvedIndices.getRemote(), emptyIterable());
     }
 
@@ -2886,6 +2903,80 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
     }
 
+    public void testCrossProjectSearchAll() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest();
+        if (randomBoolean()) {
+            request.indices("_all");
+        }
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+            )
+        );
+
+        var expectedIndices = new String[] { "bar", "foobarfoo", "bar-closed", "foofoobar", "foofoo-closed", "foofoo" };
+
+        assertThat(resolvedIndices.getLocal(), contains(expectedIndices));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:_all", "P2:_all", "P3:_all"));
+
+        final var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression("_all", Set.of(expectedIndices), SUCCESS, Set.of("P1:_all", "P2:_all", "P3:_all")))
+        );
+    }
+
+    public void testCrossProjectSearchSelectorsNotAllowed() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest("_all::data");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliases(
+                "indices:/" + randomAlphaOfLength(8),
+                request,
+                projectMetadata,
+                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+                new TargetProjects(
+                    createRandomProjectWithAlias("local"),
+                    List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+                )
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("Selectors are not currently supported but was found in the expression [_all::data]"));
+    }
+
+    private void assertIndicesMatch(IndicesRequest.Replaceable request, String expression, List<String> indices, String[] expectedIndices) {
+        assertThat(indices, hasSize(expectedIndices.length));
+        assertThat(request.indices().length, equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression(expression, Set.of(expectedIndices), SUCCESS)));
+    }
+
+    private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {
+        ProjectId projectId = randomUniqueProjectId();
+        String type = randomFrom("elasticsearch", "security", "observability");
+        String org = randomAlphaOfLength(10);
+
+        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        ProjectTags projectTags = new ProjectTags(tags);
+        return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
+    }
+
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
         return buildAuthorizedIndices(user, action, new EmptyRequest());
     }
@@ -2911,7 +3002,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices, TargetProjects.NOT_CROSS_PROJECT);
+        return defaultIndicesResolver.resolve(
+            action,
+            request,
+            this.projectMetadata,
+            authorizedIndices,
+            TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+        );
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {
@@ -2932,10 +3029,19 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         Set<String> localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult
     ) {
+        return resolvedIndexExpression(original, localExpressions, localIndexResolutionResult, Collections.emptySet());
+    }
+
+    private static ResolvedIndexExpression resolvedIndexExpression(
+        String original,
+        Set<String> localExpressions,
+        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
+        Set<String> remoteExpressions
+    ) {
         return new ResolvedIndexExpression(
             original,
             new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
-            Set.of()
+            remoteExpressions
         );
     }
 

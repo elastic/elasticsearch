@@ -314,11 +314,15 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         populateLookupIndex(clusterAlias, indexName, numDocs, "long");
     }
 
-    protected void setSkipUnavailable(String clusterAlias, boolean skip) {
+    protected void setSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+        var settings = skipUnavailable != null
+            ? Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable)
+            : Settings.builder().putNull("cluster.remote." + clusterAlias + ".skip_unavailable");
+
         client(LOCAL_CLUSTER).admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skip).build())
+            .setPersistentSettings(settings)
             .get();
     }
 

@@ -547,3 +547,25 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | two
 1        | prod            | three
 ;
+
+inlineStatsAfterStatsCommand
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| STATS max_cost=max(last_over_time(network.eth0.tx)) BY pod, cluster, time_bucket = TBUCKET(1h)
+| INLINE STATS max_cluster_cost=max(max_cost) by cluster
+| SORT cluster, pod, time_bucket
+| LIMIT 10
+;
+
+max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:integer | cluster:keyword
+1149             | one         | 2024-05-10T00:00:00.000Z | 1149                     | prod
+928              | three       | 2024-05-10T00:00:00.000Z | 1149                     | prod
+967              | two         | 2024-05-10T00:00:00.000Z | 1149                     | prod
+1380             | one         | 2024-05-10T00:00:00.000Z | 1716                     | qa
+1241             | three       | 2024-05-10T00:00:00.000Z | 1716                     | qa
+1716             | two         | 2024-05-10T00:00:00.000Z | 1716                     | qa
+581              | one         | 2024-05-10T00:00:00.000Z | 1209                     | staging
+1209             | three       | 2024-05-10T00:00:00.000Z | 1209                     | staging
+973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
+;

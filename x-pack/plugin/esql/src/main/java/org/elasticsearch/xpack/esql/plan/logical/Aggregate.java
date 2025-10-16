@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -248,6 +249,15 @@ public class Aggregate extends UnaryPlan
     }
 
     protected void checkTimeSeriesAggregates(Failures failures) {
+        Holder<Boolean> isTimeSeries = new Holder<>(false);
+        child().forEachDown(p -> {
+            if (p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES) {
+                isTimeSeries.set(true);
+            }
+        });
+        if (isTimeSeries.get()) {
+            return;
+        }
         forEachExpression(
             TimeSeriesAggregateFunction.class,
             r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))

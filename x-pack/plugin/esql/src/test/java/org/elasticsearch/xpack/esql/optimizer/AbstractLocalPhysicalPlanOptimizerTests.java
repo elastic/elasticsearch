@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,6 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 
@@ -96,7 +96,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         timeSeriesAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 timeSeriesIndex,
@@ -114,7 +114,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 config,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
@@ -132,7 +132,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
 
     protected Analyzer makeAnalyzer(IndexResolution indexResolution) {
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
+            testAnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }

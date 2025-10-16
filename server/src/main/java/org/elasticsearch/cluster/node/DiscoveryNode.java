@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.elasticsearch.TransportVersions.NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
@@ -59,6 +62,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     static final String COORDINATING_ONLY = "coordinating_only";
+    public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersions.V_8_3_0;
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
         .thenComparing(DiscoveryNode::getId);
 
@@ -325,10 +329,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version version = Version.readVersion(in);
         IndexVersion minIndexVersion = IndexVersion.readVersion(in);
         IndexVersion minReadOnlyIndexVersion;
-        minReadOnlyIndexVersion = IndexVersion.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)) {
+            minReadOnlyIndexVersion = IndexVersion.readVersion(in);
+        } else {
+            minReadOnlyIndexVersion = minIndexVersion;
+
+        }
         IndexVersion maxIndexVersion = IndexVersion.readVersion(in);
         versionInfo = new VersionInformation(version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
-        this.externalId = readStringLiteral.read(in);
+        if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
+            this.externalId = readStringLiteral.read(in);
+        } else {
+            this.externalId = nodeName;
+        }
         this.roleNames = Set.of(roleNames);
     }
 
@@ -358,9 +371,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         });
         Version.writeVersion(versionInfo.nodeVersion(), out);
         IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
-        IndexVersion.writeVersion(versionInfo.minReadOnlyIndexVersion(), out);
+        if (out.getTransportVersion().onOrAfter(NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)) {
+            IndexVersion.writeVersion(versionInfo.minReadOnlyIndexVersion(), out);
+        }
         IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
-        out.writeString(externalId);
+        if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
+            out.writeString(externalId);
+        }
     }
 
     /**

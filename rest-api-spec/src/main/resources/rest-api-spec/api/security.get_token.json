@@ -24,7 +24,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The token request to get",
       "required": true

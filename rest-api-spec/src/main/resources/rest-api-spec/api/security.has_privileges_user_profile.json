@@ -25,7 +25,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The privileges to check and the list of profile IDs",
       "required": true

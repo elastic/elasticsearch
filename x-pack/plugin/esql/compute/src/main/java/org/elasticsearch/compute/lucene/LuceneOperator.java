@@ -367,7 +367,11 @@ public abstract class LuceneOperator extends SourceOperator {
             sliceMin = in.readVInt();
             sliceMax = in.readVInt();
             current = in.readVInt();
-            rowsEmitted = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsEmitted = 0;
+            }
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
@@ -385,7 +389,9 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMin);
             out.writeVInt(sliceMax);
             out.writeVInt(current);
-            out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsEmitted);
+            }
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }

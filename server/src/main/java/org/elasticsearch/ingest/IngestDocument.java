@@ -879,7 +879,9 @@ public final class IngestDocument {
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value, allowDuplicates, ignoreEmptyValues);
-                    map.put(leafKey, list);
+                    if (list.isEmpty() == false) {
+                        map.put(leafKey, list);
+                    }
                 } else {
                     Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
@@ -897,7 +899,9 @@ public final class IngestDocument {
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value, allowDuplicates, ignoreEmptyValues);
-                    map.put(leafKey, list);
+                    if (list.isEmpty() == false) {
+                        map.put(leafKey, list);
+                    }
                 } else {
                     Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
@@ -949,49 +953,24 @@ public final class IngestDocument {
             list = new ArrayList<>();
             list.add(maybeList);
         }
-        if (allowDuplicates) {
-            innerAppendValues(list, value, ignoreEmptyValues);
-            return list;
-        } else {
-            // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
-            return innerAppendValuesWithoutDuplicates(list, value, ignoreEmptyValues) ? list : maybeList;
-        }
-    }
 
-    // helper method for use in appendValues above, please do not call this directly except from that method
-    private static void innerAppendValues(List<Object> list, Object value, boolean ignoreEmptyValues) {
-        if (value instanceof List<?> l) {
-            if (ignoreEmptyValues) {
-                l.forEach((v) -> {
-                    if (valueNotEmpty(v)) {
-                        list.add(v);
-                    }
-                });
-            } else {
-                list.addAll(l);
-            }
-        } else if (ignoreEmptyValues == false || valueNotEmpty(value)) {
-            list.add(value);
-        }
-    }
-
-    // helper method for use in appendValues above, please do not call this directly except from that method
-    private static boolean innerAppendValuesWithoutDuplicates(List<Object> list, Object value, boolean ignoreEmptyValues) {
         boolean valuesWereAppended = false;
         if (value instanceof List<?> valueList) {
             for (Object val : valueList) {
-                if (list.contains(val) == false && (ignoreEmptyValues == false || valueNotEmpty(val))) {
+                if ((allowDuplicates || list.contains(val) == false) && (ignoreEmptyValues == false || valueNotEmpty(val))) {
                     list.add(val);
                     valuesWereAppended = true;
                 }
             }
         } else {
-            if (list.contains(value) == false && (ignoreEmptyValues == false || valueNotEmpty(value))) {
+            if ((allowDuplicates || list.contains(value) == false) && (ignoreEmptyValues == false || valueNotEmpty(value))) {
                 list.add(value);
                 valuesWereAppended = true;
             }
         }
-        return valuesWereAppended;
+
+        // if no values were appended due to duplication/empties, return the original object so the ingest document remains unmodified
+        return valuesWereAppended ? list : maybeList;
     }
 
     private static boolean valueNotEmpty(Object value) {

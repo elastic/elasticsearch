@@ -129,12 +129,15 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
@@ -829,6 +832,7 @@ public class ActionModule extends AbstractModule {
             actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
             actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
             actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
+            actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1063,6 +1067,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestGetSampleAction());
             registerHandler.accept(new RestPutSampleConfigurationAction());
             registerHandler.accept(new RestGetSampleStatsAction());
+            registerHandler.accept(new RestDeleteSampleConfigurationAction());
         }
     }
 

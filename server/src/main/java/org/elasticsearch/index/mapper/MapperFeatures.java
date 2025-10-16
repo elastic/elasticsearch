@@ -57,6 +57,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
+    static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -97,7 +98,8 @@ public class MapperFeatures implements FeatureSpecification {
             PATTERN_TEXT_RENAME,
             DISKBBQ_ON_DISK_RESCORING,
             PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
-            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX
         );
     }
 }

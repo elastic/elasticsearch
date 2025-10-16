@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.exponentialhistogram;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -238,9 +239,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    static class ExponentialHistogramFieldType extends MappedFieldType {
+    public static final class ExponentialHistogramFieldType extends MappedFieldType {
 
-        ExponentialHistogramFieldType(String name, Map<String, String> meta) {
+        // Visible for testing
+        public ExponentialHistogramFieldType(String name, Map<String, String> meta) {
             super(name, IndexType.docValuesOnly(), false, meta);
         }
 
@@ -445,37 +447,18 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             min = validateOrEstimateMin(min, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
             max = validateOrEstimateMax(max, zeroBucket, scale, negativeBuckets, positiveBuckets, totalValueCount, subParser);
 
-            BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
-            CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
-            BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
-
-            Field histoField = new BinaryDocValuesField(fullPath(), histoBytes);
-            long thresholdAsLong = NumericUtils.doubleToSortableLong(zeroBucket.threshold());
-            NumericDocValuesField zeroThresholdField = new NumericDocValuesField(zeroThresholdSubFieldName(fullPath()), thresholdAsLong);
-            NumericDocValuesField valuesCountField = new NumericDocValuesField(valuesCountSubFieldName(fullPath()), totalValueCount);
-            NumericDocValuesField sumField = new NumericDocValuesField(
-                valuesSumSubFieldName(fullPath()),
-                NumericUtils.doubleToSortableLong(sum)
+            HistogramDocValueFields docValues = buildDocValueFields(
+                fullPath(),
+                scale,
+                negativeBuckets,
+                positiveBuckets,
+                zeroBucket.threshold(),
+                totalValueCount,
+                sum,
+                min,
+                max
             );
-
-            context.doc().addWithKey(fieldType().name(), histoField);
-            context.doc().add(zeroThresholdField);
-            context.doc().add(valuesCountField);
-            context.doc().add(sumField);
-            if (min != null) {
-                NumericDocValuesField minField = new NumericDocValuesField(
-                    valuesMinSubFieldName(fullPath()),
-                    NumericUtils.doubleToSortableLong(min)
-                );
-                context.doc().add(minField);
-            }
-            if (max != null) {
-                NumericDocValuesField maxField = new NumericDocValuesField(
-                    valuesMaxSubFieldName(fullPath()),
-                    NumericUtils.doubleToSortableLong(max)
-                );
-                context.doc().add(maxField);
-            }
+            docValues.addToDoc(context.doc());
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
@@ -503,6 +486,88 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    // Visible for testing, to construct realistic doc values in tests
+    public static HistogramDocValueFields buildDocValueFields(
+        String fieldName,
+        int scale,
+        List<IndexWithCount> negativeBuckets,
+        List<IndexWithCount> positiveBuckets,
+        double zeroThreshold,
+        long totalValueCount,
+        double sum,
+        @Nullable Double min,
+        @Nullable Double max
+    ) throws IOException {
+        BytesStreamOutput histogramBytesOutput = new BytesStreamOutput();
+        CompressedExponentialHistogram.writeHistogramBytes(histogramBytesOutput, scale, negativeBuckets, positiveBuckets);
+        BytesRef histoBytes = histogramBytesOutput.bytes().toBytesRef();
+
+        BinaryDocValuesField histoField = new BinaryDocValuesField(fieldName, histoBytes);
+        long thresholdAsLong = NumericUtils.doubleToSortableLong(zeroThreshold);
+        NumericDocValuesField zeroThresholdField = new NumericDocValuesField(zeroThresholdSubFieldName(fieldName), thresholdAsLong);
+        NumericDocValuesField valuesCountField = new NumericDocValuesField(valuesCountSubFieldName(fieldName), totalValueCount);
+        NumericDocValuesField sumField = new NumericDocValuesField(
+            valuesSumSubFieldName(fieldName),
+            NumericUtils.doubleToSortableLong(sum)
+        );
+        NumericDocValuesField minField = null;
+        if (min != null) {
+            minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
+        }
+        NumericDocValuesField maxField = null;
+        if (max != null) {
+            maxField = new NumericDocValuesField(valuesMaxSubFieldName(fieldName), NumericUtils.doubleToSortableLong(max));
+        }
+        HistogramDocValueFields docValues = new HistogramDocValueFields(
+            histoField,
+            zeroThresholdField,
+            valuesCountField,
+            sumField,
+            minField,
+            maxField
+        );
+        return docValues;
+    }
+
+    // Visible for testing
+    public record HistogramDocValueFields(
+        BinaryDocValuesField histo,
+        NumericDocValuesField zeroThreshold,
+        NumericDocValuesField valuesCount,
+        NumericDocValuesField sumField,
+        @Nullable NumericDocValuesField minField,
+        @Nullable NumericDocValuesField maxField
+    ) {
+
+        public void addToDoc(LuceneDocument doc) {
+            doc.addWithKey(histo.name(), histo);
+            doc.add(zeroThreshold);
+            doc.add(valuesCount);
+            doc.add(sumField);
+            if (minField != null) {
+                doc.add(minField);
+            }
+            if (maxField != null) {
+                doc.add(maxField);
+            }
+        }
+
+        public List<IndexableField> fieldsAsList() {
+            List<IndexableField> fields = new ArrayList<>();
+            fields.add(histo);
+            fields.add(zeroThreshold);
+            fields.add(valuesCount);
+            fields.add(sumField);
+            if (minField != null) {
+                fields.add(minField);
+            }
+            if (maxField != null) {
+                fields.add(maxField);
+            }
+            return fields;
+        }
     }
 
     private Double validateOrEstimateSum(
@@ -819,12 +884,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         boolean hasAnyValues() {
-            return histoDocValues != null;
+            return valueCounts != null;
         }
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
-            boolean isPresent = histoDocValues != null && histoDocValues.advanceExact(docId);
+            boolean isPresent = valueCounts != null && valueCounts.advanceExact(docId);
             currentDocId = isPresent ? docId : -1;
             return isPresent;
         }
@@ -834,10 +899,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             if (currentDocId == -1) {
                 throw new IllegalStateException("No histogram present for current document");
             }
+            boolean histoPresent = histoDocValues.advanceExact(currentDocId);
             boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
-            boolean valueCountsPresent = valueCounts.advanceExact(currentDocId);
             boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert zeroThresholdPresent && valueCountsPresent && valueSumsPresent;
+            assert zeroThresholdPresent && histoPresent && valueSumsPresent;
 
             BytesRef encodedHistogram = histoDocValues.binaryValue();
             double zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
@@ -857,6 +922,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
             tempHistogram.reset(zeroThreshold, valueCount, valueSum, valueMin, valueMax, encodedHistogram);
             return tempHistogram;
+        }
+
+        @Override
+        public long valuesCountValue() throws IOException {
+            return valueCounts.longValue();
         }
     }
 

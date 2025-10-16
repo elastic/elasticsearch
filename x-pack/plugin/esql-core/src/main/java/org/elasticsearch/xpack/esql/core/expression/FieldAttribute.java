@@ -48,7 +48,8 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute::readFrom
     );
 
-    private static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+    // Only public for testing
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
 
     private final String parentName;
     private final EsField field;

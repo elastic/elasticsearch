@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -166,7 +167,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.minimumCompatible(),
+            TransportVersions.V_8_2_0,
             TransportVersion.current()
         );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);

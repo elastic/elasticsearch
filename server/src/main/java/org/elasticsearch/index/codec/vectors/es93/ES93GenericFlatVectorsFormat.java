@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -19,8 +21,9 @@ import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import java.io.IOException;
 import java.util.Map;
 
-public abstract class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
+public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
+    static final String NAME = "ES93GenericFlatVectorsFormat";
     static final String VECTOR_FORMAT_INFO_EXTENSION = "vfi";
     static final String META_CODEC_NAME = "ES93GenericFlatVectorsFormatMeta";
 
@@ -34,28 +37,46 @@ public abstract class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFo
         VERSION_CURRENT
     );
 
-    public ES93GenericFlatVectorsFormat(String name) {
-        super(name);
+    private static final FlatVectorsScorer scorer = FlatVectorScorerUtil.getLucene99FlatVectorsScorer();
+
+    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(scorer);
+    // TODO: a separate scorer for bfloat16
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(scorer);
+
+    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+        float32VectorFormat.getName(),
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
+    );
+
+    private final DirectIOCapableFlatVectorsFormat writeFormat;
+    private final boolean useDirectIO;
+
+    public ES93GenericFlatVectorsFormat() {
+        this(false, false);
     }
 
-    protected abstract DirectIOCapableFlatVectorsFormat writeFlatVectorsFormat();
+    public ES93GenericFlatVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
+        super(NAME);
+        writeFormat = useBFloat16 ? bfloat16VectorFormat : float32VectorFormat;
+        this.useDirectIO = useDirectIO;
+    }
 
-    protected abstract boolean useDirectIOReads();
-
-    protected abstract Map<String, DirectIOCapableFlatVectorsFormat> supportedReadFlatVectorsFormats();
+    @Override
+    protected FlatVectorsScorer flatVectorsScorer() {
+        return scorer;
+    }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        var flatFormat = writeFlatVectorsFormat();
-        boolean directIO = useDirectIOReads();
-        return new ES93GenericFlatVectorsWriter(META, flatFormat.getName(), directIO, state, flatFormat.fieldsWriter(state));
+        return new ES93GenericFlatVectorsWriter(META, writeFormat.getName(), useDirectIO, state, writeFormat.fieldsWriter(state));
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        var readFormats = supportedReadFlatVectorsFormats();
         return new ES93GenericFlatVectorsReader(META, state, (f, dio) -> {
-            var format = readFormats.get(f);
+            var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio);
         });
@@ -63,13 +84,6 @@ public abstract class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFo
 
     @Override
     public String toString() {
-        return getName()
-            + "(name="
-            + getName()
-            + ", writeFlatVectorFormat="
-            + writeFlatVectorsFormat()
-            + ", readFlatVectorsFormats="
-            + supportedReadFlatVectorsFormats().values()
-            + ")";
+        return getName() + "(name=" + getName() + ", format=" + writeFormat + ")";
     }
 }

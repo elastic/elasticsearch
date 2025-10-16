@@ -11,7 +11,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -30,6 +29,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
@@ -56,11 +56,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static EnrichResolution enrichResolution;
 
-    public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
+    public static class TestSubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        // A static instance of this would break the EsqlNodeSubclassTests because its initialization requires a Random instance.
 
-        SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
-            super(optimizerContext);
+        public TestSubstitutionOnlyOptimizer() {
+            super(unboundLogicalOptimizerContext());
         }
 
         @Override
@@ -82,7 +82,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
@@ -98,7 +98,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultAirports,
@@ -114,7 +114,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
         IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultTypes,
@@ -129,7 +129,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultExtra,
@@ -142,7 +142,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         metricMapping = loadMapping("k8s-mappings.json");
         var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 metricsIndex,
@@ -166,7 +166,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             )
         );
         multiIndexAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 multiIndex,
@@ -181,7 +181,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD))
         );
         sampleDataIndexAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 sampleDataIndex,

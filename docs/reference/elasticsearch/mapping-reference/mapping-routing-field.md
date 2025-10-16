@@ -23,6 +23,7 @@ PUT my-index-000001/_doc/1?routing=user1&refresh=true <1>
 
 GET my-index-000001/_doc/1?routing=user1 <2>
 ```
+% TESTSETUP
 
 1. This document uses `user1` as its routing value, instead of its ID.
 2. The same `routing` value needs to be provided when [getting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), [deleting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete), or [updating](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) the document.
@@ -89,6 +90,7 @@ PUT my-index-000002/_doc/1 <2>
   "text": "No routing value provided"
 }
 ```
+% TEST[catch:bad_request]
 
 1. Routing is required for all documents.
 2. This index request throws a `routing_missing_exception`.

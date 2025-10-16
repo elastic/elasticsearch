@@ -210,6 +210,8 @@ POST /_query/async?format=json
   "include_ccs_metadata": true
 }
 ```
+% TEST[setup:my_index]
+% TEST[s/cluster_one:my-index-000001,cluster_two:my-index//]
 
 Which returns:
 
@@ -277,6 +279,7 @@ Which returns:
   }
 }
 ```
+% TEST[skip: cross-cluster testing env not set up]
 
 1. How long the entire search (across all clusters) took, in milliseconds.
 2. This section of counters shows all possible cluster search states and how many cluster searches are currently in that state. The clusters can have one of the following statuses: **running**, **successful** (searches on all shards were successful), **skipped** (the search failed on a cluster marked with `skip_unavailable`=`true`), **failed** (the search failed on a cluster marked with `skip_unavailable`=`false`) or **partial** (the search was [interrupted](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-esql) before finishing or has partially failed).
@@ -300,6 +303,8 @@ POST /_query/async?format=json
   "include_ccs_metadata": true
 }
 ```
+% TEST[continued]
+% TEST[s/cluster_one:my-index\*,cluster_two:logs\*/my-index-000001/]
 
 Which returns:
 
@@ -348,6 +353,7 @@ Which returns:
   }
 }
 ```
+% TEST[skip: cross-cluster testing env not set up]
 
 1. This cluster is marked as *skipped*, since there were no matching indices on that cluster.
 2. Indicates that no shards were searched (due to not having any matching indices).

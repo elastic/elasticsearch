@@ -13,6 +13,8 @@ import com.sun.management.ThreadMXBean;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
@@ -21,6 +23,8 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.cli.ProcessInfo;
@@ -52,6 +56,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 /**
  * A utility class to create and test KNN indices using Lucene.
@@ -148,7 +154,27 @@ public class KnnIndexTester {
         return new Lucene103Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return format;
+                return new KnnVectorsFormat(format.getName()) {
+                    @Override
+                    public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                        return format.fieldsWriter(state);
+                    }
+
+                    @Override
+                    public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+                        return format.fieldsReader(state);
+                    }
+
+                    @Override
+                    public int getMaxDimensions(String fieldName) {
+                        return MAX_DIMS_COUNT;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return format.toString();
+                    }
+                };
             }
         };
     }
@@ -251,7 +277,7 @@ public class KnnIndexTester {
                     knnIndexer.createIndex(indexResults);
                 }
                 if (cmdLineArgs.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults);
+                    knnIndexer.forceMerge(indexResults, cmdLineArgs.forceMergeMaxNumSegments());
                 }
             }
             numSegments(indexPath, indexResults);

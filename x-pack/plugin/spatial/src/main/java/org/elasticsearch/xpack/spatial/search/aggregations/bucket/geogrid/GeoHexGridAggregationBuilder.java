@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -119,6 +120,6 @@ public final class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_1_0;
     }
 }

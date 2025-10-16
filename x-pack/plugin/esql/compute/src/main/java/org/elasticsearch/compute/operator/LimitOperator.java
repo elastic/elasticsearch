@@ -192,8 +192,13 @@ public class LimitOperator implements Operator {
             limit = in.readVInt();
             limitRemaining = in.readVInt();
             pagesProcessed = in.readVInt();
-            rowsReceived = in.readVLong();
-            rowsEmitted = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
         }
 
         @Override
@@ -201,8 +206,10 @@ public class LimitOperator implements Operator {
             out.writeVInt(limit);
             out.writeVInt(limitRemaining);
             out.writeVInt(pagesProcessed);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override

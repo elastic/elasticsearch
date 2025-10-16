@@ -923,10 +923,16 @@ public record IndicesOptions(
         }
         // Until the feature flag is removed we access the field directly from the gatekeeper options.
         if (gatekeeperOptions().allowSelectors()) {
-            backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
+            if (out.getTransportVersion()
+                .between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+                backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+                backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
+            }
         }
 
-        if (gatekeeperOptions.includeFailureIndices()) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_INCLUDE_FAILURE_INDICES_OPTION)
+            && gatekeeperOptions.includeFailureIndices()) {
             backwardsCompatibleOptions.add(Option.INCLUDE_FAILURE_INDICES);
         }
         out.writeEnumSet(backwardsCompatibleOptions);
@@ -946,6 +952,15 @@ public record IndicesOptions(
             out.writeBoolean(true);
             out.writeBoolean(false);
         }
+        if (out.getTransportVersion()
+            .between(TransportVersions.V_8_16_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
+                out.writeVInt(1); // Enum set sized 1
+                out.writeVInt(0); // ordinal 0 (::data selector)
+            } else {
+                out.writeByte((byte) 0); // ordinal 0 (::data selector)
+            }
+        }
         out.writeWriteable(crossProjectModeOptions);
     }
 
@@ -956,8 +971,19 @@ public record IndicesOptions(
             options.contains(Option.ALLOW_EMPTY_WILDCARD_EXPRESSIONS),
             options.contains(Option.EXCLUDE_ALIASES)
         );
-        boolean allowSelectors = options.contains(Option.ALLOW_SELECTORS);
-        boolean includeFailureIndices = options.contains(Option.INCLUDE_FAILURE_INDICES);
+        boolean allowSelectors = true;
+        if (in.getTransportVersion()
+            .between(TransportVersions.V_8_14_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+            // We've effectively replaced the allow failure indices setting with allow selectors. If it is configured on an older version
+            // then use its value for allow selectors.
+            allowSelectors = options.contains(Option.ALLOW_FAILURE_INDICES);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+            allowSelectors = options.contains(Option.ALLOW_SELECTORS);
+        }
+        boolean includeFailureIndices = false;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_INCLUDE_FAILURE_INDICES_OPTION)) {
+            includeFailureIndices = options.contains(Option.INCLUDE_FAILURE_INDICES);
+        }
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
@@ -969,6 +995,18 @@ public record IndicesOptions(
             // Reading from an older node, which will be sending two booleans that we must read out and ignore.
             in.readBoolean();
             in.readBoolean();
+        }
+        if (in.getTransportVersion()
+            .between(TransportVersions.V_8_16_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
+            // Reading from an older node, which will be sending either an enum set or a single byte that needs to be read out and ignored.
+            if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
+                int size = in.readVInt();
+                for (int i = 0; i < size; i++) {
+                    in.readVInt();
+                }
+            } else {
+                in.readByte();
+            }
         }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)

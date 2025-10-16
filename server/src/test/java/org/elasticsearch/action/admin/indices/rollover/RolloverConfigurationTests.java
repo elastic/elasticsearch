@@ -49,10 +49,16 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected RolloverConfiguration createTestInstance() {
-        return randomRolloverConditions();
+        return randomRolloverConfiguration();
     }
 
-    public static RolloverConfiguration randomRolloverConditions() {
+    public static RolloverConfiguration randomRolloverConfiguration() {
+        RolloverConditions.Builder concreteConditionsBuilder = randomRolloverConditionsWithoutMaxAgeBuilder();
+        Set<String> automaticConditions = randomAutomaticConditions(concreteConditionsBuilder);
+        return new RolloverConfiguration(concreteConditionsBuilder.build(), automaticConditions);
+    }
+
+    private static RolloverConditions.Builder randomRolloverConditionsWithoutMaxAgeBuilder() {
         ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
@@ -63,7 +69,7 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
-        RolloverConditions.Builder concreteConditionsBuilder = RolloverConditions.newBuilder()
+        return RolloverConditions.newBuilder()
             .addMaxIndexSizeCondition(maxSize)
             .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
             .addMaxIndexDocsCondition(maxDocs)
@@ -73,20 +79,31 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
             .addMinIndexAgeCondition(minAge)
             .addMinIndexDocsCondition(minDocs)
             .addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
+    }
+
+    private static Set<String> randomAutomaticConditions(RolloverConditions.Builder conditionsBuilder) {
         Set<String> automaticConditions = new HashSet<>();
         if (randomBoolean()) {
             if (randomBoolean()) {
-                concreteConditionsBuilder.addMaxIndexAgeCondition(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
+                conditionsBuilder.addMaxIndexAgeCondition(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
             } else {
                 automaticConditions.add(MaxAgeCondition.NAME);
             }
         }
-        return new RolloverConfiguration(concreteConditionsBuilder.build(), automaticConditions);
+        return automaticConditions;
     }
 
     @Override
     protected RolloverConfiguration mutateInstance(RolloverConfiguration instance) {
-        return randomValueOtherThan(instance, RolloverConfigurationTests::randomRolloverConditions);
+        RolloverConditions originalConditions = instance.getConcreteConditions();
+        RolloverConditions newConditions = randomValueOtherThan(
+            originalConditions,
+            () -> RolloverConfigurationTests.randomRolloverConditionsWithoutMaxAgeBuilder().build()
+        );
+        // There is no point mutating automatic conditions. If they change, then the concrete conditions
+        // should also change to produce a valid configuration Consequently, the mutated instance is guaranteed to be
+        // different from the original instance and the test purpose would be voided.
+        return new RolloverConfiguration(newConditions, instance.getAutomaticConditions());
     }
 
     public void testConstructorValidation() {
@@ -277,7 +294,7 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
 
     public void testToXContent() throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint()) {
-            RolloverConfiguration rolloverConfiguration = randomRolloverConditions();
+            RolloverConfiguration rolloverConfiguration = randomRolloverConfiguration();
             rolloverConfiguration.toXContent(builder, EMPTY_PARAMS);
             Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
             RolloverConditions concreteConditions = rolloverConfiguration.getConcreteConditions();

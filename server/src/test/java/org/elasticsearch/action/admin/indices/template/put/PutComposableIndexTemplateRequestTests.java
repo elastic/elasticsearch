@@ -45,7 +45,18 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     @Override
     protected TransportPutComposableIndexTemplateAction.Request mutateInstance(TransportPutComposableIndexTemplateAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String name = instance.name();
+        String cause = instance.cause();
+        boolean create = instance.create();
+        ComposableIndexTemplate indexTemplate = instance.indexTemplate();
+        switch (between(0, 3)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
+            case 1 -> cause = randomValueOtherThan(cause, () -> randomAlphaOfLength(4));
+            case 2 -> create = create == false;
+            case 3 -> indexTemplate = ComposableIndexTemplateTests.randomInstance();
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TransportPutComposableIndexTemplateAction.Request(name).cause(cause).create(create).indexTemplate(indexTemplate);
     }
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {

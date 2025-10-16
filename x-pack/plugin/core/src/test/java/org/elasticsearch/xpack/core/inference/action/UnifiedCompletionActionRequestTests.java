@@ -82,7 +82,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.V_8_18_0
+            TransportVersions.V_8_17_0
         );
 
         // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version

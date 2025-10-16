@@ -81,7 +81,7 @@ public class EsRelation extends LeafPlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeString(indexPattern);
             out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {

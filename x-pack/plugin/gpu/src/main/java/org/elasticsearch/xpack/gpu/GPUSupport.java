@@ -59,7 +59,7 @@ public class GPUSupport {
                     }
                 } else {
                     if (logError) {
-                        LOG.debug("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
+                        LOG.info("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
                     }
                     return true;
                 }

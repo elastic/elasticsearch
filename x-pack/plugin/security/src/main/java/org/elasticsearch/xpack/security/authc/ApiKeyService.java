@@ -208,7 +208,12 @@ public class ApiKeyService implements Closeable {
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
     );
-    private static final int MAX_PATTERN_CACHE_SIZE = 100;
+    public static final Setting<TimeValue> CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.ttl",
+        TimeValue.timeValueHours(48L),
+        Property.NodeScope
+    );
+    private static final int MAX_PATTERN_CACHE_SIZE = 1000;
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
@@ -271,12 +276,13 @@ public class ApiKeyService implements Closeable {
                 .setMaximumWeight(maximumWeight)
                 .removalListener(getAuthCacheRemovalListener(maximumWeight))
                 .build();
-            final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
-            this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
-            this.certificateIdentityPatternCache = CacheBuilder.<String, Pattern>builder()
-                .setExpireAfterAccess(ttl)
-                .setMaximumWeight(MAX_PATTERN_CACHE_SIZE)
-                .build();
+            final TimeValue docTtl = DOC_CACHE_TTL_SETTING.get(settings);
+            this.apiKeyDocCache = docTtl.getNanos() == 0 ? null : new ApiKeyDocCache(docTtl, maximumWeight);
+
+            final TimeValue patternTtl = CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING.get(settings);
+            this.certificateIdentityPatternCache = patternTtl.getNanos() == 0
+                ? null
+                : CacheBuilder.<String, Pattern>builder().setExpireAfterAccess(patternTtl).setMaximumWeight(MAX_PATTERN_CACHE_SIZE).build();
 
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
@@ -1547,19 +1553,23 @@ public class ApiKeyService implements Closeable {
 
     private boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
         logger.trace("Validating certificate identity [{}] against [{}]", certificateIdentity, certificateIdentityPattern);
+        return getCertificateIdentityPattern(certificateIdentityPattern).matcher(certificateIdentity).matches();
+    }
 
-        try {
-            Pattern pattern = certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
-            return pattern.matcher(certificateIdentity).matches();
-        } catch (ExecutionException e) {
-            logger.error(
-                "Failed to validate certificate identity [{}] against pattern [{}] using cache. Falling back to regular matching",
-                certificateIdentity,
-                certificateIdentityPattern,
-                e
-            );
-            return Pattern.matches(certificateIdentityPattern, certificateIdentity);
+    // Visible for testing
+    Pattern getCertificateIdentityPattern(String certificateIdentityPattern) {
+        if (certificateIdentityPatternCache != null) {
+            try {
+                return certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
+            } catch (ExecutionException e) {
+                logger.error(
+                    "Failed to validate certificate identity against pattern [{}] using cache. Falling back to regular matching",
+                    certificateIdentityPattern,
+                    e
+                );
+            }
         }
+        return Pattern.compile(certificateIdentityPattern);
     }
 
     ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {

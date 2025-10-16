@@ -157,6 +157,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -3393,6 +3394,77 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.TERMINATE));
         assertThat(result.getMessage(), equalTo("Expected signature for cross cluster API key, but no signature was provided"));
+    }
+
+    public void testPatternCache() throws ExecutionException, InterruptedException {
+        final String certificateIdentityPattern = "CN=(remote-cluster|test)-.*,OU=engineering,DC=example,DC=com";
+        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(certificateIdentityPattern);
+
+        final String matchingCertificateIdentity = "CN=remote-cluster-node1,OU=engineering,DC=example,DC=com";
+        final ApiKeyCredentials credentials = new ApiKeyCredentials(
+            randomAlphaOfLength(12),
+            randomSecureStringOfLength(16),
+            ApiKey.Type.CROSS_CLUSTER,
+            matchingCertificateIdentity
+        );
+
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        var apiKeyService = spy(createApiKeyService());
+
+        final var currentPatternObject = new AtomicReference<Pattern>();
+        doAnswer(invocationOnMock -> {
+            Pattern newPattern = (Pattern) invocationOnMock.callRealMethod();
+            if (currentPatternObject.get() != null) {
+                assertSame(currentPatternObject.get(), newPattern);
+            }
+            currentPatternObject.set(newPattern);
+            return newPattern;
+        }).when(apiKeyService).getCertificateIdentityPattern(certificateIdentityPattern);
+
+        for (int i = 0; i < randomIntBetween(3, 10); i++) {
+            apiKeyService.completeApiKeyAuthentication(apiKeyDoc, credentials, clock, future);
+            final AuthenticationResult<User> result = future.get();
+            assertThat(result, notNullValue());
+            assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        }
+    }
+
+    public void testPatternCacheDisabled() throws ExecutionException, InterruptedException {
+        final Settings settings = Settings.builder()
+            .put(
+                randomFrom(ApiKeyService.CACHE_TTL_SETTING.getKey(), ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING.getKey()),
+                "0s"
+            )
+            .build();
+
+        final String certificateIdentityPattern = "CN=(remote-cluster|test)-.*,OU=engineering,DC=example,DC=com";
+        final ApiKeyDoc apiKeyDoc = createCrossClusterApiKeyDocWithCertificateIdentity(certificateIdentityPattern);
+
+        final String matchingCertificateIdentity = "CN=remote-cluster-node1,OU=engineering,DC=example,DC=com";
+        final ApiKeyCredentials credentials = new ApiKeyCredentials(
+            randomAlphaOfLength(12),
+            randomSecureStringOfLength(16),
+            ApiKey.Type.CROSS_CLUSTER,
+            matchingCertificateIdentity
+        );
+
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        var apiKeyService = spy(createApiKeyService(settings));
+
+        final var currentPatternObject = new AtomicReference<Pattern>();
+        doAnswer(invocationOnMock -> {
+            Pattern newPattern = (Pattern) invocationOnMock.callRealMethod();
+            assertNotEquals(currentPatternObject.get(), newPattern);
+            currentPatternObject.set(newPattern);
+            return newPattern;
+        }).when(apiKeyService).getCertificateIdentityPattern(certificateIdentityPattern);
+
+        for (int i = 0; i < randomIntBetween(3, 10); i++) {
+            apiKeyService.completeApiKeyAuthentication(apiKeyDoc, credentials, clock, future);
+            final AuthenticationResult<User> result = future.get();
+            assertThat(result, notNullValue());
+            assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        }
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemotePrivileges() {

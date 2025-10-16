@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -156,15 +157,58 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                 new DateParse(
                     Source.EMPTY,
                     new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
-                    field("str", DataType.KEYWORD)
+                    field("str", DataType.KEYWORD),
+                    null
                 )
             ).get(driverContext)
         );
         assertThat(e.getMessage(), startsWith("invalid date pattern for []: Invalid format: [" + pattern + "]"));
     }
 
+    public void testInvalidLocale() {
+        String pattern = "YYYY";
+        String locale = "NON-EXISTING-LOCALE";
+        DriverContext driverContext = driverContext();
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new DateParse(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+                    field("str", DataType.KEYWORD),
+                    new MapExpression(Source.EMPTY, List.of(
+                        new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                        new Literal(Source.EMPTY, new BytesRef(locale), DataType.KEYWORD)
+                    ))
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), startsWith("Unknown language: " + locale));
+    }
+
+    public void testInvalidTimezone() {
+        String pattern = "YYYY";
+        String timezone = "NON-EXISTING-TIMEZONE";
+        DriverContext driverContext = driverContext();
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new DateParse(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+                    field("str", DataType.KEYWORD),
+                    new MapExpression(Source.EMPTY, List.of(
+                        new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                        new Literal(Source.EMPTY, new BytesRef(timezone), DataType.KEYWORD)
+                    ))
+                )
+            ).get(driverContext)
+        );
+        assertThat(e.getMessage(), startsWith("unsupported timezone [" + timezone + "]"));
+    }
+
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new DateParse(source, args.get(0), args.size() > 1 ? args.get(1) : null);
+        return new DateParse(source, args.get(0), args.size() > 1 ? args.get(1) : null, args.size() == 3 ? args.get(2) : null);
     }
 }

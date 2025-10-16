@@ -12,46 +12,58 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.ThreeOptionalArguments;
+import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.zone.ZoneRulesException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
+import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class DateParse extends EsqlScalarFunction implements ThreeOptionalArguments {
+public class DateParse extends EsqlScalarFunction implements TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateParse",
         DateParse::new
     );
 
+    private static final String TIME_ZONE_PARAM_NAME = "time_zone";
+    private static final String LOCALE_PARAM_NAME = "locale";
+
     private final Expression field;
     private final Expression format;
-    private final Expression locale;
-    private final Expression timezone;
+    private final Expression options;
 
     @FunctionInfo(
         returnType = "date",
@@ -69,27 +81,40 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
             type = { "keyword", "text" },
             description = "Date expression as a string. If `null` or an empty string, the function returns `null`."
         ) Expression second,
-        @Param(name = "dateLocale", type = { "keyword", "text" }, description = "The locale to parse with") Expression third,
-        @Param(name = "dateTimezone", type = { "keyword", "text" }, description = "The timezone to parse with") Expression forth
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = TIME_ZONE_PARAM_NAME,
+                    type = "keyword",
+                    valueHint = { "standard" },
+                    description = "Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the "
+                        + "query string to UTC."
+                ),
+                @MapParam.MapParamEntry(
+                    name = LOCALE_PARAM_NAME,
+                    type = "keyword",
+                    valueHint = { "standard" },
+                    description = "The locale to use when parsing the date, relevant when parsing month names or week days."
+                )
+            },
+            description = "(Optional) Additional options for date parsing as <<esql-function-named-params,function named parameters>>.",
+            optional = true) Expression options
     ) {
-        super(source, fields(first, second, third, forth));
+        super(source, fields(first, second, options));
         this.field = second != null ? second : first;
         this.format = second != null ? first : null;
-        this.locale = third;
-        this.timezone = forth;
+        this.options = options;
     }
 
-    private static List<Expression> fields(Expression field, Expression format, Expression locale, Expression timezone) {
+    private static List<Expression> fields(Expression field, Expression format, Expression options) {
         List<Expression> list = new ArrayList<>(3);
         list.add(field);
         if (format != null) {
             list.add(format);
         }
-        if (locale != null) {
-            list.add(locale);
-        }
-        if (timezone != null) {
-            list.add(timezone);
+        if (options != null) {
+            list.add(options);
         }
         return list;
     }
@@ -98,7 +123,6 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class)
         );
@@ -160,6 +184,21 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
         return dateTimeToLong(val.utf8ToString(), toFormatter(formatter));
     }
 
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+        entry(TIME_ZONE_PARAM_NAME, KEYWORD),
+        entry(LOCALE_PARAM_NAME, KEYWORD)
+    );
+
+    private Map<String, Object> parseOptions() throws InvalidArgumentException {
+        Map<String, Object> matchOptions = new HashMap<>();
+        if (this.options == null) {
+            return matchOptions;
+        }
+
+        Options.populateMap((MapExpression) this.options, matchOptions, source(), THIRD, ALLOWED_OPTIONS);
+        return matchOptions;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
@@ -169,14 +208,20 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
-        String localeAsString = locale == null ? null : ((BytesRef) locale.fold(toEvaluator.foldCtx())).utf8ToString();
-        Locale locale = localeAsString == null ? null : Locale.forLanguageTag(localeAsString);
-        if (localeAsString != null && locale == null) {
-            throw new IllegalArgumentException("unsupported locale [" + localeAsString + "]");
+        var parsedOptions = this.parseOptions();
+        String localeAsString = (String)parsedOptions.get(LOCALE_PARAM_NAME);
+        Locale locale = localeAsString == null ? null : LocaleUtils.parse(localeAsString);
+
+        String timezoneAsString = (String)parsedOptions.get(TIME_ZONE_PARAM_NAME);
+        ZoneId timezone = null;
+        try {
+            if (timezoneAsString != null) {
+                timezone = ZoneId.of(timezoneAsString);
+            }
+        } catch (ZoneRulesException e) {
+            throw new IllegalArgumentException("unsupported timezone [" + timezoneAsString + "]");
         }
 
-        String timezoneAsString = timezone == null ? null : ((BytesRef) timezone.fold(toEvaluator.foldCtx())).utf8ToString();
-        TimeZone timezone = timezoneAsString == null ? null : TimeZone.getTimeZone(timezoneAsString);
         if (format.foldable()) {
             try {
                 DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
@@ -184,7 +229,7 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
                     formatter = formatter.withLocale(locale);
                 }
                 if (timezone != null) {
-                    formatter = formatter.withZone(timezone.toZoneId());
+                    formatter = formatter.withZone(timezone);
                 }
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
             } catch (IllegalArgumentException e) {
@@ -205,8 +250,7 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
             source(),
             newChildren.get(0),
             newChildren.size() > 1 ? newChildren.get(1) : null,
-            newChildren.size() > 2 ? newChildren.get(2) : null,
-            newChildren.size() > 3 ? newChildren.get(3) : null
+            newChildren.size() > 2 ? newChildren.get(2) : null
         );
     }
 
@@ -214,6 +258,6 @@ public class DateParse extends EsqlScalarFunction implements ThreeOptionalArgume
     protected NodeInfo<? extends Expression> info() {
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
-        return NodeInfo.create(this, DateParse::new, first, second, locale, timezone);
+        return NodeInfo.create(this, DateParse::new, first, second, options);
     }
 }

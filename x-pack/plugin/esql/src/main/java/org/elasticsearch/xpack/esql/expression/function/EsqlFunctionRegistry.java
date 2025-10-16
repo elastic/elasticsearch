@@ -1037,7 +1037,10 @@ public class EsqlFunctionRegistry {
     protected static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
+            boolean hasMinimumOne = TwoOptionalArguments.class.isAssignableFrom(function);
+            if (hasMinimumOne && (children.size() > 3 || children.isEmpty())) {
+                throw new QlIllegalArgumentException("expects one, two or three arguments");
+            } else if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
             } else if (hasMinimumTwo == false && children.size() != 3) {
                 throw new QlIllegalArgumentException("expects exactly three arguments");
@@ -1065,17 +1068,13 @@ public class EsqlFunctionRegistry {
                 if (children.size() > 4 || children.size() < 2) {
                     throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
                 }
-            } else if (ThreeOptionalArguments.class.isAssignableFrom(function)) {
-                if (children.size() > 4 || children.isEmpty()) {
-                    throw new QlIllegalArgumentException("expects minimum one, maximum four arguments");
-                }
             } else if (children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
             }
             return ctorRef.build(
                 source,
                 children.get(0),
-                children.size() > 1 ? children.get(1) : null,
+                children.get(1),
                 children.size() > 2 ? children.get(2) : null,
                 children.size() > 3 ? children.get(3) : null
             );

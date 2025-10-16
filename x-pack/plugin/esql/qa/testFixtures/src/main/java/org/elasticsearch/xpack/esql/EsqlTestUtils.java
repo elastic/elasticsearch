@@ -169,6 +169,7 @@ import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -466,7 +467,7 @@ public final class EsqlTestUtils {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
-            randomMinimumVersion()
+            ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION
         );
     }
 

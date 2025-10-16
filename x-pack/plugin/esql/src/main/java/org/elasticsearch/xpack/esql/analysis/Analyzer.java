@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -219,6 +220,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ImplicitCastAggregateMetricDoubles()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+    );
+    public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
+        "esql_lookup_join_full_text_function"
     );
 
     private final Verifier verifier;
@@ -536,7 +540,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j);
+                return resolveLookupJoin(j, context);
             }
 
             if (plan instanceof Insist i) {
@@ -730,7 +734,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AttributeSet leftChildOutput,
             AttributeSet rightChildOutput,
             List<Attribute> leftJoinKeysToPopulate,
-            List<Attribute> rightJoinKeysToPopulate
+            List<Attribute> rightJoinKeysToPopulate,
+            AnalyzerContext context
         ) {
             if (joinOnCondition == null) {
                 return joinOnCondition;
@@ -747,7 +752,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     leftChildOutput,
                     rightChildOutput,
                     leftJoinKeysToPopulate,
-                    rightJoinKeysToPopulate
+                    rightJoinKeysToPopulate,
+                    context
                 );
                 resolvedFilters.add(result);
             }
@@ -771,7 +777,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AttributeSet leftChildOutput,
             AttributeSet rightChildOutput,
             List<Attribute> leftJoinKeysToPopulate,
-            List<Attribute> rightJoinKeysToPopulate
+            List<Attribute> rightJoinKeysToPopulate,
+            AnalyzerContext context
         ) {
             if (condition instanceof EsqlBinaryComparison comp
                 && comp.left() instanceof Attribute leftAttr
@@ -795,6 +802,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
             }
+            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
+                return new UnresolvedAttribute(
+                    condition.source(),
+                    "unsupported",
+                    "Lookup join on condition is not supported on the remote node,"
+                        + " consider upgrading the remote node. Unsupported join filter expression:"
+                        + condition.sourceText()
+                );
+            }
             return handleRightOnlyPushableFilter(condition, rightChildOutput);
         }
 
@@ -814,7 +830,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private Join resolveLookupJoin(LookupJoin join) {
+        private Join resolveLookupJoin(LookupJoin join, AnalyzerContext context) {
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
@@ -837,7 +853,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         join.left().outputSet(),
                         join.right().outputSet(),
                         leftKeys,
-                        rightKeys
+                        rightKeys,
+                        context
                     );
                 } else {
                     // resolve the using columns against the left and the right side then assemble the new join config

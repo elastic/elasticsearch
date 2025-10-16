@@ -47,7 +47,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testTimeZone() {
+    public void testValidate_TimeZone() {
         var setting = QuerySettings.TIME_ZONE;
 
         assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));

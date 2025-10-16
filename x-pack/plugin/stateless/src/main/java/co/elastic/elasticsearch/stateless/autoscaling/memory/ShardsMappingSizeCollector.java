@@ -76,7 +76,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
         TimeValue.timeValueSeconds(5),
         Setting.Property.NodeScope
     );
-    // This setting will apply only when serverless.autoscaling.memory_metrics.shard_memory_overhead_override.enabled is true.
+    // This setting will apply only when serverless.autoscaling.memory_metrics.self_reported_shard_memory_overhead.enabled is true.
     public static final Setting<ByteSizeValue> FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
         "serverless.autoscaling.memory_metrics.hollow_shard_memory_overhead.fixed_overhead",
         ByteSizeValue.ofKb(90),
@@ -84,7 +84,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
         Setting.Property.Dynamic
     );
     // The memory overhead per segment for hollow shards taken up by structures like SegmentInfo.
-    // This setting will apply only when serverless.autoscaling.memory_metrics.shard_memory_overhead_override.enabled is true.
+    // This setting will apply only when serverless.autoscaling.memory_metrics.self_reported_shard_memory_overhead.enabled is true.
     public static final Setting<ByteSizeValue> HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
         "serverless.autoscaling.memory_metrics.hollow_shard_memory_overhead.segment_overhead",
         ByteSizeValue.ofKb(2),

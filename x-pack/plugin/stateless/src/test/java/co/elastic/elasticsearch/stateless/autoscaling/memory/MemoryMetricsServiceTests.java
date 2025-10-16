@@ -78,7 +78,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.DEFAULT_REMOVED_NODE_MERGE_MEMORY_ESTIMATION_VALIDITY;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -117,7 +117,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                 MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
                 MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
-                MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING
+                MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
             )
         );
         service = new MemoryMetricsService(
@@ -597,11 +597,11 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     public void testEstimateMethods() {
         final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
-        final boolean shardMemoryOverheadOverrideEnabled = randomBoolean();
+        final boolean selfReportedShardMemoryOverheadEnabled = randomBoolean();
         clusterSettings.applySettings(
             Settings.builder()
                 .put(MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio)
-                .put(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING.getKey(), shardMemoryOverheadOverrideEnabled)
+                .put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), selfReportedShardMemoryOverheadEnabled)
                 .build()
         );
         service = new MemoryMetricsService(
@@ -678,16 +678,16 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
         assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytes));
 
-        // Test handling of shard memory overhead overrides. E.g. this is used for hollow shards.
-        int overrideCount = randomIntBetween(1, numberOfIndices * numberOfShards);
-        List<ShardId> shardsToOverride = randomSubsetOf(overrideCount, service.getShardMemoryMetrics().keySet());
-        long totalOverheadOverrideBytes = 0;
-        long maxPostingsInMemoryBytesAfterOverride = 0L;
+        // Test handling of self-reported shard memory overheads. E.g. this is used for hollow shards.
+        int selfReportedCount = randomIntBetween(1, numberOfIndices * numberOfShards);
+        List<ShardId> selfReportedShards = randomSubsetOf(selfReportedCount, service.getShardMemoryMetrics().keySet());
+        long totalOverheadSelfReportedBytes = 0;
+        long maxPostingsInMemoryBytesAfterSelfReport = 0L;
         for (ShardId shardId : service.getShardMemoryMetrics().keySet()) {
             MemoryMetricsService.ShardMemoryMetrics metrics = service.getShardMemoryMetrics().get(shardId);
-            if (shardsToOverride.contains(shardId)) {
-                long overheadOverrideBytes = randomLongBetween(1, 1000);
-                totalOverheadOverrideBytes += overheadOverrideBytes;
+            if (selfReportedShards.contains(shardId)) {
+                long overheadSelfReportedBytes = randomLongBetween(1, 1000);
+                totalOverheadSelfReportedBytes += overheadSelfReportedBytes;
                 service.updateShardsMappingSize(
                     new HeapMemoryUsage(
                         metrics.getSeqNo() + 1,
@@ -699,40 +699,45 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                                 metrics.getTotalFields(),
                                 metrics.getPostingsInMemoryBytes(),
                                 metrics.getLiveDocsBytes(),
-                                overheadOverrideBytes,
+                                overheadSelfReportedBytes,
                                 metrics.getMetricShardNodeId()
                             )
                         )
                     )
                 );
-                // We skip regular logic when we have an override value supplied
+                // We skip regular logic when we have a self reported value supplied
                 totalSegments -= metrics.getNumSegments();
                 totalFields -= metrics.getTotalFields();
                 totalLiveDocsBytes -= metrics.getLiveDocsBytes();
             } else {
-                maxPostingsInMemoryBytesAfterOverride = Math.max(maxPostingsInMemoryBytesAfterOverride, metrics.getPostingsInMemoryBytes());
+                maxPostingsInMemoryBytesAfterSelfReport = Math.max(
+                    maxPostingsInMemoryBytesAfterSelfReport,
+                    metrics.getPostingsInMemoryBytes()
+                );
             }
         }
-        var nonOverrideCount = totalShards - overrideCount;
-        var fixedEstimateBytesWithOverride = totalMappingSizeInBytes + nonOverrideCount * newOverhead.getBytes()
-            + totalOverheadOverrideBytes;
-        if (shardMemoryOverheadOverrideEnabled) {
-            assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(fixedEstimateBytesWithOverride));
+        var nonSelfReportedCount = totalShards - selfReportedCount;
+        var fixedEstimateBytesWithSelfReport = totalMappingSizeInBytes + nonSelfReportedCount * newOverhead.getBytes()
+            + totalOverheadSelfReportedBytes;
+        if (selfReportedShardMemoryOverheadEnabled) {
+            assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(fixedEstimateBytesWithSelfReport));
         } else {
-            // No change as overrides are ignored
+            // No change as self-reported values are ignored
             assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(newFixedEstimateBytes));
         }
         // Switch to the adaptive method and check with the updated aggregates
         service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
-        long adaptiveEstimateBytesWithOverride = nonOverrideCount * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
+        long adaptiveEstimateBytesWithSelfReport = nonSelfReportedCount * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
             * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + totalLiveDocsBytes;
-        long extraBytesWithHollow = (long) (adaptiveEstimateBytesWithOverride * adaptiveExtraOverheadRatio);
-        if (shardMemoryOverheadOverrideEnabled) {
+        long extraBytesWithHollow = (long) (adaptiveEstimateBytesWithSelfReport * adaptiveExtraOverheadRatio);
+        if (selfReportedShardMemoryOverheadEnabled) {
             assertThat(
                 service.estimateTierMemoryUsage().totalBytes(),
-                equalTo(totalMappingSizeInBytes + totalOverheadOverrideBytes + adaptiveEstimateBytesWithOverride + extraBytesWithHollow)
+                equalTo(
+                    totalMappingSizeInBytes + totalOverheadSelfReportedBytes + adaptiveEstimateBytesWithSelfReport + extraBytesWithHollow
+                )
             );
-            assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytesAfterOverride));
+            assertThat(service.postingsMemoryEstimation(), equalTo(maxPostingsInMemoryBytesAfterSelfReport));
         } else {
             assertThat(
                 service.estimateTierMemoryUsage().totalBytes(),

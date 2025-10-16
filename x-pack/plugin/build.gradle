@@ -131,6 +131,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/job_cat_apis/Test cat anomaly detector jobs", "Flush API is deprecated")
   task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "Flush API is deprecated")
   task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
+  task.skipTest("ml/jobs_get_stats/Test reading v54 data counts and model size stats", "Version 5.4 support removed")
   task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
   task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
   task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")

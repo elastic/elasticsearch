@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -206,9 +207,11 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
 
             List<String> denseVectorFieldsList = new ArrayList<>();
             for (String denseVectorField : denseVectorFields) {
-                denseVectorFieldsList.add(String.format("\"%s\": { \"type\": \"dense_vector\", \"dims\": 256 }", denseVectorField));
+                denseVectorFieldsList.add(
+                    String.format(Locale.ROOT, "\"%s\": { \"type\": \"dense_vector\", \"dims\": 256 }", denseVectorField)
+                );
             }
-            String mapping = String.format("{ \"properties\": {%s}}", String.join(",", denseVectorFieldsList));
+            String mapping = String.format(Locale.ROOT, "{ \"properties\": {%s}}", String.join(",", denseVectorFieldsList));
             indexMetadataBuilder.putMapping(mapping);
             indexMetadata.put(index, indexMetadataBuilder.build());
         }

@@ -37,6 +37,7 @@ PUT /shirts/_doc/1?refresh
   "model": "slim"
 }
 ```
+% TESTSETUP
 
 Imagine a user has specified two filters:
 

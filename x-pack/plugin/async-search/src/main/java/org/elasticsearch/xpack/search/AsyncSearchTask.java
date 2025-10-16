@@ -36,6 +36,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -231,36 +232,31 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(new ActionListener<>() {
-                @Override
-                public void onResponse(AsyncSearchResponse resp) {
-                    // We don't decRef here, respondAndRelease will do it.
+            getResponseWithHeaders(ActionListener.wrap(
+                resp -> {
                     listener.accept(resp);
-                }
+                    },
+                e -> {
+                ElasticsearchException ex = (e instanceof ElasticsearchException)
+                    ? (ElasticsearchException) e
+                    : ExceptionsHelper.convertToElastic(e);
+                ex.setStackTrace(new StackTraceElement[0]);
 
-                @Override
-                public void onFailure(Exception e) {
-                    ElasticsearchException ex = (e instanceof ElasticsearchException)
-                        ? (ElasticsearchException) e
-                        : ExceptionsHelper.convertToElastic(e);
-                    ex.setStackTrace(new StackTraceElement[0]);
-
-                    AsyncSearchResponse failureResponse = new AsyncSearchResponse(
-                        searchId.getEncoded(),
-                        null,
-                        ex,
-                        false,
-                        false,
-                        getStartTime(),
-                        expirationTimeMillis
-                    );
-                    try {
-                        listener.accept(failureResponse);
-                    } finally {
-                        failureResponse.decRef();
-                    }
+                AsyncSearchResponse failureResponse = new AsyncSearchResponse(
+                    searchId.getEncoded(),
+                    null,
+                    ex,
+                    false,
+                    false,
+                    getStartTime(),
+                    expirationTimeMillis
+                );
+                try {
+                    listener.accept(failureResponse);
+                } finally {
+                    failureResponse.decRef();
                 }
-            });
+            }));
         }
     }
 
@@ -347,16 +343,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        getResponse(new ActionListener<>() {
-            @Override
-            public void onResponse(AsyncSearchResponse finalResponse) {
+        getResponse(ActionListener.wrap(
+            finalResponse -> {
                 for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
                     consumer.accept(finalResponse);
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            },
+            e -> {
                 ElasticsearchException ex = (e instanceof ElasticsearchException)
                     ? (ElasticsearchException) e
                     : ExceptionsHelper.convertToElastic(e);
@@ -378,8 +371,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 } finally {
                     failureResponse.decRef();
                 }
-            }
-        });
+            }));
     }
 
     /**
@@ -405,24 +397,21 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
         // Fallback: fetch from store asynchronously
         if (mutableSearchResponse.tryIncRef() == false) {
-            store.getResponse(searchId, restoreResponseHeaders, new ActionListener<>() {
-                @Override
-                public void onResponse(AsyncSearchResponse resp) {
+            store.getResponse(searchId, restoreResponseHeaders, ActionListener.wrap(
+                resp -> {
                     if (resp.tryIncRef() == false) {
-                        listener.onFailure(new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE));
+                        listener.onFailure(
+                            new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE));
                         return;
                     }
                     ActionListener.respondAndRelease(listener, resp);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+                },
+                e -> {
                     final Exception unwrapped = (Exception) ExceptionsHelper.unwrapCause(e);
                     listener.onFailure(
-                        new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, unwrapped)
-                    );
+                        new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, unwrapped));
                 }
-            });
+            ));
             return;
         }
 

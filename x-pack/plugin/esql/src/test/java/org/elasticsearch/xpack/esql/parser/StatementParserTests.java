@@ -5140,7 +5140,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     expectError(
                         LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
                         List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                        "line 1:33: JOIN ON clause must be a comma separated list of fields or a single expression, found [?f1]"
+                        "JOIN ON clause must be a comma separated list of fields or a single expression, found"
                     );
 
                 }

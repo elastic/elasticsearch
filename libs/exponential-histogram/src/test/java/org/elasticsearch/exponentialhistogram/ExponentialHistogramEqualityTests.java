@@ -59,7 +59,8 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     }
 
     public void testEquality() {
-        ExponentialHistogram histo = randomHistogram();
+        ReleasableExponentialHistogram histo = ExponentialHistogramTestUtils.randomHistogram(breaker());
+        autoReleaseOnTestEnd(histo);
         ReleasableExponentialHistogram copy = ExponentialHistogram.builder(histo, breaker()).build();
         autoReleaseOnTestEnd(copy);
         ExponentialHistogram modifiedCopy = copyWithModification(histo, modification);
@@ -70,7 +71,8 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
     }
 
     public void testHashQuality() {
-        ExponentialHistogram histo = randomHistogram();
+        ReleasableExponentialHistogram histo = ExponentialHistogramTestUtils.randomHistogram(breaker());
+        autoReleaseOnTestEnd(histo);
         // of 10 tries, at least one should produce a different hash code
         for (int i = 0; i < 10; i++) {
             ExponentialHistogram modifiedCopy = copyWithModification(histo, modification);
@@ -79,10 +81,6 @@ public class ExponentialHistogramEqualityTests extends ExponentialHistogramTestC
             }
         }
         fail("Could not produce different hash code after 10 tries");
-    }
-
-    private ExponentialHistogram randomHistogram() {
-        return createAutoReleasedHistogram(randomIntBetween(4, 20), randomDoubles(randomIntBetween(0, 200)).toArray());
     }
 
     private ExponentialHistogram copyWithModification(ExponentialHistogram toCopy, Modification modification) {

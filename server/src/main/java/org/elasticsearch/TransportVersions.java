@@ -53,6 +53,9 @@ public class TransportVersions {
     }
 
     // TODO: ES-10337 we can remove all transport versions earlier than 8.18
+    public static final TransportVersion V_7_0_0 = def(7_00_00_99);
+    public static final TransportVersion V_7_1_0 = def(7_01_00_99);
+    public static final TransportVersion V_7_2_0 = def(7_02_00_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_3_2 = def(7_03_02_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
@@ -137,38 +140,6 @@ public class TransportVersions {
     public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_0_00);
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
-    public static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = def(9_007_00_0);
-    public static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = def(9_008_0_00);
-    public static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = def(9_010_0_00);
-    public static final TransportVersion REMOVE_REPOSITORY_CONFLICT_MESSAGE = def(9_012_0_00);
-    public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
-    public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
-    public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
-    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
-    public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
-    public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
-    public static final TransportVersion INDEX_RESHARDING_METADATA = def(9_031_0_00);
-    public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
-    public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
-    public static final TransportVersion PROJECT_ID_IN_SNAPSHOT = def(9_040_0_00);
-    public static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = def(9_041_0_00);
-    public static final TransportVersion ESQL_REMOVE_AGGREGATE_TYPE = def(9_045_0_00);
-    public static final TransportVersion ADD_PROJECT_ID_TO_DSL_ERROR_INFO = def(9_046_0_00);
-    public static final TransportVersion REPO_ANALYSIS_COPY_BLOB = def(9_048_0_00);
-    public static final TransportVersion DEAD_ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = def(9_052_0_00);
-    public static final TransportVersion DEAD_BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_053_0_00);
-    public static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE = def(9_057_0_00);
-    public static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = def(9_059_0_00);
-    public static final TransportVersion SYNONYMS_REFRESH_PARAM = def(9_060_0_00);
-    public static final TransportVersion DOC_FIELDS_AS_LIST = def(9_061_0_00);
-    public static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = def(9_062_00_0);
-    public static final TransportVersion PROJECT_METADATA_SETTINGS = def(9_066_0_00);
-    public static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = def(9_070_0_00);
-    public static final TransportVersion FILE_SETTINGS_HEALTH_INFO = def(9_072_0_00);
-    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = def(9_075_0_00);
-    public static final TransportVersion ESQL_TIME_SERIES_SOURCE_STATUS = def(9_076_0_00);
-    public static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = def(9_079_0_00);
-    public static final TransportVersion ESQL_LIMIT_ROW_SIZE = def(9_085_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

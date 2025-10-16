@@ -32,6 +32,8 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         AUTO
     }
 
+    private final boolean isGpuSupported = GPUSupport.isSupported(true);
+
     /**
      * Setting to control whether to use GPU for vectors indexing.
      * Currently only applicable for index_options.type: hnsw.
@@ -69,14 +71,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                             "[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of [" + indexOptions.getType() + "]."
                         );
                     }
-                    if (GPUSupport.isSupported(true) == false) {
+                    if (isGpuSupported == false) {
                         throw new IllegalArgumentException(
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
                     return getVectorsFormat(indexOptions);
                 }
-                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && GPUSupport.isSupported(false)) {
+                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && isGpuSupported) {
                     return getVectorsFormat(indexOptions);
                 }
             }
@@ -92,23 +94,21 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
             int efConstruction = hnswIndexOptions.efConstruction();
+            int m = hnswIndexOptions.m();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+                m = ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
+                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction
             }
-            return new ES92GpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
+            return new ES92GpuHnswVectorsFormat(m, efConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
             int efConstruction = int8HnswIndexOptions.efConstruction();
+            int m = int8HnswIndexOptions.m();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
+                m = ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
+                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction
             }
-            return new ES92GpuHnswSQVectorsFormat(
-                int8HnswIndexOptions.m(),
-                efConstruction,
-                int8HnswIndexOptions.confidenceInterval(),
-                7,
-                false
-            );
+            return new ES92GpuHnswSQVectorsFormat(m, efConstruction, int8HnswIndexOptions.confidenceInterval(), 7, false);
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

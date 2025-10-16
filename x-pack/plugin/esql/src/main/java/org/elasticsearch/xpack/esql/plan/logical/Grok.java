@@ -80,6 +80,7 @@ public class Grok extends RegexExtract implements TelemetryAware {
             throw new ParsingException(source, "Invalid pattern [{}] for grok: {}", pattern, e.getMessage());
         }
     }
+
     private static final Logger logger = LogManager.getLogger(Grok.class);
 
     private final Parser parser;

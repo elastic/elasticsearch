@@ -296,8 +296,6 @@ public class GrokProcessorTests extends ESTestCase {
         assertThat(doc.getFieldValue("_ingest._grok_match_index", String.class), equalTo("0"));
     }
 
-
-
     public void testCombineSamePatternNameAcrossPatterns() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());

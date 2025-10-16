@@ -176,10 +176,13 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                     Source.EMPTY,
                     new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
                     field("str", DataType.KEYWORD),
-                    new MapExpression(Source.EMPTY, List.of(
-                        new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
-                        new Literal(Source.EMPTY, new BytesRef(locale), DataType.KEYWORD)
-                    ))
+                    new MapExpression(
+                        Source.EMPTY,
+                        List.of(
+                            new Literal(Source.EMPTY, new BytesRef("locale"), DataType.KEYWORD),
+                            new Literal(Source.EMPTY, new BytesRef(locale), DataType.KEYWORD)
+                        )
+                    )
                 )
             ).get(driverContext)
         );
@@ -197,10 +200,13 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                     Source.EMPTY,
                     new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
                     field("str", DataType.KEYWORD),
-                    new MapExpression(Source.EMPTY, List.of(
-                        new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
-                        new Literal(Source.EMPTY, new BytesRef(timezone), DataType.KEYWORD)
-                    ))
+                    new MapExpression(
+                        Source.EMPTY,
+                        List.of(
+                            new Literal(Source.EMPTY, new BytesRef("time_zone"), DataType.KEYWORD),
+                            new Literal(Source.EMPTY, new BytesRef(timezone), DataType.KEYWORD)
+                        )
+                    )
                 )
             ).get(driverContext)
         );

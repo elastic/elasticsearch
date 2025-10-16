@@ -96,10 +96,10 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
                     type = "keyword",
                     valueHint = { "standard" },
                     description = "The locale to use when parsing the date, relevant when parsing month names or week days."
-                )
-            },
+                ) },
             description = "(Optional) Additional options for date parsing as <<esql-function-named-params,function named parameters>>.",
-            optional = true) Expression options
+            optional = true
+        ) Expression options
     ) {
         super(source, fields(first, second, options));
         this.field = second != null ? second : first;
@@ -209,10 +209,10 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
         var parsedOptions = this.parseOptions();
-        String localeAsString = (String)parsedOptions.get(LOCALE_PARAM_NAME);
+        String localeAsString = (String) parsedOptions.get(LOCALE_PARAM_NAME);
         Locale locale = localeAsString == null ? null : LocaleUtils.parse(localeAsString);
 
-        String timezoneAsString = (String)parsedOptions.get(TIME_ZONE_PARAM_NAME);
+        String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
         ZoneId timezone = null;
         try {
             if (timezoneAsString != null) {

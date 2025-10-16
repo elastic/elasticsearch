@@ -691,7 +691,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 .stream()
                 .map(shardId -> original.shards().get(shardId))
                 .collect(Collectors.toCollection(ArrayList::new));
-            TransportClosePointInTimeAction.closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<Integer>() {
+            TransportClosePointInTimeAction.closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<>() {
                 @Override
                 public void onResponse(Integer integer) {
                     // ignore
@@ -699,9 +699,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.trace("Failure while freeing old point in time contexts", e);
+                    logger.debug("Failure while freeing old point in time contexts", e);
                 }
-            });
+            }, logger);
             // we also need to add shard that are not in the results for some reason (e.g. query rewrote to match none) but that
             // were part of the original PIT
             for (ShardId shardId : original.shards().keySet()) {

@@ -157,6 +157,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -372,6 +373,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId = UUIDs.randomBase64UUID();
 
     private final Tracer tracer;
+    private Map<ShardId, Set<ReaderContext>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchService(
         ClusterService clusterService,
@@ -1292,6 +1294,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         indexService,
                         shard,
                         searcherSupplier,
+                        this::putReaderContext,
                         false,
                         keepAliveInMillis
                     );
@@ -1316,7 +1319,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         long keepAliveInMillis
     ) {
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
-        return createAndPutReaderContext(id, request, indexService, shard, reader, true, keepAliveInMillis);
+        return createAndPutReaderContext(id, request, indexService, shard, reader, this::putReaderContext, true, keepAliveInMillis);
     }
 
     public ReaderContext createAndPutReaderContext(
@@ -1325,6 +1328,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService,
         IndexShard shard,
         Engine.SearcherSupplier reader,
+        Consumer<ReaderContext> contextConsumer,
         boolean singleSession,
         long keepAliveInMillis
     ) {
@@ -1351,12 +1355,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.addOnClose(() -> searchOperationListener.onFreeScrollContext(finalReaderContext));
             }
             readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
-            putReaderContext(finalReaderContext);
+            contextConsumer.accept(finalReaderContext);
             readerContext = null;
             return finalReaderContext;
         } finally {
             Releasables.close(reader, readerContext, decreaseScrollContexts);
         }
+    }
+
+    public void addRelocatingContext(ShardId shardId, ReaderContext readerContext) {
+        this.relocatingContexts.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentSet()).add(readerContext);
     }
 
     /**
@@ -1396,6 +1404,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 listener.onFailure(exc);
             }
         });
+    }
+
+    public void afterIndexShardStarted(IndexShard indexShard) {
+        logger.debug("afterIndexShardStarted [{}]", indexShard);
+        ShardId shardId = indexShard.shardId();
+        if (relocatingContexts.containsKey(shardId)) {
+            Set<ReaderContext> readerContexts = relocatingContexts.get(shardId);
+            for (ReaderContext readerContext : readerContexts) {
+                putReaderContext(readerContext);
+                logger.debug("added context [{}] to active readers", readerContext.id());
+                relocatingContexts.remove(shardId);
+            }
+        }
     }
 
     protected SearchContext createContext(
@@ -1945,6 +1966,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (context.isExpired()) {
                     logger.debug("freeing search context [{}]", context.id());
                     freeReaderContext(context.id());
+                }
+            }
+            for (Set<ReaderContext> contexts : relocatingContexts.values()) {
+                for (ReaderContext context : contexts) {
+                    if (context.isExpired()) {
+                        logger.debug("freeing relocating search context [{}]", context.id());
+                        freeReaderContext(context.id());
+                    }
                 }
             }
         }

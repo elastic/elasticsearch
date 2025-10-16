@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -64,7 +65,8 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
             clusterService.state().nodes(),
             searchTransportService,
             contextIds,
-            listener.map(freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed))
+            listener.map(freed -> new ClosePointInTimeResponse(freed == contextIds.size(), freed)),
+                logger
         );
     }
 
@@ -75,8 +77,8 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
         DiscoveryNodes nodes,
         SearchTransportService searchTransportService,
         Collection<SearchContextIdForNode> contextIds,
-        ActionListener<Integer> listener
-    ) {
+        ActionListener<Integer> listener,
+            Logger logger) {
         final Set<String> clusters = contextIds.stream()
             .map(SearchContextIdForNode::getClusterAlias)
             .filter(clusterAlias -> Strings.isEmpty(clusterAlias) == false)
@@ -98,6 +100,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
                     final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());
                     if (node != null) {
                         try {
+                            logger.info("sending freeContext for context [{}] call to [{}]", contextId.getSearchContextId(), node.getId());
                             searchTransportService.sendFreeContext(
                                 searchTransportService.getConnection(contextId.getClusterAlias(), node),
                                 contextId.getSearchContextId(),

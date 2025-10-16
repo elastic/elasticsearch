@@ -133,6 +133,7 @@ public class SearchTransportService {
         ShardSearchContextId contextId,
         ActionListener<SearchFreeContextResponse> listener
     ) {
+        // logger.info("sendfreeContext [{}], stack [{}]", contextId, Arrays.toString(new RuntimeException().getStackTrace()));
         transportService.sendRequest(
             connection,
             FREE_CONTEXT_SCROLL_ACTION_NAME,

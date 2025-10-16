@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.diversification.mmr;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -68,8 +67,6 @@ public class MMRResultDiversificationTests extends ESTestCase {
             new RankDoc(4, 1.0f, 1),
             new RankDoc(5, 0.8f, 1),
             new RankDoc(6, 0.8f, 1) };
-
-        TotalHits totalHits = new TotalHits(6L, TotalHits.Relation.EQUAL_TO);
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification();
         RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs, diversificationContext);

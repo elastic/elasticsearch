@@ -212,7 +212,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         // must have the combined result set
-        assert rankResults.size() == 1;
+        assert rankResults.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single result set";
         assert diversificationContext != null : "diversificationContext should be set before combining results";
 
         ScoreDoc[] scoreDocs = rankResults.getFirst();

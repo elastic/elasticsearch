@@ -17,6 +17,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
@@ -148,6 +150,86 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
         assertEquals(0, result.length);
     }
 
+    public void testMmrResultDiversification() {
+        var queryRewriteContext = getQueryRewriteContext();
+        var retriever = new ResultDiversificationRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationRetrieverBuilder.DIVERSIFICATION_TYPE_MMR,
+            "dense_vector_field",
+            3,
+            new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestSearchHits();
+        docs.add(hits);
+
+        var result = retriever.combineInnerRetrieverResults(docs, false);
+
+        assertEquals(3, result.length);
+        assertEquals(1, result[0].doc);
+        assertEquals(3, result[1].doc);
+        assertEquals(6, result[2].doc);
+
+        var retrieverWithoutRewrite = new ResultDiversificationRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationRetrieverBuilder.DIVERSIFICATION_TYPE_MMR,
+            "dense_vector_field",
+            3,
+            new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
+            0.3f
+        );
+
+        AssertionError exNoRewrite = assertThrows(
+            AssertionError.class,
+            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(docs, false)
+        );
+        assertEquals("diversificationContext should be set before combining results", exNoRewrite.getMessage());
+
+        retrieverWithoutRewrite.doRewrite(queryRewriteContext);
+
+        List<ScoreDoc[]> nonProperDocs = new ArrayList<>();
+        nonProperDocs.add(new ScoreDoc[] { new ScoreDoc(0, 0) });
+        AssertionError exRankDocWithSearchHit = assertThrows(
+            AssertionError.class,
+            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(nonProperDocs, false)
+        );
+        assertEquals("expected results to be of type RankDocWithSearchHit", exRankDocWithSearchHit.getMessage());
+
+        AssertionError exNoDocs = assertThrows(
+            AssertionError.class,
+            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(List.of(), false)
+        );
+        assertEquals("ResultDiversificationRetrieverBuilder must have a single result set", exNoDocs.getMessage());
+
+        docs.add(hits);
+        AssertionError exMultipleDocs = assertThrows(
+            AssertionError.class,
+            () -> retrieverWithoutRewrite.combineInnerRetrieverResults(docs, false)
+        );
+        assertEquals("ResultDiversificationRetrieverBuilder must have a single result set", exNoDocs.getMessage());
+    }
+
+    private ScoreDoc[] getTestSearchHits() {
+        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestSearchHit(1, 2.0f, new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
+            getTestSearchHit(2, 1.8f, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
+            getTestSearchHit(3, 1.8f, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
+            getTestSearchHit(4, 1.0f, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            getTestSearchHit(5, 0.8f, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            getTestSearchHit(6, 0.8f, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
+    }
+
+    private ResultDiversificationRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int docId, float score, float[] value) {
+        SearchHit hit = new SearchHit(docId);
+        hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
+        return new ResultDiversificationRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+    }
+
     protected void assertCompoundRetriever(ResultDiversificationRetrieverBuilder originalRetriever, RetrieverBuilder rewrittenRetriever) {
         assertTrue(rewrittenRetriever instanceof ResultDiversificationRetrieverBuilder);
         ResultDiversificationRetrieverBuilder actualRetrieverBuilder = (ResultDiversificationRetrieverBuilder) rewrittenRetriever;
@@ -164,10 +246,19 @@ public class ResultDiversificationRetrieverBuilderTests extends ESTestCase {
     ) {
         String field = fieldName == null ? "test_field" : fieldName;
         int rankWindowSize = randomIntBetween(1, 20);
-        float[] queryVector = randomBoolean() ? getRandomQueryVector(vectorDimensions) : null;
-        Float lambda = randomBoolean() ? randomFloatBetween(0.0f, 1.0f, true) : null;
+        float[] queryVector = vectorDimensions == null
+            ? randomBoolean() ? getRandomQueryVector() : null
+            : getRandomQueryVector(vectorDimensions);
+        Float lambda = randomFloatBetween(0.0f, 1.0f, true);
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
-        return new ResultDiversificationRetrieverBuilder(innerRetriever, "mmr", field, rankWindowSize, queryVector, lambda);
+        return new ResultDiversificationRetrieverBuilder(
+            innerRetriever,
+            ResultDiversificationRetrieverBuilder.DIVERSIFICATION_TYPE_MMR,
+            field,
+            rankWindowSize,
+            queryVector,
+            lambda
+        );
     }
 
     private static CompoundRetrieverBuilder.RetrieverSource getInnerRetriever() {

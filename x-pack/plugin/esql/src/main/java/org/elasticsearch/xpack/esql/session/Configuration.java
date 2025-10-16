@@ -80,7 +80,7 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries
     ) {
         this.zoneId = zi.normalized();
-        this.now = ZonedDateTime.now(Clock.tick(Clock.systemUTC(), Duration.ofNanos(1)));
+        this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;
         this.locale = locale;
@@ -333,6 +333,8 @@ public class Configuration implements Writeable {
             + ",timeseries="
             + resultTruncationDefaultSize(true)
             + "]"
+            + ", zoneId="
+            + zoneId
             + ", locale="
             + locale
             + ", query='"

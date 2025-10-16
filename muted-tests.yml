@@ -421,17 +421,8 @@ tests:
   method: testWithCustomFeatureProcessors
   issue: https://github.com/elastic/elasticsearch/issues/134001
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkBeforeStats}
-  issue: https://github.com/elastic/elasticsearch/issues/134100
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/134104
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:fork.ForkWithMixOfCommands}
-  issue: https://github.com/elastic/elasticsearch/issues/134135
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:inlinestats.MultiIndexInlinestatsOfMultiTypedField}
-  issue: https://github.com/elastic/elasticsearch/issues/133973
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:spatial_shapes.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/134254
@@ -540,36 +531,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:date.EvalDateTruncQuarterlyIntervalWithGTInRange}
   issue: https://github.com/elastic/elasticsearch/issues/136102
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:math.PowIntInt}
-  issue: https://github.com/elastic/elasticsearch/issues/136106
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:string.ContainsFail}
-  issue: https://github.com/elastic/elasticsearch/issues/136112
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:union_types.MultiIndexTsLongStatsDrop}
-  issue: https://github.com/elastic/elasticsearch/issues/136113
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:bucket.BucketByWeekInString}
-  issue: https://github.com/elastic/elasticsearch/issues/136136
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:semantic_text.Repeat}
-  issue: https://github.com/elastic/elasticsearch/issues/136150
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
   method: testEsqlRcs1UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136157
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:comparison.IntToInt}
-  issue: https://github.com/elastic/elasticsearch/issues/136160
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:math.LeastGreatestMany}
-  issue: https://github.com/elastic/elasticsearch/issues/136161
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:categorize.Values aggs}
-  issue: https://github.com/elastic/elasticsearch/issues/136230
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/10_basic/Field caps for number field with only doc values}
   issue: https://github.com/elastic/elasticsearch/issues/136244
@@ -618,6 +585,12 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136493
+- class: org.elasticsearch.xpack.core.HealthApiFeatureSetUsageTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/136648
+- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
+  method: testILMDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/136585
 
 # Examples:
 #

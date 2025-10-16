@@ -240,19 +240,21 @@ GET /restaurants/_search
 4. This retriever has a weight of 1.0 (default weight).
 
 ::::{note}
-You can also mix weighted and non-weighted formats in the same query.
-Retrievers without an explicit weight default to 1.0:
+You can mix weighted and non-weighted formats in the same query.
+The direct format (without explicit `retriever` wrapper) uses the default weight of `1.0`:
 
 ```json
 {
   "rrf": {
     "retrievers": [
-      { "standard": { "query": {...} } },  // weight defaults to 1.0
+      { "standard": { "query": {...} } },
       { "retriever": { "knn": {...} }, "weight": 2.0 }
     ]
   }
 }
 ```
+
+In this example, the `standard` retriever uses weight `1.0` (default), while the `knn` retriever uses weight `2.0`.
 ::::
 
 ## Example: Hybrid search with sparse vectors [rrf-retriever-example-hybrid-sparse]

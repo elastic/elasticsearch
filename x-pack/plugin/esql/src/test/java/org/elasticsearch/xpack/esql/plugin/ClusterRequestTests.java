@@ -121,7 +121,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.configuration(),
                     new RemoteClusterPlan(
                         plan.plan(),
-                        randomValueOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
+                        randomValueOtherThanArray(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
                         plan.originalIndices()
                     )
                 );

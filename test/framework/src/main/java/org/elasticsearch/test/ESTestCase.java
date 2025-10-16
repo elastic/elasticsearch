@@ -1501,7 +1501,72 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        assert input == null || input.getClass().isArray() == false
+            : "randomValueOtherThan() does not work as expected with arrays, use randomValueOtherThanArray() instead";
         return randomValueOtherThanMany(v -> Objects.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for object arrays
+     */
+    public static <T> T[] randomValueOtherThanArray(T[] input, Supplier<T[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for boolean arrays
+     */
+    public static boolean[] randomValueOtherThanArray(boolean[] input, Supplier<boolean[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for byte arrays
+     */
+    public static byte[] randomValueOtherThanArray(byte[] input, Supplier<byte[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for char arrays
+     */
+    public static char[] randomValueOtherThanArray(char[] input, Supplier<char[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for short arrays
+     */
+    public static short[] randomValueOtherThanArray(short[] input, Supplier<short[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for int arrays
+     */
+    public static int[] randomValueOtherThanArray(int[] input, Supplier<int[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for long arrays
+     */
+    public static long[] randomValueOtherThanArray(long[] input, Supplier<long[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for float arrays
+     */
+    public static float[] randomValueOtherThanArray(float[] input, Supplier<float[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for double arrays
+     */
+    public static double[] randomValueOtherThanArray(double[] input, Supplier<double[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
     }
 
     /**

@@ -34,11 +34,7 @@ Combining `query` and `retrievers` is not supported.
 
     A list of child retrievers to specify which sets of returned top documents will have the RRF formula applied to them.
     Two or more child retrievers are required.
-    
-    Each retriever can be specified in two formats:
-    
-    - **Direct format**: `{ "standard": { "query": {...} } }` - Uses default weight of `1.0`
-    - **Weighted format**: `{ "retriever": { "standard": { "query": {...} } }, "weight": 2.0 }` - Specifies a custom weight
+    Each retriever can optionally include a weight to adjust its influence on the final ranking.
 
 `rank_constant`
 :   (Optional, integer)

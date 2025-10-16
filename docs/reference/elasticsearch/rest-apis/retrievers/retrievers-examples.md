@@ -109,8 +109,7 @@ Now that we have our documents in place, let’s try to run some queries using r
 
 ## Example: Combining query and kNN with RRF [retrievers-examples-combining-standard-knn-retrievers-with-rrf]
 
-First, let's examine how to combine two different types of queries: a `kNN` query and a `query_string` query.
-While these queries may produce scores in different ranges, we can use Reciprocal Rank Fusion (`rrf`) to combine the results and generate a merged final result list.
+First, let’s examine how to combine two different types of queries: a `kNN` query and a `query_string` query.While these queries may produce scores in different ranges, we can use Reciprocal Rank Fusion (`rrf`) to combine the results and generate a merged final result list.
 
 To implement this in the retriever framework, we start with the top-level element: our `rrf` retriever.
 This retriever operates on top of two other retrievers: a `knn` retriever and a `standard` retriever.

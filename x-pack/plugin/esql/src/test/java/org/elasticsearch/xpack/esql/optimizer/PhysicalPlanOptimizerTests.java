@@ -664,7 +664,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
      *       \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
      *         \_FieldExtractExec[first_name{f}#6]
-     *           \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[1000], sort[] estimatedRowSize[2288] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *           \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[1000], sort[] estimatedRowSize[2288] queryBuilderAndTags
+     *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
     */
     public void testEvalWithScoreImplicitLimit() {
         var plan = physicalPlan("""
@@ -695,7 +696,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, gender{f}#7, hire_d..]
      *       \_EvalExec[[SCORE(MATCH(first_name{f}#6,foo[KEYWORD])) AS s#4]]
      *         \_FieldExtractExec[first_name{f}#6]
-     *           \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[42], sort[] estimatedRowSize[2288] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *           \_EsQueryExec[test], indexMode[standard], [_doc{f}#28], limit[42], sort[] estimatedRowSize[2288] queryBuilderAndTags
+     *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
      */
     public void testEvalWithScoreExplicitLimit() {
         var plan = physicalPlan("""
@@ -730,7 +732,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             \_FilterExec[s{r}#4 > 0.5[DOUBLE]]
      *               \_EvalExec[[SCORE(MATCH(first_name{f}#10,foo[KEYWORD])) AS s#4]]
      *                 \_FieldExtractExec[first_name{f}#10]
-     *                   \_EsQueryExec[test], indexMode[standard], [_doc{f}#32], limit[], sort[] estimatedRowSize[116] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[{
+     *                   \_EsQueryExec[test], indexMode[standard], [_doc{f}#32], limit[], sort[] estimatedRowSize[116] queryBuilderAndTags
+     *                      [[QueryBuilderAndTags{queryBuilder=[{
      *   "exists" : {
      *     "field" : "last_name",
      *     "boost" : 0.0
@@ -782,7 +785,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_FieldExtractExec[emp_no{f}#8]
      *           \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
      *             \_FieldExtractExec[first_name{f}#9]
-     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[42], sort[] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[{
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[42], sort[] estimatedRowSize[66] queryBuilderAndTags
+     *                  [[QueryBuilderAndTags{queryBuilder=[{
      *   "exists" : {
      *     "field" : "last_name",
      *     "boost" : 0.0

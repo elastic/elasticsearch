@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.inference.integration.InferenceUtils.createInferenceEndpoint;
+import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

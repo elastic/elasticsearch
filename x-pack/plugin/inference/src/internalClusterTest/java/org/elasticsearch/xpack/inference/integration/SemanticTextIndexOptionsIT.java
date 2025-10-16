@@ -150,7 +150,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
-        InferenceUtils.createInferenceEndpoint(client(), taskType, inferenceId, serviceSettings);
+        IntegrationTestUtils.createInferenceEndpoint(client(), taskType, inferenceId, serviceSettings);
         inferenceIds.put(inferenceId, taskType);
     }
 

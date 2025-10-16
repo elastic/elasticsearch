@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,11 +30,8 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
@@ -89,16 +85,9 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
 
     @After
     public void cleanUp() {
-        deleteIndex(indexName);
+        IntegrationTestUtils.deleteIndex(client(), indexName);
         for (var entry : inferenceIds.entrySet()) {
-            assertAcked(
-                safeGet(
-                    client().execute(
-                        DeleteInferenceEndpointAction.INSTANCE,
-                        new DeleteInferenceEndpointAction.Request(entry.getKey(), entry.getValue(), true, false)
-                    )
-                )
-            );
+            IntegrationTestUtils.deleteInferenceEndpoint(client(), entry.getValue(), entry.getKey());
         }
     }
 
@@ -127,7 +116,7 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < iterations; i++) {
             final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
             final Settings indexSettings = generateIndexSettings(indexVersion);
-            XContentBuilder mappings = generateMapping(
+            XContentBuilder mappings = IntegrationTestUtils.generateMapping(
                 Map.of(sparseEmbeddingField, sparseEmbeddingInferenceId, textEmbeddingField, textEmbeddingInferenceId)
             );
             assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mappings));
@@ -158,12 +147,12 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
                 }
             });
 
-            deleteIndex(indexName);
+            IntegrationTestUtils.deleteIndex(client(), indexName);
         }
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
-        InferenceUtils.createInferenceEndpoint(client(), taskType, inferenceId, serviceSettings);
+        IntegrationTestUtils.createInferenceEndpoint(client(), taskType, inferenceId, serviceSettings);
         inferenceIds.put(inferenceId, taskType);
     }
 
@@ -290,33 +279,6 @@ public class SemanticTextInferenceFieldsIT extends ESIntegTestCase {
         }
 
         return fetchSourceContext;
-    }
-
-    private static XContentBuilder generateMapping(Map<String, String> semanticTextFields) throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        for (var entry : semanticTextFields.entrySet()) {
-            mapping.startObject(entry.getKey());
-            mapping.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-            mapping.field("inference_id", entry.getValue());
-            mapping.endObject();
-        }
-        mapping.endObject().endObject();
-
-        return mapping;
-    }
-
-    private static void deleteIndex(String indexName) {
-        assertAcked(
-            safeGet(
-                client().admin()
-                    .indices()
-                    .prepareDelete(indexName)
-                    .setIndicesOptions(
-                        IndicesOptions.builder().concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true)).build()
-                    )
-                    .execute()
-            )
-        );
     }
 
     private enum ExpectedSource {

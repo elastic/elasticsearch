@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -117,8 +116,7 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
             // Join consumer & surface errors
             try {
                 consumer.get();
-            } catch (Exception ignored) {
-            } finally {
+            } catch (Exception ignored) {} finally {
                 consumerExec.shutdown();
             }
 
@@ -131,9 +129,7 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
     private void assertNoWorkerFailures(StartableThreadGroup pollers) {
         List<Throwable> failures = pollers.getFailures();
         assertTrue(
-            "Unexpected worker failures:\n" + failures.stream()
-                    .map(ExceptionsHelper::stackTrace)
-                    .reduce("", (a, b) -> a + "\n---\n" + b),
+            "Unexpected worker failures:\n" + failures.stream().map(ExceptionsHelper::stackTrace).reduce("", (a, b) -> a + "\n---\n" + b),
             failures.isEmpty()
         );
     }

@@ -534,9 +534,6 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
-  method: testEsqlRcs1UnavailableRemoteScenarios
-  issue: https://github.com/elastic/elasticsearch/issues/136157
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/10_basic/Field caps for number field with only doc values}
   issue: https://github.com/elastic/elasticsearch/issues/136244
@@ -582,9 +579,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
   method: testExcludeInferenceFieldsFromSourceOldIndexVersions
   issue: https://github.com/elastic/elasticsearch/issues/136452
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
-  method: testEsqlRcs2UnavailableRemoteScenarios
-  issue: https://github.com/elastic/elasticsearch/issues/136493
 - class: org.elasticsearch.xpack.core.HealthApiFeatureSetUsageTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/136648

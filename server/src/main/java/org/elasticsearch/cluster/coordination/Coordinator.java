@@ -1812,7 +1812,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
-                            logger.debug("starting election scheduler, expecting votes [{}]", expectedVotes);
+                            logger.debug("preparing election scheduler, expecting votes [{}]", expectedVotes);
                             startElectionScheduler();
                         }
                     } else {
@@ -1837,6 +1837,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             logger.debug("local node is not the master, skipping election scheduler");
             return;
         }
+        logger.debug("starting election scheduler");
 
         final TimeValue gracePeriod = TimeValue.ZERO;
         electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {

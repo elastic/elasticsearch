@@ -761,12 +761,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var dataNodeLimit = as(fieldExtract.child(), LimitExec.class);
         assertThat(dataNodeLimit.limit(), is(l(42)));
         var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(filterCondition.toString(), equalTo("s > 0.5"));
         var eval = as(filter.child(), EvalExec.class);
         assertThat(eval.fields(), hasSize(1));
         assertThat(eval.fields().get(0).child(), isA(Score.class));
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
-        assertThat(query.limit(), is(l(42)));
+        assertNull(query.limit());
         assertThat(query.query(), is(unscore(existsQuery("last_name"))));
     }
 

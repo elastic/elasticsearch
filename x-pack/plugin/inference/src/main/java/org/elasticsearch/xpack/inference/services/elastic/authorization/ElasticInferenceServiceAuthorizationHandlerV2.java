@@ -60,15 +60,7 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
         ElasticInferenceServiceComponents components,
         ModelRegistry modelRegistry
     ) {
-        this(
-            serviceComponents,
-            authorizationRequestHandler,
-            sender,
-            elasticInferenceServiceSettings,
-            components,
-            modelRegistry,
-            null
-        );
+        this(serviceComponents, authorizationRequestHandler, sender, elasticInferenceServiceSettings, components, modelRegistry, null);
     }
 
     // default for testing
@@ -169,9 +161,7 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
                 callback.run();
             }
             firstAuthorizationCompletedLatch.countDown();
-        }).delegateResponse((delegate, e) -> {
-            logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints");
-        });
+        }).delegateResponse((delegate, e) -> { logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints"); });
 
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)

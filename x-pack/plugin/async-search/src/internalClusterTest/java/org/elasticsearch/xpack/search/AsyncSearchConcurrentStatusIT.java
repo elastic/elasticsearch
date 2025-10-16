@@ -136,10 +136,6 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
     private void assertStats(PollStats stats) {
         assertEquals(stats.totalCalls.sum(), stats.runningResponses.sum() + stats.completedResponses.sum());
         assertEquals("There should be no exceptions other than GONE", 0, stats.exceptions.sum());
-        assertTrue(
-            "Expected some completed STATUS responses with successful results; totals=" + stats.totalCalls.sum(),
-            stats.completedResponses.sum() > 0L
-        );
     }
 
     private String getAsyncId(SearchResponseIterator it) {

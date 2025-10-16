@@ -31,7 +31,7 @@ public class QuerySettings {
         true,
         false,
         true,
-        "A project routing literal, "
+        "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled.",
         (value) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),

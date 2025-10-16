@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
@@ -112,25 +113,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         assertTrue(innerTopN.local());
     }
 
-    /**
-     * Test case for aliasing within TopN + Enrich. This happens when Enrich had a field that overrides an existing field,
-     * so we need to alias it.
-     * <pre>
-     *     Project[[host.name{f}#10, host.os{f}#11, host.version{f}#12, host.name{f}#10 AS host#5, host_group{r}#21, description{
-     * r}#22, card{r}#23, ip0{r}#24, ip1{r}#25]]
-     * \_Project[[host.name{f}#10, host.os{f}#11, host.version{f}#12, host_group{r}#21, description{r}#22, card{r}#23, ip0{r}#2
-     * 4, ip1{r}#25]]
-     *   \_TopN[[Order[$$description$temp_name$27{r$}#28,ASC,LAST]],10[INTEGER],false]
-     *     \_Enrich[REMOTE,hosts[KEYWORD],host.name{f}#10,{"match":{"indices":[],"match_field":"host","enrich_fields":["host_group","
-     * description","card","ip0","ip1"]}},{=hosts},[host_group{r}#21, description{r}#22, card{r}#23, ip0{r}#24, ip1{r}#
-     * 25]]
-     *       \_Eval[[description{f}#13 AS $$description$temp_name$27#28]]
-     *         \_TopN[[Order[description{f}#13,ASC,LAST]],10[INTEGER],true]
-     *           \_EsRelation[host_inventory][description{f}#13, host.name{f}#10, host.os{f}#11, ..]
-     * </pre>
-     * TODO: probably makes sense to remove double project, but this can be done later
-     */
-    public void testTopNWithinRemoteEnrichAliasing() {
+    private LogicalPlan planWithPolicyOverride(String query) {
         // Set up index and enrich policy with overlapping fields
         var enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(
@@ -157,6 +140,29 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             TEST_VERIFIER
         );
 
+        var analyzed = analyzer.analyze(parser.createStatement(query));
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    /**
+     * Test case for aliasing within TopN + Enrich. This happens when Enrich had a field that overrides an existing field,
+     * so we need to alias it.
+     * <pre>
+     *     Project[[host.name{f}#10, host.os{f}#11, host.version{f}#12, host.name{f}#10 AS host#5, host_group{r}#21, description{
+     * r}#22, card{r}#23, ip0{r}#24, ip1{r}#25]]
+     * \_Project[[host.name{f}#10, host.os{f}#11, host.version{f}#12, host_group{r}#21, description{r}#22, card{r}#23, ip0{r}#2
+     * 4, ip1{r}#25]]
+     *   \_TopN[[Order[$$description$temp_name$27{r$}#28,ASC,LAST]],10[INTEGER],false]
+     *     \_Enrich[REMOTE,hosts[KEYWORD],host.name{f}#10,{"match":{"indices":[],"match_field":"host","enrich_fields":["host_group","
+     * description","card","ip0","ip1"]}},{=hosts},[host_group{r}#21, description{r}#22, card{r}#23, ip0{r}#24, ip1{r}#
+     * 25]]
+     *       \_Eval[[description{f}#13 AS $$description$temp_name$27#28]]
+     *         \_TopN[[Order[description{f}#13,ASC,LAST]],10[INTEGER],true]
+     *           \_EsRelation[host_inventory][description{f}#13, host.name{f}#10, host.os{f}#11, ..]
+     * </pre>
+     * TODO: probably makes sense to remove double project, but this can be done later
+     */
+    public void testTopNWithinRemoteEnrichAliasing() {
         var query = ("""
             from host_inventory
             | SORT description
@@ -165,8 +171,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             | KEEP host*, description
             | ENRICH _remote:hosts
             """);
-        var analyzed = analyzer.analyze(parser.createStatement(query));
-        var plan = logicalOptimizer.optimize(analyzed);
+        LogicalPlan plan = planWithPolicyOverride(query);
 
         var proj1 = as(plan, Project.class);
         var proj2 = as(proj1.child(), Project.class);
@@ -182,6 +187,75 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         var evalName = as(evalAlias.child(), NamedExpression.class);
         assertThat(evalName.name(), equalTo("description"));
         var innerTopN = as(eval.child(), TopN.class);
+        assertTrue(innerTopN.local());
+    }
+
+    public void testTopNSortFieldsWithinRemoteEnrichAliasing() {
+        // Now let's try sort which has more than one field
+        var query = ("""
+            from host_inventory
+            | SORT host.name, description
+            | LIMIT 10
+            | EVAL host = host.name
+            | KEEP host*, description
+            | ENRICH _remote:hosts
+            """);
+        LogicalPlan plan = planWithPolicyOverride(query);
+
+        var proj1 = as(plan, Project.class);
+        var proj2 = as(proj1.child(), Project.class);
+        var topn = as(proj2.child(), TopN.class);
+        assertFalse(topn.local());
+        Order topNOrder = topn.order().get(1);
+        NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
+        assertThat(expr.name(), startsWith("$$description$temp_name$"));
+        var enrich = as(topn.child(), Enrich.class);
+        assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
+        var eval = as(enrich.child(), Eval.class);
+        var evalAlias = as(eval.expressions().getFirst(), Alias.class);
+        var evalName = as(evalAlias.child(), NamedExpression.class);
+        assertThat(evalName.name(), equalTo("description"));
+        var innerTopN = as(eval.child(), TopN.class);
+        assertTrue(innerTopN.local());
+    }
+
+    /**
+     * Plan with functions in sort:
+     * <pre>
+     * Project[[host.name{f}#13, host.os{f}#14, host.version{f}#15, host.name{f}#13 AS host#8, host_group{r}#24, description{
+     * r}#25, card{r}#26, ip0{r}#27, ip1{r}#28]]
+     * \_TopN[[Order[host.version{f}#15,ASC,LAST], Order[$$order_by$1$0{r}#30,ASC,LAST], Order[$$order_by$2$1{r}#31,ASC,LAST
+     * ], Order[host.os{f}#14,ASC,LAST]],10[INTEGER],false]
+     *   \_Enrich[REMOTE,hosts[KEYWORD],host.name{f}#13,{"match":{"indices":[],"match_field":"host","enrich_fields":["host_group","
+     * description","card","ip0","ip1"]}},{=hosts},[host_group{r}#24, description{r}#25, card{r}#26, ip0{r}#27, ip1{r}#
+     * 28]]
+     *     \_TopN[[Order[host.version{f}#15,ASC,LAST], Order[$$order_by$1$0{r}#30,ASC,LAST], Order[$$order_by$2$1{r}#31,ASC,LAST
+     * ], Order[host.os{f}#14,ASC,LAST]],10[INTEGER],true]
+     *       \_Eval[[LENGTH(description{f}#16) AS $$order_by$1$0#30, TOLOWER(description{f}#16) AS $$order_by$2$1#31]]
+     *         \_EsRelation[host_inventory][description{f}#16, host.name{f}#13, host.os{f}#14, ..]
+     *  </pre>
+     */
+    public void testTopNSortExpressionWithinRemoteEnrichAliasing() {
+        // Now let's try sort which has more than one field
+        var query = ("""
+            from host_inventory
+            | SORT host.version, LENGTH(description), to_lower(description), host.os
+            | LIMIT 10
+            | EVAL host = host.name
+            | KEEP host*, description
+            | ENRICH _remote:hosts
+            """);
+        LogicalPlan plan = planWithPolicyOverride(query);
+
+        var proj1 = as(plan, Project.class);
+        var topn = as(proj1.child(), TopN.class);
+        assertFalse(topn.local());
+        Order topNOrder = topn.order().get(1);
+        NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
+        assertThat(expr.name(), startsWith("$$order_by$1$0"));
+        var enrich = as(topn.child(), Enrich.class);
+        assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
+        var innerTopN = as(enrich.child(), TopN.class);
         assertTrue(innerTopN.local());
     }
 

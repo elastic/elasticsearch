@@ -178,6 +178,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -7048,15 +7049,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var enrichLimit = as(fragment.fragment(), Limit.class);
-            assertThat(Foldables.limitValue(enrichLimit.limit(), enrichLimit.sourceText()), equalTo(10));
+            var enrichLimit = asLimit(fragment.fragment(), 10, true, false);
             var enrich = as(enrichLimit.child(), Enrich.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
             var evalFragment = as(enrich.child(), Eval.class);
-            var partialLimit = as(evalFragment.child(), Limit.class);
-            assertThat(Foldables.limitValue(partialLimit.limit(), partialLimit.sourceText()), equalTo(10));
-            assertTrue(partialLimit.local());
+            var partialLimit = asLimit(evalFragment.child(), 10, false, true);
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -7110,14 +7108,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
-        var enrichLimit = as(fragment.fragment(), Limit.class);
-        assertThat(Foldables.limitValue(enrichLimit.limit(), enrichLimit.sourceText()), equalTo(10));
+        var enrichLimit = asLimit(fragment.fragment(), 10, true, false);
         var enrich = as(enrichLimit.child(), Enrich.class);
         assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
         assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
         var evalFragment = as(enrich.child(), Eval.class);
-        var partialLimit = as(evalFragment.child(), Limit.class);
-        assertThat(Foldables.limitValue(enrichLimit.limit(), enrichLimit.sourceText()), equalTo(10));
+        var partialLimit = asLimit(evalFragment.child(), 10, false, true);
         assertTrue(partialLimit.local());
         as(partialLimit.child(), EsRelation.class);
     }

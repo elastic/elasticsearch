@@ -231,8 +231,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(ActionListener.wrap(resp -> {
-                listener.accept(resp); }, e -> {
+            getResponseWithHeaders(ActionListener.wrap(resp -> { listener.accept(resp); }, e -> {
                 ElasticsearchException ex = (e instanceof ElasticsearchException)
                     ? (ElasticsearchException) e
                     : ExceptionsHelper.convertToElastic(e);

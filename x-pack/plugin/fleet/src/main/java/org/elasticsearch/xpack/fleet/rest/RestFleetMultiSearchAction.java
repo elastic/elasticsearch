@@ -107,15 +107,14 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                         "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. "
                             + "No index specified."
                     );
+                } else if (indices.length > 1) {
+                    throw new IllegalArgumentException(
+                        "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
+                    );
                 }
             }
-            if (indices.length > 1) {
-                throw new IllegalArgumentException(
-                    "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
-                );
-            }
 
-            if (RemoteClusterService.isRemoteIndexName(indices[0])) {
+            if (indices.length == 1 && RemoteClusterService.isRemoteIndexName(indices[0])) {
                 throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices[0] + "].");
             }
             long[] checkpoints = searchRequest.getWaitForCheckpoints().get("*");

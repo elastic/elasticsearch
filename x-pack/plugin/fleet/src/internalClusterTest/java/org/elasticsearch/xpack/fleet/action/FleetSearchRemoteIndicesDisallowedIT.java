@@ -53,21 +53,34 @@ public class FleetSearchRemoteIndicesDisallowedIT extends ESIntegTestCase {
         }
 
         {
+            /*
+             * It is possible, however, to sneak in multiple indices and a remote index if checkpoints are not specified.
+             * Unfortunately, that's the current behaviour and the Fleet team does not want us to touch it.
+             */
+            Request request = new Request("POST", "/foo,bar:baz/_fleet/_fleet_msearch");
+            request.setJsonEntity("{}\n{}\n");
+            try {
+                getRestClient().performRequest(request);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        {
             // This is fine, there are no remote indices.
             Request request = new Request("POST", "/foo/_fleet/_fleet_msearch");
             request.setJsonEntity("{\"index\": \"bar*\"}\n{}\n");
             try {
                 getRestClient().performRequest(request);
-            } catch (Exception r) {
-                throw new AssertionError(r);
+            } catch (Exception e) {
+                throw new AssertionError(e);
             }
         }
 
         {
             // This is not valid. We shouldn't be passing multiple indices.
             Request request = new Request("POST", "/foo/_fleet/_fleet_msearch");
-            request.setJsonEntity("{\"index\": \"bar*,baz\"}\n{}\n");
-
+            request.setJsonEntity("{\"index\": \"bar,baz\", \"wait_for_checkpoints\": 1 }\n{}\n");
             ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
             assertThat(responseException.getMessage(), Matchers.containsString("Fleet search API only supports searching a single index."));
         }
@@ -75,7 +88,7 @@ public class FleetSearchRemoteIndicesDisallowedIT extends ESIntegTestCase {
         {
             // This is not valid. We shouldn't be passing remote indices.
             Request request = new Request("POST", "/foo/_fleet/_fleet_msearch");
-            request.setJsonEntity("{\"index\": \"bar*\"}\n{}\n{\"index\": \"remote:index\"}\n{}\n");
+            request.setJsonEntity("{\"index\": \"bar:baz\", \"wait_for_checkpoints\": 1 }\n{}\n");
             ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
             assertThat(responseException.getMessage(), Matchers.containsString("Fleet search API does not support remote indices. Found:"));
         }

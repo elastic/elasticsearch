@@ -69,6 +69,10 @@ dependencies {
   clusterModules project(xpackModule('ilm'))
 }
 
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(

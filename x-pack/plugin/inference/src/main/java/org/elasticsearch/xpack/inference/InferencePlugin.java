@@ -133,6 +133,8 @@ import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationInitializer;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandlerV2;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
@@ -223,6 +225,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
+    private final SetOnce<ElasticInferenceServiceAuthorizationHandlerV2> eisAuthorizationHandler = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -321,6 +324,19 @@ public class InferencePlugin extends Plugin
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool()
         );
+
+        var eisComponents = new ElasticInferenceServiceComponents(inferenceServiceSettings.getElasticInferenceServiceUrl());
+        var eisAuthPoller = new ElasticInferenceServiceAuthorizationHandlerV2(
+            serviceComponents.get(),
+            authorizationHandler,
+            elasicInferenceServiceFactory.get().createSender(),
+            inferenceServiceSettings,
+            eisComponents,
+            modelRegistry.get()
+        );
+        var eisAuthInitializer = new AuthorizationInitializer(eisAuthPoller);
+        services.clusterService().addListener(eisAuthInitializer);
+        eisAuthorizationHandler.set(eisAuthPoller);
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
@@ -595,7 +611,7 @@ public class InferencePlugin extends Plugin
         var serviceComponentsRef = serviceComponents.get();
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
-        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
+        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose, eisAuthorizationHandler.get());
     }
 
     @Override
@@ -605,7 +621,7 @@ public class InferencePlugin extends Plugin
 
     // Overridable for tests
     protected Supplier<ModelRegistry> getModelRegistry() {
-        return () -> modelRegistry.get();
+        return modelRegistry::get;
     }
 
     @Override

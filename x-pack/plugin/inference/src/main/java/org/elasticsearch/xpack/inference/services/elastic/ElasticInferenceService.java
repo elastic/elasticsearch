@@ -95,7 +95,7 @@ public class ElasticInferenceService extends SenderService {
     // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
     public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
-    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
+    public static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
         TaskType.CHAT_COMPLETION,
         TaskType.RERANK,
@@ -255,7 +255,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public void onNodeStarted() {
-        authorizationHandler.init();
+//        authorizationHandler.init();
     }
 
     @Override

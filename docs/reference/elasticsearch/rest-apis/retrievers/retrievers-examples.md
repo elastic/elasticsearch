@@ -115,7 +115,7 @@ While these queries may produce scores in different ranges, we can use Reciproca
 To implement this in the retriever framework, we start with the top-level element: our `rrf` retriever.
 This retriever operates on top of two other retrievers: a `knn` retriever and a `standard` retriever.
 We can also specify weights to adjust the influence of each retriever on the final ranking.
-In this example, we're giving the semantic search (kNN) twice the influence of the lexical search:
+In this example, we're giving the lexical search twice the influence of the semantic search (kNN):
 
 ```console
 GET /retrievers_example/_search
@@ -134,7 +134,7 @@ GET /retrievers_example/_search
                             }
                         }
                     },
-                    "weight": 1.0
+                    "weight": 2.0
                 },
                 {
                     "retriever": {
@@ -149,7 +149,7 @@ GET /retrievers_example/_search
                             "num_candidates": 5
                         }
                     },
-                    "weight": 2.0
+                    "weight": 1.0
                 }
             ],
             "rank_window_size": 10,

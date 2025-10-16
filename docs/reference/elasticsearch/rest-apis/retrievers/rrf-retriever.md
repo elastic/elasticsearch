@@ -235,7 +235,7 @@ GET /restaurants/_search
 % TEST[continued]
 
 1. The first retriever in weighted format.
-2. This retriever has a weight of 2.0, giving lexical matches twice the influence.
+2. This retriever has a weight of 2.0, giving it twice the influence of the kNN retriever.
 3. The second retriever in weighted format.
 4. This retriever has a weight of 1.0 (default weight).
 

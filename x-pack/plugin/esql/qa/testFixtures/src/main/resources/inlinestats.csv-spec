@@ -3994,7 +3994,7 @@ Mv-Land2          |Mv-Lang2              |null                       |null
 // PruneColumns
 inlineStatsAfterPruningAggregate
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 
 row a = 1
 | stats b = max(a)
@@ -4009,7 +4009,7 @@ c:long
 // PropagateEmptyRelation
 inlineStatsAfterPruningAggregate2
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 
 row a = 12
 | where false
@@ -4025,7 +4025,7 @@ null      | 0
 // ReplaceStatsFilteredAggWithEval
 inlineStatsAfterPruningAggregate3
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 
 row a= 12
 | stats b = sum(a) where false
@@ -4039,7 +4039,7 @@ null   | null
 
 inlineStatsAfterPruningAggregate4
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 
 from k8s
 | stats PRezTcny = median(network.cost), `network.cost` = count(network.cost) 
@@ -4055,7 +4055,7 @@ QaoRGYyf:long
 
 inlineStatsAfterPruningAggregate5
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
 from colors,airports_web,boo*
@@ -4082,7 +4082,7 @@ null                 | 0
 
 inlineStatsAfterPruningAggregate6
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
 from d*,*
@@ -4111,7 +4111,7 @@ null             | null                            | null            | null     
 
 inlineStatsAfterPruningAggregate7
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
 from app_log* 
@@ -4138,7 +4138,7 @@ VizcTbjMnBlQ:long | wXPJguff:double
 
 inlineStatsAfterPruningAggregate8
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 
 from dense_vector,airport_city_boundaries
 | eval  kMvNZVQSH = -4048759096317256968, GzAYNHaHuIS = 4262770411405329967, EwPpQFmOPoB = "lkdgnbTrBT", `abbrev` = "LiXI" 
@@ -4159,7 +4159,7 @@ zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | Q
 
 inlineStatsAfterPruningAggregate9
 required_capability: inline_stats
-required_capability: inline_stats_after_pruning_aggregate
+required_capability: inline_stats_double_release_fix
 
 from employees
 | stats m = count(emp_no) 

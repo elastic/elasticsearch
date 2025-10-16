@@ -1491,9 +1491,9 @@ public class EsqlCapabilities {
         TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
 
         /**
-         * INLINE STATS support after aggregate pruning
+         * Fix double release in inline stats when LocalRelation is reused
          */
-        INLINE_STATS_AFTER_PRUNING_AGGREGATE,
+        INLINE_STATS_DOUBLE_RELEASE_FIX,
 
         /**
          * Fix management of plans with no columns

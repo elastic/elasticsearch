@@ -2457,9 +2457,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testTranslateMetricsGroupedByTwoDimension() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
         var plan = plannerOptimizerTimeSeries.plan(query);
-        var limit = as(plan, LimitExec.class);
+        var project = as(plan, ProjectExec.class);
+        var unpack = as(project.child(), EvalExec.class);
+        var limit = as(unpack.child(), LimitExec.class);
         var secondAgg = as(limit.child(), AggregateExec.class);
-        var finalAgg = as(secondAgg.child(), TimeSeriesAggregateExec.class);
+        var pack = as(secondAgg.child(), EvalExec.class);
+        var finalAgg = as(pack.child(), TimeSeriesAggregateExec.class);
         var sink = as(finalAgg.child(), ExchangeExec.class);
         ProjectExec projectExec = as(sink.child(), ProjectExec.class);
         EvalExec evalExec = as(projectExec.child(), EvalExec.class);

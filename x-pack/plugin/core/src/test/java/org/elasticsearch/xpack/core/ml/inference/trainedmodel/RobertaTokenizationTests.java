@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,6 +21,15 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
     private boolean lenient;
 
     public static RobertaTokenization mutateForVersion(RobertaTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_2_0)) {
+            return new RobertaTokenization(
+                instance.withSpecialTokens,
+                instance.isAddPrefixSpace(),
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
         return instance;
     }
 

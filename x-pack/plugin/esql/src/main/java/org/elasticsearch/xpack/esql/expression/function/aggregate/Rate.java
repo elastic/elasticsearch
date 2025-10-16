@@ -57,7 +57,13 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     )
 
     public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp", "****CUSTOM MESSAGE****"));
+        this(
+            source,
+            field,
+            new UnresolvedAttribute(source, "@timestamp").withCustomMessageText(
+                "Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped"
+            )
+        );
     }
 
     public Rate(

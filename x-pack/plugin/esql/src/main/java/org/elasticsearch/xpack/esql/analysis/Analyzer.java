@@ -1063,6 +1063,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+            // if we already tried and failed to resolve this attribute, don't try again
             if (ua.customMessage()) {
                 return ua;
             }
@@ -1075,7 +1076,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            List<Attribute> named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);

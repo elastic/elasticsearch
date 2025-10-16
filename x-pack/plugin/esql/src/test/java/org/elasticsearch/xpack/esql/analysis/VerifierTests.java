@@ -1176,20 +1176,27 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testFoo() {
-        query("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx)) BY tbucket = bucket(newTs, 1hour)", k8s);
-        query("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx)) BY tbucket = bucket(newTs, 1hour)", k8s);
-    }
-
     public void testRenameOrDropTimestmapWithRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))", k8s),
-            equalTo("Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+    }
+
+    public void testRenameOrDropTimestampWithTBucket() {
+        assertThat(
+            error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),
+            equalTo("1:95: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
+
+        assertThat(
+            error("TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)", k8s),
+            equalTo("1:83: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
         );
     }
 

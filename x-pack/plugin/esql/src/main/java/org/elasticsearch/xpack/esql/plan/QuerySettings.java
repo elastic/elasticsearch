@@ -140,24 +140,6 @@ public class QuerySettings {
             return parser.parse(value);
         }
 
-        @Override
-        public String toString() {
-            return "QuerySettingDef{"
-                + "name="
-                + name
-                + ", type="
-                + type
-                + ", serverlessOnly="
-                + serverlessOnly
-                + ", preview="
-                + preview
-                + ", snapshotOnly="
-                + snapshotOnly
-                + ", description="
-                + description
-                + '}';
-        }
-
         @FunctionalInterface
         public interface Validator {
             /**

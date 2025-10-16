@@ -593,3 +593,26 @@ max_cost:integer | pod:keyword | time_bucket:datetime     | max_cluster_cost:int
 1209             | three       | 2024-05-10T00:00:00.000Z | 1209                     | staging
 973              | two         | 2024-05-10T00:00:00.000Z | 1209                     | staging
 ;
+
+max_of_stddev_over_time
+required_capability: ts_command_v0
+// tag::stddev_over_time[]
+TS k8s
+| STATS max_stddev_cost=MAX(STDDEV_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+// end::stddev_over_time[]
+| SORT max_stddev_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
+// tag::stddev_over_time-result[]
+max_stddev_cost:double | cluster:keyword | time_bucket:datetime
+5.4375                 | staging         | 2024-05-10T00:03:00.000Z
+5.1875                 | staging         | 2024-05-10T00:09:00.000Z
+4.097763617714749      | qa              | 2024-05-10T00:18:00.000Z
+4.0                    | qa              | 2024-05-10T00:21:00.000Z
+3.9375                 | staging         | 2024-05-10T00:20:00.000Z
+3.9335297443898907     | prod            | 2024-05-10T00:18:00.000Z
+// end::stddev_over_time-result[]
+3.8944404818493075     | qa              | 2024-05-10T00:08:00.000Z
+3.8823854350987186     | qa              | 2024-05-10T00:17:00.000Z
+3.835597157621686      | staging         | 2024-05-10T00:13:00.000Z
+3.8125                 | staging         | 2024-05-10T00:12:00.000Z
+;

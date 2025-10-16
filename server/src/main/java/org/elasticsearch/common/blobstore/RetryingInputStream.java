@@ -82,7 +82,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
                 throw e;
-            } catch (IOException e) {
+            } catch (RuntimeException | IOException e) {
                 if (attempt == 1) {
                     blobStoreServices.onRetryStarted("open");
                 }
@@ -155,11 +155,18 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     // The method throws if the operation should *not* be retried. Otherwise, it keeps a record for the attempt and associated failure
     // and compute the delay before retry.
-    private <T extends Exception> long maybeLogAndComputeRetryDelay(String action, T e) throws T {
+    private long maybeLogAndComputeRetryDelay(String action, Exception e) throws IOException {
         if (shouldRetry(attempt) == false) {
             final var finalException = addSuppressedExceptions(e);
             logForFailure(action, finalException);
-            throw finalException;
+            switch (finalException) {
+                case RuntimeException runtimeException:
+                    throw runtimeException;
+                case IOException ioException:
+                    throw ioException;
+                default:
+                    throw new IOException("Error " + action + "blob", finalException);
+            }
         }
 
         // Log at info level for the 1st retry and then exponentially less

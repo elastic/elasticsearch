@@ -86,7 +86,7 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
                         );
                     }
                 }
-                throw new IOException("failed to get input stream for [" + blobKey + "]", e);
+                throw e;
             }
         }
 

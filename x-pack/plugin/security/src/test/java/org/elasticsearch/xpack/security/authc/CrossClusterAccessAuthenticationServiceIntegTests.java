@@ -13,6 +13,10 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -45,6 +49,8 @@ import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
@@ -53,10 +59,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.X509CertificateSignature.CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY;
@@ -286,10 +294,13 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
+            verifyAuditLogs();
             assertThat(
                 actualException.getCause().getMessage(),
                 containsString("authentication expected API key type of [" + ApiKey.Type.CROSS_CLUSTER.value() + "]")
             );
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
         try (var ignored = threadContext.stashContext()) {
@@ -346,6 +357,32 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
         }
     }
+
+    private void verifyAuditLogs() throws Exception {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            // Get Environment directly - it IS available through Guice
+            Environment env = internalCluster().getInstance(Environment.class, nodeName);
+
+            // Get cluster name from cluster service
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
+            String clusterName = clusterService.getClusterName().value();
+
+            // Build path to audit log
+            Path homePath = env.configDir().getParent();
+            Path auditLogPath = homePath.resolve("logs").resolve(clusterName + "_audit.json");
+
+            if (Files.exists(auditLogPath)) {
+                try (Stream<String> lines = Files.lines(auditLogPath)) {
+                    boolean foundAuthenticationSuccess = lines
+                        .filter(line -> line.contains("\"type\":\"authentication_failed\""))
+                        .anyMatch(line -> line.contains("cross_cluster_access"));
+
+                    assertTrue("Expected audit log entry for " + nodeName, foundAuthenticationSuccess);
+                }
+            }
+        }
+    }
+
 
     private Map<String, String> withRandomizedAdditionalSecurityHeaders(Map<String, String> headers) throws IOException {
         var map = new HashMap<>(headers);

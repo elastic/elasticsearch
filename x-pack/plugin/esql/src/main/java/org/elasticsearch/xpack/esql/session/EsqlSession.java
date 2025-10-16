@@ -906,11 +906,12 @@ public class EsqlSession {
     }
 
     private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan) {
-        if (optimizedPlan.inner().optimized() == false) {
+        LogicalPlan logicalPlan = optimizedPlan.inner();
+        if (logicalPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
-        optimizedLogicalPlanString = optimizedPlan.toString();
-        var plan = mapper.map(optimizedPlan);
+        optimizedLogicalPlanString = logicalPlan.toString();
+        PhysicalPlan plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;
     }

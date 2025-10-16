@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
 
-public abstract class ElasticInferenceServiceModel extends RateLimitGroupingModel {
+public class ElasticInferenceServiceModel extends RateLimitGroupingModel {
 
     private final ElasticInferenceServiceRateLimitServiceSettings rateLimitServiceSettings;
 

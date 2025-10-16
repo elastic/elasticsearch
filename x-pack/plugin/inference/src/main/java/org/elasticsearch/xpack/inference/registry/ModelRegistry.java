@@ -243,6 +243,19 @@ public class ModelRegistry implements ClusterStateListener {
         return existing;
     }
 
+    public Set<String> getInferenceIds() {
+        synchronized (this) {
+            if (lastMetadata == null) {
+                throw new IllegalStateException("initial cluster state not set yet");
+            }
+        }
+        var project = lastMetadata.getProject(ProjectId.DEFAULT);
+        var state = ModelRegistryMetadata.fromState(project);
+        var ids = new HashSet<>(state.getInferenceIds());
+        ids.addAll(Set.copyOf(defaultConfigIds.keySet()));
+        return ids;
+    }
+
     /**
      * Get a model with its secret settings
      * @param inferenceEntityId Model to get

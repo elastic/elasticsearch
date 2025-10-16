@@ -225,6 +225,10 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         return modelMap.get(inferenceEntityId);
     }
 
+    public Set<String> getInferenceIds() {
+        return Set.copyOf(modelMap.keySet());
+    }
+
     @Override
     public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ModelRegistryMetadataDiff((ModelRegistryMetadata) before, this);

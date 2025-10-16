@@ -627,6 +627,9 @@ tests:
 - class: org.elasticsearch.ingest.common.AppendProcessorTests
   method: testAppendValuesToNonExistingList
   issue: https://github.com/elastic/elasticsearch/issues/136662
+- class: org.elasticsearch.ingest.common.AppendProcessorTests
+  method: testConvertScalarToList
+  issue: https://github.com/elastic/elasticsearch/issues/136667
 
 # Examples:
 #

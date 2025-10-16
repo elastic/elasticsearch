@@ -181,3 +181,22 @@ emp_no:integer | position:double
 10092          | 0
 10091          | 0
 ;
+
+evalUsingScoreAndFilter
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+from employees
+| sort emp_no desc
+| eval position = score(match(job_positions, "Senior Python Developer"))
+| where position > 0 and emp_no > 10076
+| limit 10
+| keep emp_no, position
+| sort emp_no asc
+| limit 1
+;
+
+emp_no:integer | position:double
+10080          | 1.957748532295227
+;

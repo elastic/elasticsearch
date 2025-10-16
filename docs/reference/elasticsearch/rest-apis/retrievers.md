@@ -96,6 +96,7 @@ If you use the `none` normalizer, the scores across field groups will not be nor
 When using the `linear` retriever, fields can be boosted using the `^` notation:
 
 <!--
+```console
 PUT /restaurants
 {
   "mappings": {

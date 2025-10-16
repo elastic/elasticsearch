@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
 
@@ -51,8 +52,13 @@ import java.util.List;
  */
 public class Mapper {
 
-    public PhysicalPlan map(LogicalPlan p) {
+    public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        // We ignore the version for now, but it's fine to use later for plans that work
+        // differently from some version and up.
+        return mapInner(versionedPlan.inner());
+    }
 
+    private PhysicalPlan mapInner(LogicalPlan p) {
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }
@@ -81,7 +87,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapUnary(UnaryPlan unary) {
-        PhysicalPlan mappedChild = map(unary.child());
+        PhysicalPlan mappedChild = mapInner(unary.child());
 
         if (mappedChild instanceof FragmentExec) {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
@@ -168,14 +174,14 @@ public class Mapper {
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan left = map(bp.left());
+            PhysicalPlan left = mapInner(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan right = map(bp.right());
+            PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
                 return new HashJoinExec(
@@ -218,7 +224,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapFork(Fork fork) {
-        return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
+        return new MergeExec(fork.source(), fork.children().stream().map(this::mapInner).toList(), fork.output());
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 
 public final class AnalyzerTestUtils {
 
@@ -87,7 +88,7 @@ public final class AnalyzerTestUtils {
         Configuration config
     ) {
         return new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 config,
                 new EsqlFunctionRegistry(),
                 indexResolution,
@@ -105,7 +106,7 @@ public final class AnalyzerTestUtils {
 
     public static Analyzer analyzer(Verifier verifier) {
         return new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),

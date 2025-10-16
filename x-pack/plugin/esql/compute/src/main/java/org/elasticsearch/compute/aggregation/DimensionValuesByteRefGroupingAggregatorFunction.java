@@ -257,7 +257,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
                 if (groupId <= maxGroupId) {
                     outputBuilder.copyFrom(block, groupId, scratch);
                 } else {
-                    builder.appendNull();
+                    outputBuilder.appendNull();
                 }
             }
             blocks[offset] = outputBuilder.build();

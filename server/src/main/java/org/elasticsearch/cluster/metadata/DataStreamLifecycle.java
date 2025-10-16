@@ -528,12 +528,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         public static final ParseField AFTER_FIELD = new ParseField("after");
         public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
+        public static final ParseField SAMPLING_METHOD = new ParseField("sampling_method");
         public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
 
         private static final ConstructingObjectParser<DownsamplingRound, Void> PARSER = new ConstructingObjectParser<>(
             "downsampling_round",
             false,
-            (args, unused) -> new DownsamplingRound((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
+            (args, unused) -> new DownsamplingRound(
+                (TimeValue) args[0],
+                new DownsampleConfig((DateHistogramInterval) args[1], (DownsampleConfig.SamplingMethod) args[2])
+            )
         );
 
         static {
@@ -545,7 +549,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             PARSER.declareField(
                 constructorArg(),
                 p -> new DateHistogramInterval(p.text()),
-                new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
+                FIXED_INTERVAL_FIELD,
+                ObjectParser.ValueType.STRING
+            );
+            PARSER.declareField(
+                constructorArg(),
+                p -> DownsampleConfig.SamplingMethod.fromLabel(p.text()),
+                SAMPLING_METHOD,
                 ObjectParser.ValueType.STRING
             );
         }

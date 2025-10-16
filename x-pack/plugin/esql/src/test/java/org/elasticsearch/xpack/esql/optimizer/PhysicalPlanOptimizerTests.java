@@ -7868,7 +7868,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(query, data, false));
+        var plan = physicalOptimizer().optimize(physicalPlan(query, data, false));
 
         var physicalOperations = physicalOperationsFromPhysicalPlan(plan, useDataNodePlan);
 
@@ -8350,6 +8350,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlanOptimizer logicalOptimizer() {
         return testData.logicalOptimizer();
+    }
+
+    private PhysicalPlanOptimizer physicalOptimizer() {
+        return testData.physicalOptimizer();
     }
 
     private List<FieldSort> fieldSorts(List<Order> orders) {

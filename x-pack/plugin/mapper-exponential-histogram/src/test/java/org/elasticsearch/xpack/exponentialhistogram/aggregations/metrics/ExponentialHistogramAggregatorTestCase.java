@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper.EXPONENTIAL_HISTOGRAM_FEATURE;
+import static org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE;
 
 public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorTestCase {
 

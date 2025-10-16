@@ -339,11 +339,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
-                out.writeBoolean(failureStoreEffectivelyEnabled);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeBoolean(failureStoreEffectivelyEnabled);
+                }
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                out.writeOptionalWriteable(timeSeries);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+                    out.writeOptionalWriteable(timeSeries);
+                }
                 if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);

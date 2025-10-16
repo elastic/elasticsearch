@@ -87,7 +87,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
         if (in.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             this.resolvedLocally = in.readOptionalWriteable(ResolvedIndexExpressions::new);
-            this.resolvedRemotely = null;
+            this.resolvedRemotely = Collections.emptyMap();
         } else {
             this.resolvedLocally = null;
             this.resolvedRemotely = Collections.emptyMap();

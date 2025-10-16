@@ -15,7 +15,7 @@ import java.util.List;
 
 public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
     /**
-     * Returns the value of a setting, or its default value if the setting is not set.
+     * Returns the value of a setting, or the setting default value if the setting is not set.
      * If the setting name appears multiple times, this will return last occurrence.
      * <p>
      *     Use it like:
@@ -27,9 +27,28 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
      * @param settingDef the setting to retrieve
      */
     public <T> T setting(QuerySettings.QuerySettingDef<T> settingDef) {
+        return settingOrDefault(settingDef, settingDef.defaultValue());
+    }
+
+    /**
+     * Returns the value of a setting, but returns the given default value if the setting is not set.
+     * <p>
+     *     Use it like:
+     * </p>
+     * <pre><code>
+     *     var value = statement.settingOrDefault(QuerySettings.MY_SETTING, "default");
+     * </code></pre>
+     * <p>
+     *     To be used when a fallback is available.
+     * </p>
+     *
+     * @param settingDef the setting to retrieve
+     * @param defaultValue the value to return if the setting is not set
+     */
+    public <T> T settingOrDefault(QuerySettings.QuerySettingDef<T> settingDef, T defaultValue) {
         Expression expression = setting(settingDef.name());
         if (expression == null) {
-            return settingDef.defaultValue();
+            return defaultValue;
         }
         return settingDef.parse((Literal) expression);
     }

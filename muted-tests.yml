@@ -618,6 +618,15 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136493
+- class: org.elasticsearch.xpack.core.HealthApiFeatureSetUsageTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/136648
+- class: org.elasticsearch.ingest.common.AppendProcessorTests
+  method: testAppendingToNonExistingListEmptyStringAndEmptyValuesDisallowed
+  issue: https://github.com/elastic/elasticsearch/issues/136657
+- class: org.elasticsearch.ingest.common.AppendProcessorTests
+  method: testAppendValuesToNonExistingList
+  issue: https://github.com/elastic/elasticsearch/issues/136662
 
 # Examples:
 #

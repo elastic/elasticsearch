@@ -48,7 +48,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
         Set<String> ignoredFields,
         IgnoredSourceFieldMapper.IgnoredSourceFormat format
     ) {
-        return new StoredFieldsSpec(false, false, storedFields, new IgnoredFieldsSpec(ignoredFields, format));
+        return new StoredFieldsSpec(false, false, storedFields, new IgnoredFieldsSpec(ignoredFields, format), Set.of());
     }
 
     public void testEmpty() throws IOException {

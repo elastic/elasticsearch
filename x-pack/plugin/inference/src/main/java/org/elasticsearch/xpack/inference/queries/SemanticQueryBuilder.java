@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -277,62 +276,17 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * Get inference results for the provided query using the provided fully qualified inference IDs.
      * </p>
      * <p>
-     * This method will return an inference results map that will be asynchronously populated with inference results. If the provided
-     * inference results map already contains all required inference results, the same map instance will be returned. Otherwise, a new map
-     * instance will be returned. It is guaranteed that a non-null map instance will be returned.
+     * This method will return an inference results map supplier that will provide a complete map of additional inference results required.
+     * If the provided inference results map already contains all required inference results, a null supplier will be returned.
      * </p>
      *
      * @param queryRewriteContext The query rewrite context
      * @param fullyQualifiedInferenceIds The fully qualified inference IDs to use to generate inference results
      * @param inferenceResultsMap The initial inference results map
      * @param query The query to generate inference results for
-     * @return An inference results map
+     * @return An inference results map supplier
      */
-    static Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults(
-        QueryRewriteContext queryRewriteContext,
-        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
-        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        @Nullable String query
-    ) {
-        boolean modifiedInferenceResultsMap = false;
-        Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
-            ? inferenceResultsMap
-            : Map.of();
-
-        if (query != null) {
-            for (FullyQualifiedInferenceId fullyQualifiedInferenceId : fullyQualifiedInferenceIds) {
-                if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
-                    if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
-                        // Catch if we are missing inference results that should have been generated on another cluster
-                        throw new IllegalStateException(
-                            "Cannot get inference results for inference endpoint ["
-                                + fullyQualifiedInferenceId
-                                + "] on cluster ["
-                                + queryRewriteContext.getLocalClusterAlias()
-                                + "]"
-                        );
-                    }
-
-                    if (modifiedInferenceResultsMap == false) {
-                        // Copy the inference results map to ensure it is mutable and thread safe
-                        currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
-                        modifiedInferenceResultsMap = true;
-                    }
-
-                    registerInferenceAsyncAction(
-                        queryRewriteContext,
-                        ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
-                        query,
-                        fullyQualifiedInferenceId.inferenceId()
-                    );
-                }
-            }
-        }
-
-        return currentInferenceResultsMap;
-    }
-
-    static Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResultsNew(
+    static Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
@@ -380,42 +334,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         return mergedInferenceResultsMap;
-    }
-
-    static void registerInferenceAsyncAction(
-        QueryRewriteContext queryRewriteContext,
-        ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        String query,
-        String inferenceId
-    ) {
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.ANY,
-            inferenceId,
-            null,
-            null,
-            null,
-            List.of(query),
-            Map.of(),
-            InputType.INTERNAL_SEARCH,
-            null,
-            false
-        );
-
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                inferenceRequest,
-                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                    inferenceResultsMap.put(
-                        new FullyQualifiedInferenceId(queryRewriteContext.getLocalClusterAlias(), inferenceId),
-                        validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId)
-                    );
-                    l.onResponse(null);
-                })
-            )
-        );
     }
 
     static void registerInferenceAsyncActions(
@@ -616,7 +534,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             queryRewriteContext.getLocalClusterAlias(),
             fieldName
         );
-        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResultsNew(
+        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
             queryRewriteContext,
             fullyQualifiedInferenceIds,
             inferenceResultsMap,

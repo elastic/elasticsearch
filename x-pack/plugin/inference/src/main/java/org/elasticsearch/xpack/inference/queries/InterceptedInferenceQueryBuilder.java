@@ -43,7 +43,7 @@ import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
-import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getInferenceResultsNew;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getInferenceResults;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.mergeInferenceResultsMaps;
 
 /**
@@ -363,7 +363,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResultsNew(
+        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
             queryRewriteContext,
             inferenceIds,
             inferenceResultsMap,

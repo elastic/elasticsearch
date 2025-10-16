@@ -294,7 +294,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
                 switch (metricType) {
                     case COUNTER -> assertThat(fieldMapping.get("type"), equalTo("double"));
                     case GAUGE -> {
-                        if (config.getSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                        if (config.getEffectiveSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
                             assertThat(fieldMapping.get("type"), equalTo("double"));
                         } else {
                             assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));

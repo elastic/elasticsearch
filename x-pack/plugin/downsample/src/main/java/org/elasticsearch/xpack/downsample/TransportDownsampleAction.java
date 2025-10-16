@@ -340,7 +340,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
 
             // Validate downsampling interval
-            validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
+            validateDownsamplingConfiguration(mapperService, sourceIndexMetadata, request.getDownsampleConfig());
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
@@ -747,7 +747,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final XContentBuilder builder
     ) {
         // The last value sampling method preserves the source mapping so there are no overwrites.
-        if (config.getSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+        if (config.getEffectiveSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
             return;
         }
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
@@ -852,7 +852,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.endObject();
     }
 
-    private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
+    private static void validateDownsamplingConfiguration(
+        MapperService mapperService,
+        IndexMetadata sourceIndexMetadata,
+        DownsampleConfig config
+    ) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
         ActionRequestValidationException e = new ActionRequestValidationException();
@@ -860,11 +864,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {
             String interval = meta.get(config.getIntervalType());
-            DownsampleConfig.SamplingMethod samplingMethod = DownsampleConfig.SamplingMethod.fromLabel(
-                meta.get(DownsampleConfig.SAMPLING_METHOD)
-            );
             if (interval != null) {
                 try {
+                    DownsampleConfig.SamplingMethod samplingMethod = DownsampleConfig.SamplingMethod.fromLabel(
+                        sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD_KEY)
+                    );
                     DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), samplingMethod);
                     DownsampleConfig.validateSourceAndTargetConfiguration(sourceConfig, config);
                 } catch (IllegalArgumentException exception) {
@@ -987,9 +991,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
             );
-        if (request.getDownsampleConfig().getSamplingMethod() != null) {
-            builder.put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getSamplingMethod().label());
-        }
+        // We explicitly store the sampling method used when downsampling.
+        builder.put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getEffectiveSamplingMethod().label());
         if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
             builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
         }

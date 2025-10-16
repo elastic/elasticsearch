@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -136,7 +137,8 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
      * already downsampled from the source configuration. The requirements are:
      * - The target interval needs to be greater than the source interval
      * - The target interval needs to be a multiple of the source interval
-     * throws an IllegalArgumentException to signal that the target interval is not acceptable
+     * - The target sampling method needs to be the same as the source sampling method
+     * throws an IllegalArgumentException to signal that the target configuration is not acceptable
      */
     public static void validateSourceAndTargetConfiguration(DownsampleConfig source, DownsampleConfig target) {
         long sourceMillis = source.fixedInterval.estimateMillis();
@@ -161,14 +163,12 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             );
         }
         // Ensure that the source and target sampling method are effectively the same.
-        var sourceEffectiveSamplingLabel = SamplingMethod.getEffectiveLabel(source.samplingMethod);
-        var targetEffectiveSamplingLabel = SamplingMethod.getEffectiveLabel(target.samplingMethod);
-        if (Objects.equals(sourceEffectiveSamplingLabel, targetEffectiveSamplingLabel) == false) {
+        if (Objects.equals(source.getEffectiveSamplingMethod(), target.getEffectiveSamplingMethod()) == false) {
             throw new IllegalArgumentException(
                 "Downsampling method ["
-                    + targetEffectiveSamplingLabel
+                    + target.getEffectiveSamplingMethod().label()
                     + "] is not compatible with the source index downsampling method ["
-                    + sourceEffectiveSamplingLabel
+                    + source.getEffectiveSamplingMethod().label()
                     + "]."
             );
         }
@@ -225,8 +225,19 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         return createRounding(fixedInterval.toString(), timeZone);
     }
 
+    /**
+     * @return the user configured sampling method
+     */
+    @Nullable
     public SamplingMethod getSamplingMethod() {
         return samplingMethod;
+    }
+
+    /**
+     * @return the sampling method that will be used based on this configuration.
+     */
+    public SamplingMethod getEffectiveSamplingMethod() {
+        return SamplingMethod.getEffective(samplingMethod);
     }
 
     @Override
@@ -335,12 +346,22 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             return label;
         }
 
+        byte id() {
+            return id;
+        }
+
         public static SamplingMethod read(StreamInput in) throws IOException {
             var id = in.readByte();
             return switch (id) {
                 case 0 -> AGGREGATE;
                 case 1 -> LAST_VALUE;
-                default -> throw new IllegalArgumentException("Unknown sampling method id [" + id + "]");
+                default -> throw new IllegalArgumentException(
+                    "Sampling method id ["
+                        + id
+                        + "] is not one of the accepted ids "
+                        + Arrays.stream(values()).map(SamplingMethod::id).toList()
+                        + "."
+                );
             };
         }
 
@@ -352,12 +373,22 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             return switch (label.toLowerCase(Locale.ROOT)) {
                 case "aggregate" -> AGGREGATE;
                 case "last_value" -> LAST_VALUE;
-                default -> throw new IllegalArgumentException("Unknown sampling method label [" + label + "]");
+                default -> throw new IllegalArgumentException(
+                    "Sampling method ["
+                        + label
+                        + "] is not one of the accepted methods "
+                        + Arrays.stream(values()).map(SamplingMethod::label).toList()
+                        + "."
+                );
             };
         }
 
-        public static String getEffectiveLabel(@Nullable SamplingMethod samplingMethod) {
-            return samplingMethod == null ? SamplingMethod.AGGREGATE.label : samplingMethod.label;
+        /**
+         * @return the sampling method that will be used based on this configuration. Default to {@link SamplingMethod#AGGREGATE}
+         * when the provided sampling method is null.
+         */
+        public static SamplingMethod getEffective(@Nullable SamplingMethod samplingMethod) {
+            return samplingMethod == null ? SamplingMethod.AGGREGATE : samplingMethod;
         }
 
         @Override

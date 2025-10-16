@@ -487,6 +487,8 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         Boolean hotForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
         Boolean warmForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
         Boolean coldForceMergeEnabled = randomBoolean() ? randomBoolean() : null;
+        DownsampleConfig.SamplingMethod samplingMethod1 = randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.values());
+        DownsampleConfig.SamplingMethod samplingMethod2 = randomBoolean() ? null : randomFrom(DownsampleConfig.SamplingMethod.values());
         List<LifecyclePolicy> policies = List.of(
             new LifecyclePolicy(
                 DOWNSAMPLING_IN_HOT_POLICY,
@@ -497,12 +499,7 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                         TimeValue.ZERO,
                         Map.of(
                             "downsample",
-                            new DownsampleAction(
-                                DateHistogramInterval.MINUTE,
-                                null,
-                                hotForceMergeEnabled,
-                                DownsampleConfig.SamplingMethod.AGGREGATE
-                            )
+                            new DownsampleAction(DateHistogramInterval.MINUTE, null, hotForceMergeEnabled, samplingMethod1)
                         )
                     )
                 )
@@ -514,29 +511,13 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
                     new Phase(
                         "warm",
                         TimeValue.ZERO,
-                        Map.of(
-                            "downsample",
-                            new DownsampleAction(
-                                DateHistogramInterval.HOUR,
-                                null,
-                                warmForceMergeEnabled,
-                                DownsampleConfig.SamplingMethod.LAST_VALUE
-                            )
-                        )
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.HOUR, null, warmForceMergeEnabled, samplingMethod2))
                     ),
                     "cold",
                     new Phase(
                         "cold",
                         TimeValue.timeValueDays(3),
-                        Map.of(
-                            "downsample",
-                            new DownsampleAction(
-                                DateHistogramInterval.DAY,
-                                null,
-                                coldForceMergeEnabled,
-                                DownsampleConfig.SamplingMethod.LAST_VALUE
-                            )
-                        )
+                        Map.of("downsample", new DownsampleAction(DateHistogramInterval.DAY, null, coldForceMergeEnabled, samplingMethod2))
                     )
                 )
             ),

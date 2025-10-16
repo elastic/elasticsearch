@@ -472,17 +472,21 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         + "]"
                 );
             }
-            var firstEffectiveSamplingLabel = DownsampleConfig.SamplingMethod.getEffectiveLabel(firstDownsample.v2().samplingMethod());
-            var secondEffectiveSamplingLabel = DownsampleConfig.SamplingMethod.getEffectiveLabel(secondDownsample.v2().samplingMethod());
-            if (Objects.equals(firstEffectiveSamplingLabel, secondEffectiveSamplingLabel) == false) {
-                // Downsampling interval must be a multiple of the source interval
+            DownsampleConfig.SamplingMethod firstEffectiveSamplingMethod = DownsampleConfig.SamplingMethod.getEffective(
+                firstDownsample.v2().samplingMethod()
+            );
+            DownsampleConfig.SamplingMethod secondEffectiveSamplingMethod = DownsampleConfig.SamplingMethod.getEffective(
+                secondDownsample.v2().samplingMethod()
+            );
+            // Downsampling methods need to be the same in all phases
+            if (Objects.equals(firstEffectiveSamplingMethod, secondEffectiveSamplingMethod) == false) {
                 throw new IllegalArgumentException(
                     "Downsampling method ["
-                        + secondEffectiveSamplingLabel
+                        + secondEffectiveSamplingMethod.label()
                         + "] for phase ["
                         + secondDownsample.v1()
                         + "] must be compatible with the method ["
-                        + firstEffectiveSamplingLabel
+                        + firstEffectiveSamplingMethod.label()
                         + "] for phase ["
                         + firstDownsample.v1()
                         + "]"

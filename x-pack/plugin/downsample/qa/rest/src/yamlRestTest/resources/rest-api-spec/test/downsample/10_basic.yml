@@ -1017,7 +1017,7 @@ setup:
   - do:
       catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
       indices.downsample:
-        index: test-downsample
+        index: test-downsample-last-value
         target_index: test-downsample-2
         body: >
           {

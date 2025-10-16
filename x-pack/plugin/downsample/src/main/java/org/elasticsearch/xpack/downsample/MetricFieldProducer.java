@@ -41,9 +41,10 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     public static MetricFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
-        return samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE
-            ? new MetricFieldProducer.LastValueMetricFieldProducer(name)
-            : new AggregateMetricFieldProducer(name);
+        return switch (samplingMethod) {
+            case AGGREGATE -> new AggregateMetricFieldProducer(name);
+            case LAST_VALUE -> new MetricFieldProducer.LastValueMetricFieldProducer(name);
+        };
     }
 
     /**

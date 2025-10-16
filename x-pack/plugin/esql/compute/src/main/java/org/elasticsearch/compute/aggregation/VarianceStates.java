@@ -24,8 +24,8 @@ public final class VarianceStates {
 
         private final WelfordAlgorithm welfordAlgorithm;
 
-        SingleState() {
-            this(0, 0, 0, true);
+        SingleState(boolean stdDev) {
+            this(0, 0, 0, stdDev);
         }
 
         SingleState(double mean, double m2, long count, boolean stdDev) {

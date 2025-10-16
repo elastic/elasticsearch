@@ -39,16 +39,19 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
+  private final boolean stdDev;
+
   public StdDevFloatGroupingAggregatorFunction(List<Integer> channels,
-                                               VarianceStates.GroupingState state, DriverContext driverContext) {
+      VarianceStates.GroupingState state, DriverContext driverContext, boolean stdDev) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.stdDev = stdDev;
   }
 
   public static StdDevFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new StdDevFloatGroupingAggregatorFunction(channels, StdDevFloatAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      DriverContext driverContext, boolean stdDev) {
+    return new StdDevFloatGroupingAggregatorFunction(channels, StdDevFloatAggregator.initGrouping(driverContext.bigArrays(), stdDev), driverContext, stdDev);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

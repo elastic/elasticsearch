@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -32,32 +31,23 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class StdDev extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
+public class StdVar extends AggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdVar", StdVar::new);
 
     @FunctionInfo(
         returnType = "double",
-        description = "The population standard deviation of a numeric field.",
-        type = FunctionType.AGGREGATE,
-        examples = {
-            @Example(file = "stats", tag = "stdev"),
-            @Example(
-                description = "The expression can use inline functions. For example, to calculate the population standard "
-                    + "deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, "
-                    + "and then use `STD_DEV` on the result",
-                file = "stats",
-                tag = "docsStatsStdDevNestedExpression"
-            ) }
+        description = "The population standard variance of a numeric field.",
+        type = FunctionType.AGGREGATE
     )
-    public StdDev(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    public StdVar(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         this(source, field, Literal.TRUE);
     }
 
-    public StdDev(Source source, Expression field, Expression filter) {
+    public StdVar(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 
-    private StdDev(StreamInput in) throws IOException {
+    private StdVar(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -83,30 +73,30 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected NodeInfo<StdDev> info() {
-        return NodeInfo.create(this, StdDev::new, field(), filter());
+    protected NodeInfo<StdVar> info() {
+        return NodeInfo.create(this, StdVar::new, field(), filter());
     }
 
     @Override
-    public StdDev replaceChildren(List<Expression> newChildren) {
-        return new StdDev(source(), newChildren.get(0), newChildren.get(1));
+    public StdVar replaceChildren(List<Expression> newChildren) {
+        return new StdVar(source(), newChildren.get(0), newChildren.get(1));
     }
 
-    public StdDev withFilter(Expression filter) {
-        return new StdDev(source(), field(), filter);
+    public StdVar withFilter(Expression filter) {
+        return new StdVar(source(), field(), filter);
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(true);
+            return new StdDevLongAggregatorFunctionSupplier(false);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(true);
+            return new StdDevIntAggregatorFunctionSupplier(false);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(true);
+            return new StdDevDoubleAggregatorFunctionSupplier(false);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

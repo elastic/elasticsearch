@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -31,21 +30,16 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
-import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -271,29 +265,6 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     protected static String[] convertToArray(List<IndexWithBoost> indices) {
         return indices.stream().map(IndexWithBoost::index).toArray(String[]::new);
-    }
-
-    public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
-
-        @Override
-        public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
-            return List.of(
-                new QueryVectorBuilderSpec<>(
-                    TextEmbeddingQueryVectorBuilder.NAME,
-                    TextEmbeddingQueryVectorBuilder::new,
-                    TextEmbeddingQueryVectorBuilder.PARSER
-                )
-            );
-        }
-
-        @Override
-        public Collection<ActionHandler> getActions() {
-            return List.of(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
-        }
     }
 
     protected record TestIndexInfo(

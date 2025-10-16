@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -17,17 +16,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
@@ -149,23 +146,5 @@ public class SemanticQueryInferenceIT extends ESIntegTestCase {
             case TEXT_EMBEDDING -> TEXT_EMBEDDING_SERVICE_SETTINGS;
             default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
         };
-    }
-
-    public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
-
-        @Override
-        public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
-            return List.of(
-                new QueryVectorBuilderSpec<>(
-                    TextEmbeddingQueryVectorBuilder.NAME,
-                    TextEmbeddingQueryVectorBuilder::new,
-                    TextEmbeddingQueryVectorBuilder.PARSER
-                )
-            );
-        }
     }
 }

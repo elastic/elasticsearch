@@ -14,10 +14,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -167,9 +165,11 @@ public class BytesRefArrayTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        try (BytesRefArray bytes1 = randomArray(between(1, 50_000), between(10, 50_000), mockBigArrays());
-             BytesRefArray bytes2 = BytesRefArray.deepCopy(bytes1);
-             BytesRefArray bytes3 = BytesRefArray.deepCopy(bytes2)) {
+        try (
+            BytesRefArray bytes1 = randomArray(between(1, 50_000), between(10, 50_000), mockBigArrays());
+            BytesRefArray bytes2 = BytesRefArray.deepCopy(bytes1);
+            BytesRefArray bytes3 = BytesRefArray.deepCopy(bytes2)
+        ) {
             assertEquality(bytes1, bytes2);
             assertEquality(bytes1, bytes3);
         }

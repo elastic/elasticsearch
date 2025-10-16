@@ -725,6 +725,17 @@ public class ModelRegistry implements ClusterStateListener {
         ActionListener<List<ModelStoreResponse>> listener,
         TimeValue timeout
     ) {
+        var cleanupListener = listener.<List<StoreResponseWithIndexInfo>>delegateFailureAndWrap((delegate, responses) -> {
+            var inferenceIdsToBeRemoved = responses.stream()
+                .filter(r -> r.modifiedIndex() && r.modelStoreResponse().failed())
+                .map(r -> r.modelStoreResponse().inferenceId())
+                .collect(Collectors.toSet());
+
+            var storageResponses = responses.stream().map(StoreResponseWithIndexInfo::modelStoreResponse).toList();
+
+            deleteModels(inferenceIdsToBeRemoved, ActionListener.running(() -> delegate.onResponse(storageResponses)));
+        });
+
         return ActionListener.wrap(bulkItemResponses -> {
             var docIdToInferenceId = models.stream()
                 .collect(Collectors.toMap(m -> Model.documentId(m.getInferenceEntityId()), Model::getInferenceEntityId, (id1, id2) -> {
@@ -753,11 +764,11 @@ public class ModelRegistry implements ClusterStateListener {
             if (updateClusterState) {
                 updateClusterState(
                     responseInfo.successfullyStoredModels(),
-                    listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.responses())),
+                    cleanupListener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(responseInfo.responses())),
                     timeout
                 );
             } else {
-                listener.onResponse(responseInfo.responses());
+                cleanupListener.onResponse(responseInfo.responses());
             }
         }, e -> {
             String errorMessage = format(
@@ -769,14 +780,17 @@ public class ModelRegistry implements ClusterStateListener {
         });
     }
 
-    private record ResponseInfo(List<ModelStoreResponse> responses, List<Model> successfullyStoredModels) {}
+    private record StoreResponseWithIndexInfo(ModelStoreResponse modelStoreResponse, boolean modifiedIndex) {}
+
+    private record ResponseInfo(List<StoreResponseWithIndexInfo> responses, List<Model> successfullyStoredModels) {
+    }
 
     private static ResponseInfo getResponseInfo(
         BulkResponse bulkResponse,
         Map<String, String> docIdToInferenceId,
         Map<String, Model> inferenceIdToModel
     ) {
-        var responses = new ArrayList<ModelStoreResponse>();
+        var responses = new ArrayList<StoreResponseWithIndexInfo>();
         var successfullyStoredModels = new ArrayList<Model>();
 
         var bulkItems = bulkResponse.getItems();
@@ -787,9 +801,21 @@ public class ModelRegistry implements ClusterStateListener {
 
             if (i + 1 >= bulkResponse.getItems().length) {
                 logger.error("Expected an even number of bulk response items, got [{}]", bulkResponse.getItems().length);
-                responses.add(configStoreResponse);
-                if (configStoreResponse.failed() == false && modelFromBulkItem != null) {
-                    successfullyStoredModels.add(modelFromBulkItem);
+
+                if (configStoreResponse.failed()) {
+                    responses.add(new StoreResponseWithIndexInfo(configStoreResponse, false));
+                } else {
+                    // if we didn't get the last item for some reason, assume it is a failure
+                    responses.add(
+                        new StoreResponseWithIndexInfo(
+                            new ModelStoreResponse(
+                                configStoreResponse.inferenceId(),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                new IllegalStateException("Failed to receive part of bulk response")
+                            ),
+                            true
+                        )
+                    );
                 }
                 return new ResponseInfo(responses, successfullyStoredModels);
             }
@@ -798,11 +824,12 @@ public class ModelRegistry implements ClusterStateListener {
             var secretsStoreResponse = createModelStoreResponse(secretsItem, docIdToInferenceId);
 
             if (configStoreResponse.failed()) {
-                responses.add(configStoreResponse);
+                responses.add(new StoreResponseWithIndexInfo(configStoreResponse, secretsStoreResponse.failed() == false));
             } else if (secretsStoreResponse.failed()) {
-                responses.add(secretsStoreResponse);
+                // if we got here that means the configuration store bulk item succeeded, so we did modify an index
+                responses.add(new StoreResponseWithIndexInfo(secretsStoreResponse, true));
             } else {
-                responses.add(configStoreResponse);
+                responses.add(new StoreResponseWithIndexInfo(configStoreResponse, true));
                 if (modelFromBulkItem != null) {
                     successfullyStoredModels.add(modelFromBulkItem);
                 }

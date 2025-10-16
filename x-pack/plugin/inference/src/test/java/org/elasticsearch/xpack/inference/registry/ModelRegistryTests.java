@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -237,6 +235,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
 
         assertModelAndMinimalSettingsWithSecrets(registry, model1, secrets);
+        assertIndicesContainExpectedDocsCount(model1, 2);
     }
 
     public void testStoreModels_FailsToStoreModel_WhenInferenceIndexDocumentAlreadyExists() {
@@ -251,7 +250,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             new TestModel.TestSecretSettings(secrets)
         );
 
-        storeCorruptedModel(model1);
+        storeCorruptedModel(model1, false);
 
         PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
         registry.storeModels(List.of(model1), storeListener, TimeValue.THIRTY_SECONDS);
@@ -266,34 +265,6 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         assertNotNull(cause);
         assertThat(cause, instanceOf(VersionConflictEngineException.class));
         assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
-    }
-
-    private void storeCorruptedModel(Model model) {
-        var bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-        bulkRequestBuilder.add(
-            ModelRegistry.createIndexRequestBuilder(
-                model.getInferenceEntityId(),
-                InferenceIndex.INDEX_NAME,
-                model.getConfigurations(),
-                false,
-                client()
-            )
-        );
-
-        var listener = new PlainActionFuture<BulkResponse>();
-        bulkRequestBuilder.execute(listener);
-
-        var bulkResponse = listener.actionGet(TIMEOUT);
-        if (bulkResponse.hasFailures()) {
-            fail(
-                Strings.format(
-                    "Failed to store model inference id: %s, for test. Error: %s",
-                    model.getInferenceEntityId(),
-                    bulkResponse.buildFailureMessage()
-                )
-            );
-        }
     }
 
     public void testGetModelNoSecrets() {
@@ -325,7 +296,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         assertStoreModel(registry, model);
     }
 
-    public void testStoreModel_ThrowsResourceAlreadyExistsException_WhenFailureIsAVersionConflict() {
+    public void testStoreModel_ThrowsException_WhenFailureIsAVersionConflict() {
         var model = TestModel.createRandomInstance();
         assertStoreModel(registry, model);
 
@@ -462,8 +433,9 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         PlainActionFuture<Boolean> secondStoreListener = new PlainActionFuture<>();
         registry.storeModel(model, secondStoreListener, TimeValue.THIRTY_SECONDS);
 
-        expectThrows(ResourceAlreadyExistsException.class, () -> secondStoreListener.actionGet(TimeValue.THIRTY_SECONDS));
-
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> secondStoreListener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(exception.getMessage(), containsString("already exists"));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         assertIndicesContainExpectedDocsCount(model, 2);
     }
 
@@ -484,7 +456,9 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
         registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
 
-        expectThrows(ResourceAlreadyExistsException.class, () -> storeListener.actionGet(TimeValue.THIRTY_SECONDS));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> storeListener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(exception.getMessage(), containsString("already exists"));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
 
         assertIndicesContainExpectedDocsCount(model, 0);
     }

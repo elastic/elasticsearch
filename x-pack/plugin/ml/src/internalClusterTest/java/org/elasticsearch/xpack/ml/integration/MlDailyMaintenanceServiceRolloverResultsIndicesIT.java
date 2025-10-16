@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -19,10 +19,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
-
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.util.List;
@@ -34,8 +34,6 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-
-import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlIntegTestCase {
@@ -160,15 +158,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         assertIndicesAndAliases(
             "After second job creation",
             indexWildcard,
-            Map.of(
-                firstIndexName,
-                List.of(
-                    writeAlias(firstJobId),
-                    readAlias(firstJobId),
-                    writeAlias(secondJobId),
-                    readAlias(secondJobId)
-                )
-            )
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId)))
         );
 
         // 4. Trigger the second rollover attempt
@@ -176,18 +166,9 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         assertIndicesAndAliases(
             "After second job creation",
             indexWildcard,
-            Map.of(
-                firstIndexName,
-                List.of(
-                    writeAlias(firstJobId),
-                    readAlias(firstJobId),
-                    writeAlias(secondJobId),
-                    readAlias(secondJobId)
-                )
-            )
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId)))
         );
     }
-
 
     private void runTestScenario(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();
@@ -210,12 +191,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         assertIndicesAndAliases(
             "After first rollover",
             indexWildcard,
-            Map.of(
-                firstIndexName,
-                List.of(readAlias(firstJobId)),
-                secondIndexName,
-                List.of(writeAlias(firstJobId), readAlias(firstJobId))
-            )
+            Map.of(firstIndexName, List.of(readAlias(firstJobId)), secondIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
         );
 
         // 3. Create the second job, which adds its aliases to the current write index
@@ -300,4 +276,3 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 }
-

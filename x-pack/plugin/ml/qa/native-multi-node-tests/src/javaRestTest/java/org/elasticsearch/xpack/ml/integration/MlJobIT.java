@@ -92,8 +92,9 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(
             aliasesResponseAsString,
             containsString(
-                "\".ml-anomalies-shared-000001\":{\"aliases\":" +
-                    "{\".ml-anomalies-.write-given-farequote-config-job\":{\"is_hidden\":true},\".ml-anomalies-given-farequote-config-job\""
+                "\".ml-anomalies-shared-000001\":{\"aliases\":"
+                    + "{\".ml-anomalies-.write-given-farequote-config-job\":"
+                    + "{\"is_hidden\":true},\".ml-anomalies-given-farequote-config-job\""
             )
         );
     }
@@ -362,7 +363,7 @@ public class MlJobIT extends ESRestTestCase {
         );
     }
 
-    // The same as testCreateJobsWithIndexNameOption but we don't supply the  "-000001" suffix to the index name supplied in the job config
+    // The same as testCreateJobsWithIndexNameOption but we don't supply the "-000001" suffix to the index name supplied in the job config
     // We test that the final index name does indeed have the suffix.
     public void testCreateJobsWithIndexNameNo6DigitSuffixOption() throws Exception {
         String jobTemplate = """
@@ -387,7 +388,7 @@ public class MlJobIT extends ESRestTestCase {
             try {
                 String aliasesResponse = getAliases();
                 assertThat(aliasesResponse, containsString(Strings.format("""
-                    "%s":{"aliases":{""", AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName+"-000001"))));
+                    "%s":{"aliases":{""", AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName + "-000001"))));
                 assertThat(
                     aliasesResponse,
                     containsString(
@@ -420,7 +421,7 @@ public class MlJobIT extends ESRestTestCase {
         });
 
         String responseAsString = getMlResultsIndices();
-        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName+"-000001"));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
@@ -485,13 +486,13 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))); // job2 still exists
 
         responseAsString = getMlResultsIndices();
-        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName+"-000001"));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"));
 
         refreshAllIndices();
 
         responseAsString = EntityUtils.toString(
             client().performRequest(
-                new Request("GET", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName+"-000001" + "/_count")
+                new Request("GET", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001" + "/_count")
             ).getEntity()
         );
         assertThat(responseAsString, containsString("\"count\":2"));
@@ -508,7 +509,6 @@ public class MlJobIT extends ESRestTestCase {
             not(containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "-000001"))
         );
     }
-
 
     public void testCreateJobInSharedIndexUpdatesMapping() throws Exception {
         String jobTemplate = """

@@ -243,6 +243,7 @@ PUT idx/_doc/1
   ]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -254,5 +255,5 @@ Will become:
    ]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

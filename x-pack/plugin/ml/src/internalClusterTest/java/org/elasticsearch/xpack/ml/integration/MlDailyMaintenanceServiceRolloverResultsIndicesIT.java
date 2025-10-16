@@ -20,12 +20,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -62,10 +63,6 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
             true,
             true
         );
-
-        // replace the default set of conditions with an empty set so we can roll the index unconditionally
-        // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
-        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
     }
 
     private void initClusterAndJob() {
@@ -76,6 +73,9 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     public void testTriggerRollResultsIndicesIfNecessaryTask_givenNoIndices() throws Exception {
         // The null case, nothing to do.
 
+        // replace the default set of conditions with an empty set so we can roll the index unconditionally
+        // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
+        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
         {
             GetIndexResponse getIndexResponse = client().admin()
                 .indices()
@@ -103,7 +103,23 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         }
     }
 
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenUnmetConditions() throws Exception {
+        // Create jobs that will use the default results indices - ".ml-anomalies-shared-*"
+        Job.Builder[] jobs_with_default_index = { createJob("job_using_default_index"), createJob("another_job_using_default_index") };
+
+        // Create jobs that will use custom results indices - ".ml-anomalies-custom-fred-*"
+        Job.Builder[] jobs_with_custom_index = {
+            createJob("job_using_custom_index").setResultsIndexName("fred"),
+            createJob("another_job_using_custom_index").setResultsIndexName("fred") };
+
+        runTestScenarioWithUnmetConditions(jobs_with_default_index, "shared");
+        runTestScenarioWithUnmetConditions(jobs_with_custom_index, "custom-fred");
+    }
+
     public void testTriggerRollResultsIndicesIfNecessaryTask() throws Exception {
+        // replace the default set of conditions with an empty set so we can roll the index unconditionally
+        // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
+        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
 
         // Create jobs that will use the default results indices - ".ml-anomalies-shared-*"
         Job.Builder[] jobs_with_default_index = { createJob("job_using_default_index"), createJob("another_job_using_default_index") };
@@ -113,207 +129,156 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
             createJob("job_using_custom_index").setResultsIndexName("fred"),
             createJob("another_job_using_custom_index").setResultsIndexName("fred") };
 
-        Job.Builder[][] job_lists = { jobs_with_default_index, jobs_with_custom_index };
+        runTestScenario(jobs_with_default_index, "shared");
+        runTestScenario(jobs_with_custom_index, "custom-fred");
+    }
 
-        for (Job.Builder[] job_list : job_lists) {
-            putJob(job_list[0]);
-            String jobId = job_list[0].getId();
-            String index = (jobId.contains("job_using_custom_index")) ? "custom-fred" : "shared";
-            {
-                GetIndexResponse getIndexResponse = client().admin()
-                    .indices()
-                    .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                    .setIndices(".ml-anomalies-" + index + "*")
-                    .get();
-                logger.warn("get_index_response: {}", getIndexResponse.toString());
-                assertThat(getIndexResponse.getIndices().length, is(1));
-                var aliases = getIndexResponse.getAliases();
-                assertThat(aliases.size(), is(1));
+    private void runTestScenarioWithUnmetConditions(Job.Builder[] jobs, String indexNamePart) throws Exception {
+        String firstJobId = jobs[0].getId();
+        String secondJobId = jobs[1].getId();
+        String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "*";
+        String firstIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000001";
 
-                StringBuilder sb = new StringBuilder("Before Rollover. Aliases found:\n");
+        // 1. Create the first job, which creates the first index and aliases
+        putJob(jobs[0]);
+        assertIndicesAndAliases(
+            "Before first rollover attempt",
+            indexWildcard,
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+        );
 
-                List<AliasMetadata> aliasMetadata = aliases.get(".ml-anomalies-" + index + "-000001");
+        // 2. Trigger the first rollover attempt
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+        assertIndicesAndAliases(
+            "After first rollover attempt",
+            indexWildcard,
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+        );
 
-                assertThat(aliasMetadata.size(), is(2));
+        // 3. Create the second job, which adds its aliases to the current write index
+        putJob(jobs[1]);
+        assertIndicesAndAliases(
+            "After second job creation",
+            indexWildcard,
+            Map.of(
+                firstIndexName,
+                List.of(
+                    writeAlias(firstJobId),
+                    readAlias(firstJobId),
+                    writeAlias(secondJobId),
+                    readAlias(secondJobId)
+                )
+            )
+        );
 
-                List<String> aliasesList = new ArrayList<>(aliasMetadata.stream().map(AliasMetadata::alias).toList());
+        // 4. Trigger the second rollover attempt
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+        assertIndicesAndAliases(
+            "After second job creation",
+            indexWildcard,
+            Map.of(
+                firstIndexName,
+                List.of(
+                    writeAlias(firstJobId),
+                    readAlias(firstJobId),
+                    writeAlias(secondJobId),
+                    readAlias(secondJobId)
+                )
+            )
+        );
+    }
 
-                assertThat(aliasesList, containsInAnyOrder(".ml-anomalies-.write-" + jobId, ".ml-anomalies-" + jobId));
 
-                sb.append("  Index [").append(".ml-anomalies-shared-000001").append("]: ").append(aliasesList).append("\n");
+    private void runTestScenario(Job.Builder[] jobs, String indexNamePart) throws Exception {
+        String firstJobId = jobs[0].getId();
+        String secondJobId = jobs[1].getId();
+        String indexWildcard = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "*";
+        String firstIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000001";
+        String secondIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000002";
+        String thirdIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + indexNamePart + "-000003";
 
-                logger.warn(sb.toString().trim());
-            }
+        // 1. Create the first job, which creates the first index and aliases
+        putJob(jobs[0]);
+        assertIndicesAndAliases(
+            "Before first rollover",
+            indexWildcard,
+            Map.of(firstIndexName, List.of(writeAlias(firstJobId), readAlias(firstJobId)))
+        );
 
-            blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+        // 2. Trigger the first rollover
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+        assertIndicesAndAliases(
+            "After first rollover",
+            indexWildcard,
+            Map.of(
+                firstIndexName,
+                List.of(readAlias(firstJobId)),
+                secondIndexName,
+                List.of(writeAlias(firstJobId), readAlias(firstJobId))
+            )
+        );
 
-            // Check indices and aliases after rollover, there should be a read alias for ".ml-anomalies-<index>-000001"
-            // and read/write aliases for ".ml-anomalies-<index>-000002". There should be no other aliases pointing to these indices.
-            {
-                GetIndexResponse getIndexResponse = client().admin()
-                    .indices()
-                    .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                    .setIndices(".ml-anomalies-" + index + "*")
-                    .get();
-                logger.warn("get_index_response: {}", getIndexResponse.toString());
-                assertThat(getIndexResponse.getIndices().length, is(2));
-                var aliases = getIndexResponse.getAliases();
-                assertThat(aliases.size(), is(2));
+        // 3. Create the second job, which adds its aliases to the current write index
+        putJob(jobs[1]);
+        assertIndicesAndAliases(
+            "After second job creation",
+            indexWildcard,
+            Map.of(
+                firstIndexName,
+                List.of(readAlias(firstJobId)),
+                secondIndexName,
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId))
+            )
+        );
 
-                StringBuilder sb = new StringBuilder("After Rollover. Aliases found:\n");
-                List<AliasMetadata> aliasMetadata1 = aliases.get(".ml-anomalies-" + index + "-000001");
-                List<AliasMetadata> aliasMetadata2 = aliases.get(".ml-anomalies-" + index + "-000002");
+        // 4. Trigger the second rollover
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+        assertIndicesAndAliases(
+            "After second rollover",
+            indexWildcard,
+            Map.of(
+                firstIndexName,
+                List.of(readAlias(firstJobId)),
+                secondIndexName,
+                List.of(readAlias(firstJobId), readAlias(secondJobId)),
+                thirdIndexName,
+                List.of(writeAlias(firstJobId), readAlias(firstJobId), writeAlias(secondJobId), readAlias(secondJobId))
+            )
+        );
+    }
 
-                assertThat(aliasMetadata1.size(), is(1));
-                assertThat(aliasMetadata2.size(), is(2));
+    private void assertIndicesAndAliases(String context, String indexWildcard, Map<String, List<String>> expectedAliases) {
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(indexWildcard)
+            .get();
 
-                List<String> aliases1List = new ArrayList<>(aliasMetadata1.stream().map(AliasMetadata::alias).toList());
-                List<String> aliases2List = new ArrayList<>(aliasMetadata2.stream().map(AliasMetadata::alias).toList());
+        var aliases = getIndexResponse.getAliases();
+        assertThat("Context: " + context, aliases.size(), is(expectedAliases.size()));
 
-                assertThat(aliases1List, containsInAnyOrder(".ml-anomalies-" + jobId));
-                assertThat(aliases2List, containsInAnyOrder(".ml-anomalies-.write-" + jobId, ".ml-anomalies-" + jobId));
+        StringBuilder sb = new StringBuilder(context).append(". Aliases found:\n");
 
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000001")
-                    .append("]: ")
-                    .append(aliases1List)
-                    .append("\n");
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000002")
-                    .append("]: ")
-                    .append(aliases2List)
-                    .append("\n");
+        expectedAliases.forEach((indexName, expectedAliasList) -> {
+            assertTrue("Expected index [" + indexName + "] was not found. Context: " + context, aliases.containsKey(indexName));
+            List<AliasMetadata> actualAliasMetadata = aliases.get(indexName);
+            List<String> actualAliasList = actualAliasMetadata.stream().map(AliasMetadata::alias).toList();
+            assertThat(
+                "Alias mismatch for index [" + indexName + "]. Context: " + context,
+                actualAliasList,
+                containsInAnyOrder(expectedAliasList.toArray(String[]::new))
+            );
+            sb.append("  Index [").append(indexName).append("]: ").append(actualAliasList).append("\n");
+        });
+        logger.warn(sb.toString().trim());
+    }
 
-                logger.warn(sb.toString().trim());
-            }
+    private String readAlias(String jobId) {
+        return AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+    }
 
-            // Now open another job.
-            putJob(job_list[1]);
-
-            // Check indices and aliases, there should be new read/write aliases for the new job
-            // pointing to ".ml-anomalies-<index>-000002".
-            {
-                GetIndexResponse getIndexResponse = client().admin()
-                    .indices()
-                    .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                    .setIndices(".ml-anomalies-" + index + "*")
-                    .get();
-                logger.warn("get_index_response: {}", getIndexResponse.toString());
-                assertThat(getIndexResponse.getIndices().length, is(2));
-                var aliases = getIndexResponse.getAliases();
-                assertThat(aliases.size(), is(2));
-
-                StringBuilder sb = new StringBuilder("After 2nd Job creation. Aliases found:\n");
-                List<AliasMetadata> aliasMetadata1 = aliases.get(".ml-anomalies-" + index + "-000001");
-                List<AliasMetadata> aliasMetadata2 = aliases.get(".ml-anomalies-" + index + "-000002");
-
-                assertThat(aliasMetadata1.size(), is(1));
-                assertThat(aliasMetadata2.size(), is(4));
-
-                List<String> aliases1List = new ArrayList<>(aliasMetadata1.stream().map(AliasMetadata::alias).toList());
-                List<String> aliases2List = new ArrayList<>(aliasMetadata2.stream().map(AliasMetadata::alias).toList());
-
-                assertThat(aliases1List, containsInAnyOrder(".ml-anomalies-" + jobId));
-                assertThat(
-                    aliases2List,
-                    containsInAnyOrder(
-                        ".ml-anomalies-.write-" + jobId,
-                        ".ml-anomalies-" + jobId,
-                        ".ml-anomalies-.write-another_" + jobId,
-                        ".ml-anomalies-another_" + jobId
-                    )
-                );
-
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000001")
-                    .append("]: ")
-                    .append(aliases1List)
-                    .append("\n");
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000002")
-                    .append("]: ")
-                    .append(aliases2List)
-                    .append("\n");
-
-                logger.warn(sb.toString().trim());
-            }
-
-            // Now trigger another rollover event
-            blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
-
-            // Check indices and aliases, there should be a new index ".ml-anomalies-<index>-000003",
-            // with read/write aliases for both jobs pointing to it. There should be read aliases for
-            // both jobs pointing to ".ml-anomalies-<index>-000002" and a read alias for the initial job
-            // pointing to ".ml-anomalies-<index>-000001" and no other aliases referencing any of the 3 indices.
-            {
-                GetIndexResponse getIndexResponse = client().admin()
-                    .indices()
-                    .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                    .setIndices(".ml-anomalies-" + index + "*")
-                    .get();
-                logger.warn("get_index_response: {}", getIndexResponse.toString());
-                assertThat(getIndexResponse.getIndices().length, is(3));
-                var aliases = getIndexResponse.getAliases();
-                assertThat(aliases.size(), is(3));
-
-                StringBuilder sb = new StringBuilder("After 2nd Rollover. Aliases found:\n");
-                List<AliasMetadata> aliasMetadata1 = aliases.get(".ml-anomalies-" + index + "-000001");
-                List<AliasMetadata> aliasMetadata2 = aliases.get(".ml-anomalies-" + index + "-000002");
-                List<AliasMetadata> aliasMetadata3 = aliases.get(".ml-anomalies-" + index + "-000003");
-
-                assertThat(aliasMetadata1.size(), is(1));
-                assertThat(aliasMetadata2.size(), is(2));
-                assertThat(aliasMetadata3.size(), is(4));
-
-                List<String> aliases1List = new ArrayList<>(aliasMetadata1.stream().map(AliasMetadata::alias).toList());
-                List<String> aliases2List = new ArrayList<>(aliasMetadata2.stream().map(AliasMetadata::alias).toList());
-                List<String> aliases3List = new ArrayList<>(aliasMetadata3.stream().map(AliasMetadata::alias).toList());
-
-                assertThat(aliases1List, containsInAnyOrder(".ml-anomalies-" + jobId));
-                assertThat(aliases2List, containsInAnyOrder(".ml-anomalies-" + jobId, ".ml-anomalies-another_" + jobId));
-                assertThat(
-                    aliases3List,
-                    containsInAnyOrder(
-                        ".ml-anomalies-.write-" + jobId,
-                        ".ml-anomalies-" + jobId,
-                        ".ml-anomalies-.write-another_" + jobId,
-                        ".ml-anomalies-another_" + jobId
-                    )
-                );
-
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000001")
-                    .append("]: ")
-                    .append(aliases1List)
-                    .append("\n");
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000002")
-                    .append("]: ")
-                    .append(aliases2List)
-                    .append("\n");
-                sb.append("  Index [")
-                    .append(".ml-anomalies-")
-                    .append(index)
-                    .append("-000003")
-                    .append("]: ")
-                    .append(aliases3List)
-                    .append("\n");
-
-                logger.warn(sb.toString().trim());
-            }
-        }
+    private String writeAlias(String jobId) {
+        return AnomalyDetectorsIndex.resultsWriteAlias(jobId);
     }
 
     private <T> void blockingCall(Consumer<ActionListener<T>> function) throws InterruptedException {
@@ -335,3 +300,4 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 }
+

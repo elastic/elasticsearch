@@ -590,7 +590,7 @@ public class EsqlSession {
         );
         indexResolver.resolveAsMergedMapping(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
-            result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            result.wildcardJoinIndices.contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
             false,
             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
@@ -850,7 +850,7 @@ public class EsqlSession {
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
-            listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
+            listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion));
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
             if (requestFilter == null) {
@@ -941,30 +941,23 @@ public class EsqlSession {
         return plan;
     }
 
-    public record PreAnalysisResult(
-        Set<String> fieldNames,
-        Set<String> wildcardJoinIndices,
-        IndexResolution indices,
-        Map<String, IndexResolution> lookupIndices,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        TransportVersion minimumTransportVersion
-    ) {
+    public static class PreAnalysisResult {
+        public final Set<String> fieldNames;
+        public final Set<String> wildcardJoinIndices;
+        public IndexResolution indices;
+        public final Map<String, IndexResolution> lookupIndices = new HashMap<>();
+        public EnrichResolution enrichResolution;
+        public InferenceResolution inferenceResolution;
+        public TransportVersion minimumTransportVersion;
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, wildcardJoinIndices, null, new HashMap<>(), null, InferenceResolution.EMPTY, null);
+            this.fieldNames = fieldNames;
+            this.wildcardJoinIndices = wildcardJoinIndices;
         }
 
         PreAnalysisResult withIndices(IndexResolution indices) {
-            return new PreAnalysisResult(
-                fieldNames,
-                wildcardJoinIndices,
-                indices,
-                lookupIndices,
-                enrichResolution,
-                inferenceResolution,
-                minimumTransportVersion
-            );
+            this.indices = indices;
+            return this;
         }
 
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution indexResolution) {
@@ -973,39 +966,18 @@ public class EsqlSession {
         }
 
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
-            return new PreAnalysisResult(
-                fieldNames,
-                wildcardJoinIndices,
-                indices,
-                lookupIndices,
-                enrichResolution,
-                inferenceResolution,
-                minimumTransportVersion
-            );
+            this.enrichResolution = enrichResolution;
+            return this;
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution inferenceResolution) {
-            return new PreAnalysisResult(
-                fieldNames,
-                wildcardJoinIndices,
-                indices,
-                lookupIndices,
-                enrichResolution,
-                inferenceResolution,
-                minimumTransportVersion
-            );
+            this.inferenceResolution = inferenceResolution;
+            return this;
         }
 
         PreAnalysisResult withMinimumTransportVersion(TransportVersion minimumTransportVersion) {
-            return new PreAnalysisResult(
-                fieldNames,
-                wildcardJoinIndices,
-                indices,
-                lookupIndices,
-                enrichResolution,
-                inferenceResolution,
-                minimumTransportVersion
-            );
+            this.minimumTransportVersion = minimumTransportVersion;
+            return this;
         }
     }
 }

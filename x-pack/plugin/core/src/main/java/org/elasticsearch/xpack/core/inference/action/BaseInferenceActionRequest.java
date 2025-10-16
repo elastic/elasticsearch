@@ -36,7 +36,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.hasBeenRerouted = in.readBoolean();
         } else {
             // For backwards compatibility, we treat all inference requests coming from ES nodes having
@@ -72,7 +72,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(hasBeenRerouted);
         }
 

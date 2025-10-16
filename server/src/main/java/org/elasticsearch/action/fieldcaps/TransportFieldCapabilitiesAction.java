@@ -561,7 +561,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
@@ -704,9 +704,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        Map<String, IndexFieldCapabilities> fields = response.get();
+        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
+            response.getOriginVersion(),
+            response.get(),
+            request.filters(),
+            request.types()
+        );
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();

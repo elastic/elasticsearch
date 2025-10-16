@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
-import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
 import java.security.GeneralSecurityException;
 import java.util.Collections;
@@ -55,14 +53,13 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
     private final CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier;
-    private final CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier;
     private final AuditTrailService auditTrailService;
 
     public CrossClusterAccessAuthenticationService(
         ClusterService clusterService,
         ApiKeyService apiKeyService,
         AuthenticationService authenticationService,
-        CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier
+        CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier,
         AuditTrailService auditTrailService
     ) {
         this.clusterService = clusterService;
@@ -169,8 +166,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             );
         }
         if (authException != null) {
-            // TODO handle audit logging
-            listener.onFailure(context.getRequest().exceptionProcessingRequest(authException, context.getMostRecentAuthenticationToken()));
+            withRequestProcessingFailure(context, authException, listener);
             return false;
         }
         return true;

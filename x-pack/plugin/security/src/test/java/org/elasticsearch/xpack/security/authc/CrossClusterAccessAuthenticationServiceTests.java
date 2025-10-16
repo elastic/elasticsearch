@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
@@ -41,14 +43,15 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.List;
-import java.security.GeneralSecurityException;
-import java.security.cert.X509Certificate;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -56,6 +59,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -273,6 +277,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
 
         final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
 
+        verify(auditableRequest).exceptionProcessingRequest(any(Exception.class), any(AuthenticationToken.class));
+
         assertThat(actual.getCause(), instanceOf(ElasticsearchSecurityException.class));
         assertThat(
             actual.getMessage(),
@@ -340,6 +346,80 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
         assertThat(actual.getCause(), equalTo(ex));
     }
+
+    public void testAuditLoggingOnAuthenticateHeadersFailure() {
+        InetSocketAddress remoteAddress = new InetSocketAddress("192.168.1.100", 9300);
+        TestContext ctx = setupAuditAndMocks(remoteAddress, "indices:data/read/search");
+        Map<String, String> headers = createHeadersWithApiKey("test-api-key-id");
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        crossClusterAccessAuthenticationService.authenticateHeaders(headers, ctx.mockChannel, ctx.mockHeader, future);
+
+        ctx.listenerCaptor.getValue().onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+
+        ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+        assertThat(actual.getCause(), instanceOf(ElasticsearchSecurityException.class));
+
+        verify(ctx.mockAuditTrail).authenticationFailed(
+            anyString(),
+            any(ApiKeyService.ApiKeyCredentials.class),
+            eq("indices:data/read/search"),
+            eq(remoteAddress)
+        );
+    }
+
+    public void testAuditLoggingOnAuthenticateHeadersException() {
+        InetSocketAddress remoteAddress = new InetSocketAddress("192.168.50.100", 9300);
+        TestContext ctx = setupAuditAndMocks(remoteAddress, "cluster:internal/action");
+        Map<String, String> headers = createHeadersWithApiKey("exception-test-key");
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        crossClusterAccessAuthenticationService.authenticateHeaders(headers, ctx.mockChannel, ctx.mockHeader, future);
+
+        ctx.listenerCaptor.getValue().onFailure(new ElasticsearchSecurityException("test exception"));
+
+        ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+        assertThat(actual.getCause(), instanceOf(ElasticsearchSecurityException.class));
+
+        verify(ctx.mockAuditTrail).authenticationFailed(
+            anyString(),
+            any(ApiKeyService.ApiKeyCredentials.class),
+            eq("cluster:internal/action"),
+            eq(remoteAddress)
+        );
+    }
+
+    private TestContext setupAuditAndMocks(InetSocketAddress remoteAddress, String actionName) {
+        AuditTrail mockAuditTrail = mock(AuditTrail.class);
+        when(auditTrailService.get()).thenReturn(mockAuditTrail);
+
+        Channel mockChannel = mock(Channel.class);
+        Header mockHeader = mock(Header.class);
+        when(mockChannel.remoteAddress()).thenReturn(remoteAddress);
+        when(mockHeader.getActionName()).thenReturn(actionName);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(i -> null).when(apiKeyService)
+            .tryAuthenticate(any(), any(ApiKeyService.ApiKeyCredentials.class), listenerCaptor.capture());
+
+        return new TestContext(mockAuditTrail, mockChannel, mockHeader, listenerCaptor);
+    }
+
+    private record TestContext(AuditTrail mockAuditTrail, Channel mockChannel, Header mockHeader,
+                               ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor) {
+    }
+
+    private Map<String, String> createHeadersWithApiKey(String apiKeyId) {
+        SecureString apiKeySecret = UUIDs.randomBase64UUIDSecureString();
+        String encodedKey = Base64.getEncoder().encodeToString(
+            (apiKeyId + ":" + apiKeySecret).getBytes(StandardCharsets.UTF_8)
+        );
+        String credentialsHeader = ApiKeyService.withApiKeyPrefix(encodedKey);
+        return Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, credentialsHeader);
+    }
+
+
 
     private static AuthenticationToken credentialsArgMatches(AuthenticationToken credentials) {
         return argThat(arg -> arg.principal().equals(credentials.principal()) && arg.credentials().equals(credentials.credentials()));

@@ -337,7 +337,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             );
             final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            service.tryAuthenticate(credentials, future);
+            service.tryAuthenticate(credentials, mockChannel, mockHeader, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(

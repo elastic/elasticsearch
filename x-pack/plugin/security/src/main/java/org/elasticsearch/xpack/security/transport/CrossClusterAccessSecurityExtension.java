@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityExtension;
@@ -44,7 +45,8 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.clusterService(),
             components.apiKeyService(),
             components.authenticationService(),
-            crossClusterApiKeySignatureManager.verifier()
+            crossClusterApiKeySignatureManager.verifier(),
+            components.auditTrailService()
         );
         this.transportInterceptor = new CrossClusterAccessTransportInterceptor(
             components.settings(),

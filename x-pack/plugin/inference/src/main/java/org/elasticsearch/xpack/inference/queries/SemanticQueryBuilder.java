@@ -166,7 +166,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             in.readBoolean(); // Discard noInferenceResults, it is no longer necessary
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.lenient = in.readOptionalBoolean();
         } else {
             this.lenient = null;
@@ -216,7 +216,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             out.writeOptionalNamedWriteable(inferenceResults);
             out.writeBoolean(inferenceResults == null);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalBoolean(lenient);
         }
         if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {

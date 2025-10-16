@@ -57,7 +57,7 @@ public interface ShardContext extends RefCounted {
         String name,
         boolean asUnsupportedSource,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
-        MappedFieldType.BlockValueLoader<?, ?> blockValueLoader
+        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction
     );
 
     /**

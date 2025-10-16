@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldTransformationAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
@@ -22,8 +20,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
-import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -54,8 +52,8 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
             List<Attribute> attrs = fieldEx.attributesToExtract();
             assert attrs.stream().anyMatch(replacements::containsKey) : "Expected at least one attribute to be replaced";
             List<Attribute> replaceAttrs = attrs.stream().map(a -> replacements.getOrDefault(a, a)).toList();
-
-            return fieldEx.withAttributesToExtract(replaceAttrs);
+            // TODO Check that we don't have to duplicate the field, or run a second optimization to prune out unused attrs
+            return fieldEx.withAttributesToExtract(replaceAttrs).withFieldFunctionAttributes(new HashSet<>(replacements.values()));
         });
 
         return resultEval;
@@ -88,12 +86,12 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         }
 
         // Create a transformation that computes similarity between each value and the literal value
-        DenseVectorFieldMapper.DenseVectorBlockValueLoader blockValueLoader =
-            new DenseVectorFieldMapper.DenseVectorBlockValueLoader(similarityFunction.getSimilarityFunction(), vectorArray);
+        DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader =
+            new DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction(similarityFunction.getSimilarityFunction(), vectorArray);
 
         // Change the similarity function to a reference of a transformation on the field
-        var fieldTransformationAttribute = new FieldTransformationAttribute<>(fieldAttribute, blockValueLoader, DataType.DOUBLE);
-        replacements.put(fieldAttribute, fieldTransformationAttribute);
-        return fieldTransformationAttribute;
+        var fieldFunctionAttribute = new FieldFunctionAttribute(fieldAttribute, blockValueLoader, DataType.DOUBLE);
+        replacements.put(fieldAttribute, fieldFunctionAttribute);
+        return fieldFunctionAttribute;
     }
 }

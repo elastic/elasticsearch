@@ -6,35 +6,34 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 
-public class FieldTransformationAttribute<T, B extends BlockLoader.Builder>  extends FieldAttribute {
+public class FieldFunctionAttribute extends FieldAttribute {
 
     private static final AtomicLong COUNTER = new AtomicLong();
 
-    private final MappedFieldType.BlockValueLoader<?, ?> blockValueLoader;
+    private final MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction;
     private final DataType dataType;
     private final FieldName fieldName;
 
-    public FieldTransformationAttribute(
+    public FieldFunctionAttribute(
         FieldAttribute fieldAttribute,
-        MappedFieldType.BlockValueLoader<?, ?> blockValueLoader,
+        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction,
         DataType dataType
     ) {
         super(fieldAttribute.source(), fieldAttribute.parentName(), fieldAttribute.qualifier(),
             fieldAttribute.name() + "_replaced_" + COUNTER.incrementAndGet(), fieldAttribute.field(), fieldAttribute.synthetic());
         this.fieldName = fieldAttribute.fieldName();
-        this.blockValueLoader = blockValueLoader;
+        this.blockLoaderValueFunction = blockLoaderValueFunction;
         this.dataType = dataType;
     }
 
-    public MappedFieldType.BlockValueLoader<?, ?> getBlockValueLoader() {
-        return blockValueLoader;
+    public MappedFieldType.BlockLoaderValueFunction<?, ?> getBlockLoaderValueFunction() {
+        return blockLoaderValueFunction;
     }
 
     @Override

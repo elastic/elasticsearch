@@ -660,7 +660,8 @@ public abstract class MappedFieldType {
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED;
+        STORED,
+        FUNCTION;
     }
 
     /**
@@ -705,15 +706,15 @@ public abstract class MappedFieldType {
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
         @Nullable
-        default BlockValueLoader<?, ?> valueLoader() {
-            return null;
+        default BlockLoaderValueFunction<?, ?> blockLoaderValueFunction() {
+            throw new UnsupportedOperationException("blockLoaderValueFunction is not supported");
         }
     }
 
-    public interface BlockValueLoader<T, B extends BlockLoader.Builder> {
+    public interface BlockLoaderValueFunction<T, B extends BlockLoader.Builder> {
         B builder(BlockLoader.BlockFactory factory, int expectedCount);
 
-        void addValue(T value, B builder) throws IOException;
+        void applyAndAdd(T value, B builder) throws IOException;
     }
 
 }

@@ -64,7 +64,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldTransformationAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldFunctionAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -193,12 +193,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
-        MappedFieldType.BlockValueLoader<?, ?> blockValueLoader = attr instanceof FieldTransformationAttribute<?, ?>
-            ? ((FieldTransformationAttribute<?, ?>) attr).getBlockValueLoader()
+        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction = attr instanceof FieldFunctionAttribute
+            ? ((FieldFunctionAttribute) attr).getBlockLoaderValueFunction()
             : null;
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, blockValueLoader);
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, blockLoaderValueFunction);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
             // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
@@ -484,7 +484,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockValueLoader<?, ?> blockValueLoader
+            MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction
         ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
@@ -531,8 +531,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public MappedFieldType.BlockValueLoader<?, ?> valueLoader() {
-                    return blockValueLoader;
+                public MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction() {
+                    return blockLoaderValueFunction;
                 }
             });
             if (loader == null) {

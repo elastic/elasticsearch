@@ -731,6 +731,15 @@ public class ReservedClusterStateService {
         return handler.transform(projectId, (T) state, transformState);
     }
 
+    static ClusterState remove(ReservedClusterStateHandler<?> handler, TransformState prevState) throws Exception {
+        return handler.remove(prevState);
+    }
+
+    static ClusterState remove(ReservedProjectStateHandler<?> handler, ProjectId projectId, TransformState transformState)
+        throws Exception {
+        return handler.remove(projectId, transformState);
+    }
+
     /**
      * Returns an ordered set ({@link LinkedHashSet}) of the cluster state handlers that need to
      * execute for a given list of handler names supplied through the {@link ReservedStateChunk}.

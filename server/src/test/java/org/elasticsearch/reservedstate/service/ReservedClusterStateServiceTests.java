@@ -165,6 +165,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             ClusterState newState = new ClusterState.Builder(prevState.state()).build();
             return new TransformState(newState, prevState.keys());
         }
+
+        @Override
+        public ClusterState remove(TransformState prevState) {
+            return new ClusterState.Builder(prevState.state()).build();
+        }
     }
 
     private static class TestProjectStateHandler extends TestStateHandler implements ReservedProjectStateHandler<Map<String, Object>> {
@@ -176,6 +181,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         public TransformState transform(ProjectId projectId, Map<String, Object> source, TransformState prevState) throws Exception {
             ClusterState newState = new ClusterState.Builder(prevState.state()).build();
             return new TransformState(newState, prevState.keys());
+        }
+
+        @Override
+        public ClusterState remove(ProjectId projectId, TransformState prevState) {
+            return new ClusterState.Builder(prevState.state()).build();
         }
     }
 
@@ -324,6 +334,114 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             updatedState.metadata().reservedStateMetadata(),
             equalTo(Map.of("namespace", new ReservedStateMetadata("namespace", ReservedStateMetadata.EMPTY_VERSION, Map.of(), null)))
         );
+    }
+
+    public void testTransformAndRemoveGetCalled() throws Exception {
+        // TODO: Ought to do this for project state updates too.
+
+        // This records the calls made to the handler
+        ArrayList<Operation> operations = new ArrayList<>();
+        var handler = new TestClusterStateHandler("test_cluster_state_handler") {
+            @Override
+            public TransformState transform(Map<String, Object> source, TransformState prevState) throws Exception {
+                operations.add(new Operation.Transform(source, prevState.keys()));
+                return new TransformState(prevState.state(), source.keySet());
+            }
+
+            @Override
+            public ClusterState remove(TransformState prevState) {
+                operations.add(new Operation.Remove(prevState.keys()));
+                return prevState.state();
+            }
+        };
+
+        ClusterState state1 = ClusterState.EMPTY_STATE;
+
+        // 1. Add our section to the reserved state chunk
+        ReservedStateChunk initialStateChunk = new ReservedStateChunk(
+            Map.of("test_handler_name", Map.of("key1", "value1")),
+            new ReservedStateVersion(1L, BuildVersion.current())
+        );
+        ReservedStateUpdateTask<?> addTask = new ReservedClusterStateUpdateTask(
+            "test_namespace",
+            initialStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            initialStateChunk.state().keySet(),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        ClusterState state2 = addTask.execute(state1);
+
+        assertEquals(List.of(new Operation.Transform(Map.of("key1", "value1"), Set.of())), operations);
+        var expected2 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata(
+                "test_namespace",
+                initialStateChunk.metadata().version(),
+                Map.of("test_handler_name", new ReservedStateHandlerMetadata("test_handler_name", Set.of("key1"))),
+                null
+            )
+        );
+        assertEquals("Our section of the reserved state has been added", expected2, state2.metadata().reservedStateMetadata());
+
+        operations.clear();
+
+        // 2. Change our section of the reserved state
+        ReservedStateChunk changedStateChunk = new ReservedStateChunk(
+            Map.of("test_handler_name", Map.of("key2", "value2")),
+            new ReservedStateVersion(2L, BuildVersion.current())
+        );
+        ReservedStateUpdateTask<?> changeTask = new ReservedClusterStateUpdateTask(
+            "test_namespace",
+            changedStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            changedStateChunk.state().keySet(),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        ClusterState state3 = changeTask.execute(state2);
+
+        assertEquals(List.of(new Operation.Transform(Map.of("key2", "value2"), Set.of("key1"))), operations);
+        var expected3 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata(
+                "test_namespace",
+                changedStateChunk.metadata().version(),
+                Map.of("test_handler_name", new ReservedStateHandlerMetadata("test_handler_name", Set.of("key2"))),
+                null
+            )
+        );
+        assertEquals("Our section of the removed state is updated", expected3, state3.metadata().reservedStateMetadata());
+
+        operations.clear();
+
+        // 3. Remove our section of the state chunk
+        ReservedStateChunk removedStateChunk = new ReservedStateChunk(Map.of(), new ReservedStateVersion(3L, BuildVersion.current()));
+        ReservedStateUpdateTask<?> removeTask = new ReservedClusterStateUpdateTask(
+            "test_namespace",
+            removedStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            removedStateChunk.state().keySet(),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        var state4 = removeTask.execute(state3);
+
+        assertEquals(List.of(new Operation.Remove(Set.of("key2"))), operations);
+        var expected4 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata("test_namespace", removedStateChunk.metadata().version(), Map.of(), null)
+        );
+        assertEquals("Our section of the removed state is gone", expected4, state4.metadata().reservedStateMetadata());
+    }
+
+    private sealed interface Operation {
+        record Transform(Map<String, Object> source, Set<String> prevKeys) implements Operation {}
+
+        record Remove(Set<String> prevKeys) implements Operation {}
     }
 
     public void testUpdateStateTasks() throws Exception {

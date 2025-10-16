@@ -26,6 +26,7 @@ import org.elasticsearch.reservedstate.TransformState;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -84,6 +85,8 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
 
     protected abstract TransformState transform(T handler, Object state, TransformState transformState) throws Exception;
 
+    protected abstract ClusterState remove(T handler, TransformState prevState) throws Exception;
+
     abstract ClusterState execute(ClusterState currentState);
 
     /**
@@ -103,7 +106,11 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
         List<String> errors = new ArrayList<>();
 
         // Transform the cluster state first
+        Set<String> unhandledNames = (reservedStateMetadata == null)
+            ? new HashSet<>()
+            : new HashSet<>(reservedStateMetadata.handlers().keySet());
         for (var handlerName : orderedHandlers) {
+            unhandledNames.remove(handlerName);
             T handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
@@ -112,6 +119,17 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+            }
+        }
+
+        // Any existing reserved state we didn't transform must have been removed
+        for (var handlerName : unhandledNames) {
+            T handler = handlers.get(handlerName);
+            try {
+                Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                state = remove(handler, new TransformState(state, existingKeys));
+            } catch (Exception e) {
+                errors.add(format("Error processing %s state removal: %s", handler.name(), stackTrace(e)));
             }
         }
 

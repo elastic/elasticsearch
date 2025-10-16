@@ -48,6 +48,11 @@ public class ReservedClusterStateUpdateTask extends ReservedStateUpdateTask<Rese
     }
 
     @Override
+    protected ClusterState remove(ReservedClusterStateHandler<?> handler, TransformState prevState) throws Exception {
+        return ReservedClusterStateService.remove(handler, prevState);
+    }
+
+    @Override
     ClusterState execute(ClusterState currentState) {
         if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // If cluster state has become blocked, this task was submitted while the node was master but is now not master.

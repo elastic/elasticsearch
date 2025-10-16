@@ -89,6 +89,15 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         int maxNumberOfInputsPerBatch,
         ChunkingSettings defaultChunkingSettings
     ) {
+        this(inputs, maxNumberOfInputsPerBatch, true, defaultChunkingSettings);
+    }
+
+    public EmbeddingRequestChunker(
+        List<ChunkInferenceInput> inputs,
+        int maxNumberOfInputsPerBatch,
+        Boolean shouldBatchAcrossInputs,
+        ChunkingSettings defaultChunkingSettings
+    ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
         this.resultOffsetStarts = new ArrayList<>(inputs.size());
         this.resultOffsetEnds = new ArrayList<>(inputs.size());
@@ -135,13 +144,23 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             }
         }
 
-        AtomicInteger counter = new AtomicInteger();
-        this.batchRequests = allRequests.stream()
-            .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxNumberOfInputsPerBatch))
-            .values()
-            .stream()
-            .map(BatchRequest::new)
-            .toList();
+        if (shouldBatchAcrossInputs == null || shouldBatchAcrossInputs) {
+            AtomicInteger counter = new AtomicInteger();
+            this.batchRequests = allRequests.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxNumberOfInputsPerBatch))
+                .values()
+                .stream()
+                .map(BatchRequest::new)
+                .toList();
+        } else {
+            assert (maxNumberOfInputsPerBatch >= MAX_CHUNKS);
+            this.batchRequests = allRequests.stream()
+                .collect(Collectors.groupingBy(Request::inputIndex))
+                .values()
+                .stream()
+                .map(BatchRequest::new)
+                .toList();
+        }
     }
 
     /**

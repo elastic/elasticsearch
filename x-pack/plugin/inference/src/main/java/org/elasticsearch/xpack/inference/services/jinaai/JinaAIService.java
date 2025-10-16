@@ -276,9 +276,12 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         JinaAIModel jinaaiModel = (JinaAIModel) model;
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
+        var isLateChunkingEnabled = jinaaiModel.getTaskSettings().isLateChunkingEnabled();
+        var shouldBatchAcrossInputs = isLateChunkingEnabled == null || isLateChunkingEnabled == false;
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            shouldBatchAcrossInputs,
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

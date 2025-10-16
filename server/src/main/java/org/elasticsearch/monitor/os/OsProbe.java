@@ -72,6 +72,7 @@ public class OsProbe {
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
     private static final Method getSystemCpuLoad;
+    private static final Method getAvailableProcessors;
 
     static {
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
@@ -80,6 +81,7 @@ public class OsProbe {
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
         getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getAvailableProcessors = getMethod("getAvailableProcessors");
     }
 
     /**
@@ -257,6 +259,24 @@ public class OsProbe {
 
     public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
+    }
+
+    public static int getAvailableProcessors() {
+        if (getAvailableProcessors == null) {
+            logger.warn("getAvailableProcessors is not available");
+            return 0;
+        }
+        try {
+            int availableProcessors = (int) getAvailableProcessors.invoke(osMxBean);
+            if (availableProcessors <= 0) {
+                logger.debug("OS reported a non-positive number of available processors [{}]", availableProcessors);
+                return 0;
+            }
+            return availableProcessors;
+        } catch (Exception e) {
+            logger.warn("exception retrieving available processors", e);
+            return 0;
+        }
     }
 
     /**
@@ -902,7 +922,7 @@ public class OsProbe {
     }
 
     public OsStats osStats() {
-        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage(), getAvailableProcessors());
         final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);

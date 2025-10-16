@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -51,6 +54,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
+    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
@@ -88,14 +93,50 @@ public class IndexResolver {
         boolean supportsDenseVector,
         ActionListener<IndexResolution> listener
     ) {
+        ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
+            (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
+        );
+
+        resolveAsMergedMappingAndRetrieveMinimumVersion(
+            indexWildcard,
+            fieldNames,
+            requestFilter,
+            includeAllDimensions,
+            supportsAggregateMetricDouble,
+            supportsDenseVector,
+            ignoreVersion
+        );
+    }
+
+    /**
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping. Also retrieves the minimum transport
+     * version available in the cluster (and remotes).
+     */
+    public void resolveAsMergedMappingAndRetrieveMinimumVersion(
+        String indexWildcard,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        boolean supportsAggregateMetricDouble,
+        boolean supportsDenseVector,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
-            listener.delegateFailureAndWrap(
-                (l, response) -> l.onResponse(
-                    mergedMappings(indexWildcard, new FieldsInfo(response, supportsAggregateMetricDouble, supportsDenseVector))
-                )
-            )
+            listener.delegateFailureAndWrap((l, response) -> {
+                TransportVersion minimumVersion = response.minTransportVersion();
+
+                LOGGER.debug("minimum transport version {}", minimumVersion);
+                l.onResponse(
+                    new Versioned<>(
+                        mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector)),
+                        // The minimum transport version was added to the field caps response in 9.2.1; in clusters with older nodes,
+                        // we don't have that information and need to assume the oldest supported version.
+                        minimumVersion == null ? TransportVersion.minimumCompatible() : minimumVersion
+                    )
+                );
+            })
         );
     }
 
@@ -324,6 +365,7 @@ public class IndexResolver {
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
         req.indexFilter(requestFilter);
+        req.returnLocalAll(false);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);

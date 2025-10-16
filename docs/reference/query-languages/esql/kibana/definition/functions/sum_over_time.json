@@ -8,6 +8,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : ""
@@ -42,8 +54,8 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| STATS sum_cost=SUM(SUM_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

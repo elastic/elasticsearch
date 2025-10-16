@@ -52,6 +52,7 @@ PUT parent_example/_doc/1
   ]
 }
 ```
+% TEST[continued]
 
 Examples of `answer` documents:
 
@@ -86,6 +87,7 @@ PUT parent_example/_doc/3?routing=1&refresh
   "creation_date": "2009-05-05T13:45:37.030"
 }
 ```
+% TEST[continued]
 
 The following request can be built that connects the two together:
 
@@ -117,6 +119,7 @@ POST parent_example/_search?size=0
   }
 }
 ```
+% TEST[continued]
 
 1. The `type` points to type / mapping with the name `answer`.
 
@@ -203,6 +206,7 @@ Possible response:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 9/"took": $body.took/]
 
 1. The number of answer documents with the tag `Sam`, `Troll`, etc.
 2. The number of question documents that are related to answer documents with the tag `Sam`, `Troll`, etc.

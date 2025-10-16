@@ -54,7 +54,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
 
-    protected static EnrichResolution enrichResolution;
+    public static EnrichResolution enrichResolution;
 
     public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());

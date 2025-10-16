@@ -388,7 +388,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     );
                     joinOnConditions.add(new Equals(Source.EMPTY, leftAttr, rightAttr));
                     // randomly decide to apply the filter as additional join on filter instead of pushed down filter
-                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
                         ? randomBoolean()
                         : false;
                     if (applyAsJoinOnCondition

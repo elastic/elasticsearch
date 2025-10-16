@@ -133,7 +133,7 @@ public class ParsingTests extends ESTestCase {
     public void testJoinOnConstant() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
         assertEquals(
             "1:55: JOIN ON clause must be a comma separated list of fields or a single expression, found [123]",
@@ -153,7 +153,7 @@ public class ParsingTests extends ESTestCase {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
         String queryString = """
             from test
@@ -171,7 +171,7 @@ public class ParsingTests extends ESTestCase {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
         String queryString = """
             from test
@@ -189,7 +189,7 @@ public class ParsingTests extends ESTestCase {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
         String queryString = """
             from test
@@ -206,7 +206,7 @@ public class ParsingTests extends ESTestCase {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
-            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2.isEnabled()
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
         String queryString = """
             from test

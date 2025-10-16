@@ -4,7 +4,7 @@
 
 lookupWithExpressionEquals
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -19,7 +19,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupWithExpressionNotEquals
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -36,7 +36,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupWithExpressionGreater
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -51,7 +51,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupWithExpressionGreaterOrEquals
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -67,7 +67,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupWithExpressionLess
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -83,7 +83,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupWithExpressionLessOrEquals
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -100,7 +100,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupJoinOnTwoFieldsWithEval
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | eval id_int = id_int + 5
@@ -137,7 +137,7 @@ null           | null             | zyx            | null           | null
 
 lookupWithTwoExpressionsAndNoMatch
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | WHERE emp_no == 10001
@@ -153,7 +153,7 @@ emp_no:integer | languages:integer | language_code:integer | language_name:keywo
 
 lookupWithTwoExpressionsSelfJoin
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM languages_lookup
 | RENAME language_code AS left_code, language_name AS left_name
@@ -169,7 +169,7 @@ left_code:integer | left_name:keyword | language_code:integer | language_name:ke
 
 lookupMultiSelfJoinColTwoExprAnd
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable_lookup
 | RENAME id_int AS left_id, name_str AS left_name
@@ -210,7 +210,7 @@ null            | Kate              | null           | null
 
 lookupJoinOnThreeFields
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int as id_left, name_str as name_left, is_active_bool as is_active_left
@@ -246,7 +246,7 @@ null           | Kate             | plugh          | null           | null
 
 lookupJoinOnFourFields
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
@@ -282,7 +282,7 @@ null           | Kate             | plugh          | null           | null
 
 lookupMultiColTwoExprAndNoMatch
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable_lookup
 | RENAME id_int AS left_id, name_str AS left_name
@@ -307,7 +307,7 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
 
 lookupMultiColMixedEqNeq
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME name_str AS left_name, is_active_bool AS is_active_left, id_int AS left_id
@@ -345,7 +345,7 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
 
 lookupMultiColMixedGtEq
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS is_active_left
@@ -384,7 +384,7 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword | is_act
 
 lookupMultiColMixedGtEqSwapLeftRight
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS is_active_left
@@ -423,7 +423,7 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword | is_act
 
 lookupMultiColMixedLtNeqEq
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS left_id, name_str AS left_name, is_active_bool AS left_is_active
@@ -461,7 +461,7 @@ left_id:integer | left_name:keyword | left_is_active:boolean | id_int:integer | 
 
 lookupMultiColMixedGteNeq
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS left_id, name_str AS left_name
@@ -499,7 +499,7 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
 
 lookupMultiColMixedLteEq
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable_lookup
 | WHERE id_int == 3
@@ -519,7 +519,7 @@ left_id:integer | left_name:keyword | id_int:integer | name_str:keyword
 
 lookupMultiColFourMixed
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable_lookup
 | WHERE id_int == 2
@@ -544,7 +544,7 @@ left_id:integer | left_name:keyword | left_is_active:boolean | left_ip:ip  | id_
 
 lookupJoinOnSameLeftFieldTwice
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
@@ -581,7 +581,7 @@ null            | Kate              | plugh          | null           | null
 
 lookupJoinOnSameRightFieldTwice
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
@@ -619,7 +619,7 @@ null            | Kate              | plugh          | null           | null
 
 lookupJoinOnSameRightFieldTwiceEval
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, name_str AS name_left, is_active_bool AS is_active_left, ip_addr AS ip_addr_left
@@ -657,7 +657,7 @@ null            | Kate              | plugh          | null           | null    
 
 twoLookupJoinsInSameQuery
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | WHERE id_int == 1
@@ -681,7 +681,7 @@ id_left:integer | name_left:keyword | other1_from_first_join:keyword | other1:ke
 
 lookupOnExpressionOnTheCoordinator
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM employees
 | SORT emp_no
@@ -699,7 +699,7 @@ emp_no:integer | language_code_left:integer | language_name:keyword
 
 lookupJoinExpressionWithPushableFilterOnRight
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, is_active_bool AS is_active_left
@@ -730,7 +730,7 @@ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:int
 
 lookupJoinExpressionOnUnionTypes
 required_capability: join_lookup_v12
-required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_with_full_text_function
 required_capability: metadata_fields_remote_test
 
 FROM apps, apps_short METADATA _index

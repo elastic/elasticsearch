@@ -1411,7 +1411,11 @@ public class EsqlCapabilities {
          * Allow lookup join on boolean expressions
          */
         LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION,
-
+        /**
+         * Lookup join with Full Text Function or other Lucene Pushable condition
+         * to be applied to the lookup index used
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
         /**
          * FORK with remote indices
          */
@@ -1451,11 +1455,6 @@ public class EsqlCapabilities {
         INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
 
         INLINE_STATS_WITH_UNION_TYPES_IN_STUB_RELATION(INLINE_STATS.enabled),
-        /**
-        * Lookup join with Full Text Function or other Lucene Pushable condition
-        * to be applied to the lookup index used
-        */
-        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION_V2,
 
         /**
          * Support TS command in non-snapshot builds

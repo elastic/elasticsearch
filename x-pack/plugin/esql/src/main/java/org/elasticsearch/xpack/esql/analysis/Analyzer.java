@@ -725,16 +725,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
-        private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
-            List<Expression> filters,
+        private Expression resolveJoinFiltersAndSwapIfNeeded(
+            Expression joinOnCondition,
             AttributeSet leftChildOutput,
             AttributeSet rightChildOutput,
             List<Attribute> leftJoinKeysToPopulate,
             List<Attribute> rightJoinKeysToPopulate
         ) {
-            if (filters.isEmpty()) {
-                return emptyList();
+            if (joinOnCondition == null) {
+                return joinOnCondition;
             }
+            List<Expression> filters = Predicates.splitAnd(joinOnCondition);
             List<Attribute> childrenOutput = new ArrayList<>(leftChildOutput);
             childrenOutput.addAll(rightChildOutput);
 
@@ -750,9 +751,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
                 resolvedFilters.add(result);
             }
-            return resolvedFilters;
+            return Predicates.combineAndWithSource(resolvedFilters, joinOnCondition.source());
         }
 
+        /**
+         * This function resolves and orients a single join on condition.
+         * We support AND of such conditions, here we handle a single child of the AND
+         * We support the following 2 cases:
+         * 1) Binary comparisons between a left and a right attribute.
+         * We resolve all attributes and orient them so that the attribute on the left side of the join
+         * is on the left side of the binary comparison
+         *  and the attribute from the lookup index is on the right side of the binary comparison
+         * 2) A Lucene pushable expression containing only attributes from the lookup side of the join
+         * We resolve all attributes in the expression, verify they are from the right side of the join
+         * and also verify that the expression is potentially Lucene pushable
+         */
         private Expression resolveAndOrientJoinCondition(
             Expression condition,
             AttributeSet leftChildOutput,
@@ -817,17 +830,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
-                List<Expression> resolvedFilters = new ArrayList<>();
                 Expression joinOnConditions = null;
                 if (join.config().joinOnConditions() != null) {
-                    resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
-                        Predicates.splitAnd(join.config().joinOnConditions()),
+                    joinOnConditions = resolveJoinFiltersAndSwapIfNeeded(
+                        join.config().joinOnConditions(),
                         join.left().outputSet(),
                         join.right().outputSet(),
                         leftKeys,
                         rightKeys
                     );
-                    joinOnConditions = Predicates.combineAndWithSource(resolvedFilters, join.config().joinOnConditions().source());
                 } else {
                     // resolve the using columns against the left and the right side then assemble the new join config
                     leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
@@ -844,30 +855,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private boolean isCompletelyRightSideAndTranslationAware(Expression expression, AttributeSet rightOutputSet) {
-            // Check if all references in the expression are from the right side
-            boolean isCompletelyRightSide = rightOutputSet.containsAll(expression.references());
-
-            if (isCompletelyRightSide == false) {
-                return false;
-            }
-
-            // Check if the expression and all its subexpressions implement TranslationAware
-            // and are translatable to Lucene
-            return isTranslationAware(expression);
+            return rightOutputSet.containsAll(expression.references()) && isTranslationAware(expression);
         }
 
         private boolean isTranslationAware(Expression expression) {
-            // Check if the expression itself implements TranslationAware
-            if (expression instanceof TranslationAware == false) {
-                return false;
-            }
-
-            // Check if the expression is translatable
-            TranslationAware.Translatable translatable = translatable(expression, LucenePushdownPredicates.DEFAULT);
-            if (translatable == TranslationAware.Translatable.NO) {
-                return false;
-            }
-            return true;
+            // Here we are trying to eliminate cases where the expression is definitely not translatable.
+            // We do this early and without access to search stats for the lookup index that are only on the lookup node,
+            // so we only eliminate some of the not translatable cases here
+            // Later we will do a more thorough check on the lookup node
+            return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {

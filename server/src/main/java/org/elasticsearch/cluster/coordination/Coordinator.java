@@ -667,6 +667,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
+        // Store the current term so we can check later whether a new master has been elected
+        final long currentTerm = coordinationState.get().getLastAcceptedState().term();
         transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
             @Override
             public void onResponse(Releasable response) {
@@ -705,8 +707,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                 @Override
                                 public void clusterChanged(ClusterChangedEvent event) {
                                     final var discoveryNodes = event.state().nodes();
-                                    // Keep the connection open until the next committed state
-                                    if (discoveryNodes.getMasterNode() != null) {
+                                    // Keep the connection open until the next committed state by the next elected master
+                                    if (discoveryNodes.getMasterNode() != null && event.state().term() > currentTerm) {
                                         // Remove this listener to avoid memory leaks
                                         clusterService.removeListener(this);
                                         if (discoveryNodes.nodeExists(joinRequest.getSourceNode().getId())) {
@@ -726,6 +728,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                 }
                             };
                             clusterService.addListener(clusterStateListener);
+                            clusterStateListener.clusterChanged(
+                                new ClusterChangedEvent(
+                                    "Checking if another master has been elected since "
+                                        + joinRequest.getSourceNode().getName()
+                                        + " attempted to join cluster",
+                                    clusterService.state(),
+                                    clusterService.state()
+                                )
+                            );
                         } else {
                             ll.onFailure(e);
                         }

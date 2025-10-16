@@ -53,7 +53,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
@@ -474,12 +473,11 @@ public class IpFieldMapper extends FieldMapper {
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
-
             // see #indexValue
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext), lookup);
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
@@ -496,8 +494,8 @@ public class IpFieldMapper extends FieldMapper {
             };
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(BlockLoaderContext blContext) {
+            return new SourceValueFetcher(blContext.sourcePaths(name()), nullValue, blContext.indexSettings().getIgnoredSourceFormat()) {
                 @Override
                 public InetAddress parseSourceValue(Object value) {
                     return parse(value);

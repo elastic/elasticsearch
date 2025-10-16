@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class SingleValueMathQueryTests extends MapperServiceTestCase {
+public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     interface Setup {
         XContentBuilder mapping(XContentBuilder builder) throws IOException;
 
@@ -70,7 +70,7 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
 
     private final Setup setup;
 
-    public SingleValueMathQueryTests(Setup setup) {
+    public SingleValueMatchQueryTests(Setup setup) {
         this.setup = setup;
     }
 

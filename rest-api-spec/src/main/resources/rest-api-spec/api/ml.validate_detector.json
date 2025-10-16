@@ -24,7 +24,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The detector",
       "required": true

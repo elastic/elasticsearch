@@ -286,10 +286,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
                 this.dataStream = DataStream.read(in);
-                this.failureStoreEffectivelyEnabled = in.getTransportVersion()
-                    .onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
-                        ? in.readBoolean()
-                        : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
+                this.failureStoreEffectivelyEnabled = in.getTransportVersion().supports(TransportVersions.V_8_18_0)
+                    ? in.readBoolean()
+                    : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
                 this.dataStreamStatus = ClusterHealthStatus.readFrom(in);
                 this.indexTemplate = in.readOptionalString();
                 this.ilmPolicyName = in.readOptionalString();

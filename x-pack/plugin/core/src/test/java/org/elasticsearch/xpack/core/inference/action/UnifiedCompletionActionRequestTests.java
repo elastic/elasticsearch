@@ -82,7 +82,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+            TransportVersions.SOURCE_MODE_TELEMETRY_FIX_8_17
         );
 
         // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version

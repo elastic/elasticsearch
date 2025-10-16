@@ -31,6 +31,7 @@ POST /_sql?format=txt
   "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
 }
 ```
+% TEST[continued]
 
 Which should return something along the lines of:
 
@@ -40,6 +41,8 @@ Which should return something along the lines of:
 Dan Simmons    |Hyperion       |482            |1989-05-26T00:00:00.000Z
 Frank Herbert  |Dune           |604            |1965-06-01T00:00:00.000Z
 ```
+% TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+% TESTRESPONSE[non_json]
 
 You can also use the [*SQL CLI*](sql-cli.md). There is a script to start it shipped in the Elasticsearch `bin` directory:
 

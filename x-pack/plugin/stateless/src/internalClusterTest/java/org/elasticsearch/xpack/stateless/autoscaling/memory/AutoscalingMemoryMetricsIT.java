@@ -96,10 +96,11 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetric
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING;
@@ -354,7 +355,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         final var hollowShardSegmentMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024));
 
         startMasterNode(
-            Settings.builder().put(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING.getKey(), hollowShardMemoryEstimationEnabled).build()
+            Settings.builder().put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), hollowShardMemoryEstimationEnabled).build()
         );
         final var indexNodeSettings = Settings.builder()
             .put(INDEX_NODE_SETTINGS)
@@ -447,7 +448,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         startMasterNode(
             Settings.builder()
                 .put(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), shardMemoryOverhead)
-                .put(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING.getKey(), true)
+                .put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), true)
                 .build()
         );
         final var indexNodeSettings = Settings.builder()
@@ -502,6 +503,95 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> {
             var estimateMemoryUsageAfterUnhollow = metricsService.estimateTierMemoryUsage().totalBytes();
             assertThat(estimateMemoryUsageAfterUnhollow, equalTo(estimateMemoryUsageBeforeHollow));
+        });
+    }
+
+    public void testMemorySavingsFromHollowingArePublishedThroughAPM() throws Exception {
+        final var fixedHollowShardMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024 * 1024));
+        final var hollowShardSegmentMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024 * 1024));
+        ByteSizeValue fixedShardMemoryOverhead = ByteSizeValue.ofBytes(randomLongBetween(1L, 16L * 1024 * 1024));
+
+        startMasterNode(Settings.builder().put(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), fixedShardMemoryOverhead).build());
+
+        final var indexNodeSettings = Settings.builder()
+            .put(INDEX_NODE_SETTINGS)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), true)
+            .put(FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), fixedHollowShardMemoryOverhead)
+            .put(HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING.getKey(), hollowShardSegmentMemoryOverhead)
+            .build();
+        String indexNodeA = startIndexNode(indexNodeSettings);
+        ensureStableCluster(2);
+
+        var indexName = INDEX_NAME;
+        int numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 64));
+        flush(indexName);
+
+        var metricsService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
+        int totalSegmentsNum = 0;
+        long totalPostingsInMemoryBytes = 0;
+        for (var shardMetric : metricsService.getShardMemoryMetrics().values()) {
+            totalSegmentsNum += shardMetric.getNumSegments();
+            totalPostingsInMemoryBytes += shardMetric.getPostingsInMemoryBytes();
+        }
+        final long expectedReduction = totalPostingsInMemoryBytes + fixedShardMemoryOverhead.getBytes() * totalSegmentsNum
+            - (fixedHollowShardMemoryOverhead.getBytes() * numberOfShards + hollowShardSegmentMemoryOverhead.getBytes() * totalSegmentsNum);
+
+        var plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+        assertBusy(() -> {
+            // Metric is updated on every call to getIndexingTierMemoryMetrics, so we need to call it to ensure we have the latest value
+            metricsService.getIndexingTierMemoryMetrics();
+            plugin.resetMeter();
+            plugin.collect();
+            var measurements = plugin.getLongGaugeMeasurement(
+                INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.getFirst().getLong(), equalTo(0L));
+        });
+        plugin.resetMeter();
+
+        // Hollow shards
+        String indexNodeB = startIndexNode(indexNodeSettings);
+        hollowShards(indexName, numberOfShards, indexNodeA, indexNodeB);
+
+        // Memory estimate should be updated after hollowing, and the difference should be published through APM
+        assertBusy(() -> {
+            metricsService.getIndexingTierMemoryMetrics();
+            plugin.resetMeter();
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            // The measurement could be negative, zero, or positive
+            assertThat(measurements.getFirst().getLong(), equalTo(expectedReduction));
+        });
+
+        // Unhollow shards. We should see the savings metric going back to 0 in APM
+        assertBusy(() -> {
+            indexDocs(indexName, randomIntBetween(16, 64));
+            for (int i = 0; i < numberOfShards; i++) {
+                var indexShard = findIndexShard(index, i);
+                assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+            }
+        });
+        assertBusy(() -> {
+            metricsService.getIndexingTierMemoryMetrics();
+            plugin.resetMeter();
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.getFirst().getLong(), equalTo(0L));
         });
     }
 

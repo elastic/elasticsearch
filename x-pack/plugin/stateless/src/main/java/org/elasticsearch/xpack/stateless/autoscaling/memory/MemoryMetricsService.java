@@ -115,13 +115,16 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    public static final Setting<Boolean> SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.autoscaling.memory_metrics.shard_memory_overhead_override.enabled",
+    // Enables the use of custom shard memory overhead values reported by nodes when calculating memory usage estimates.
+    public static final Setting<Boolean> SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING = Setting.boolSetting(
+        "serverless.autoscaling.memory_metrics.self_reported_shard_memory_overhead.enabled",
         false,
         Setting.Property.NodeScope
     );
     public static final String INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME =
         "es.autoscaling.indexing.memory.heap_required_large_operations.current";
+    public static final String INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME =
+        "es.autoscaling.indexing.memory.heap.diff_self_reported_overhead.current";
 
     // We clean up a node's reported max merge when the node leaves the cluster. In order to ensure a node's reported max merges are
     // consumed in the correct sequence, we rely on keeping a sequence no of the last reported value to be able to reject out of order
@@ -131,7 +134,7 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     // visible for testing
     volatile ByteSizeValue fixedShardMemoryOverhead;
-    private final boolean shardMemoryOverheadOverrideEnabled;
+    private final boolean selfReportedShardMemoryOverheadEnabled;
     // The memory overhead of each IndexShard instance used in the adaptive estimate
     static final ByteSizeValue ADAPTIVE_SHARD_MEMORY_OVERHEAD = ByteSizeValue.ofKb(75);
     // The memory overhead of each Lucene segment, including maps for postings, doc_values, and stored_fields producers
@@ -164,6 +167,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile int totalIndices;
     private final AtomicReference<IndexingOperationsMemoryRequirements> indexingOperationsHeapMemoryRequirementsRef =
         new AtomicReference<>();
+    private volatile long heapDifferenceWithSelfReportedOverheadsBytes;
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private final ProjectType projectType;
@@ -186,7 +190,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.projectType = projectType;
-        this.shardMemoryOverheadOverrideEnabled = clusterSettings.get(SHARD_MEMORY_OVERHEAD_OVERRIDE_ENABLED_SETTING);
+        this.selfReportedShardMemoryOverheadEnabled = clusterSettings.get(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING);
         clusterSettings.initializeAndWatch(
             INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
             value -> indexingOperationsMemoryMetricsEnabled = value
@@ -217,6 +221,21 @@ public class MemoryMetricsService implements ClusterStateListener {
                 return List.of(new LongWithAttributes(latestIndexingOperationsMemoryRequirements.minimumRequiredHeapInBytes()));
             }
         );
+        // TODO: Remove this metric (and the associated field and method) in phase 3 after we enable the new estimation method for hollow
+        // shards, as then we can compare the true
+        // memory savings (the number of machines and memory assigned) (ES-13103)
+        meterRegistry.registerLongsGauge(
+            INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME,
+            "Difference in heap memory estimate due to using self reported shard memory overhead values",
+            "bytes",
+            () -> {
+                if (initialized == false) {
+                    return List.of();
+                }
+                // The value is refreshed when the indexing memory metrics are requested, which is periodically done by autoscaler
+                return List.of(new LongWithAttributes(heapDifferenceWithSelfReportedOverheadsBytes));
+            }
+        );
     }
 
     public MemoryMetrics getSearchTierMemoryMetrics() {
@@ -224,6 +243,8 @@ public class MemoryMetricsService implements ClusterStateListener {
     }
 
     public MemoryMetrics getIndexingTierMemoryMetrics() {
+        updateHeapDifferenceWithSelfReportedShardOverheadsMetric();
+
         var nodeHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes() + minimumRequiredHeapForAcceptingLargeIndexingOps()
             + mergeMemoryEstimation() + postingsMemoryEstimation();
         return getMemoryMetrics(nodeHeapEstimateInBytes);
@@ -333,7 +354,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         Map<String, Long> perNodePostingsInMemoryBytes = new HashMap<>();
         for (var entry : shardMemoryMetrics.entrySet()) {
             String shardNodeId = entry.getValue().getMetricShardNodeId();
-            if (shardMemoryOverheadOverrideEnabled == false
+            if (selfReportedShardMemoryOverheadEnabled == false
                 || entry.getValue().getShardMemoryOverheadBytes() == UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {
                 perNodePostingsInMemoryBytes.compute(
                     shardNodeId,
@@ -347,8 +368,12 @@ public class MemoryMetricsService implements ClusterStateListener {
     // Estimate of total mapping size of all known indices and IndexShard instances
     record TierEstimateMemoryUsage(long totalBytes, MetricQuality metricQuality) {}
 
-    // Calculates sum & metric quality of all known indices and shards, if any of qualities is not `EXACT` report the whole batch as such.
     TierEstimateMemoryUsage estimateTierMemoryUsage() {
+        return estimateTierMemoryUsage(selfReportedShardMemoryOverheadEnabled);
+    }
+
+    // Calculates sum & metric quality of all known indices and shards, if any of qualities is not `EXACT` report the whole batch as such.
+    private TierEstimateMemoryUsage estimateTierMemoryUsage(boolean allowSelfReportedShardMemoryOverhead) {
         MetricQuality metricQuality = MetricQuality.EXACT;
         // Can't control the frequency in which getTotalIndicesMappingSize is called, so we need to make sure we run the stale check
         // at a regular interval to avoid flooding logs with stale index warnings
@@ -360,7 +385,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         long totalSegments = 0;
         long totalFields = 0;
         long totalLiveDocsBytes = 0;
-        int numShardsWithSuppliedOverhead = 0;
+        int numShardsWithSelfReportedOverhead = 0;
         long shardMemoryInBytes = 0;
         for (var entry : shardMemoryMetrics.entrySet()) {
             var metric = entry.getValue();
@@ -368,8 +393,8 @@ public class MemoryMetricsService implements ClusterStateListener {
             // assume each shard is on a different node, so total overhead = num shards.
             // This will be an overestimate in either tier when there are fewer nodes than shards.
             mappingSizeInBytes += metric.mappingSizeInBytes;
-            if (shardMemoryOverheadOverrideEnabled && metric.getShardMemoryOverheadBytes() != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {
-                numShardsWithSuppliedOverhead++;
+            if (allowSelfReportedShardMemoryOverhead && metric.getShardMemoryOverheadBytes() != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {
+                numShardsWithSelfReportedOverhead++;
                 shardMemoryInBytes += metric.getShardMemoryOverheadBytes();
             } else {
                 totalSegments += metric.getNumSegments();
@@ -383,9 +408,9 @@ public class MemoryMetricsService implements ClusterStateListener {
                 logger.warn("Memory metrics are stale for shard {}", entry);
             }
         }
-        assert shardMemoryMetrics.size() >= numShardsWithSuppliedOverhead;
+        assert shardMemoryMetrics.size() >= numShardsWithSelfReportedOverhead;
         shardMemoryInBytes += estimateShardMemoryUsageInBytes(
-            Math.subtractExact(shardMemoryMetrics.size(), numShardsWithSuppliedOverhead),
+            Math.subtractExact(shardMemoryMetrics.size(), numShardsWithSelfReportedOverhead),
             totalSegments,
             totalFields,
             totalLiveDocsBytes
@@ -407,6 +432,20 @@ public class MemoryMetricsService implements ClusterStateListener {
     // visible for testing
     Map<ShardId, ShardMemoryMetrics> getShardMemoryMetrics() {
         return shardMemoryMetrics;
+    }
+
+    private void updateHeapDifferenceWithSelfReportedShardOverheadsMetric() {
+        final TierEstimateMemoryUsage estimateWithoutSelfReportedOverheads = estimateTierMemoryUsage(false);
+        final TierEstimateMemoryUsage estimateWithSelfReportedOverheads = estimateTierMemoryUsage(true);
+        // We calculate the postings memory savings separately since they are part of the node heap and not tier memory estimate.
+        // Here we calculate savings across the whole tier. This is different from node heap estimate where we find the node with max usage.
+        final long postingsMemorySavingsBytes = shardMemoryMetrics.values()
+            .stream()
+            .filter(m -> m.getShardMemoryOverheadBytes() != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES)
+            .mapToLong(ShardMemoryMetrics::getPostingsInMemoryBytes)
+            .sum();
+        heapDifferenceWithSelfReportedOverheadsBytes = (estimateWithoutSelfReportedOverheads.totalBytes()
+            - estimateWithSelfReportedOverheads.totalBytes()) + postingsMemorySavingsBytes;
     }
 
     /**
@@ -516,6 +555,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             initialized = false;
             // Set the cluster state to unknown so we don't ignore valid updates that arrive during our next promotion
             clusterStateVersion = ClusterState.UNKNOWN_VERSION;
+            heapDifferenceWithSelfReportedOverheadsBytes = 0L;
             return;
         }
         this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
@@ -842,7 +882,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         private long totalLiveDocsBytes;
         private long totalShardMemoryOverheadBytes;
         private int totalShards;
-        private int totalShardsWithSuppliedOverhead;
+        private int totalShardsWithSelfReportedOverhead;
 
         EstimatedHeapUsageBuilder(
             @Nullable DiscoveryNode discoveryNode,
@@ -860,10 +900,10 @@ public class MemoryMetricsService implements ClusterStateListener {
             if (seenIndices.add(shardId.getIndexName())) {
                 mappingSizeInBytes += shardMemoryMetrics.getMappingSizeInBytes();
             }
-            if (shardMemoryOverheadOverrideEnabled
+            if (selfReportedShardMemoryOverheadEnabled
                 && shardMemoryMetrics.getShardMemoryOverheadBytes() != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES) {
                 totalShardMemoryOverheadBytes += shardMemoryMetrics.getShardMemoryOverheadBytes();
-                totalShardsWithSuppliedOverhead++;
+                totalShardsWithSelfReportedOverhead++;
             } else {
                 totalSegments += shardMemoryMetrics.getNumSegments();
                 totalFields += shardMemoryMetrics.getTotalFields();
@@ -874,9 +914,9 @@ public class MemoryMetricsService implements ClusterStateListener {
         }
 
         long getHeapUsageEstimate() {
-            assert totalShards >= totalShardsWithSuppliedOverhead;
+            assert totalShards >= totalShardsWithSelfReportedOverhead;
             final long shardMemoryUsageInBytes = estimateShardMemoryUsageInBytes(
-                Math.subtractExact(totalShards, totalShardsWithSuppliedOverhead),
+                Math.subtractExact(totalShards, totalShardsWithSelfReportedOverhead),
                 totalSegments,
                 totalFields,
                 totalLiveDocsBytes

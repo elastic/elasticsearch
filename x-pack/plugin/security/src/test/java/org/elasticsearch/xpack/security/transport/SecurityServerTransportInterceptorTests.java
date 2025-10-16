@@ -759,6 +759,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     ) throws IOException {
         authentication.writeToContext(threadContext);
         final String expectedRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        if (randomBoolean()) {
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, randomProjectIdOrDefault().id());
+        }
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String encodedApiKey = randomAlphaOfLengthBetween(10, 42);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(encodedApiKey);
@@ -808,6 +811,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
                 assertThat(AuditUtil.extractRequestId(securityContext.getThreadContext()), equalTo(expectedRequestId));
+                assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), nullValue());
                 sentAction.set(action);
                 sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {

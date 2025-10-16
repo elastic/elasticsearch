@@ -16,20 +16,20 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
-public final class StdDevStates {
+public final class VarianceStates {
 
-    private StdDevStates() {}
+    private VarianceStates() {}
 
     static final class SingleState implements AggregatorState {
 
         private final WelfordAlgorithm welfordAlgorithm;
 
         SingleState() {
-            this(0, 0, 0);
+            this(0, 0, 0, true);
         }
 
-        SingleState(double mean, double m2, long count) {
-            this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
+        SingleState(double mean, double m2, long count, boolean stdDev) {
+            this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count, stdDev);
         }
 
         public void add(long value) {
@@ -90,10 +90,12 @@ public final class StdDevStates {
 
         private ObjectArray<WelfordAlgorithm> states;
         private final BigArrays bigArrays;
+        private final boolean stdDev;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, boolean stdDev) {
             this.states = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
+            this.stdDev = stdDev;
         }
 
         WelfordAlgorithm getOrNull(int position) {
@@ -115,7 +117,7 @@ public final class StdDevStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new WelfordAlgorithm(meanValue, m2Value, countValue);
+                state = new WelfordAlgorithm(meanValue, m2Value, countValue, stdDev);
                 states.set(groupId, state);
             } else {
                 state.add(meanValue, m2Value, countValue);
@@ -126,7 +128,7 @@ public final class StdDevStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new WelfordAlgorithm();
+                state = new WelfordAlgorithm(stdDev);
                 states.set(groupId, state);
             }
             return state;

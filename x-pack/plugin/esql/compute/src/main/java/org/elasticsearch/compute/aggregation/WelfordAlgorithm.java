@@ -19,6 +19,8 @@ public final class WelfordAlgorithm {
     private double mean;
     private double m2;
     private long count;
+    // If true, compute standard deviation, otherwise compute variance
+    private final boolean stdDev;
 
     public double mean() {
         return mean;
@@ -33,13 +35,18 @@ public final class WelfordAlgorithm {
     }
 
     public WelfordAlgorithm() {
-        this(0, 0, 0);
+        this(0, 0, 0, true);
     }
 
-    public WelfordAlgorithm(double mean, double m2, long count) {
+    public WelfordAlgorithm(boolean stdDev) {
+        this(0, 0, 0, stdDev);
+    }
+
+    public WelfordAlgorithm(double mean, double m2, long count, boolean stdDev) {
         this.mean = mean;
         this.m2 = m2;
         this.count = count;
+        this.stdDev = stdDev;
     }
 
     public void add(int value) {
@@ -74,6 +81,10 @@ public final class WelfordAlgorithm {
     }
 
     public double evaluate() {
-        return count < 2 ? 0 : Math.sqrt(m2 / count);
+        if (!stdDev) {
+            return count < 2 ? 0 : m2 / count;
+        } else {
+            return count < 2 ? 0 : Math.sqrt(m2 / count);
+        }
     }
 }

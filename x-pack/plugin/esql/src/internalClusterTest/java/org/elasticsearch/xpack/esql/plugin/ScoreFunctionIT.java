@@ -33,7 +33,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-    public void testScoreOnMatch() {
+    public void testPushingDownEvalWithScore() {
         var query = """
             FROM test
             | EVAL first_score = score(match(content, "dog")), s = [1]

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.vectors;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -62,7 +63,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        this.modelId = in.readOptionalString();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            this.modelId = in.readOptionalString();
+        } else {
+            this.modelId = in.readString();
+        }
         this.modelText = in.readString();
     }
 
@@ -73,12 +78,16 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_7_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(modelId);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeOptionalString(modelId);
+        } else {
+            out.writeString(modelId);
+        }
         out.writeString(modelText);
     }
 

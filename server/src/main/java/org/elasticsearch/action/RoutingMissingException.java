@@ -10,8 +10,10 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -40,12 +42,18 @@ public final class RoutingMissingException extends ElasticsearchException {
 
     public RoutingMissingException(StreamInput in) throws IOException {
         super(in);
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            in.readString();
+        }
         id = in.readString();
     }
 
     @Override
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
     }
 }

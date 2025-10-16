@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
@@ -129,8 +129,8 @@ public class OptimizerRulesTests extends ESTestCase {
         };
 
         rule.apply(
-            new EsqlParser().createStatement("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1", EsqlTestUtils.TEST_CFG),
-            new LogicalOptimizerContext(null, FoldContext.small())
+            new EsqlParser().createStatement("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
+            new LogicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion())
         );
 
         var literal = new Literal(new Source(1, 25, "1"), 1, DataType.INTEGER);

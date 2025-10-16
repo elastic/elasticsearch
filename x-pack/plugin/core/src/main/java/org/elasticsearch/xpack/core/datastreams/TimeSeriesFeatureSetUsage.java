@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -241,19 +242,34 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         }
     }
 
-    public record DownsamplingFeatureStats(long dataStreamsCount, long indexCount, long minRounds, double averageRounds, long maxRounds)
-        implements
-            Writeable,
-            ToXContentFragment {
+    public record DownsamplingFeatureStats(
+        long dataStreamsCount,
+        long indexCount,
+        long minRounds,
+        double averageRounds,
+        long maxRounds,
+        long aggregateSamplingMethod,
+        long lastValueSamplingMethod,
+        long undefinedSamplingMethod
+    ) implements Writeable, ToXContentFragment {
 
-        static final DownsamplingFeatureStats EMPTY = new DownsamplingFeatureStats(0, 0, 0, 0.0, 0);
+        static final DownsamplingFeatureStats EMPTY = new DownsamplingFeatureStats(0, 0, 0, 0.0, 0, 0, 0, 0);
 
         public static DownsamplingFeatureStats read(StreamInput in) throws IOException {
             long dataStreamsCount = in.readVLong();
             if (dataStreamsCount == 0) {
                 return EMPTY;
             } else {
-                return new DownsamplingFeatureStats(dataStreamsCount, in.readVLong(), in.readVLong(), in.readDouble(), in.readVLong());
+                return new DownsamplingFeatureStats(
+                    dataStreamsCount,
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readDouble(),
+                    in.readVLong(),
+                    in.getTransportVersion().supports(DownsampleConfig.ADD_LAST_VALUE_DOWNSAMPLING) ? in.readVLong() : 0,
+                    in.getTransportVersion().supports(DownsampleConfig.ADD_LAST_VALUE_DOWNSAMPLING) ? in.readVLong() : 0,
+                    in.getTransportVersion().supports(DownsampleConfig.ADD_LAST_VALUE_DOWNSAMPLING) ? in.readVLong() : 0
+                );
             }
         }
 
@@ -265,6 +281,11 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
                 out.writeVLong(this.minRounds);
                 out.writeDouble(this.averageRounds);
                 out.writeVLong(this.maxRounds);
+                if (out.getTransportVersion().supports(DownsampleConfig.ADD_LAST_VALUE_DOWNSAMPLING)) {
+                    out.writeVLong(this.aggregateSamplingMethod);
+                    out.writeVLong(this.lastValueSamplingMethod);
+                    out.writeVLong(this.undefinedSamplingMethod);
+                }
             }
         }
 
@@ -277,6 +298,11 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
                 builder.field("min", minRounds);
                 builder.field("average", averageRounds);
                 builder.field("max", maxRounds);
+                builder.endObject();
+                builder.startObject("sampling_method");
+                builder.field("aggregate", aggregateSamplingMethod);
+                builder.field("last_value", lastValueSamplingMethod);
+                builder.field("undefined", undefinedSamplingMethod);
                 builder.endObject();
             }
             return builder;

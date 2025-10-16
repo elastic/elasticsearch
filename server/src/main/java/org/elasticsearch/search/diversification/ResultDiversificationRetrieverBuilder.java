@@ -32,10 +32,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
@@ -155,7 +157,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
         // ensure the type is one we know of - at the moment, only "mmr" is valid
         if (diversificationType.equals(DIVERSIFICATION_TYPE_MMR) == false) {
             validationException = addValidationError(
-                String.format(Locale.ROOT, "[%s] diversification type must be set to `[%s]`", getName(), DIVERSIFICATION_TYPE_MMR),
+                String.format(Locale.ROOT, "[%s] diversification type must be set to [%s]", getName(), DIVERSIFICATION_TYPE_MMR),
                 validationException
             );
         }
@@ -165,7 +167,7 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
-                    "[%s] MMR result diversification must have a [%s]] between 0.0 and 1.0",
+                    "[%s] MMR result diversification must have a [%s] between 0.0 and 1.0",
                     getName(),
                     LAMBDA_FIELD.getPreferredName()
                 ),
@@ -279,5 +281,22 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     @Override
     protected RankDoc createRankDocFromHit(int docId, SearchHit hit, int shardRequestIndex) {
         return new RankDocWithSearchHit(docId, hit.getScore(), shardRequestIndex, hit);
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        if (super.doEquals(o) == false) {
+            return false;
+        }
+
+        if ((o instanceof ResultDiversificationRetrieverBuilder) == false) {
+            return false;
+        }
+
+        ResultDiversificationRetrieverBuilder other = (ResultDiversificationRetrieverBuilder) o;
+        return this.diversificationType.equals(other.diversificationType)
+            && this.diversificationField.equals(other.diversificationField)
+            && Objects.equals(this.lambda, other.lambda)
+            && Arrays.equals(this.queryVector, other.queryVector);
     }
 }

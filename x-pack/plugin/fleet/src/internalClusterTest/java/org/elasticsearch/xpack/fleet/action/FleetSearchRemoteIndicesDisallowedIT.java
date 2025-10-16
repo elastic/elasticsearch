@@ -41,5 +41,43 @@ public class FleetSearchRemoteIndicesDisallowedIT extends ESIntegTestCase {
                 Matchers.containsString("Fleet search API does not support remote indices. Found: [" + remoteIndex + "]")
             );
         }
+
+        {
+            Request request = new Request("POST", "/" + remoteIndex + "/_fleet/_fleet_msearch");
+            request.setJsonEntity("{}\n{}\n");
+            ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(
+                responseException.getMessage(),
+                Matchers.containsString("Fleet search API does not support remote indices. Found: [" + remoteIndex + "]")
+            );
+        }
+
+        {
+            // This is fine, there are no remote indices.
+            Request request = new Request("POST", "/foo/_fleet/_fleet_msearch");
+            request.setJsonEntity("{\"index\": \"bar*\"}\n{}\n");
+            try {
+                getRestClient().performRequest(request);
+            } catch (Exception r) {
+                throw new AssertionError(r);
+            }
+        }
+
+        {
+            // This is not valid. We shouldn't be passing multiple indices.
+            Request request = new Request("POST", "/foo/_fleet/_fleet_msearch");
+            request.setJsonEntity("{\"index\": \"bar*,baz\"}\n{}\n");
+
+            ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(responseException.getMessage(), Matchers.containsString("Fleet search API only supports searching a single index."));
+        }
+
+        {
+            // This is not valid. We shouldn't be passing remote indices.
+            Request request = new Request("POST", "/foo/_fleet/_fleet_msearch");
+            request.setJsonEntity("{\"index\": \"bar*\"}\n{}\n{\"index\": \"remote:index\"}\n{}\n");
+            ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(responseException.getMessage(), Matchers.containsString("Fleet search API does not support remote indices. Found:"));
+        }
     }
 }

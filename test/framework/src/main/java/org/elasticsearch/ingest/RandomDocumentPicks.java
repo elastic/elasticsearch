@@ -36,16 +36,12 @@ public final class RandomDocumentPicks {
     public static String randomFieldName(Random random) {
         int numLevels = RandomNumbers.randomIntBetween(random, 1, 5);
         StringBuilder fieldName = new StringBuilder();
-        for (int i = 0; i < numLevels - 1; i++) {
+        for (int i = 0; i < numLevels; i++) {
             if (i > 0) {
                 fieldName.append('.');
             }
-            fieldName.append(randomString(random));
+            fieldName.append(randomLeafFieldName(random));
         }
-        if (numLevels > 1) {
-            fieldName.append('.');
-        }
-        fieldName.append(randomLeafFieldName(random));
         return fieldName.toString();
     }
 

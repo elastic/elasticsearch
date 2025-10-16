@@ -545,7 +545,10 @@ public class ModelRegistry implements ClusterStateListener {
                 l.onFailure(e);
             });
 
-            client.prepareBulk().add(configRequestBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
+            client.prepareBulk()
+                .add(configRequestBuilder)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .execute(storeConfigListener);
 
         }).<BulkResponse>andThen((subListener, configResponse) -> {
             // in this block, we respond to the success or failure of updating the model configurations, then try to store the new secrets
@@ -782,8 +785,7 @@ public class ModelRegistry implements ClusterStateListener {
 
     private record StoreResponseWithIndexInfo(ModelStoreResponse modelStoreResponse, boolean modifiedIndex) {}
 
-    private record ResponseInfo(List<StoreResponseWithIndexInfo> responses, List<Model> successfullyStoredModels) {
-    }
+    private record ResponseInfo(List<StoreResponseWithIndexInfo> responses, List<Model> successfullyStoredModels) {}
 
     private static ResponseInfo getResponseInfo(
         BulkResponse bulkResponse,

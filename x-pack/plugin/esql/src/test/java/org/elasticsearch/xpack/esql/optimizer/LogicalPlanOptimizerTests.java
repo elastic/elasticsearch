@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -170,6 +170,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -4986,7 +4987,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     s_null = count(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, SubstitutionOnlyOptimizer.INSTANCE);
+            """, new TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
         var esqlProject = as(limit.child(), EsqlProject.class);
@@ -5058,7 +5059,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     s_null = sum(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, SubstitutionOnlyOptimizer.INSTANCE);
+            """, new TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
         var esqlProject = as(limit.child(), EsqlProject.class);
@@ -5165,7 +5166,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
+            var plan = plan(query, new TestSubstitutionOnlyOptimizer());
 
             var limit = as(plan, Limit.class);
             var esqlProject = as(limit.child(), EsqlProject.class);
@@ -5213,7 +5214,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
+            var plan = plan(query, new TestSubstitutionOnlyOptimizer());
 
             var limit = as(plan, Limit.class);
             var esqlProject = as(limit.child(), EsqlProject.class);
@@ -5281,7 +5282,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultAirports,
@@ -8931,8 +8932,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(knn.k(), equalTo(100));
     }
 
-    private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {
-        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small());
+    private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(
+        List<RuleExecutor.Batch<LogicalPlan>> batches,
+        TransportVersion minimumVersion
+    ) {
+        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
         LogicalPlanOptimizer customOptimizer = new LogicalPlanOptimizer(context) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {
@@ -8973,7 +8977,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
             }
         );
-        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(List.of(customRuleBatch));
+        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
+            List.of(customRuleBatch),
+            logicalOptimizer.context().minimumVersion()
+        );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
         assertThat(e.getMessage(), containsString("additionalAttribute"));
@@ -9018,7 +9025,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
             }
         );
-        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(List.of(customRuleBatch));
+        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
+            List.of(customRuleBatch),
+            logicalOptimizerCtx.minimumVersion()
+        );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }

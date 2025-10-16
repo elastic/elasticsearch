@@ -28,6 +28,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -72,7 +73,7 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlanPreOptimizer preOptimizer() {
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small());
+        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small(), randomMinimumVersion());
         return new LogicalPlanPreOptimizer(preOptimizerContext);
     }
 

@@ -74,7 +74,7 @@ public class EsqlCCSUtils {
      * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
      * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
      */
-    abstract static class CssPartialErrorsActionListener implements ActionListener<LogicalPlan> {
+    abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
         private final EsqlExecutionInfo executionInfo;
         private final ActionListener<Result> listener;
 

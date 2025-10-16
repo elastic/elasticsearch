@@ -181,11 +181,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we use the correct block value reader
-<<<<<<< HEAD
         assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
-=======
-        assertThat(loader, instanceOf(GeoPointFieldMapper.BytesRefFromLongsBlockLoader.class));
->>>>>>> 6c2346e5e62 (Fixed geo point block loader slowness)
     }
 
     public void testBlockLoaderWhenFieldIsStoredAndThePreferenceIsToUseStoredFields() {
@@ -285,11 +281,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     ) {
         return new GeoPointFieldMapper.GeoPointFieldType(
             "potato",
-<<<<<<< HEAD
             hasDocValues ? IndexType.docValuesOnly() : IndexType.NONE,
-=======
-            new IndexType(false, true, true, false, hasDocValues, false),
->>>>>>> 6c2346e5e62 (Fixed geo point block loader slowness)
             isStored,
             null,
             null,

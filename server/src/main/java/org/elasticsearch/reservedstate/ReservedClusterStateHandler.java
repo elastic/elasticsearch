@@ -39,7 +39,7 @@ public interface ReservedClusterStateHandler<T> extends ReservedStateHandler<T> 
     TransformState transform(T source, TransformState prevState) throws Exception;
 
     /**
-     * Called when the file no longer contains a section corresponding to {@link #name}.
+     * Called when the source no longer contains a section corresponding to {@link #name}.
      * A bit like {@link #transform}, but with no {@code source} because the "source" has disappeared,
      * and no {@link TransformState#keys() keys} in the return value because there aren't any.
      *

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -75,8 +77,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -523,11 +524,23 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+    private LogicalPlan analyzedPlan(
+        LogicalPlan parsed,
+        CsvTestsDataLoader.MultiIndexTestDataset datasets,
+        TransportVersion minimumVersion
+    ) {
         var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(
-            new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies, emptyInferenceResolution()),
+            new AnalyzerContext(
+                configuration,
+                functionRegistry,
+                indexResolution,
+                Map.of(),
+                enrichPolicies,
+                emptyInferenceResolution(),
+                minimumVersion
+            ),
             TEST_VERIFIER
         );
         LogicalPlan plan = analyzer.analyze(parsed);
@@ -583,7 +596,9 @@ public class CsvTests extends ESTestCase {
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
         LogicalPlan parsed = parser.createStatement(testCase.query);
         var testDatasets = testDatasets(parsed);
-        LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
+        // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
+        TransportVersion minimumVersion = TransportVersion.current();
+        LogicalPlan analyzed = analyzedPlan(parsed, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -602,9 +617,10 @@ public class CsvTests extends ESTestCase {
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
-        var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class)));
-        var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx));
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
+        var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
+            new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class), minimumVersion)
+        );
+        var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
@@ -613,7 +629,7 @@ public class CsvTests extends ESTestCase {
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer),
                 configuration,
                 foldCtx,
-                physicalPlanOptimizer,
+                minimumVersion,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
@@ -725,8 +741,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders,
-            List.of()
+            physicalOperationProviders
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
@@ -737,7 +752,8 @@ public class CsvTests extends ESTestCase {
             "final",
             foldCtx,
             TEST_PLANNER_SETTINGS,
-            new OutputExec(coordinatorPlan, collectedPages::add)
+            new OutputExec(coordinatorPlan, collectedPages::add),
+            EmptyIndexedByShardId.instance()
         );
         drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
         if (dataNodePlan != null) {
@@ -762,7 +778,8 @@ public class CsvTests extends ESTestCase {
                 "data",
                 foldCtx,
                 EsqlTestUtils.TEST_PLANNER_SETTINGS,
-                csvDataNodePhysicalPlan
+                csvDataNodePhysicalPlan,
+                ConstantShardContextIndexedByShardId.INSTANCE
             );
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));

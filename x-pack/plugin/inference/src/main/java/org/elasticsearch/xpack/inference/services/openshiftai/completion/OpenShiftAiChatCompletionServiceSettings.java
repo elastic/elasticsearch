@@ -23,6 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
@@ -80,6 +81,17 @@ public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiService
      */
     public OpenShiftAiChatCompletionServiceSettings(@Nullable String modelId, URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         super(modelId, uri, rateLimitSettings);
+    }
+
+    /**
+     * Constructs a new OpenShiftAiChatCompletionServiceSettings.
+     *
+     * @param modelId the ID of the model ID
+     * @param url the URL of the OpenShift AI service
+     * @param rateLimitSettings the rate limit settings for the service
+     */
+    public OpenShiftAiChatCompletionServiceSettings(@Nullable String modelId, String url, @Nullable RateLimitSettings rateLimitSettings) {
+        super(modelId, createUri(url), rateLimitSettings);
     }
 
     @Override

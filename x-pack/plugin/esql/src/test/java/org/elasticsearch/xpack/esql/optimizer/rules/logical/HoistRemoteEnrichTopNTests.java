@@ -174,7 +174,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         assertFalse(topn.local());
         Order topNOrder = topn.order().getFirst();
         NamedExpression expr = as(topNOrder.child(), NamedExpression.class);
-        assertThat(expr.name(), startsWith("$$emp_no$temp_name$"));
+        assertThat(expr.name(), startsWith("$$description$temp_name$"));
         var enrich = as(topn.child(), Enrich.class);
         assertThat(enrich.mode(), is(Enrich.Mode.REMOTE));
         var eval = as(enrich.child(), Eval.class);

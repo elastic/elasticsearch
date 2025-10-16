@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,14 +26,14 @@ import java.io.IOException;
 public class Hamming extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Hamming::new);
-    public static final BlockLoaderSimilarityEvaluatorFunction SIMILARITY_FUNCTION = new BlockLoaderSimilarityEvaluatorFunction() {
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction () {
         @Override
-        public double calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
             return Hamming.calculateSimilarity(leftScratch, rightScratch);
         }
 
         @Override
-        public double calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
             throw new UnsupportedOperationException("Hamming distance is not supported for float vectors");
         }
     };
@@ -65,7 +66,7 @@ public class Hamming extends VectorSimilarityFunction {
     }
 
     @Override
-    public BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction  getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 

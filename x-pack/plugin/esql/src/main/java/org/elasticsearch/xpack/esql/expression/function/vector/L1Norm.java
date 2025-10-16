@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,9 +25,9 @@ import java.io.IOException;
 public class L1Norm extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L1Norm", L1Norm::new);
-    public static final BlockLoaderSimilarityEvaluatorFunction SIMILARITY_FUNCTION = new BlockLoaderSimilarityEvaluatorFunction() {
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public double calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
             float result = 0f;
             for (int i = 0; i < leftScratch.length; i++) {
                 result += Math.absExact(leftScratch[i] - rightScratch[i]);
@@ -35,7 +36,7 @@ public class L1Norm extends VectorSimilarityFunction {
         }
 
         @Override
-        public double calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
             float result = 0f;
             for (int i = 0; i < leftScratch.length; i++) {
                 result += Math.abs(leftScratch[i] - rightScratch[i]);
@@ -77,7 +78,7 @@ public class L1Norm extends VectorSimilarityFunction {
     }
 
     @Override
-    public BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -69,18 +70,6 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         return isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector");
     }
 
-    /**
-     * Functional interface for evaluating the similarity between two float arrays
-     */
-    @FunctionalInterface
-    public interface SimilarityEvaluatorFunction {
-        double calculateSimilarity(float[] leftScratch, float[] rightScratch);
-    }
-
-    public interface BlockLoaderSimilarityEvaluatorFunction extends SimilarityEvaluatorFunction {
-        double calculateSimilarity(byte[] leftScratch, byte[] rightScratch);
-    }
-
     @Override
     public Object fold(FoldContext ctx) {
         return EvaluatorMapper.super.fold(source(), ctx);
@@ -113,12 +102,12 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     /**
      * Returns the similarity function to be used for evaluating the similarity between two vectors.
      */
-    public abstract BlockLoaderSimilarityEvaluatorFunction getSimilarityFunction();
+    public abstract DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction();
 
     private record SimilarityEvaluatorFactory(
         VectorValueProviderFactory leftVectorProviderFactory,
         VectorValueProviderFactory rightVectorProviderFactory,
-        SimilarityEvaluatorFunction similarityFunction,
+        DenseVectorFieldMapper.SimilarityFunction  similarityFunction,
         String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
 
@@ -143,7 +132,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     private record SimilarityEvaluator(
         VectorValueProvider left,
         VectorValueProvider right,
-        SimilarityEvaluatorFunction similarityFunction,
+        DenseVectorFieldMapper.SimilarityFunction  similarityFunction,
         String evaluatorName,
         BlockFactory blockFactory
     ) implements EvalOperator.ExpressionEvaluator {

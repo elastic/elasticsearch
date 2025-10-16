@@ -3135,4 +3135,39 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
     }
+
+    public interface SimilarityFunction {
+        float calculateSimilarity(float[] v1, float[] v2);
+        float calculateSimilarity(byte[] v1, byte[] v2);
+    }
+
+    public static class DenseVectorBlockValueLoader implements MappedFieldType.BlockValueLoader<float[], BlockLoader.DoubleBuilder> {
+
+        private final SimilarityFunction similarityFunction;
+        private final float[] vector;
+        private byte[] vectorAsBytes;
+
+        public DenseVectorBlockValueLoader(SimilarityFunction similarityFunction, float[] vector) {
+            this.similarityFunction = similarityFunction;
+            this.vector = vector;
+        }
+
+        public BlockLoader.DoubleBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        public void addValue(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+            builder.appendDouble(similarityFunction.calculateSimilarity(value, vector));
+        }
+
+        public void addValue(byte[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+            if (vectorAsBytes == null) {
+                vectorAsBytes = new byte[vector.length];
+                for (int i = 0; i < vector.length; i++) {
+                    vectorAsBytes[i] = (byte) vector[i];
+                }
+            }
+            builder.appendDouble(similarityFunction.calculateSimilarity(value, vectorAsBytes));
+        }
+    }
 }

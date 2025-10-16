@@ -815,8 +815,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     }
 
     private static class ByteDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<ByteVectorValues> {
-        ByteDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
-            super(floatVectorValues, dimensions);
+        ByteDenseVectorValuesBlockReader(ByteVectorValues byteVectorValues, int dimensions) {
+            super(byteVectorValues, dimensions);
         }
 
         protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {

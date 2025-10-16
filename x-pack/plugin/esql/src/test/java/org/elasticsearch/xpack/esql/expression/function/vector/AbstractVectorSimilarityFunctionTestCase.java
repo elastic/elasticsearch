@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -43,7 +44,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
 
     protected static Iterable<Object[]> similarityParameters(
         String className,
-        VectorSimilarityFunction.SimilarityEvaluatorFunction similarityFunction
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction
     ) {
 
         final String evaluatorName = className

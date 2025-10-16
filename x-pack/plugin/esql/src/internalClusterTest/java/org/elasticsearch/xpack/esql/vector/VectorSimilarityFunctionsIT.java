@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
-import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction.SimilarityEvaluatorFunction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -85,12 +85,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     private final String functionName;
-    private final SimilarityEvaluatorFunction similarityFunction;
+    private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
     private int numDims;
 
     public VectorSimilarityFunctionsIT(
         @Name("functionName") String functionName,
-        @Name("similarityFunction") SimilarityEvaluatorFunction similarityFunction
+        @Name("similarityFunction") DenseVectorFieldMapper.SimilarityFunction similarityFunction
     ) {
         this.functionName = functionName;
         this.similarityFunction = similarityFunction;
@@ -192,11 +192,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private Double calculateSimilarityFloats(SimilarityEvaluatorFunction similarityFunction, float[] randomVector, List<Number> vector) {
+    private Double calculateSimilarityFloats(DenseVectorFieldMapper.SimilarityFunction similarityFunction, float[] randomVector,
+                                             List<Number> vector) {
         if (randomVector == null || vector == null) {
             return null;
         }
-        return similarityFunction.calculateSimilarity(randomVector, readVector(vector));
+        return (double) similarityFunction.calculateSimilarity(randomVector, readVector(vector));
     }
 
     public void testDifferentDimensions() {

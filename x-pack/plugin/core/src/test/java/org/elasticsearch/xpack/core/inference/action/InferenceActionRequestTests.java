@@ -693,7 +693,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     }
 
         // We always assume that a request has been rerouted, if it came from a node without adaptive rate limiting
-        if (version.before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
+        if (version.supports(TransportVersions.V_8_18_0) == false) {
             mutated.setHasBeenRerouted(true);
         } else {
             mutated.setHasBeenRerouted(instance.hasBeenRerouted());

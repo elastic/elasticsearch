@@ -356,7 +356,7 @@ public class HashAggregationOperator implements Operator {
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 rowsReceived = in.readVLong();
                 rowsEmitted = in.readVLong();
             } else {
@@ -376,7 +376,7 @@ public class HashAggregationOperator implements Operator {
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeVLong(rowsReceived);
                 out.writeVLong(rowsEmitted);
             }

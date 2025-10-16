@@ -124,13 +124,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             this.includeCCSMetadata = false;
         }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.isPartial = in.readBoolean();
         } else {
             this.isPartial = false;
         }
-
         this.skipUnavailablePredicate = Predicates.always();
         this.relativeStart = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
@@ -150,7 +148,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(includeCCSMetadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_18_0)) {
             out.writeBoolean(isPartial);
         }
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {

@@ -312,8 +312,7 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
 
-    def "modification checks use PR base branch in CI"() {
-        given:
+    void baseBranchSetup() {
         // create 9.1 branch
         execute("git checkout -b 9.1")
         // setup 9.1 upper bound as if 9.2 was just branched, so no patches yet
@@ -342,10 +341,27 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
                 currentUpperBoundName = '9.1'
             }
         """
+    }
+
+    def "modification checks use PR base branch in CI"() {
+        given:
+        baseBranchSetup()
 
         when:
         def result = gradleRunner("validateTransportVersionResources")
-            .withEnvironment(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", "9.1")).build()
+            .withEnvironment(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", "9.1", "BUILDKITE_BRANCH", "foobar")).build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "modification checks use buildkite base branch in CI if not in PR"() {
+        given:
+        baseBranchSetup()
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources")
+            .withEnvironment(Map.of("BUILDKITE_BRANCH", "9.1")).build()
 
         then:
         result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS

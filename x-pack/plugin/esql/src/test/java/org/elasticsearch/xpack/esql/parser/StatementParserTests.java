@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -3691,6 +3692,76 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
             }
         }
+    }
+
+    public void testLookupJoinOnExpressionWithNamedQueryParameters() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+
+        // Test LOOKUP JOIN ON expression with named query parameters and MATCH function
+        var plan = statement(
+            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?search_term)",
+            new QueryParams(List.of(paramAsConstant("search_term", "elasticsearch")))
+        );
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test"));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test2"));
+
+        // Verify the join condition contains both the comparison and MATCH function
+        var condition = join.config().joinOnConditions();
+        assertThat(condition, instanceOf(And.class));
+        var andCondition = (And) condition;
+
+        // Check that we have both conditions in the correct order
+        assertThat(andCondition.children().size(), equalTo(2));
+
+        // First child should be a binary comparison (left_field >= right_field)
+        var firstChild = andCondition.children().get(0);
+        assertThat("First condition should be binary comparison", firstChild, instanceOf(EsqlBinaryComparison.class));
+
+        // Second child should be a MATCH function (match(left_field, ?search_term))
+        var secondChild = andCondition.children().get(1);
+        assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
+        var function = (UnresolvedFunction) secondChild;
+        assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
+    }
+
+    public void testLookupJoinOnExpressionWithPositionalQueryParameters() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+
+        // Test LOOKUP JOIN ON expression with positional query parameters and MATCH function
+        var plan = statement(
+            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?)",
+            new QueryParams(List.of(paramAsConstant(null, "elasticsearch")))
+        );
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test"));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("test2"));
+
+        // Verify the join condition contains both the comparison and MATCH function
+        var condition = join.config().joinOnConditions();
+        assertThat(condition, instanceOf(And.class));
+        var andCondition = (And) condition;
+
+        // Check that we have both conditions in the correct order
+        assertThat(andCondition.children().size(), equalTo(2));
+
+        // First child should be a binary comparison (left_field >= right_field)
+        var firstChild = andCondition.children().get(0);
+        assertThat("First condition should be binary comparison", firstChild, instanceOf(EsqlBinaryComparison.class));
+
+        // Second child should be a MATCH function (match(left_field, ?))
+        var secondChild = andCondition.children().get(1);
+        assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
+        var function = (UnresolvedFunction) secondChild;
+        assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
     }
 
     public void testInvalidInsistAsterisk() {

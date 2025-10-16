@@ -720,7 +720,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "JOIN ON clause cannot be empty");
         }
 
-        // inspect the first expression to determine the type of join (field-based or expression-based)
+        // Inspect the first expression to determine the type of join (field-based or expression-based)
+        // We treat literals as field-based as it is more likely the user was trying to write a field name
+        // and so the field based error message is more helpful
         boolean isFieldBased = expressions.get(0) instanceof UnresolvedAttribute || expressions.get(0) instanceof Literal;
 
         if (isFieldBased) {

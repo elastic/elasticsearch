@@ -1501,9 +1501,9 @@ public class EsqlCapabilities {
          */
         DOTS_IN_FUSE,
 
-         /**
-         * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
-         */
+        /**
+        * Support for the literal {@code m} suffix as an alias for {@code minute} in temporal amounts.
+        */
         TEMPORAL_AMOUNT_M,
 
         /**
@@ -1520,8 +1520,7 @@ public class EsqlCapabilities {
          * Support for pushing down EVAL with SCORE
          * https://github.com/elastic/elasticsearch/issues/133462
          */
-        PUSHING_DOWN_EVAL_WITH_SCORE
-        ;
+        PUSHING_DOWN_EVAL_WITH_SCORE;
 
         private final boolean enabled;
 

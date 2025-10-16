@@ -32,7 +32,7 @@ import java.util.Set;
  * {
  *   "original": "my-index-*",
  *   "localExpressions": {
- *     "expressions": ["my-index-000001", "my-index-000002"],
+ *     "indices": ["my-index-000001", "my-index-000002"],
  *     "localIndexResolutionResult": "SUCCESS"
  *   },
  *   "remoteExpressions": ["remote1:my-index-*", "remote2:my-index-*"]

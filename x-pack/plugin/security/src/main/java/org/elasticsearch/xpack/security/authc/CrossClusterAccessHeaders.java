@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
 import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;

@@ -49,7 +49,8 @@ public class RemoteClusterSecurityComponents implements RemoteClusterSecurityExt
         Environment environment,
         ThreadPool threadPool,
         Settings settings,
-        Client client, AuditTrailService auditTrailService
+        Client client,
+        AuditTrailService auditTrailService
     ) {
         this.authenticationService = authenticationService;
         this.authorizationService = authorizationService;
@@ -127,5 +128,7 @@ public class RemoteClusterSecurityComponents implements RemoteClusterSecurityExt
     }
 
     @Override
-    public AuditTrailService auditTrailService() { return auditTrailService; }
+    public AuditTrailService auditTrailService() {
+        return auditTrailService;
+    }
 }

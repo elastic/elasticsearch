@@ -653,8 +653,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, SocketAddress remoteAddress) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
-                .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+            final LogEntryBuilder logEntryBuilder = new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .with(ACTION_FIELD_NAME, action)
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
@@ -667,8 +666,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntryBuilder.build();
         }
     }
-
-
 
     @Override
     public void accessGranted(

@@ -406,20 +406,19 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         return new TestContext(mockAuditTrail, mockChannel, mockHeader, listenerCaptor);
     }
 
-    private record TestContext(AuditTrail mockAuditTrail, Channel mockChannel, Header mockHeader,
-                               ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor) {
-    }
+    private record TestContext(
+        AuditTrail mockAuditTrail,
+        Channel mockChannel,
+        Header mockHeader,
+        ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor
+    ) {}
 
     private Map<String, String> createHeadersWithApiKey(String apiKeyId) {
         SecureString apiKeySecret = UUIDs.randomBase64UUIDSecureString();
-        String encodedKey = Base64.getEncoder().encodeToString(
-            (apiKeyId + ":" + apiKeySecret).getBytes(StandardCharsets.UTF_8)
-        );
+        String encodedKey = Base64.getEncoder().encodeToString((apiKeyId + ":" + apiKeySecret).getBytes(StandardCharsets.UTF_8));
         String credentialsHeader = ApiKeyService.withApiKeyPrefix(encodedKey);
         return Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, credentialsHeader);
     }
-
-
 
     private static AuthenticationToken credentialsArgMatches(AuthenticationToken credentials) {
         return argThat(arg -> arg.principal().equals(credentials.principal()) && arg.credentials().equals(credentials.credentials()));

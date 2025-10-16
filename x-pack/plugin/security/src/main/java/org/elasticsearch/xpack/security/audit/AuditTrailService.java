@@ -122,7 +122,6 @@ public class AuditTrailService {
         @Override
         public void authenticationFailed(String requestId, AuthenticationToken token, String action, SocketAddress remoteAddress) {};
 
-
         @Override
         public void authenticationFailed(
             String requestId,

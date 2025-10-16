@@ -214,12 +214,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
 
             // Audit the authentication failure
             String requestId = AuditUtil.getOrGenerateRequestId(clusterService.threadPool().getThreadContext());
-            auditTrailService.get().authenticationFailed(
-                requestId,
-                credentials,
-                header.getActionName(),
-                channel.remoteAddress()
-            );
+            auditTrailService.get().authenticationFailed(requestId, credentials, header.getActionName(), channel.remoteAddress());
 
             // Fail the request
             Exception ex = (authResult.getException() != null)
@@ -231,12 +226,7 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
             logger.error("API key service threw exception during authentication", e);
 
             String requestId = AuditUtil.getOrGenerateRequestId(clusterService.threadPool().getThreadContext());
-            auditTrailService.get().authenticationFailed(
-                requestId,
-                credentials,
-                header.getActionName(),
-                channel.remoteAddress()
-            );
+            auditTrailService.get().authenticationFailed(requestId, credentials, header.getActionName(), channel.remoteAddress());
 
             listener.onFailure(e);
         }));

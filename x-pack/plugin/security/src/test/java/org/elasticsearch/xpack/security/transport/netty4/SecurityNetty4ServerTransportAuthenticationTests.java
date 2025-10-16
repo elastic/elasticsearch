@@ -118,7 +118,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 ((ActionListener<Void>) invocation.getArguments()[1]).onResponse(null);
             }
             return null;
-        }).when(remoteCrossClusterAccessAuthenticationService).authenticateHeaders(any(Map.class), any(Channel.class), any(Header.class), anyActionListener());
+        }).when(remoteCrossClusterAccessAuthenticationService)
+            .authenticateHeaders(any(Map.class), any(Channel.class), any(Header.class), anyActionListener());
         remoteSecurityNetty4ServerTransport = new SecurityNetty4ServerTransport(
             remoteSettings,
             TransportVersion.current(),

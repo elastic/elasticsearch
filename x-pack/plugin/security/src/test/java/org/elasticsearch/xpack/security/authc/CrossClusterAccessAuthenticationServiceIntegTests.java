@@ -13,16 +13,14 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Header;
@@ -373,8 +371,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
             if (Files.exists(auditLogPath)) {
                 try (Stream<String> lines = Files.lines(auditLogPath)) {
-                    boolean foundAuthenticationSuccess = lines
-                        .filter(line -> line.contains("\"type\":\"authentication_failed\""))
+                    boolean foundAuthenticationSuccess = lines.filter(line -> line.contains("\"type\":\"authentication_failed\""))
                         .anyMatch(line -> line.contains("cross_cluster_access"));
 
                     assertTrue("Expected audit log entry for " + nodeName, foundAuthenticationSuccess);
@@ -382,7 +379,6 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             }
         }
     }
-
 
     private Map<String, String> withRandomizedAdditionalSecurityHeaders(Map<String, String> headers) throws IOException {
         var map = new HashMap<>(headers);
@@ -554,12 +550,5 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             assertThat(actualException.getCause().getMessage(), containsString("Invalid cross cluster api key signature from ["));
         }
     }
-
-
-
-
-
-
-
 
 }

@@ -46,7 +46,7 @@ public interface AuditTrail {
 
     void authenticationFailed(String requestId, AuthenticationToken token, String action, SocketAddress remoteAddress);
 
-        void accessGranted(
+    void accessGranted(
         String requestId,
         Authentication authentication,
         String action,

@@ -1,0 +1,5 @@
+pr: 136625
+summary: Optimize index permissions
+area: Security
+type: bug
+issues: []

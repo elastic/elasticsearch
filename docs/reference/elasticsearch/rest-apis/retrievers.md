@@ -95,6 +95,87 @@ If you use the `none` normalizer, the scores across field groups will not be nor
 
 When using the `linear` retriever, fields can be boosted using the `^` notation:
 
+<!--
+PUT /restaurants
+{
+  "mappings": {
+    "properties": {
+      "region": { "type": "keyword" },
+      "year": { "type": "keyword" },
+      "vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+POST /restaurants/_bulk?refresh
+{"index":{}}
+{"region": "Austria", "year": "2019", "vector": [10, 22, 77]}
+{"index":{}}
+{"region": "France", "year": "2019", "vector": [10, 22, 78]}
+{"index":{}}
+{"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
+{"index":{}}
+{"region": "France", "year": "2020", "vector": [10, 22, 80]}
+
+PUT /movies
+
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+```
+% TESTSETUP
+
+```console
+DELETE /restaurants
+DELETE /movies
+DELETE /books
+```
+% TEARDOWN
+-->
+
 ```console
 GET books/_search
 {
@@ -145,6 +226,7 @@ PUT /books
   }
 }
 ```
+% TEST[continued]
 
 And we run this query:
 
@@ -165,6 +247,7 @@ GET books/_search
   }
 }
 ```
+% TEST[continued]
 
 The score breakdown would be:
 
@@ -194,6 +277,7 @@ GET books/_search
   }
 }
 ```
+% TEST[continued]
 
 The score breakdown would change to:
 
@@ -222,6 +306,7 @@ GET books/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Match fields that start with `title`
 2. Match fields that end with `_text`

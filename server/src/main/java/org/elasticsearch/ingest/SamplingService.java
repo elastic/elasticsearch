@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.sampling.SamplingConfiguration;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
@@ -28,10 +30,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -52,6 +61,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -66,15 +79,23 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-public class SamplingService implements ClusterStateListener {
+public class SamplingService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
     public static final boolean RANDOM_SAMPLING_FEATURE_FLAG = new FeatureFlag("random_sampling").isEnabled();
+    public static final Setting<TimeValue> TTL_POLL_INTERVAL_SETTING = Setting.timeSetting(
+        "random_sampling.ttl_poll_interval",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
+    private static final String TTL_JOB_ID = "sampling_ttl";
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
-    private final LongSupplier relativeMillisTimeSupplier;
     private final LongSupplier statsTimeSupplier = System::nanoTime;
     private final MasterServiceTaskQueue<UpdateSamplingConfigurationTask> updateSamplingConfigurationTaskQueue;
+    private final MasterServiceTaskQueue<DeleteSampleConfigurationTask> deleteSamplingConfigurationTaskQueue;
 
     private static final Setting<Integer> MAX_CONFIGURATIONS_SETTING = Setting.intSetting(
         "sampling.max_configurations",
@@ -83,7 +104,11 @@ public class SamplingService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
+    private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
+    private SchedulerEngine.Job scheduledJob;
+    private volatile TimeValue pollInterval;
+    private final Settings settings;
+    private final Clock clock = Clock.systemUTC();
     /*
      * This Map contains the samples that exist on this node. They are not persisted to disk. They are stored as SoftReferences so that
      * sampling does not contribute to a node running out of memory. The idea is that access to samples is desirable, but not critical. We
@@ -91,21 +116,57 @@ public class SamplingService implements ClusterStateListener {
      */
     private final Map<ProjectIndex, SoftReference<SampleInfo>> samples = new ConcurrentHashMap<>();
 
-    public SamplingService(
+    /*
+     * This creates a new SamplingService, and configures various listeners on it.
+     */
+    public static SamplingService create(
         ScriptService scriptService,
         ClusterService clusterService,
         ProjectResolver projectResolver,
-        LongSupplier relativeMillisTimeSupplier
+        Settings settings
+    ) {
+        SamplingService samplingService = new SamplingService(scriptService, clusterService, projectResolver, settings);
+        samplingService.configureListeners();
+        return samplingService;
+    }
+
+    private SamplingService(
+        ScriptService scriptService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Settings settings
     ) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
-        this.relativeMillisTimeSupplier = relativeMillisTimeSupplier;
         this.updateSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-sampling-configuration",
             Priority.NORMAL,
             new UpdateSamplingConfigurationExecutor()
         );
+        this.deleteSamplingConfigurationTaskQueue = clusterService.createTaskQueue(
+            "delete-sampling-configuration",
+            Priority.NORMAL,
+            new DeleteSampleConfigurationExecutor()
+        );
+        this.settings = settings;
+        this.pollInterval = TTL_POLL_INTERVAL_SETTING.get(settings);
+    }
+
+    private void configureListeners() {
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.addSettingsUpdateConsumer(TTL_POLL_INTERVAL_SETTING, (v) -> {
+            pollInterval = v;
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                maybeScheduleJob();
+            }
+        });
+        this.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStop() {
+                cancelJob();
+            }
+        });
     }
 
     /**
@@ -165,11 +226,7 @@ public class SamplingService implements ClusterStateListener {
         }
         SoftReference<SampleInfo> sampleInfoReference = samples.compute(
             new ProjectIndex(projectMetadata.id(), indexName),
-            (k, v) -> v == null || v.get() == null
-                ? new SoftReference<>(
-                    new SampleInfo(samplingConfig.maxSamples(), samplingConfig.timeToLive(), relativeMillisTimeSupplier.getAsLong())
-                )
-                : v
+            (k, v) -> v == null || v.get() == null ? new SoftReference<>(new SampleInfo(samplingConfig.maxSamples())) : v
         );
         SampleInfo sampleInfo = sampleInfoReference.get();
         if (sampleInfo == null) {
@@ -324,10 +381,48 @@ public class SamplingService implements ClusterStateListener {
         );
     }
 
+    public void deleteSampleConfiguration(
+        ProjectId projectId,
+        String index,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        deleteSamplingConfigurationTaskQueue.submitTask(
+            "deleting sampling configuration for index " + index,
+            new DeleteSampleConfigurationTask(projectId, index, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
+    /*
+     * This version is meant to be used by background processes, not user requests.
+     */
+    private void deleteSampleConfiguration(ProjectId projectId, String index) {
+        deleteSampleConfiguration(projectId, index, TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                logger.debug("Deleted sampling configuration for {}", index);
+            } else {
+                logger.warn("Deletion of sampling configuration for {} not acknowledged", index);
+            }
+        }, e -> logger.warn("Failed to delete sample configuration for " + index, e)));
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (RANDOM_SAMPLING_FEATURE_FLAG == false) {
             return;
+        }
+        final boolean isMaster = event.localNodeMaster();
+        final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
+        if (wasMaster != isMaster) {
+            if (isMaster) {
+                // we weren't the master, and now we are
+                maybeScheduleJob();
+            } else {
+                // we were the master, and now we aren't
+                cancelJob();
+            }
         }
         if (samples.isEmpty()) {
             return;
@@ -386,6 +481,31 @@ public class SamplingService implements ClusterStateListener {
         }
     }
 
+    private void maybeScheduleJob() {
+        if (isClusterServiceStoppedOrClosed()) {
+            // don't create scheduler if the node is shutting down
+            return;
+        }
+        if (scheduler.get() == null) {
+            scheduler.set(new SchedulerEngine(settings, clock));
+            scheduler.get().register(this);
+        }
+        scheduledJob = new SchedulerEngine.Job(TTL_JOB_ID, new TimeValueSchedule(pollInterval));
+        scheduler.get().add(scheduledJob);
+    }
+
+    private void cancelJob() {
+        if (scheduler.get() != null) {
+            scheduler.get().remove(TTL_JOB_ID);
+            scheduledJob = null;
+        }
+    }
+
+    private boolean isClusterServiceStoppedOrClosed() {
+        final Lifecycle.State state = clusterService.lifecycleState();
+        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    }
+
     private boolean evaluateCondition(
         Supplier<IngestDocument> ingestDocumentSupplier,
         Script script,
@@ -434,6 +554,53 @@ public class SamplingService implements ClusterStateListener {
             }
         }
         return false;
+    }
+
+    @Override
+    public void triggered(SchedulerEngine.Event event) {
+        logger.debug("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
+        checkTTLs();
+    }
+
+    @Override
+    protected void doStart() {}
+
+    @Override
+    protected void doStop() {
+        clusterService.removeListener(this);
+        logger.debug("Sampling service is stopping.");
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        logger.debug("Sampling service is closing.");
+        SchedulerEngine engine = scheduler.get();
+        if (engine != null) {
+            engine.stop();
+        }
+    }
+
+    private void checkTTLs() {
+        long now = clock.instant().toEpochMilli();
+        for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            if (samplingMetadata != null) {
+                for (Map.Entry<String, SamplingConfiguration> entry : samplingMetadata.getIndexToSamplingConfigMap().entrySet()) {
+                    SamplingConfiguration samplingConfiguration = entry.getValue();
+                    if (samplingConfiguration.creationTime() + samplingConfiguration.timeToLive().millis() < now) {
+                        String indexName = entry.getKey();
+                        logger.debug(
+                            "Deleting configuration for {} created at {} because it is older than {} now at {}",
+                            indexName,
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(samplingConfiguration.creationTime()), ZoneOffset.UTC),
+                            samplingConfiguration.timeToLive(),
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
+                        );
+                        deleteSampleConfiguration(projectMetadata.id(), indexName);
+                    }
+                }
+            }
+        }
     }
 
     /*
@@ -814,18 +981,14 @@ public class SamplingService implements ClusterStateListener {
          */
         private volatile Tuple<Integer, Long> sizeInBytesAtIndex = Tuple.tuple(-1, 0L);
         private final SampleStats stats;
-        private final long expiration;
-        private final TimeValue timeToLive;
         private volatile Script script;
         private volatile IngestConditionalScript.Factory factory;
         private volatile boolean compilationFailed = false;
         private volatile boolean isFull = false;
 
-        SampleInfo(int maxSamples, TimeValue timeToLive, long relativeNowMillis) {
-            this.timeToLive = timeToLive;
+        SampleInfo(int maxSamples) {
             this.rawDocuments = new RawDocument[maxSamples];
             this.stats = new SampleStats();
-            this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).millis() : timeToLive.millis()) + relativeNowMillis;
         }
 
         /*
@@ -932,19 +1095,19 @@ public class SamplingService implements ClusterStateListener {
         ) {
             logger.debug(
                 "Updating sampling configuration for index [{}] with rate [{}],"
-                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition[{}]",
+                    + " maxSamples [{}], maxSize [{}], timeToLive [{}], condition [{}], creationTime [{}]",
                 updateSamplingConfigurationTask.indexName,
                 updateSamplingConfigurationTask.samplingConfiguration.rate(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSamples(),
                 updateSamplingConfigurationTask.samplingConfiguration.maxSize(),
                 updateSamplingConfigurationTask.samplingConfiguration.timeToLive(),
-                updateSamplingConfigurationTask.samplingConfiguration.condition()
+                updateSamplingConfigurationTask.samplingConfiguration.condition(),
+                updateSamplingConfigurationTask.samplingConfiguration.creationTime()
             );
 
             // Get sampling metadata
             Metadata metadata = clusterState.getMetadata();
             ProjectMetadata projectMetadata = metadata.getProject(updateSamplingConfigurationTask.projectId);
-            ;
             SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
 
             boolean isNewConfiguration = samplingMetadata == null; // for logging
@@ -1002,6 +1165,76 @@ public class SamplingService implements ClusterStateListener {
                 updateSamplingConfigurationTask.indexName
             );
             return new Tuple<>(updatedClusterState, updateSamplingConfigurationTask);
+        }
+    }
+
+    static final class DeleteSampleConfigurationTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
+        private final String indexName;
+
+        DeleteSampleConfigurationTask(
+            ProjectId projectId,
+            String indexName,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.projectId = projectId;
+            this.indexName = indexName;
+        }
+    }
+
+    static final class DeleteSampleConfigurationExecutor extends SimpleBatchedAckListenerTaskExecutor<DeleteSampleConfigurationTask> {
+        private static final Logger logger = LogManager.getLogger(DeleteSampleConfigurationExecutor.class);
+
+        DeleteSampleConfigurationExecutor() {}
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+            DeleteSampleConfigurationTask deleteSampleConfigurationTask,
+            ClusterState clusterState
+        ) {
+            // Get sampling metadata
+            Metadata metadata = clusterState.getMetadata();
+            ProjectMetadata projectMetadata = metadata.getProject(deleteSampleConfigurationTask.projectId);
+            SamplingMetadata samplingMetadata = projectMetadata.custom(SamplingMetadata.TYPE);
+            Map<String, SamplingConfiguration> oldConfigMap = validateConfigExists(
+                deleteSampleConfigurationTask.indexName,
+                samplingMetadata
+            );
+            logger.debug("Deleting sampling configuration for index [{}]", deleteSampleConfigurationTask.indexName);
+
+            // Delete the sampling configuration if it exists
+            Map<String, SamplingConfiguration> updatedConfigMap = new HashMap<>(oldConfigMap);
+            updatedConfigMap.remove(deleteSampleConfigurationTask.indexName);
+            SamplingMetadata newSamplingMetadata = new SamplingMetadata(updatedConfigMap);
+
+            // Update cluster state
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+            projectMetadataBuilder.putCustom(SamplingMetadata.TYPE, newSamplingMetadata);
+
+            // Return tuple with updated cluster state and the original listener
+            ClusterState updatedClusterState = ClusterState.builder(clusterState).putProjectMetadata(projectMetadataBuilder).build();
+
+            logger.debug(
+                "Successfully deleted sampling configuration for index [{}], total configurations after deletion: [{}]",
+                deleteSampleConfigurationTask.indexName,
+                updatedConfigMap.size()
+            );
+            return new Tuple<>(updatedClusterState, deleteSampleConfigurationTask);
+        }
+
+        // Validates that the configuration exists, returns the index to config map if it does.
+        private static Map<String, SamplingConfiguration> validateConfigExists(String indexName, SamplingMetadata samplingMetadata) {
+            final String exceptionMessage = "provided index [" + indexName + "] has no sampling configuration";
+            if (samplingMetadata == null) {
+                throw new ResourceNotFoundException(exceptionMessage);
+            }
+            Map<String, SamplingConfiguration> configMap = samplingMetadata.getIndexToSamplingConfigMap();
+            if (configMap == null || configMap.containsKey(indexName) == false) {
+                throw new ResourceNotFoundException(exceptionMessage);
+            }
+            return configMap;
         }
     }
 

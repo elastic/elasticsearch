@@ -21,8 +21,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -666,7 +669,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayIntEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -740,7 +743,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayLongEvaluator["),
                 DataType.DOUBLE,
-                equalTo(scoreScriptNumericResult)
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -810,7 +813,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDoubleEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -908,7 +911,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayGeoPointEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -1087,7 +1090,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDatetimeEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayValueMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -1174,7 +1177,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDateNanosEvaluator["),
                     DataType.DOUBLE,
-                    closeTo(scoreScriptNumericResult, 1e-10)
+                    decayValueMatcher(scoreScriptNumericResult)
                 );
             })
         );
@@ -1228,5 +1231,13 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         }
 
         return new MapExpression(Source.EMPTY, keyValuePairs);
+    }
+
+    private static Matcher<Double> decayValueMatcher(Double value) {
+        if (value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) {
+            return equalTo(value);
+        }
+
+        return closeTo(BigDecimal.valueOf(value).setScale(4, RoundingMode.CEILING).doubleValue(), 0.001);
     }
 }

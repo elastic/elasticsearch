@@ -43,7 +43,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class SemanticQueryInferenceIT extends ESIntegTestCase {
+public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test_index";
 
     private static final Map<String, Object> SPARSE_EMBEDDING_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");

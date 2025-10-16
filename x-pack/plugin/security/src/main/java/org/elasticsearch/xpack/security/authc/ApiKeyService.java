@@ -1563,8 +1563,10 @@ public class ApiKeyService implements Closeable {
                 return certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
             } catch (ExecutionException e) {
                 logger.error(
-                    "Failed to validate certificate identity against pattern [{}] using cache. Falling back to regular matching",
-                    certificateIdentityPattern,
+                    Strings.format(
+                        "Failed to validate certificate identity against pattern [%s] using cache. Falling back to regular matching",
+                        certificateIdentityPattern
+                    ),
                     e
                 );
             }

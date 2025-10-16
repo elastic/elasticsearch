@@ -44,6 +44,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -493,78 +495,83 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var input = FilterIndexInput.unwrapOnlyTest(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                 // Direct access to mmapped file
-                // TODO: strides!!
                 // for int8_hnsw, the raw vector data has extra 4-byte at the end of each vector to encode a correction constant
-                int rowStride = fieldInfo.getVectorDimension() + 4;
-                try (
-                    var dataset = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), rowStride, -1, dataType);
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
-                    );
-                    // Explicitly copy the dataset to GPU memory. The current (25.10) CAGRA index implementation has
-                    // problems with strides; the explicit copy removes the stride while copying.
-                    // Note that this is _not_ an additional copy: input data needs to be moved to GPU memory anyway,
-                    // we are just doing it explicitly instead of relying on CagraIndex#build to do it.
-                    var deviceDataSet = dataset.toDevice(resourcesHolder.resources())
-                ) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, deviceDataSet);
+                int sourceRowPitch = fieldInfo.getVectorDimension() + 4;
+
+                // The current (25.10) CuVS implementation of CAGRA index build has problems with strides;
+                // the explicit copy removes them.
+                // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
+                // when cuvs has fixed this problem
+                int packedRowSize = fieldInfo.getVectorDimension();
+                long packedVectorsDataSize = (long) numVectors * packedRowSize;
+
+                try (var arena = Arena.ofConfined()) {
+                    var packedSegment = arena.allocate(packedVectorsDataSize, 64);
+                    MemorySegment sourceSegment = memorySegmentAccessInput.segmentSliceOrNull(0, memorySegmentAccessInput.length());
+
+                    for (int i = 0; i < numVectors; i++) {
+                        MemorySegment.copy(
+                            sourceSegment,
+                            (long) i * sourceRowPitch,
+                            packedSegment,
+                            (long) i * packedRowSize,
+                            packedRowSize
+                        );
+                    }
+
+                    try (
+                        var dataset = DatasetUtilsImpl.fromMemorySegment(packedSegment, numVectors, packedRowSize, dataType);
+                        var resourcesHolder = new ResourcesHolder(
+                            cuVSResourceManager,
+                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        )
+                    ) {
+                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
+                    }
                 }
             } else {
-                logger.debug(
+                logger.info(
                     () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
                 );
 
+                // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
+                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+
+                byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                for (int i = 0; i < numVectors; ++i) {
+                    input.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                    builder.addVector(vector);
+                }
+
                 try (
+                    var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
                         cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
                     )
                 ) {
-                    // Read vector-by-vector
-                    var builder = CuVSMatrix.deviceBuilder(
-                        resourcesHolder.resources(),
-                        numVectors,
-                        fieldInfo.getVectorDimension(),
-                        dataType
-                    );
-
-                    byte[] vector = new byte[fieldInfo.getVectorDimension()];
-                    for (int i = 0; i < numVectors; ++i) {
-                        input.readBytes(vector, 0, fieldInfo.getVectorDimension());
-                        builder.addVector(vector);
-                    }
-
-                    try (var dataset = builder.build()) {
-                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
-                    }
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
                 }
             }
         } else {
             logger.warn("Cannot get merged raw vectors from scorer.");
             var byteVectorValues = getMergedByteVectorValues(fieldInfo, mergeState);
+
+            // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
+            final var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+            final KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
+            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                builder.addVector(byteVectorValues.vectorValue(iterator.index()));
+            }
+
             try (
+                var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
                     cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
                 )
             ) {
-                // Read vector-by-vector
-                final var builder = CuVSMatrix.deviceBuilder(
-                    resourcesHolder.resources(),
-                    numVectors,
-                    fieldInfo.getVectorDimension(),
-                    dataType
-                );
-                final KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
-                for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-                    builder.addVector(byteVectorValues.vectorValue(iterator.index()));
-                }
-
-                try (var dataset = builder.build()) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
-                }
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
             }
         }
     }
@@ -594,55 +601,49 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
                 }
             } else {
-                logger.debug(
+                logger.info(
                     () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
                 );
 
+                // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
+                var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+
+                float[] vector = new float[fieldInfo.getVectorDimension()];
+                for (int i = 0; i < numVectors; ++i) {
+                    input.readFloats(vector, 0, fieldInfo.getVectorDimension());
+                    builder.addVector(vector);
+                }
+
                 try (
+                    var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
                         cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
                     )
                 ) {
-                    // Read vector-by-vector
-                    var builder = CuVSMatrix.deviceBuilder(
-                        resourcesHolder.resources(),
-                        numVectors,
-                        fieldInfo.getVectorDimension(),
-                        dataType
-                    );
-
-                    float[] vector = new float[fieldInfo.getVectorDimension()];
-                    for (int i = 0; i < numVectors; ++i) {
-                        input.readFloats(vector, 0, fieldInfo.getVectorDimension());
-                        builder.addVector(vector);
-                    }
-
-                    try (var dataset = builder.build()) {
-                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
-                    }
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
                 }
             }
         } else {
             logger.warn("Cannot get merged raw vectors from scorer.");
             FloatVectorValues floatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+
+            // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
+            var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
+
+            final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                float[] vector = floatVectorValues.vectorValue(iterator.index());
+                builder.addVector(vector);
+            }
             try (
+                var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
                     cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
                 )
             ) {
-                // Read vector-by-vector
-                var builder = CuVSMatrix.deviceBuilder(resourcesHolder.resources(), numVectors, fieldInfo.getVectorDimension(), dataType);
-
-                final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
-                for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-                    float[] vector = floatVectorValues.vectorValue(iterator.index());
-                    builder.addVector(vector);
-                }
-                try (var dataset = builder.build()) {
-                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
-                }
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
             }
         }
     }

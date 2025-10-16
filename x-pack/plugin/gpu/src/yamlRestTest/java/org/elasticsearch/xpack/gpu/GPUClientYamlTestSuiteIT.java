@@ -30,7 +30,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
-            // temporary until we get access to raw vectors in a future Lucene version
+            // Needed to get access to raw vectors from Lucene scorers
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server")
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server");
 

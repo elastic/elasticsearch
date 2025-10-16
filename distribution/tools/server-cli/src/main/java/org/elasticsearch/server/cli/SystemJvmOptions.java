@@ -60,7 +60,7 @@ final class SystemJvmOptions {
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
-                // temporary until we get access to raw vectors in a future Lucene version
+                // Needed to get access to raw vectors from Lucene scorers
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server",
                 // log4j 2

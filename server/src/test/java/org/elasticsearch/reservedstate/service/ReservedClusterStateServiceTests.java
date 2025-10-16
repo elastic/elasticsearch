@@ -436,6 +436,28 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             new ReservedStateMetadata("test_namespace", removedStateChunk.metadata().version(), Map.of(), null)
         );
         assertEquals("Our section of the removed state is gone", expected4, state4.metadata().reservedStateMetadata());
+
+        operations.clear();
+
+        // 4. Resubmit without our section and make sure it's a no-op
+        ReservedStateChunk stillGoneStateChunk = new ReservedStateChunk(Map.of(), new ReservedStateVersion(4L, BuildVersion.current()));
+        ReservedStateUpdateTask<?> noopTask = new ReservedClusterStateUpdateTask(
+            "test_namespace",
+            stillGoneStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            stillGoneStateChunk.state().keySet(),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        var state5 = noopTask.execute(state4);
+
+        assertEquals(List.of(), operations);
+        var expected5 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata("test_namespace", stillGoneStateChunk.metadata().version(), Map.of(), null)
+        );
+        assertEquals("Our section of the removed state is still gone", expected5, state5.metadata().reservedStateMetadata());
     }
 
     private sealed interface Operation {

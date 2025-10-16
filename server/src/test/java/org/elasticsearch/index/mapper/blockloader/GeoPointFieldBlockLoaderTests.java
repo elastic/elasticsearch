@@ -176,7 +176,7 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
     /**
      * Normalizes the given point by forcing it to be encoded and then decoded, similarly to how actual block loaders work when they read
      * values. During encoding/decoding, some precision may be lost, so the lat/lon coordinates may change. Without this, the point returned
-     * by the block loader will be every so slightly different from the original point. This will cause the tests to fail. This method
+     * by the block loader will be ever so slightly different from the original point. This will cause the tests to fail. This method
      * exists to essentially mimic what happens to the point when it gets stored and then later loaded back.
      */
     private GeoPoint normalize(GeoPoint point) {
@@ -194,11 +194,4 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
     }
 
-    private BytesRef toString(GeoPoint point) {
-        if (point == null) {
-            return null;
-        }
-
-        return new BytesRef(point.toString());
-    }
 }

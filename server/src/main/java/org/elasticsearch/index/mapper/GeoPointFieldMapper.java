@@ -634,7 +634,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
             throws IOException {
-            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefsFromDocValues(docs.count() - offset)) {
+
+            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     read(doc, builder);

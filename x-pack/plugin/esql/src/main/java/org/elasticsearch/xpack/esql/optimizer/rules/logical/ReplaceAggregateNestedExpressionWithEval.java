@@ -114,8 +114,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                             .anyMatch(
                                 expression -> expression instanceof Alias alias && alias.references().contains(finalAttribute)
                             ) == false) {
-                        // if (asChild instanceof DateFormat df) {
-
                         // Extract the format pattern and field from DateFormat
                         Expression rawFormat = df.format();
                         AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(aggregate, ctx);

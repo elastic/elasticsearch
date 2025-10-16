@@ -122,7 +122,6 @@ The API returns:
     }
 }
 ```
-
 % TESTRESPONSE[s/: \{\.\.\.\}/: $body.$_path/]
 % TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 % TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]

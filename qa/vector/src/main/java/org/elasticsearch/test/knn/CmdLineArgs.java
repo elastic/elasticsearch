@@ -57,7 +57,8 @@ record CmdLineArgs(
     boolean earlyTermination,
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
-    int writerMaxBufferedDocs
+    int writerMaxBufferedDocs,
+    int forceMergeMaxNumSegments
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -78,6 +79,7 @@ record CmdLineArgs(
     static final ParseField INDEX_THREADS_FIELD = new ParseField("index_threads");
     static final ParseField REINDEX_FIELD = new ParseField("reindex");
     static final ParseField FORCE_MERGE_FIELD = new ParseField("force_merge");
+    static final ParseField FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD = new ParseField("force_merge_max_num_segments");
     static final ParseField VECTOR_SPACE_FIELD = new ParseField("vector_space");
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
@@ -132,6 +134,7 @@ record CmdLineArgs(
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
         PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
+        PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
     }
 
     @Override
@@ -169,6 +172,7 @@ record CmdLineArgs(
         builder.field(SEED_FIELD.getPreferredName(), seed);
         builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
         builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
+        builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
         return builder.endObject();
     }
 
@@ -195,6 +199,7 @@ record CmdLineArgs(
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
+        private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
@@ -350,6 +355,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setForceMergeMaxNumSegments(int forceMergeMaxNumSegments) {
+            this.forceMergeMaxNumSegments = forceMergeMaxNumSegments;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -386,7 +396,8 @@ record CmdLineArgs(
                 earlyTermination,
                 mergePolicy,
                 writerBufferSizeInMb,
-                writerMaxBufferedDocs
+                writerMaxBufferedDocs,
+                forceMergeMaxNumSegments
             );
         }
     }

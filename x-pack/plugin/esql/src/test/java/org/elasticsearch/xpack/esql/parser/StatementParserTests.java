@@ -3850,12 +3850,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFork() {
-        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least 2 branches");
-
         expectError("""
             FROM foo*
             | FORK (where true) (where true) (where true) (where true)

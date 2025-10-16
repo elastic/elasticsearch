@@ -531,7 +531,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         SubscribableListener.<BulkResponse>newForked((subListener) -> {
             // in this block, we try to update the stored model configurations
-            var requestBuilder = createIndexRequestBuilder(
+            var configRequestBuilder = createIndexRequestBuilder(
                 inferenceEntityId,
                 InferenceIndex.INDEX_NAME,
                 newModel.getConfigurations(),
@@ -545,7 +545,7 @@ public class ModelRegistry implements ClusterStateListener {
                 l.onFailure(e);
             });
 
-            client.prepareBulk().add(requestBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
+            client.prepareBulk().add(configRequestBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(storeConfigListener);
 
         }).<BulkResponse>andThen((subListener, configResponse) -> {
             // in this block, we respond to the success or failure of updating the model configurations, then try to store the new secrets
@@ -570,7 +570,7 @@ public class ModelRegistry implements ClusterStateListener {
                 );
             } else {
                 // Since the model configurations were successfully updated, we can now try to store the new secrets
-                var requestBuilder = createIndexRequestBuilder(
+                var secretsRequestBuilder = createIndexRequestBuilder(
                     newModel.getConfigurations().getInferenceEntityId(),
                     InferenceSecretsIndex.INDEX_NAME,
                     newModel.getSecrets(),
@@ -585,7 +585,7 @@ public class ModelRegistry implements ClusterStateListener {
                 });
 
                 client.prepareBulk()
-                    .add(requestBuilder)
+                    .add(secretsRequestBuilder)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(storeSecretsListener);
             }
@@ -593,7 +593,7 @@ public class ModelRegistry implements ClusterStateListener {
             // in this block, we respond to the success or failure of updating the model secrets
             if (secretsResponse.hasFailures()) {
                 // since storing the secrets failed, we will try to restore / roll-back-to the previous model configurations
-                var requestBuilder = createIndexRequestBuilder(
+                var configRequestBuilder = createIndexRequestBuilder(
                     inferenceEntityId,
                     InferenceIndex.INDEX_NAME,
                     existingModel.getConfigurations(),
@@ -612,7 +612,7 @@ public class ModelRegistry implements ClusterStateListener {
                     l.onFailure(e);
                 });
                 client.prepareBulk()
-                    .add(requestBuilder)
+                    .add(configRequestBuilder)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .execute(rollbackConfigListener);
             } else {

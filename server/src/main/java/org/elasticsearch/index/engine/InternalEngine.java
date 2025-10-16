@@ -2546,12 +2546,16 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean forceMergeIsNoOp(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException {
+    public boolean isForceMergeOptimisticallyNoOp(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException {
         if (onlyExpungeDeletes && maxNumSegments >= 0) {
             throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
         }
         try (var reader = DirectoryReader.open(indexWriter)) {
             final var segmentCommitInfos = SegmentInfos.readCommit(reader.directory(), reader.getIndexCommit().getSegmentsFileName());
+            if (hasUncommittedChanges()) {
+                return false;
+            }
+
             final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
             for (int i = 0; i < segmentCommitInfos.size(); i++) {
                 final var segmentInfo = segmentCommitInfos.info(i);
@@ -2574,7 +2578,16 @@ public class InternalEngine extends Engine {
                     .getMergePolicy()
                     .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
             }
-            return mergeSpecification == null || mergeSpecification.merges.isEmpty();
+            if (mergeSpecification != null && mergeSpecification.merges.isEmpty() == false) {
+                return false;
+            }
+            if (hasUncommittedChanges()) {
+                return false;
+            }
+            final var latestCommit = SegmentInfos.readCommit(reader.directory(), reader.getIndexCommit().getSegmentsFileName());
+            // We check if the latest commit is the same as the one we initially read. If not, something changed while we were checking,
+            // so we return false to be safe.
+            return latestCommit.getGeneration() == segmentCommitInfos.getGeneration();
         }
     }
 

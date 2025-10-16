@@ -255,7 +255,7 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public void onNodeStarted() {
-//        authorizationHandler.init();
+        // authorizationHandler.init();
     }
 
     @Override

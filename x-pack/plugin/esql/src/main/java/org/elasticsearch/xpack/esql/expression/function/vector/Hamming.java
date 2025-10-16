@@ -37,6 +37,25 @@ public class Hamming extends VectorSimilarityFunction {
             throw new UnsupportedOperationException("Hamming distance is not supported for float vectors");
         }
     };
+    public static final DenseVectorFieldMapper.SimilarityFunction EVALUATOR_SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction () {
+        @Override
+        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+            return Hamming.calculateSimilarity(leftScratch, rightScratch);
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            byte[] a = new byte[leftScratch.length];
+            byte[] b = new byte[rightScratch.length];
+            for (int i = 0; i < leftScratch.length; i++) {
+                a[i] = (byte) leftScratch[i];
+            }
+            for (int i = 0; i < leftScratch.length; i++) {
+                b[i] = (byte) rightScratch[i];
+            }
+            return Hamming.calculateSimilarity(a, b);
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -68,6 +87,10 @@ public class Hamming extends VectorSimilarityFunction {
     @Override
     public DenseVectorFieldMapper.SimilarityFunction  getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
+    }
+
+    public DenseVectorFieldMapper.SimilarityFunction getEvaluatorSimilarityFunction() {
+        return EVALUATOR_SIMILARITY_FUNCTION;
     }
 
     @Override

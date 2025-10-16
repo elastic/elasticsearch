@@ -82,7 +82,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
         return new SimilarityEvaluatorFactory(
             leftVectorProviderFactory,
             rightVectorProviderFactory,
-            getSimilarityFunction(),
+            getEvaluatorSimilarityFunction(),
             getClass().getSimpleName() + "Evaluator"
         );
     }
@@ -103,6 +103,10 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
      * Returns the similarity function to be used for evaluating the similarity between two vectors.
      */
     public abstract DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction();
+
+    public DenseVectorFieldMapper.SimilarityFunction getEvaluatorSimilarityFunction() {
+        return getSimilarityFunction();
+    }
 
     private record SimilarityEvaluatorFactory(
         VectorValueProviderFactory leftVectorProviderFactory,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -87,17 +88,8 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         }
 
         // Create a transformation that computes similarity between each value and the literal value
-        MappedFieldType.BlockValueLoader<float[], BlockLoader.DoubleBuilder> blockValueLoader = new MappedFieldType.BlockValueLoader<>() {
-            @Override
-            public BlockLoader.DoubleBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.doubles(expectedCount);
-            }
-
-            @Override
-            public void addValue(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
-                builder.appendDouble(similarityFunction.getSimilarityFunction().calculateSimilarity(value, vectorArray));
-            }
-        };
+        DenseVectorFieldMapper.DenseVectorBlockValueLoader blockValueLoader =
+            new DenseVectorFieldMapper.DenseVectorBlockValueLoader(similarityFunction.getSimilarityFunction(), vectorArray);
 
         // Change the similarity function to a reference of a transformation on the field
         var fieldTransformationAttribute = new FieldTransformationAttribute<>(fieldAttribute, blockValueLoader, DataType.DOUBLE);

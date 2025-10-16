@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,16 +28,17 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
+import org.elasticsearch.xpack.esql.expression.function.vector.Hamming;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -49,21 +51,23 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION });
+        for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE)) {
+            if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+                params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
+            }
+            if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled() && elementType != ElementType.FLOAT) {
+                params.add(new Object[]{"v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
+            }
         }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION });
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION });
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION });
-        }
-        // if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-        // params.add(new Object[] { "v_hamming", Hamming.SIMILARITY_FUNCTION});
-        // }
 
         return params;
     }
@@ -86,14 +90,17 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     private final String functionName;
     private final DenseVectorFieldMapper.SimilarityFunction similarityFunction;
+    private final ElementType elementType;
     private int numDims;
 
     public VectorSimilarityFunctionsIT(
         @Name("functionName") String functionName,
-        @Name("similarityFunction") DenseVectorFieldMapper.SimilarityFunction similarityFunction
+        @Name("similarityFunction") DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        @Name("elementType") ElementType elementType
     ) {
         this.functionName = functionName;
         this.similarityFunction = similarityFunction;
+        this.elementType = elementType;
     }
 
     @SuppressWarnings("unchecked")
@@ -123,49 +130,61 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSimilarityBetweenConstantVectorAndField() {
-        var randomVector = randomVectorArray();
+        var randomVector = randomVector();
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, %s)
                 | KEEP left_vector, similarity
-            """, functionName, Arrays.toString(randomVector));
+            """, functionName, randomVector);
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             valuesList.forEach(values -> {
-                float[] left = readVector((List<Number>) values.get(0));
+                List<Number> leftAsList = ((List<Number>) values.get(0));
                 Double similarity = (Double) values.get(1);
-                if (left == null || randomVector == null) {
+                if (leftAsList == null || randomVector == null) {
                     assertNull(similarity);
                 } else {
                     assertNotNull(similarity);
-                    double expectedSimilarity = similarityFunction.calculateSimilarity(left, randomVector);
+                    double expectedSimilarity = calculateSimilarity(similarityFunction, randomVector, leftAsList);
                     assertEquals(expectedSimilarity, similarity, 0.0001);
                 }
             });
         }
     }
 
+    private static float[] asFloatArray(List<Number> randomVector) {
+        float[] result = new float[randomVector.size()];
+        for (int i = 0; i < randomVector.size(); i++) {
+            result[i] = randomVector.get(i).floatValue();
+        }
+        return result;
+    }
+
+    private static byte[] asByteArray(List<Number> randomVector) {
+        byte[] result = new byte[randomVector.size()];
+        for (int i = 0; i < randomVector.size(); i++) {
+            result[i] = randomVector.get(i).byteValue();
+        }
+        return result;
+    }
+
+
     @SuppressWarnings("unchecked")
     public void testTopNSimilarityBetweenConstantVectorAndField() {
-        var randomVector = randomVectorArray();
+        var randomVector = randomVector();
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, %s)
                 | SORT similarity DESC NULLS LAST
                 | LIMIT 10
                 | KEEP similarity
-            """, functionName, Arrays.toString(randomVector));
+            """, functionName, randomVector);
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            // for (List<Number> leftVector : leftVectors) {
-            // System.out.println("Original stored: " + leftVector + "converted: " +
-            // calculateSimilarityFloats(similarityFunction, randomVector, leftVector));
-            // }
-
             List<Double> orderedSimilarity = leftVectors.stream()
-                .map(v -> calculateSimilarityFloats(similarityFunction, randomVector, v))
+                .map(v -> calculateSimilarity(similarityFunction, randomVector, v))
                 .sorted((d1, d2) -> {
                     if (d1 == null && d2 == null) {
                         return 0;
@@ -192,21 +211,29 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private Double calculateSimilarityFloats(DenseVectorFieldMapper.SimilarityFunction similarityFunction, float[] randomVector,
+    private Double calculateSimilarity(DenseVectorFieldMapper.SimilarityFunction similarityFunction, List<Number> randomVector,
                                              List<Number> vector) {
         if (randomVector == null || vector == null) {
             return null;
         }
-        return (double) similarityFunction.calculateSimilarity(randomVector, readVector(vector));
+        switch (elementType) {
+            case BYTE, BIT -> {
+                return (double) similarityFunction.calculateSimilarity(asByteArray(randomVector), asByteArray(vector));
+            }
+            case FLOAT -> {
+                return (double) similarityFunction.calculateSimilarity(asFloatArray(randomVector), asFloatArray(vector));
+            }
+            default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
+        }
     }
 
     public void testDifferentDimensions() {
-        var randomVector = randomVectorArray(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2));
+        var randomVector = randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2));
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, %s)
                 | KEEP left_vector, similarity
-            """, functionName, Arrays.toString(randomVector));
+            """, functionName, randomVector);
 
         EsqlClientException iae = expectThrows(EsqlClientException.class, () -> { run(query); });
         assertTrue(iae.getMessage().contains("Vectors must have the same dimensions"));
@@ -214,13 +241,13 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSimilarityBetweenConstantVectors() {
-        var vectorLeft = randomVectorArray();
-        var vectorRight = randomVectorArray();
+        var vectorLeft = randomVector();
+        var vectorRight = randomVector();
         var query = String.format(Locale.ROOT, """
                 ROW a = 1
                 | EVAL similarity = %s(%s, %s)
                 | KEEP similarity
-            """, functionName, Arrays.toString(vectorLeft), Arrays.toString(vectorRight));
+            """, functionName, vectorLeft, vectorRight);
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
@@ -231,7 +258,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
                 assertNull(similarity);
             } else {
                 assertNotNull(similarity);
-                double expectedSimilarity = similarityFunction.calculateSimilarity(vectorLeft, vectorRight);
+                final double expectedSimilarity = calculateSimilarity(similarityFunction, vectorLeft, vectorRight);
                 assertEquals(expectedSimilarity, similarity, 0.0001);
             }
         }
@@ -268,26 +295,21 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<Number> randomVector() {
+        return randomVector(numDims);
+    }
+
+    private List<Number> randomVector(int numDims) {
         assert numDims != 0 : "numDims must be set before calling randomVector()";
         if (rarely()) {
             return null;
         }
         List<Number> vector = new ArrayList<>(numDims);
         for (int j = 0; j < numDims; j++) {
-            vector.add(randomFloat());
-        }
-        return vector;
-    }
-
-    private float[] randomVectorArray() {
-        assert numDims != 0 : "numDims must be set before calling randomVectorArray()";
-        return rarely() ? null : randomVectorArray(numDims);
-    }
-
-    private static float[] randomVectorArray(int dimensions) {
-        float[] vector = new float[dimensions];
-        for (int j = 0; j < dimensions; j++) {
-            vector[j] = randomFloat();
+            switch (elementType) {
+                case FLOAT -> vector.add(randomFloat());
+                case BYTE, BIT -> vector.add((byte) randomIntBetween(-128, 127));
+                default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
+            }
         }
         return vector;
     }
@@ -315,7 +337,10 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     private void createDenseVectorField(XContentBuilder mapping, String fieldName) throws IOException {
-        mapping.startObject(fieldName).field("type", "dense_vector").field("similarity", "l2_norm");
+        mapping.startObject(fieldName)
+            .field("type", "dense_vector")
+            .field("similarity", "l2_norm")
+            .field("element_type", elementType.toString().toLowerCase(Locale.ROOT));
         mapping.endObject();
     }
 }

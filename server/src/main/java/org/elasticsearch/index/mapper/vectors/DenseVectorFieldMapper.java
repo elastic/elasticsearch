@@ -2691,7 +2691,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         name(),
                         dims,
                         this,
-                        (BlockValueLoader<float[], BlockLoader.DoubleBuilder>) blContext.valueLoader()
+                        (DenseVectorBlockValueLoader) blContext.valueLoader()
                     );
                 }
                 return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);

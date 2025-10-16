@@ -526,9 +526,7 @@ public class MetadataIndexStateService {
                                             blockedIndices,
                                             verifyResults,
                                             task.request().markVerified()
-                                                && clusterService.state()
-                                                    .getMinTransportVersion()
-                                                    .onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE),
+                                                && clusterService.state().getMinTransportVersion().supports(TransportVersions.V_8_18_0),
                                             delegate2
                                         ),
                                         null

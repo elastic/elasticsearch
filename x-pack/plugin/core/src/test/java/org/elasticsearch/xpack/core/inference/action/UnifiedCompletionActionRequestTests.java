@@ -102,7 +102,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+            TransportVersions.V_8_18_0
         );
         assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }

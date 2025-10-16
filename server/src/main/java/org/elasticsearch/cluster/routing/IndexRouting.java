@@ -98,6 +98,11 @@ public abstract class IndexRouting {
      */
     public abstract int indexShard(IndexRequest indexRequest);
 
+    /**
+     * Called when indexing a document must be rerouted from the source shard to the target
+     * during resharding. Should be similar to {@link #indexShard(IndexRequest)} while avoiding
+     * the initial expense of having to calculate the routing parameters.
+     */
     public abstract int rerouteToTarget(IndexRequest indexRequest);
 
     /**

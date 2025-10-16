@@ -33,6 +33,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+/**
+ * This class implements the coordination logic during a split. If documents are only routed to the source then it will be a normal
+ * primary action. If documents are only routed to the target it will be delegated to the target. If documents are routed to both then
+ * the request will be split into two and executed locally and delegated to the target.
+ */
 public class ReplicationSplitHelper<
     Request extends ReplicationRequest<Request>,
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
@@ -145,8 +150,6 @@ public class ReplicationSplitHelper<
                     doPrimaryRequest.accept(primaryShardReference, onCompletionListener);
                 } else {
                     // If the request is for target, forward request to target.
-                    // TODO: Note that the request still contains the original shardId. We need to test if this will be a
-                    // problem.
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     TransportReplicationAction.setPhase(task, "primary_reshard_target_delegation");
 

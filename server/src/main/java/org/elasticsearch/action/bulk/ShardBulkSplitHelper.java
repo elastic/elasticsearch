@@ -25,6 +25,11 @@ public final class ShardBulkSplitHelper {
 
     private ShardBulkSplitHelper() {}
 
+    /**
+     * Splits a bulk request into multiple requests for each shard. If the items in the request only route to the source shard it will
+     * return the original request. If the items only route to the target shard it will return a map with one request. If the requests
+     * route to both the map will have a request for each shard.
+     */
     public static Map<ShardId, BulkShardRequest> splitRequests(BulkShardRequest request, ProjectMetadata project) {
         final ShardId sourceShardId = request.shardId();
         final Index index = sourceShardId.getIndex();

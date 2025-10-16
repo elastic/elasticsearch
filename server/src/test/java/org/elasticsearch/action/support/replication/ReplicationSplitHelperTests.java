@@ -15,6 +15,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -70,10 +72,13 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
-        indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        indexMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardAddShards(2)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .build();
 
         SplitShardCountSummary currentSummary = SplitShardCountSummary.forIndexing(indexMetadata, 0);
-        assertThat(currentSummary, equalTo(SplitShardCountSummary.fromInt(2)));
+        assertThat(currentSummary, equalTo(SplitShardCountSummary.fromInt(1)));
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0), currentSummary);
 
         // Should return false because the split summary matches
@@ -84,9 +89,23 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
-        indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        indexMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardAddShards(2)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .build();
 
-        SplitShardCountSummary staleSummary = SplitShardCountSummary.fromInt(1);
+        SplitShardCountSummary staleSummary = SplitShardCountSummary.forIndexing(indexMetadata, 0);
+
+        indexMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardingMetadata(
+                indexMetadata.getReshardingMetadata()
+                    .transitionSplitTargetToNewState(
+                        new ShardId(indexMetadata.getIndex(), 1),
+                        IndexReshardingState.Split.TargetShardState.HANDOFF
+                    )
+            )
+            .build();
+
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0), staleSummary);
 
         // Should return true because the split summary does not match

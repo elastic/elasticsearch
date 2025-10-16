@@ -8,6 +8,7 @@
  */
 
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
@@ -78,10 +79,13 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
   mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
   mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("dependencyLicenses").configure {
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
 

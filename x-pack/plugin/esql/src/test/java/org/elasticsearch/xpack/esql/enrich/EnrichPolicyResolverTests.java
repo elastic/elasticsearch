@@ -506,9 +506,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     fieldCaps.put(e.getKey(), f);
                 }
                 var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);
-                response = new FieldCapabilitiesResponse(List.of(indexResponse), List.of());
+                response = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indexResponse)).build();
             } else {
-                response = new FieldCapabilitiesResponse(List.of(), List.of());
+                response = FieldCapabilitiesResponse.empty();
             }
             threadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
                 .execute(

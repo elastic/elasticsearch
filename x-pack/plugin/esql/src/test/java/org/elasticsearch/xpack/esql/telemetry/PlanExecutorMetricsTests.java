@@ -150,7 +150,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // simulate a valid field_caps response so we can parse and correctly analyze de query
             listener.onResponse(
                 new EsqlResolveFieldsResponse(
-                    new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of()),
+                    FieldCapabilitiesResponse.builder().withIndexResponses(indexFieldCapabilities(indices)).build(),
                     TransportVersion.current()
                 )
             );

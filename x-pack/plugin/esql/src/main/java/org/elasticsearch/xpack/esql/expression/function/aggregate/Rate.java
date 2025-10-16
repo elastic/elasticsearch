@@ -57,16 +57,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     )
 
     public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD) {
-            // it is necessary to override this here because we still want to return null in the case where the field is correctly resolved
-            @Override
-            public String unresolvedMessage() {
-                if (super.unresolvedMessage() == null) {
-                    return null;
-                }
-                return "Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped";
-            }
-        });
+        this(source, field, new UnresolvedAttribute(source, "@timestamp", "****CUSTOM MESSAGE****"));
     }
 
     public Rate(

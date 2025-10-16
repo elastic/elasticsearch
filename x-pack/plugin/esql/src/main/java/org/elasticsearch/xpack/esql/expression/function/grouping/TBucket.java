@@ -65,16 +65,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         Source source,
         @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets
     ) {
-        this(source, buckets, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD) {
-            // it is necessary to override this here because we still want to return null in the case where the field is correctly resolved
-            @Override
-            public String unresolvedMessage() {
-                if (super.unresolvedMessage() == null) {
-                    return null;
-                }
-                return "TBucket function requires @timestamp field, but @timestamp was renamed or dropped";
-            }
-        });
+        this(source, buckets, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD));
     }
 
     public TBucket(Source source, Expression buckets, Expression timestamp) {

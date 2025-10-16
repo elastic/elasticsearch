@@ -367,6 +367,21 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResultsMapSupplier;
     }
 
+    static Map<FullyQualifiedInferenceId, InferenceResults> mergeInferenceResultsMaps(
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> originalInferenceResultsMap,
+        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap
+    ) {
+        Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = newInferenceResultsMap;
+        if (originalInferenceResultsMap != null && originalInferenceResultsMap.isEmpty() == false) {
+            mergedInferenceResultsMap = Stream.concat(
+                originalInferenceResultsMap.entrySet().stream(),
+                newInferenceResultsMap.entrySet().stream()
+            ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+
+        return mergedInferenceResultsMap;
+    }
+
     static void registerInferenceAsyncAction(
         QueryRewriteContext queryRewriteContext,
         ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
@@ -669,21 +684,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResults;
     }
 
-    private static Map<FullyQualifiedInferenceId, InferenceResults> mergeInferenceResultsMaps(
-        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> originalInferenceResultsMap,
-        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap
-    ) {
-        Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = newInferenceResultsMap;
-        if (originalInferenceResultsMap != null && originalInferenceResultsMap.isEmpty() == false) {
-            mergedInferenceResultsMap = Stream.concat(
-                originalInferenceResultsMap.entrySet().stream(),
-                newInferenceResultsMap.entrySet().stream()
-            ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        }
-
-        return mergedInferenceResultsMap;
-    }
-
     private void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
             String inferenceId = entry.getKey().inferenceId();
@@ -742,31 +742,5 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, query, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
-    }
-
-    private static class InferenceResultsMapSupplier implements Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> {
-        private Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = null;
-
-        private void set(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-            this.inferenceResultsMap = inferenceResultsMap;
-        }
-
-        @Override
-        public Map<FullyQualifiedInferenceId, InferenceResults> get() {
-            return inferenceResultsMap;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            InferenceResultsMapSupplier that = (InferenceResultsMapSupplier) o;
-            return Objects.equals(inferenceResultsMap, that.inferenceResultsMap);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(inferenceResultsMap);
-        }
     }
 }

@@ -193,12 +193,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
-        Function<?, ?> valueTransformation = attr instanceof FieldTransformationAttribute<?, ?>
-            ? ((FieldTransformationAttribute<?, ?>) attr).getFieldValueTransformation()
-            : Function.identity();
+        MappedFieldType.BlockValueLoader<?, ?> blockValueLoader = attr instanceof FieldTransformationAttribute<?, ?>
+            ? ((FieldTransformationAttribute<?, ?>) attr).getBlockValueLoader()
+            : null;
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, valueTransformation);
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, blockValueLoader);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
             // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
@@ -484,7 +484,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            Function<?, ?> valueTransformation
+            MappedFieldType.BlockValueLoader<?, ?> blockValueLoader
         ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
@@ -531,8 +531,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public Function<?, ?> valueTransformation() {
-                    return valueTransformation;
+                public MappedFieldType.BlockValueLoader<?, ?> valueLoader() {
+                    return blockValueLoader;
                 }
             });
             if (loader == null) {

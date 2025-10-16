@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -19,10 +21,10 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.OptimizerRule<EvalExec> {
 
@@ -84,11 +86,21 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
             vectorArray[i] = vectorList.get(i).floatValue();
         }
 
-        // Create a transformation function that computes similarity between each value and the literal value
-        Function<float[], Double> transformFunction = v -> similarityFunction.getSimilarityFunction().calculateSimilarity(v, vectorArray);
+        // Create a transformation that computes similarity between each value and the literal value
+        MappedFieldType.BlockValueLoader<float[], BlockLoader.DoubleBuilder> blockValueLoader = new MappedFieldType.BlockValueLoader<>() {
+            @Override
+            public BlockLoader.DoubleBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+                return factory.doubles(expectedCount);
+            }
+
+            @Override
+            public void addValue(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+                builder.appendDouble(similarityFunction.getSimilarityFunction().calculateSimilarity(value, vectorArray));
+            }
+        };
 
         // Change the similarity function to a reference of a transformation on the field
-        var fieldTransformationAttribute = new FieldTransformationAttribute<>(fieldAttribute, transformFunction, DataType.DOUBLE);
+        var fieldTransformationAttribute = new FieldTransformationAttribute<>(fieldAttribute, blockValueLoader, DataType.DOUBLE);
         replacements.put(fieldAttribute, fieldTransformationAttribute);
         return fieldTransformationAttribute;
     }

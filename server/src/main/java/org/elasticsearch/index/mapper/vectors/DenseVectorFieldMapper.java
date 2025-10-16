@@ -107,7 +107,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -2687,12 +2686,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                if (blContext.valueTransformation() != null) {
-                    return new BlockDocValuesReader.DenseVectorFunctionBlockLoader(
+                if (blContext.valueLoader() != null) {
+                    return new BlockDocValuesReader.DenseVectorValueBlockLoader(
                         name(),
                         dims,
                         this,
-                        (Function<float[], Double>) blContext.valueTransformation()
+                        (BlockValueLoader<float[], ?>) blContext.valueLoader()
                     );
                 }
                 return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);

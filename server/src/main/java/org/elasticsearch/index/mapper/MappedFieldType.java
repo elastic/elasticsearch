@@ -704,9 +704,16 @@ public abstract class MappedFieldType {
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
 
-        default Function<?, ?> valueTransformation() {
+        @Nullable
+        default BlockValueLoader<?, ?> valueLoader() {
             return null;
         }
+    }
+
+    public interface BlockValueLoader<T, B extends BlockLoader.Builder> {
+        B builder(BlockLoader.BlockFactory factory, int expectedCount);
+
+        void addValue(T value, B builder) throws IOException;
     }
 
 }

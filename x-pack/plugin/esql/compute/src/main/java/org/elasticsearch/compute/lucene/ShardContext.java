@@ -19,7 +19,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Context of each shard we're operating against.
@@ -58,7 +57,7 @@ public interface ShardContext extends RefCounted {
         String name,
         boolean asUnsupportedSource,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
-        Function<?, ?> valueTransformation
+        MappedFieldType.BlockValueLoader<?, ?> blockValueLoader
     );
 
     /**

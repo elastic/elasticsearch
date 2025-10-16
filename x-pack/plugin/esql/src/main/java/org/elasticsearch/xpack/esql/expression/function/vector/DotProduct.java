@@ -31,7 +31,7 @@ public class DotProduct extends VectorSimilarityFunction {
         DotProduct::new
     );
 
-    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction () {
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
         public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
             return VectorUtil.dotProduct(leftScratch, rightScratch);

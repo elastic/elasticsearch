@@ -65,7 +65,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
                 params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
             }
             if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled() && elementType != ElementType.FLOAT) {
-                params.add(new Object[]{"v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
+                params.add(new Object[] { "v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
             }
         }
 
@@ -169,7 +169,6 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         return result;
     }
 
-
     @SuppressWarnings("unchecked")
     public void testTopNSimilarityBetweenConstantVectorAndField() {
         var randomVector = randomVector();
@@ -211,8 +210,11 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private Double calculateSimilarity(DenseVectorFieldMapper.SimilarityFunction similarityFunction, List<Number> randomVector,
-                                             List<Number> vector) {
+    private Double calculateSimilarity(
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        List<Number> randomVector,
+        List<Number> vector
+    ) {
         if (randomVector == null || vector == null) {
             return null;
         }

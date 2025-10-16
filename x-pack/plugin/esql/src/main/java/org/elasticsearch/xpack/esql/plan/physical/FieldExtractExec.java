@@ -80,7 +80,8 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> attributesToExtract,
         MappedFieldType.FieldExtractPreference defaultPreference,
         Set<Attribute> docValuesAttributes,
-        Set<Attribute> boundsAttributes, Set<Attribute> fieldFunctionAttributes
+        Set<Attribute> boundsAttributes,
+        Set<Attribute> fieldFunctionAttributes
     ) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
@@ -137,28 +138,63 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract,
-            defaultPreference, docValuesAttributes, boundsAttributes, fieldFunctionAttributes);
+        return new FieldExtractExec(
+            source(),
+            newChild,
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference,
-            docValuesAttributes, boundsAttributes, fieldFunctionAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public FieldExtractExec withBoundsAttributes(Set<Attribute> boundsAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference,
-            docValuesAttributes, boundsAttributes, fieldFunctionAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public FieldExtractExec withAttributesToExtract(List<Attribute> attributesToExtract) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference,
-            docValuesAttributes, boundsAttributes, fieldFunctionAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public FieldExtractExec withFieldFunctionAttributes(Set<Attribute> fieldFunctionAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference,
-            docValuesAttributes, boundsAttributes, fieldFunctionAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public List<Attribute> attributesToExtract() {

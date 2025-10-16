@@ -111,7 +111,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     private record SimilarityEvaluatorFactory(
         VectorValueProviderFactory leftVectorProviderFactory,
         VectorValueProviderFactory rightVectorProviderFactory,
-        DenseVectorFieldMapper.SimilarityFunction  similarityFunction,
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
 
@@ -136,7 +136,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     private record SimilarityEvaluator(
         VectorValueProvider left,
         VectorValueProvider right,
-        DenseVectorFieldMapper.SimilarityFunction  similarityFunction,
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         String evaluatorName,
         BlockFactory blockFactory
     ) implements EvalOperator.ExpressionEvaluator {

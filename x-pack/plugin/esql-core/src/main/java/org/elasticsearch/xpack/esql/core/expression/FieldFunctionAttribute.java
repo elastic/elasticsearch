@@ -11,7 +11,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-
+/**
+ * A field attribute that has a function applied to it for value extraction.
+ * This is used to replace a field attribute with a function that can extract
+ * the value in a way that is more efficient than loading the raw field value
+ * and applying the function to it.
+ */
 public class FieldFunctionAttribute extends FieldAttribute {
 
     private static final AtomicLong COUNTER = new AtomicLong();
@@ -32,6 +37,9 @@ public class FieldFunctionAttribute extends FieldAttribute {
         this.dataType = dataType;
     }
 
+    /**
+     * Returns the function that will be used to load the value of the field and transform it
+     */
     public MappedFieldType.BlockLoaderValueFunction<?, ?> getBlockLoaderValueFunction() {
         return blockLoaderValueFunction;
     }

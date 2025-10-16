@@ -3138,10 +3138,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public interface SimilarityFunction {
         float calculateSimilarity(float[] v1, float[] v2);
+
         float calculateSimilarity(byte[] v1, byte[] v2);
     }
 
-    public static class DenseVectorBlockLoaderValueFunction implements MappedFieldType.BlockLoaderValueFunction<float[], BlockLoader.DoubleBuilder> {
+    /**
+     * A specialized BlockLoaderValueFunction that calculates similarity between an indexed vector and the query vector. As
+     * vectors can be indexed either as float[] or byte[] we need to handle both cases to route similarity correctly
+     */
+    public static class DenseVectorBlockLoaderValueFunction
+        implements
+            MappedFieldType.BlockLoaderValueFunction<float[], BlockLoader.DoubleBuilder> {
 
         private final SimilarityFunction similarityFunction;
         private final float[] vector;
@@ -3156,11 +3163,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return factory.doubles(expectedCount);
         }
 
-        public void applyAndAdd(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+        public void applyFunctionAndAdd(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
             builder.appendDouble(similarityFunction.calculateSimilarity(value, vector));
         }
 
-        public void applyAndAdd(byte[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+        public void applyFunctionAndAdd(byte[] value, BlockLoader.DoubleBuilder builder) throws IOException {
             if (vectorAsBytes == null) {
                 vectorAsBytes = new byte[vector.length];
                 for (int i = 0; i < vector.length; i++) {

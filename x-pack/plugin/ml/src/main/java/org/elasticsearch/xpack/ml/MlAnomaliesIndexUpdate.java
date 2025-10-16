@@ -177,6 +177,6 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     private void createAliasForRollover(String indexName, String aliasName, ActionListener<IndicesAliasesResponse> listener) {
-        MlIndexAndAlias.createAliasForRollover(logger, client, indexName, aliasName, listener);
+        MlIndexAndAlias.createAliasForRollover(client, indexName, aliasName, listener);
     }
 }

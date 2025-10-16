@@ -517,13 +517,12 @@ public final class MlIndexAndAlias {
     }
 
     public static void createAliasForRollover(
-        org.elasticsearch.logging.Logger logger,
         Client client,
         String indexName,
         String aliasName,
         ActionListener<IndicesAliasesResponse> listener
     ) {
-        logger.warn("creating rollover [{}] alias for [{}]", aliasName, indexName);
+        logger.info("creating rollover [{}] alias for [{}]", aliasName, indexName);
         client.admin()
             .indices()
             .prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)

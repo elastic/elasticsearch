@@ -14,6 +14,7 @@ public final class AnomalyDetectorsIndexFields {
     // ".write" rather than simply "write" to avoid the danger of clashing
     // with the read alias of a job whose name begins with "write-"
     public static final String RESULTS_INDEX_WRITE_PREFIX = RESULTS_INDEX_PREFIX + ".write-";
+    public static final String RESULTS_INDEX_SHARED = "shared";
     public static final String RESULTS_INDEX_DEFAULT = "shared-000001";
 
     private AnomalyDetectorsIndexFields() {}

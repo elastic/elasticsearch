@@ -809,8 +809,8 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         private boolean allowLazyOpen;
         private Blocked blocked = Blocked.none();
         private DatafeedConfig.Builder datafeedConfig;
-        private SetOnce<ClusterState> clusterState = new SetOnce<>();
-        private SetOnce<IndexNameExpressionResolver> indexNameExpressionResolver = new SetOnce<>();
+        private ClusterState clusterState;
+        private IndexNameExpressionResolver indexNameExpressionResolver;
 
         public Builder() {}
 
@@ -886,11 +886,11 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         }
 
         private void setClusterState(ClusterState state) {
-            this.clusterState.set(state);
+            this.clusterState = state;
         }
 
         private void setIndexNameExpressionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
-            this.indexNameExpressionResolver.set(indexNameExpressionResolver);
+            this.indexNameExpressionResolver = indexNameExpressionResolver;
         }
 
         public void setJobVersion(MlConfigVersion jobVersion) {
@@ -1368,19 +1368,21 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-            } else if (resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT) == false) {
-                // User-defined names are prepended with "custom" and end with a 6 digit suffix
-                // Conditional guards against multiple prepending due to updates instead of first creation
-                resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
-            }
+            } else if ((resultsIndexName.startsWith(AnomalyDetectorsIndexFields.RESULTS_INDEX_SHARED)
+                && MlIndexAndAlias.has6DigitSuffix(resultsIndexName)
+                && resultsIndexName.length() == AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT.length()) == false) {
+                    // User-defined names are prepended with "custom" and end with a 6 digit suffix
+                    // Conditional guards against multiple prepending due to updates instead of first creation
+                    resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
+                }
 
             resultsIndexName = MlIndexAndAlias.has6DigitSuffix(resultsIndexName) ? resultsIndexName : resultsIndexName + "-000001";
 
-            if (indexNameExpressionResolver.get() != null && clusterState.get() != null) {
+            if (indexNameExpressionResolver != null && clusterState != null) {
                 String tmpResultsIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(
                     AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName,
-                    indexNameExpressionResolver.get(),
-                    clusterState.get()
+                    indexNameExpressionResolver,
+                    clusterState
                 );
 
                 resultsIndexName = tmpResultsIndexName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());

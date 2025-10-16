@@ -94,6 +94,8 @@ public class MlDailyMaintenanceService implements Releasable {
     private final boolean isDataFrameAnalyticsEnabled;
     private final boolean isNlpEnabled;
 
+    private RolloverConditions rolloverConditions;
+
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
     private volatile ByteSizeValue rolloverMaxSize;
@@ -121,6 +123,8 @@ public class MlDailyMaintenanceService implements Releasable {
         this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
+
+        this.rolloverConditions = RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build();
     }
 
     public MlDailyMaintenanceService(
@@ -360,20 +364,23 @@ public class MlDailyMaintenanceService implements Releasable {
                 originSettingClient,
                 new RolloverRequestBuilder(originSettingClient).setRolloverTarget(rolloverAlias)
                     .setNewIndexName(newIndexName)
-                    .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(rolloverMaxSize).build())
+                    .setConditions(rolloverConditions)
                     .request(),
                 rolloverListener
             );
         }, rolloverListener::onFailure);
 
         // 1. Create necessary aliases
-        MlIndexAndAlias.createAliasForRollover(logger, originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
+        MlIndexAndAlias.createAliasForRollover(originSettingClient, index, rolloverAlias, getIndicesAliasesListener);
     }
 
-    // TODO make public for testing?
-    private void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
+    // public for testing
+    public void setRolloverConditions(RolloverConditions rolloverConditions) {
+        this.rolloverConditions = Objects.requireNonNull(rolloverConditions);
+    }
 
-        List<Exception> failures = new ArrayList<>();
+    // public for testing
+    public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
 
         ClusterState clusterState = clusterService.state();
         // list all indices starting .ml-anomalies-
@@ -385,6 +392,11 @@ public class MlDailyMaintenanceService implements Releasable {
         );
 
         logger.info("[ML] maintenance task: triggerRollResultsIndicesIfNecessaryTask");
+
+        if (indices.length == 0) {
+            // Early bath
+            finalListener.onResponse(AcknowledgedResponse.TRUE);
+        }
 
         for (String index : indices) {
             // Check if this index has already been rolled over

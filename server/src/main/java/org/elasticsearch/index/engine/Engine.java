@@ -1696,7 +1696,7 @@ public abstract class Engine implements Closeable {
 
         protected abstract void doClose();
 
-        protected abstract Searcher acquireSearcherInternal(String source);
+        public abstract Searcher acquireSearcherInternal(String source);
 
         /**
          * Returns an id associated with this searcher if exists. Two searchers with the same searcher id must have

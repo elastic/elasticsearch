@@ -621,7 +621,7 @@ public class ReadOnlyEngine extends Engine {
             }
 
             @Override
-            protected Searcher acquireSearcherInternal(String source) {
+            public Searcher acquireSearcherInternal(String source) {
                 return delegate.acquireSearcherInternal(source);
             }
 

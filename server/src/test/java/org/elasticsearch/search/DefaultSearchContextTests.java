@@ -151,7 +151,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 protected void doClose() {}
 
                 @Override
-                protected Engine.Searcher acquireSearcherInternal(String source) {
+                public Engine.Searcher acquireSearcherInternal(String source) {
                     try {
                         IndexReader reader = w.getReader();
                         return new Engine.Searcher(
@@ -427,7 +427,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 protected void doClose() {}
 
                 @Override
-                protected Engine.Searcher acquireSearcherInternal(String source) {
+                public Engine.Searcher acquireSearcherInternal(String source) {
                     try {
                         IndexReader reader = w.getReader();
                         return new Engine.Searcher(
@@ -1045,7 +1045,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 protected void doClose() {}
 
                 @Override
-                protected Engine.Searcher acquireSearcherInternal(String source) {
+                public Engine.Searcher acquireSearcherInternal(String source) {
                     try {
                         IndexReader reader = w.getReader();
                         return new Engine.Searcher(

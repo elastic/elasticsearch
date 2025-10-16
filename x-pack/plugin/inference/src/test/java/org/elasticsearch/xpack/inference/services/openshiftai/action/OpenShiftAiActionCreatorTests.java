@@ -741,8 +741,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         assertRerankActionCreator(documents);
     }
 
-    private void assertRerankActionCreator(List<String> documents)
-        throws IOException {
+    private void assertRerankActionCreator(List<String> documents) throws IOException {
         assertThat(webServer.requests(), hasSize(1));
         assertNull(webServer.requests().get(0).getUri().getQuery());
         assertThat(

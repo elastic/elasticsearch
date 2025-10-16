@@ -880,7 +880,7 @@ public record IndicesOptions(
         // Until the feature flag is removed we access the field directly from the gatekeeper options.
         if (gatekeeperOptions().allowSelectors()) {
             if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)
-                && out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
                 backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
             } else if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
@@ -908,7 +908,7 @@ public record IndicesOptions(
             out.writeBoolean(false);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)
-            && out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             if (out.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
                 out.writeVInt(1); // Enum set sized 1
                 out.writeVInt(0); // ordinal 0 (::data selector)
@@ -927,7 +927,7 @@ public record IndicesOptions(
         );
         boolean allowSelectors = true;
         if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)
-            && in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            && in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             // We've effectively replaced the allow failure indices setting with allow selectors. If it is configured on an older version
             // then use its value for allow selectors.
             allowSelectors = options.contains(Option.ALLOW_FAILURE_INDICES);
@@ -951,7 +951,7 @@ public record IndicesOptions(
             in.readBoolean();
         }
         if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)
-            && in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            && in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             // Reading from an older node, which will be sending either an enum set or a single byte that needs to be read out and ignored.
             if (in.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
                 int size = in.readVInt();

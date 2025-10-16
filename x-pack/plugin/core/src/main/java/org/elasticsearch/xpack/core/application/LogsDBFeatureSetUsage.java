@@ -55,7 +55,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         }
         var transportVersion = out.getTransportVersion();
         if (transportVersion.isPatchFrom(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17)
-            || transportVersion.onOrAfter(TransportVersions.V_8_18_0)) {
+            || transportVersion.supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(hasCustomCutoffDate);
         }
     }

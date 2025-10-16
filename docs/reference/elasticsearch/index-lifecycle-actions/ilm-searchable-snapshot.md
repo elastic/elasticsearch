@@ -52,6 +52,19 @@ By default, this snapshot is deleted by the [delete action](/reference/elasticse
 
 ## Examples [ilm-searchable-snapshot-ex]
 
+<!--
+```console
+PUT /_snapshot/backing_repo
+{
+ "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+```
+% TESTSETUP
+-->
+
 ```console
 PUT _ilm/policy/my_policy
 {

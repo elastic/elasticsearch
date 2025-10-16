@@ -40,8 +40,8 @@ public class ReplicationSplitHelper<
 
     private final Logger logger;
     private final ClusterService clusterService;
-    private final TimeValue retryTimeout;
     private final TimeValue initialRetryBackoffBound;
+    private final TimeValue retryTimeout;
     private final TriConsumer<
         DiscoveryNode,
         TransportReplicationAction.ConcreteShardRequest<Request>,
@@ -56,8 +56,8 @@ public class ReplicationSplitHelper<
     ) {
         this.clusterService = clusterService;
         this.logger = logger;
-        this.retryTimeout = retryTimeout;
         this.initialRetryBackoffBound = initialRetryBackoffBound;
+        this.retryTimeout = retryTimeout;
         this.primaryRequestSender = primaryRequestSender;
     }
 
@@ -224,8 +224,8 @@ public class ReplicationSplitHelper<
             new RetryableAction<>(
                 logger,
                 clusterService.threadPool(),
-                retryTimeout,
                 initialRetryBackoffBound,
+                retryTimeout,
                 finalListener,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {

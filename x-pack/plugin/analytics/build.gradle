@@ -29,6 +29,7 @@ dependencies {
   compileOnly project(":server")
   testImplementation project(path: ':modules:aggregations')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":libs:exponential-histogram")))
 }
 
 if (buildParams.snapshotBuild == false) {

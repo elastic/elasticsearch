@@ -857,11 +857,11 @@ public final class IndicesPermission {
      *
      * @param combine combine index groups to allow for checking against regular expressions
      *
-     * @return a map of all index and privilege pattern automatons
+     * @return a map of all privilege to index pattern automatons
      */
     private Map<Automaton, List<Automaton>> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
-        var allAutomatons = new HashMap<Automaton, List<Automaton>>();
+        var privilegeToIndexAutomatons = new HashMap<Automaton, List<Automaton>>();
         for (Group group : groups) {
             if (false == group.checkSelector(selector)) {
                 continue;
@@ -869,31 +869,27 @@ public final class IndicesPermission {
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
 
             if (combine) {
-                // Combine all automatons with identical privileges
-                allAutomatons.compute(
+                privilegeToIndexAutomatons.compute(
                     group.privilege().getAutomaton(),
                     (key, value) -> value == null
                         ? List.of(indexAutomaton)
                         : List.of(Automatons.unionAndMinimize(List.of(value.getFirst(), indexAutomaton)))
                 );
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
-                for (var indexAndPrivilegeAutomatons : allAutomatons.entrySet()) {
-                    // Check if there is a group that already defines the same privileges or some intersection
+                for (var privilegeAndIndexAutomatons : privilegeToIndexAutomatons.entrySet()) {
                     Automaton intersectingPrivileges = Operations.intersection(
-                        indexAndPrivilegeAutomatons.getKey(),
+                        privilegeAndIndexAutomatons.getKey(),
                         group.privilege().getAutomaton()
                     );
-                    // If they are, create new combined group
                     if (Operations.isEmpty(intersectingPrivileges) == false) {
                         Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
-                            List.of(indexAndPrivilegeAutomatons.getValue().getFirst(), indexAutomaton)
+                            List.of(privilegeAndIndexAutomatons.getValue().getFirst(), indexAutomaton)
                         );
                         combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
                     }
                 }
-                // Now we have all with identical privileges + all the intersecting ones
                 combinedAutomatons.forEach(
-                    automatons -> allAutomatons.compute(
+                    automatons -> privilegeToIndexAutomatons.compute(
                         automatons.v1(),
                         (key, value) -> value == null
                             ? List.of(automatons.v2())
@@ -901,15 +897,14 @@ public final class IndicesPermission {
                     )
                 );
             } else {
-                // If we don't need to combine, just add groups as they are
-                allAutomatons.compute(group.privilege().getAutomaton(), (k, v) -> {
+                privilegeToIndexAutomatons.compute(group.privilege().getAutomaton(), (k, v) -> {
                     var list = v == null ? new ArrayList<Automaton>() : v;
                     list.add(group.getIndexMatcherAutomaton());
                     return list;
                 });
             }
         }
-        return allAutomatons;
+        return privilegeToIndexAutomatons;
     }
 
     private static boolean containsPrivilegesForFailuresSelector(Set<String> checkForPrivileges) {

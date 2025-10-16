@@ -1,5 +1,5 @@
 pr: 136625
-summary: Optimize index permissions
+summary: Optimize Index Permission Automatons for Has Privileges
 area: Security
 type: bug
 issues: []

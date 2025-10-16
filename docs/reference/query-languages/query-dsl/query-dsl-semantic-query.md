@@ -24,7 +24,7 @@ The target field of `semantic` query must be mapped as `semantic_text` and assoc
 - If no `search_inference_id` is defined, `inference_id` is used for both indexing and search.
 - If no endpoint is specified at mapping, `inference_id` defaults to `.elser-2-elasticsearch`.￼
 
-The underlying vector mode (dense or sparse) follows the field’s endpoint automatically. No extra query parameters are required.
+The underlying vector type (dense or sparse) is determined by the endpoint automatically. No extra query parameters are required.
 
 ## Example request [semantic-query-example]
 

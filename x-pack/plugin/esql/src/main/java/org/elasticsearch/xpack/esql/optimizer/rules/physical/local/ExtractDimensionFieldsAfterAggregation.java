@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -64,7 +64,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     private PhysicalPlan rule(TimeSeriesAggregateExec oldAgg, LocalPhysicalOptimizerContext context) {
         AttributeSet inputAttributes = oldAgg.inputSet();
-        var sourceAttr = inputAttributes.stream().filter(EsQueryExec::isSourceAttribute).findFirst().orElse(null);
+        var sourceAttr = inputAttributes.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (sourceAttr == null) {
             return oldAgg;
         }
@@ -125,7 +125,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
     }
 
     private static FieldAttribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {
-        if (af instanceof Values values
+        if (af instanceof DimensionValues values
             && values.hasFilter() == false
             && values.field() instanceof FieldAttribute fa
             && fa.isDimension()

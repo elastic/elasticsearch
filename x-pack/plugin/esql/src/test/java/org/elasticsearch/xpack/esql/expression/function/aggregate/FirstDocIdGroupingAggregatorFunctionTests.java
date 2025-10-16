@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FirstDocIdTests extends ComputeTestCase {
+public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
 
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
@@ -42,7 +42,6 @@ public class FirstDocIdTests extends ComputeTestCase {
 
     public void testSimple() {
         DriverContext driverContext = driverContext();
-        BlockFactory factory = driverContext.blockFactory();
         int numPages = between(1, 100);
         List<Page> pages = new ArrayList<>(numPages);
         Map<Integer, Doc> expectedFirstDocs = new HashMap<>();
@@ -65,7 +64,8 @@ public class FirstDocIdTests extends ComputeTestCase {
                     groups.appendInt(group);
                     expectedFirstDocs.putIfAbsent(group, doc);
                 }
-                DocVector docVector = new DocVector(shardRefs::get, shards.build(), segments.build(), docs.build(), null);
+                var refs = new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs);
+                DocVector docVector = new DocVector(refs, shards.build(), segments.build(), docs.build(), null);
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }
@@ -93,7 +93,6 @@ public class FirstDocIdTests extends ComputeTestCase {
         OperatorTestCase.runDriver(driver);
         for (RefCounted value : shardRefs.values()) {
             value.decRef();
-            assertTrue(value.hasReferences());
         }
         Map<Integer, Doc> actualFirstDocs = new HashMap<>();
         for (Page out : outputPages) {

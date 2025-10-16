@@ -18,14 +18,16 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
@@ -63,20 +65,16 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     private final DriverContext driverContext;
     private int maxGroupId = -1;
     private final BigArrays bigArrays;
-    private IntArray shards;
-    private IntArray segments;
-    private IntArray docIds;
+    private IntArray docs;
     private final Map<Integer, RefCounted> contextRefs = new HashMap<>();
 
     public FirstDocIdGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-        this.channel = channels.get(0);
+        this.channel = channels.getFirst();
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         boolean success = false;
         try {
-            this.shards = bigArrays.newIntArray(1024, false);
-            this.segments = bigArrays.newIntArray(1024, false);
-            this.docIds = bigArrays.newIntArray(1024, false);
+            this.docs = bigArrays.newIntArray(1024, false);
             success = true;
         } finally {
             if (success == false) {
@@ -163,16 +161,16 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     private void collectOneDoc(int groupId, DocVector docVector, int valuePosition) {
         maxGroupId = groupId;
-        shards = bigArrays.grow(shards, groupId + 1);
         int shard = docVector.shards().getInt(valuePosition);
-        shards.set(groupId, shard);
-        segments = bigArrays.grow(segments, groupId + 1);
-        segments.set(groupId, docVector.segments().getInt(valuePosition));
-        docIds = bigArrays.grow(docIds, groupId + 1);
-        docIds.set(groupId, docVector.docs().getInt(valuePosition));
+        int segment = docVector.segments().getInt(valuePosition);
+        int doc = docVector.docs().getInt(valuePosition);
+        docs = bigArrays.grow(docs, 3L * groupId + 3);
+        docs.set(3L * groupId, shard);
+        docs.set(3L * groupId + 1, segment);
+        docs.set(3L * groupId + 2, doc);
         if (contextRefs.containsKey(shard) == false) {
-            RefCounted refCounted = docVector.shardRefCounted().get(shard);
-            refCounted.incRef();
+            var refCounted = docVector.shardRefCounted(shard);
+            refCounted.mustIncRef();
             contextRefs.put(shard, refCounted);
         }
     }
@@ -207,8 +205,8 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
-                segmentBuilder.appendInt(segments.get(group));
-                docBuilder.appendInt(docIds.get(group));
+                segmentBuilder.appendInt(docs.get(3L * group + 1));
+                docBuilder.appendInt(docs.get(3L * group + 2));
             }
             final IntVector shardVector;
             if (contextRefs.size() == 1) {
@@ -217,7 +215,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
                 try (var shardBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                     for (int p = 0; p < positionCount; p++) {
                         int group = selected.getInt(p);
-                        shardBuilder.appendInt(shards.get(group));
+                        shardBuilder.appendInt(docs.get(3L * group));
                     }
                     shardVector = shardBuilder.build();
                 }
@@ -227,8 +225,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             try {
                 segmentVector = segmentBuilder.build();
                 docVector = docBuilder.build();
-                var unmodifiedContextRefs = Collections.unmodifiableMap(contextRefs);
-                blocks[offset] = new DocVector(unmodifiedContextRefs::get, shardVector, segmentVector, docVector, null).asBlock();
+                blocks[offset] = new DocVector(new MappedShardRefs<>(contextRefs), shardVector, segmentVector, docVector, null).asBlock();
             } finally {
                 if (blocks[offset] == null) {
                     Releasables.closeExpectNoException(shardVector, segmentVector, docVector);
@@ -237,9 +234,30 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         }
     }
 
+    public record MappedShardRefs<T>(Map<Integer, T> refs) implements IndexedByShardId<T> {
+        @Override
+        public T get(int shardId) {
+            return refs.get(shardId);
+        }
+
+        @Override
+        public Collection<? extends T> collection() {
+            return refs.values();
+        }
+
+        @Override
+        public <S> IndexedByShardId<S> map(Function<T, S> mapper) {
+            Map<Integer, S> newMap = new HashMap<>();
+            for (var entry : refs.entrySet()) {
+                newMap.put(entry.getKey(), mapper.apply(entry.getValue()));
+            }
+            return new MappedShardRefs<>(newMap);
+        }
+    }
+
     @Override
     public void close() {
-        Releasables.closeExpectNoException(shards, segments, docIds, () -> {
+        Releasables.closeExpectNoException(docs, () -> {
             for (RefCounted ref : contextRefs.values()) {
                 ref.decRef();
             }

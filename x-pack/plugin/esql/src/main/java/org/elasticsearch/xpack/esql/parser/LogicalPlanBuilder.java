@@ -221,31 +221,46 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(FoldContext.small() /* TODO remove me */)))
                 .toList();
 
-            String pattern = Grok.combinePatterns(patterns);
+            String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
 
             Grok.Parser grokParser;
             try {
-                grokParser = Grok.pattern(source, pattern);
+                grokParser = Grok.pattern(source, combinePattern);
             } catch (SyntaxException e) {
-                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", patterns, e.getMessage());
+                if (patterns.size() == 1) {
+                    throw new ParsingException(source, "Invalid GROK pattern [{}]: [{}]", patterns.getFirst(), e.getMessage());
+                } else {
+                    throw new ParsingException(source, "Invalid GROK patterns {}: [{}]", patterns, e.getMessage());
+                }
             }
-            validateGrokPattern(source, grokParser, pattern);
+            validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
     }
 
-    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern, List<String> originalPatterns) {
         Map<String, DataType> definedAttributes = new HashMap<>();
         for (Attribute field : grokParser.extractedFields()) {
             String name = field.name();
             DataType type = field.dataType();
             DataType prev = definedAttributes.put(name, type);
             if (prev != null) {
-                throw new ParsingException(
-                    source,
-                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
-                );
+                if (originalPatterns.size() == 1) {
+                    throw new ParsingException(
+                        source,
+                        "Invalid GROK pattern [{}]: the attribute [{}] is defined multiple times with different types",
+                        originalPatterns.getFirst(),
+                        name
+                    );
+                } else {
+                    throw new ParsingException(
+                        source,
+                        "Invalid GROK patterns {}: the attribute [{}] is defined multiple times with different types",
+                        originalPatterns,
+                        name
+                    );
+                }
             }
         }
     }

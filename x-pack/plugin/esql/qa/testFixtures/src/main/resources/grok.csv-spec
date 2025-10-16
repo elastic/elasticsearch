@@ -290,6 +290,13 @@ emp_no:integer | a:keyword                         | b:keyword                  
 10005          | null                              | null                               | null           | null
 ;
 
+multiPatterns
+row text = "XYZ extractme" | grok text "ABC %{WORD:foo}","XYZ %{WORD:bar}" | keep foo, bar;
+
+foo:keyword | bar:keyword
+null        | extractme
+;
+
 overwriteInputName
 required_capability: grok_dissect_masking
 row text = "123 abc", int = 5 | sort int asc | grok text "%{NUMBER:text:int} %{WORD:description}" | keep text, int, description;

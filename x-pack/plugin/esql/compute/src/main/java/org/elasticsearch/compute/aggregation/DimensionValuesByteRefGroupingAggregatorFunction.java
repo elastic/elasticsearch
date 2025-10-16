@@ -273,4 +273,13 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         evaluateIntermediate(blocks, offset, selected);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(getClass().getSimpleName()).append("[");
+        sb.append("channels=").append(channel);
+        sb.append("]");
+        return sb.toString();
+    }
 }

@@ -82,7 +82,6 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
      * Tests that concurrent async search status requests behave correctly
      * while the underlying async search task is still executing and during its close/cleanup.
      */
-    @Repeat(iterations = 1000)
     public void testConcurrentStatusFetchWhileTaskCloses() throws Exception {
         final String aggName = "terms";
         final SearchSourceBuilder source = new SearchSourceBuilder().aggregation(

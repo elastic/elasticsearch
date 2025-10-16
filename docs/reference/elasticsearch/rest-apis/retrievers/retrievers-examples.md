@@ -109,11 +109,13 @@ Now that we have our documents in place, let’s try to run some queries using r
 
 ## Example: Combining query and kNN with RRF [retrievers-examples-combining-standard-knn-retrievers-with-rrf]
 
-First, let’s examine how to combine two different types of queries: a `kNN` query and a `query_string` query.
+First, let's examine how to combine two different types of queries: a `kNN` query and a `query_string` query.
 While these queries may produce scores in different ranges, we can use Reciprocal Rank Fusion (`rrf`) to combine the results and generate a merged final result list.
 
 To implement this in the retriever framework, we start with the top-level element: our `rrf` retriever.
-This retriever operates on top of two other retrievers: a `knn` retriever and a `standard` retriever. Our query structure would look like this:
+This retriever operates on top of two other retrievers: a `knn` retriever and a `standard` retriever.
+We can also specify weights to adjust the influence of each retriever on the final ranking.
+In this example, we're giving the semantic search (kNN) twice the influence of the lexical search:
 
 ```console
 GET /retrievers_example/_search
@@ -122,26 +124,32 @@ GET /retrievers_example/_search
         "rrf": {
             "retrievers": [
                 {
-                    "standard": {
-                        "query": {
-                            "query_string": {
-                                "query": "(information retrieval) OR (artificial intelligence)",
-                                "default_field": "text"
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "query_string": {
+                                    "query": "(information retrieval) OR (artificial intelligence)",
+                                    "default_field": "text"
+                                }
                             }
                         }
-                    }
+                    },
+                    "weight": 1.0
                 },
                 {
-                    "knn": {
-                        "field": "vector",
-                        "query_vector": [
-                            0.23,
-                            0.67,
-                            0.89
-                        ],
-                        "k": 3,
-                        "num_candidates": 5
-                    }
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 2.0
                 }
             ],
             "rank_window_size": 10,

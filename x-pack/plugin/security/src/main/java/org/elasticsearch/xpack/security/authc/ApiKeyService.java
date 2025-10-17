@@ -1509,7 +1509,8 @@ public class ApiKeyService implements Closeable {
         if (apiKeyDoc.certificateIdentity != null) {
             if (credentials.getCertificateIdentity() == null) {
                 listener.onResponse(
-                    AuthenticationResult.terminate("Expected signature for cross cluster API key, but no signature was provided")
+                    AuthenticationResult.terminate(
+                        Strings.format("API key (type:[%s], id:[%s]) requires certificate identity [%s], but no certificate was provided", apiKeyDoc.type.value(), credentials.getId(), apiKeyDoc.certificateIdentity));
                 );
                 return;
             }

@@ -3993,7 +3993,6 @@ Mv-Land2          |Mv-Lang2              |null                       |null
 
 // PruneColumns
 inlineStatsAfterPruningAggregate
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 
 row a = 1
@@ -4008,7 +4007,6 @@ c:long
 
 // PropagateEmptyRelation
 inlineStatsAfterPruningAggregate2
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 
 row a = 12
@@ -4024,7 +4022,6 @@ null      | 0
 
 // ReplaceStatsFilteredAggWithEval
 inlineStatsAfterPruningAggregate3
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 
 row a= 12
@@ -4038,7 +4035,6 @@ null   | null
 
 
 inlineStatsAfterPruningAggregate4
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 
 from k8s
@@ -4054,7 +4050,6 @@ QaoRGYyf:long
 
 
 inlineStatsAfterPruningAggregate5
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
@@ -4081,7 +4076,6 @@ null                 | 0
 
 
 inlineStatsAfterPruningAggregate6
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
@@ -4110,7 +4104,6 @@ null             | null                            | null            | null     
 
 
 inlineStatsAfterPruningAggregate7
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 required_capability: fork_v9
@@ -4137,7 +4130,6 @@ VizcTbjMnBlQ:long | wXPJguff:double
 
 
 inlineStatsAfterPruningAggregate8
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 
 from dense_vector,airport_city_boundaries
@@ -4158,7 +4150,6 @@ zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | Q
 
 
 inlineStatsAfterPruningAggregate9
-required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 
 from employees

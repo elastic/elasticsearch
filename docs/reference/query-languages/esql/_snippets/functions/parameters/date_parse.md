@@ -8,3 +8,6 @@
 `dateString`
 :   Date expression as a string. If `null` or an empty string, the function returns `null`.
 
+`options`
+:   (Optional) Additional options for date parsing, specifying time zone and locale as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+

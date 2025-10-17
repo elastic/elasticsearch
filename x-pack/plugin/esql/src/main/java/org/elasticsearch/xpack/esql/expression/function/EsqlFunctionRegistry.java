@@ -1042,10 +1042,15 @@ public class EsqlFunctionRegistry {
                 throw new QlIllegalArgumentException("expects one, two or three arguments");
             } else if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
-            } else if (hasMinimumTwo == false && children.size() != 3) {
+            } else if (hasMinimumOne == false && hasMinimumTwo == false && children.size() != 3) {
                 throw new QlIllegalArgumentException("expects exactly three arguments");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() > 1 ? children.get(1) : null,
+                children.size() == 3 ? children.get(2) : null
+            );
         };
         return def(function, builder, names);
     }

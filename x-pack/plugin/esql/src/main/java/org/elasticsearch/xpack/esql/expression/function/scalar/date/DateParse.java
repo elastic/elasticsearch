@@ -97,7 +97,7 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
                     valueHint = { "standard" },
                     description = "The locale to use when parsing the date, relevant when parsing month names or week days."
                 ) },
-            description = "(Optional) Additional options for date parsing as <<esql-function-named-params,function named parameters>>.",
+            description = "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>.",
             optional = true
         ) Expression options
     ) {
@@ -134,7 +134,6 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
         out.writeNamedWriteable(children().get(0));
         out.writeOptionalNamedWriteable(children().size() > 1 ? children().get(1) : null);
         out.writeOptionalNamedWriteable(children().size() > 2 ? children().get(2) : null);
-        out.writeOptionalNamedWriteable(children().size() > 3 ? children().get(3) : null);
     }
 
     @Override

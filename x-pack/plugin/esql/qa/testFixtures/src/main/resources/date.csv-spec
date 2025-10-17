@@ -644,22 +644,25 @@ emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:
 10050           | 1958-05-21T00:00:00.000Z   | 1958-05-21T00:00:00.000Z  | true
 ;
 
-evalDateParseWithTimezone
-row a = "10-10-25" | eval b = date_parse(a, "dd-mm-yyyy", {"time_zone":"Europe/Paris"}) | keep b;
+evalDateParseWithTimezoneOption
+required_capability: date_parse_options
+row a = "10-10-2025" | eval b = date_parse("dd-mm-yyyy", a, {"time_zone":"Europe/Paris"}) | keep b;
 
 b:datetime
 2024-12-31T23:00:00.000Z
 ;
 
-evalDateParseWithLocale
-row a = "10 septembre 2025" | eval b = date_parse(a, "dd-mm-yyyy", {"locale":"fr"}) | keep b;
+evalDateParseWithLocaleOption
+required_capability: date_parse_options
+row a = "10 septembre 2025" | eval b = date_parse("dd MMMM yyyy", a, {"locale":"fr"}) | keep b;
 
 b:datetime
 2025-09-10T00:00:00.000Z
 ;
 
-evalDateParseWithLocaleAndTimezone
-row a = "10 septembre 2025" | eval b = date_parse(a, "dd-mm-yyyy", {"locale":"fr","time_zone":"Europe/Paris"}) | keep b;
+evalDateParseWithLocaleAndTimezoneOption
+required_capability: date_parse_options
+row a = "10 septembre 2025" | eval b = date_parse("dd MMMM yyyy", a, {"locale":"fr","time_zone":"Europe/Paris"}) | keep b;
 
 b:datetime
 2025-09-09T22:00:00.000Z

@@ -167,10 +167,10 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
 
     public void testInvalidLocale() {
         String pattern = "YYYY";
-        String locale = "NON-EXISTING-LOCALE";
+        String locale = "nonexistinglocale";
         DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(
-            InvalidArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> evaluator(
                 new DateParse(
                     Source.EMPTY,
@@ -193,8 +193,8 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
         String pattern = "YYYY";
         String timezone = "NON-EXISTING-TIMEZONE";
         DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(
-            InvalidArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> evaluator(
                 new DateParse(
                     Source.EMPTY,

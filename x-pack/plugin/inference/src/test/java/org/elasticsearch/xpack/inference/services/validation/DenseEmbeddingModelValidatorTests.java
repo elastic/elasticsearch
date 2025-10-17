@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -16,13 +17,15 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.EmptyTaskSettingsTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
+import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.util.List;
@@ -38,7 +41,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
-public class TextEmbeddingModelValidatorTests extends ESTestCase {
+public class DenseEmbeddingModelValidatorTests extends ESTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
 
@@ -53,18 +56,17 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     @Mock
     private ServiceSettings mockServiceSettings;
 
-    private TextEmbeddingModelValidator underTest;
+    private DenseEmbeddingModelValidator underTest;
 
     @Before
     public void setup() {
         openMocks(this);
 
-        underTest = new TextEmbeddingModelValidator(mockServiceIntegrationValidator);
+        underTest = new DenseEmbeddingModelValidator(mockServiceIntegrationValidator);
 
         when(mockInferenceService.updateModelWithEmbeddingDetails(eq(mockModel), anyInt())).thenReturn(mockModel);
         when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         when(mockModel.getServiceSettings()).thenReturn(mockServiceSettings);
-        when(mockModel.getInferenceEntityId()).thenReturn(randomAlphaOfLength(10));
     }
 
     public void testValidate_ServiceIntegrationValidatorThrowsException() {
@@ -73,7 +75,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
+            () -> underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener)
         );
 
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
@@ -83,38 +85,73 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
 
     public void testValidate_ServiceReturnsNullResults() {
         mockCallToServiceIntegrationValidator(null);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(
+            captor.getValue().getMessage(),
+            Matchers.is(
+                "Validation call did not return expected results type. Expected a result of type [DenseEmbeddingResults] got [null]"
+            )
+        );
+
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
     public void testValidate_ServiceReturnsNonTextEmbeddingResults() {
         mockCallToServiceIntegrationValidator(SparseEmbeddingResultsTests.createRandomResults());
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(
+            captor.getValue().getMessage(),
+            Matchers.is(
+                "Validation call did not return expected results type. "
+                    + "Expected a result of type [DenseEmbeddingResults] got [SparseEmbeddingResults]"
+            )
+        );
+
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
     public void testValidate_RetrievingEmbeddingSizeThrowsIllegalStateException() {
-        TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(List.of());
+        DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(List.of());
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(randomNonNegativeInt());
 
         mockCallToServiceIntegrationValidator(results);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(captor.getValue().getMessage(), Matchers.is("Could not determine embedding size"));
+
         verify(mockModel, times(1)).getServiceSettings();
         verify(mockServiceSettings).dimensions();
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener, mockServiceSettings);
     }
 
     public void testValidate_DimensionsSetByUserDoNotEqualEmbeddingSize() {
-        TextEmbeddingByteResults results = TextEmbeddingByteResultsTests.createRandomResults();
-        var dimensions = randomValueOtherThan(results.getFirstEmbeddingSize(), ESTestCase::randomNonNegativeInt);
+        DenseEmbeddingByteResults results = DenseEmbeddingByteResultsTests.createRandomResults();
+        int embeddingSize = results.getFirstEmbeddingSize();
+        int dimensions = randomValueOtherThan(embeddingSize, ESTestCase::randomNonNegativeInt);
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(dimensions);
 
         mockCallToServiceIntegrationValidator(results);
-        verify(mockActionListener).onFailure(any(ElasticsearchStatusException.class));
+        ArgumentCaptor<ElasticsearchStatusException> captor = ArgumentCaptor.forClass(ElasticsearchStatusException.class);
+        verify(mockActionListener).onFailure(captor.capture());
+        assertThat(
+            captor.getValue().getMessage(),
+            Matchers.is(
+                Strings.format(
+                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
+                        + "Please recreate the [%s] configuration with the correct dimensions",
+                    embeddingSize,
+                    dimensions,
+                    null
+                )
+            )
+        );
+
         verify(mockModel).getServiceSettings();
         verify(mockModel).getInferenceEntityId();
         verify(mockServiceSettings).dimensionsSetByUser();
@@ -131,7 +168,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     private void mockSuccessfulValidation(Boolean dimensionsSetByUser) {
-        TextEmbeddingByteResults results = TextEmbeddingByteResultsTests.createRandomResults();
+        DenseEmbeddingByteResults results = DenseEmbeddingByteResultsTests.createRandomResults();
         when(mockModel.getConfigurations()).thenReturn(ModelConfigurationsTests.createRandomInstance());
         when(mockModel.getTaskSettings()).thenReturn(EmptyTaskSettingsTests.createRandom());
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(dimensionsSetByUser);

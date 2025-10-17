@@ -26,9 +26,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -127,8 +127,8 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         List<ChunkInferenceInput> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), textEmbeddingResults.embeddings().size());
+        if (inferenceResults instanceof DenseEmbeddingFloatResults denseEmbeddingResults) {
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), denseEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.size());
 
@@ -137,7 +137,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                     new ChunkedInferenceEmbedding(
                         List.of(
                             new EmbeddingResults.Chunk(
-                                textEmbeddingResults.embeddings().get(i),
+                                denseEmbeddingResults.embeddings().get(i),
                                 new ChunkedInference.TextOffset(0, inputs.get(i).input().length())
                             )
                         )
@@ -153,7 +153,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",
-                TextEmbeddingFloatResults.class.getSimpleName(),
+                DenseEmbeddingFloatResults.class.getSimpleName(),
                 SparseEmbeddingResults.class.getSimpleName()
             );
             throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());

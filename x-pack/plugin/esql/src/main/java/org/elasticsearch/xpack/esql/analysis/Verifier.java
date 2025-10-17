@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -108,6 +110,7 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkInsist(p, failures);
+            checkLimitBeforeInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -252,6 +255,14 @@ public class Verifier {
             LogicalPlan child = i.child();
             if ((child instanceof EsRelation || child instanceof Insist) == false) {
                 failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
+            }
+        }
+    }
+
+    private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
+        if (plan instanceof InlineStats is) {
+            if (is.anyMatch(p -> p instanceof Limit)) {
+                failures.add(fail(is, "[inline stats] cannot be used after [limit] commands, but was [{}]", is.sourceText()));
             }
         }
     }

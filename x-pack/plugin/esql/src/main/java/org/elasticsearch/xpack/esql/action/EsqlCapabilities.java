@@ -1516,6 +1516,8 @@ public class EsqlCapabilities {
          */
         FIX_FILTER_ORDINALS,
 
+        FORBID_LIMIT_BEFORE_INLINE_STATS(INLINE_STATS.enabled)
+
         ;
 
         private final boolean enabled;

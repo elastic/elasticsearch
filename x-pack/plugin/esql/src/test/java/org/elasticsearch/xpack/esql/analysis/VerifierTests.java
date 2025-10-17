@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2811,6 +2812,55 @@ public class VerifierTests extends ESTestCase {
         assertThat(error("TS test | INLINE STATS max(network.connections) | STATS max(network.connections) by host", tsdb), equalTo("""
             1:11: INLINE STATS [INLINE STATS max(network.connections)] \
             can only be used after STATS when used with TS command"""));
+    }
+
+    public void testLimitBeforeInlineStats_WithTS() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        assertThat(
+            error("TS test | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"),
+            containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS max(s) BY m")
+        );
+    }
+
+    public void testLimitBeforeInlineStats_WithFrom_And_Row() {
+        assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
+        var sourceCommands = new String[] { "FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | " };
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS max(salary) BY gender]")
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "SORT emp_no | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS max(salary) BY gender]")
+        );
+
+        assertThat(
+            error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS max(salary) BY gender]")
+        );
+
+        assertThat(
+            error(
+                randomFrom(sourceCommands) + "LIMIT 1 | LIMIT 2 | INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"
+            ),
+            allOf(
+                containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS max(salary) BY gender]"),
+                containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS avg(salary)]")
+            )
+        );
+
+        assertThat(
+            error(
+                randomFrom(sourceCommands)
+                    + "EVAL x = 1 | LIMIT 1 | INLINE STATS avg(salary) | STATS m=max(languages) BY s=salary/10000 | LIMIT 5 | INLINE STATS max(s) BY m"
+            ),
+            allOf(
+                containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS max(s) BY m]"),
+                containsString("[inline stats] cannot be used after [limit] commands, but was [INLINE STATS avg(salary)]")
+            )
+        );
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

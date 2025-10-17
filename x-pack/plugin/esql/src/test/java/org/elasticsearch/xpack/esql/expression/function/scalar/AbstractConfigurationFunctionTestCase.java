@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
@@ -34,7 +32,10 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         assertSerialization(expr, config);
 
-        Configuration differentConfig = randomValueOtherThan(config, () -> randomConfiguration(testCase.getSource().text(), randomTables()));
+        Configuration differentConfig = randomValueOtherThan(
+            config,
+            () -> randomConfiguration(testCase.getSource().text(), randomTables())
+        );
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertNotEquals(expr, differentExpr);

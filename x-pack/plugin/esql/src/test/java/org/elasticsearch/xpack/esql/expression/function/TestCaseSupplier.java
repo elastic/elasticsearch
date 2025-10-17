@@ -1577,11 +1577,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Collection<TestCaseSupplier> suppliers,
         Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
     ) {
-        return suppliers.stream().map(supplier ->
-            new TestCaseSupplier(supplier.name(), supplier.types(), () ->
-                mapper.apply(supplier.get())
-            )
-        ).toList();
+        return suppliers.stream()
+            .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
+            .toList();
     }
 
     public static final class TestCase {

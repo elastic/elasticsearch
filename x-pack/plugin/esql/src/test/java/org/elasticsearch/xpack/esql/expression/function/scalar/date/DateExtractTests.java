@@ -94,7 +94,9 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             DataType.LONG,
                             is(nullValue())
                         ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
-                            .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                            .withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
                             .withWarning(
                                 "Line 1:1: java.lang.IllegalArgumentException: "
                                     + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"

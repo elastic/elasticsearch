@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.isNull;
 
 public class TransportVersionTests extends ESTestCase {
 

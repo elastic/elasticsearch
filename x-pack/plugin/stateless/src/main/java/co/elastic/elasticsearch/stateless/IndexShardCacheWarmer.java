@@ -71,7 +71,7 @@ public class IndexShardCacheWarmer {
      * Schedule the pre-warming of a peer recovering stateless index shard
      */
     public void preWarmIndexShardCache(IndexShard indexShard) {
-        preWarmIndexShardCache(indexShard, true);
+        preWarmIndexShardCache(indexShard, INDEXING_EARLY);
     }
 
     /**
@@ -79,21 +79,21 @@ public class IndexShardCacheWarmer {
      *
      * @param indexShard The shard to warm
      */
-    public void preWarmIndexShardCache(IndexShard indexShard, boolean assertRecovery) {
+    public void preWarmIndexShardCache(IndexShard indexShard, SharedBlobCacheWarmingService.Type warmingType) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(indexShard.shardId(), currentState);
         }
-        assert assertRecovery == false || currentState == IndexShardState.RECOVERING
+        assert warmingType != INDEXING_EARLY || currentState == IndexShardState.RECOVERING
             : "expected a recovering shard " + indexShard.shardId() + " but got " + currentState;
         assert indexShard.routingEntry().isSearchable() == false && indexShard.routingEntry().isPromotableToPrimary()
             : "only stateless ingestion shards are supported";
-        assert assertRecovery == false || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
+        assert warmingType != INDEXING_EARLY || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
             : "Only peer recoveries are supported";
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard));
+        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType));
     }
 
-    private void doPreWarmIndexShardCache(IndexShard indexShard) {
+    private void doPreWarmIndexShardCache(IndexShard indexShard, SharedBlobCacheWarmingService.Type warmingType) {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final Store store = indexShard.store();
         if (store.tryIncRef()) {
@@ -128,7 +128,7 @@ public class IndexShardCacheWarmer {
                             // makes progress before this task gets executed, for that reason we reuse the copied directory
                             // instance that will be used _only_ during pre-warming.
                             prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
-                            warmingService.warmCacheForShardRecovery(INDEXING_EARLY, indexShard, last, prewarmingDirectory);
+                            warmingService.warmCacheForShardRecovery(warmingType, indexShard, last, prewarmingDirectory);
                         }
                     }, e -> logException(indexShard.shardId(), e)), store::decRef)
                 );

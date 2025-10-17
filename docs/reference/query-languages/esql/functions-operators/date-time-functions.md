@@ -40,3 +40,6 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/now.md
 :::
 
+:::{include} ../_snippets/functions/layout/trange.md
+:::
+

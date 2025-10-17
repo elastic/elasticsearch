@@ -246,6 +246,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource cartesianMultipolygonsNoDocValues; // cartesian_shape field tests but has no doc values
     private TestDataSource countriesBbox;       // geo_shape field tests
     private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
+    private TestDataSource metricsData; // k8s metrics index with time-series fields
 
     private final Configuration config;
     private PlannerSettings plannerSettings;
@@ -378,6 +379,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             functionRegistry,
             enrichResolution
         );
+        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
         this.plannerSettings = TEST_PLANNER_SETTINGS;
     }
 
@@ -1244,6 +1246,35 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(andEndsWith.fieldName(), equalTo("last_name"));
         assertThat(andEndsWith.caseInsensitive(), equalTo(false));
         assertThat(andEndsWith.value(), equalTo("*ast"));
+    }
+
+    public void testPushTRangeFunction() {
+        String startRange = "2023-10-23T12:00:00.000Z";
+        String endRange = "2023-10-23T14:00:00.000Z";
+
+        String query = String.format(Locale.ROOT, """
+            FROM k8s
+            | WHERE TRANGE("%s", "%s")
+            """, startRange, endRange);
+
+        var plan = physicalPlan(query, metricsData);
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+
+        var singleValue = as(source.query(), SingleValueQuery.Builder.class);
+        assertThat(singleValue.fieldName(), equalTo("@timestamp"));
+
+        var rangeQuery = as(sv(singleValue, "@timestamp"), RangeQueryBuilder.class);
+
+        assertThat(rangeQuery.fieldName(), equalTo("@timestamp"));
+        assertThat(rangeQuery.from(), equalTo(startRange));
+        assertThat(rangeQuery.to(), equalTo(endRange));
+        assertTrue(rangeQuery.includeLower());
+        assertTrue(rangeQuery.includeUpper());
     }
 
     public void testLimit() {

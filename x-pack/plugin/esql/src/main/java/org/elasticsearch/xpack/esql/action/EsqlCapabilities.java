@@ -1521,7 +1521,10 @@ public class EsqlCapabilities {
          */
         GROK_MULTI_PATTERN,
 
-        ;
+        /**
+         * Support for the TRANGE function
+         */
+        FN_TRANGE;
 
         private final boolean enabled;
 

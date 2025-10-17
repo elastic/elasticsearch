@@ -2713,7 +2713,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assert String.valueOf(SEARCH_POOL_SIZE).equals(node().settings().get("thread_pool.search.size"))
             : "Unexpected thread_pool.search.size";
 
-        int numDocs = randomIntBetween(50, 100);
+        // Between 4 and 6 segments of 5 docs each.
+        int numDocs = randomIntBetween(20, 30);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
             if (i % 5 == 0) {

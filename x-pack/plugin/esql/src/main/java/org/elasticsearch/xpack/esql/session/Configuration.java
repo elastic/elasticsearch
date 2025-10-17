@@ -371,6 +371,8 @@ public class Configuration implements Writeable {
             + ",timeseries="
             + resultTruncationDefaultSize(true)
             + "]"
+            + ", zoneId="
+            + zoneId
             + ", locale="
             + locale
             + ", query='"

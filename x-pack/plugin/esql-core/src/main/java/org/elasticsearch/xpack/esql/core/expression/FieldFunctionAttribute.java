@@ -30,8 +30,14 @@ public class FieldFunctionAttribute extends FieldAttribute {
         MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction,
         DataType dataType
     ) {
-        super(fieldAttribute.source(), fieldAttribute.parentName(), fieldAttribute.qualifier(),
-            fieldAttribute.name() + "_replaced_" + COUNTER.incrementAndGet(), fieldAttribute.field(), fieldAttribute.synthetic());
+        super(
+            fieldAttribute.source(),
+            fieldAttribute.parentName(),
+            fieldAttribute.qualifier(),
+            fieldAttribute.name() + "_replaced_" + COUNTER.incrementAndGet(),
+            fieldAttribute.field(),
+            fieldAttribute.synthetic()
+        );
         this.fieldName = fieldAttribute.fieldName();
         this.blockLoaderValueFunction = blockLoaderValueFunction;
         this.dataType = dataType;

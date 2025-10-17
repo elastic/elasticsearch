@@ -176,21 +176,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         } else {
                             assert item.getResponse() != null;
                             if (item.getResponse().getFailedShards() > 0) {
-                                ShardSearchFailure[] shardFailures = item.getResponse().getShardFailures();
-                                for (ShardSearchFailure shardFailure : shardFailures) {
-                                    if (shardFailure != null) {
-                                        statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
-                                        failures.add(
-                                            new ElasticsearchStatusException(
-                                                "failed to retrieve data from shard ["
-                                                    + shardFailure.shardId()
-                                                    + "] with message: "
-                                                    + shardFailure.getMessage(),
-                                                RestStatus.fromCode(statusCode)
-                                            )
-                                        );
-                                    }
-                                }
+                                statusCode = handleShardFailures(item.getResponse(), statusCode, failures);
                             } else {
                                 var rankDocs = getRankDocs(item.getResponse());
                                 innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
@@ -229,6 +215,26 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
         return rankDocsRetrieverBuilder;
+    }
+
+    static int handleShardFailures(SearchResponse response, int statusCode, List<Exception> failures) {
+        ShardSearchFailure[] shardFailures = response.getShardFailures();
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            if (shardFailure != null) {
+                int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();
+                failures.add(
+                    new ElasticsearchStatusException(
+                        "failed to retrieve data from shard ["
+                            + shardFailure.shardId()
+                            + "] with message: "
+                            + shardFailure.getCause().getMessage(),
+                        RestStatus.fromCode(shardFailureStatusCode)
+                    )
+                );
+                statusCode = Math.max(shardFailureStatusCode, statusCode);
+            }
+        }
+        return statusCode;
     }
 
     @Override

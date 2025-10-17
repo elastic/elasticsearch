@@ -422,6 +422,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
+            IndicesOptions indicesOptions = IndicesOptions.builder(rewritten.indicesOptions())
+                .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
+                .build();
+            rewritten.indicesOptions(indicesOptions);
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {

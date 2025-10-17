@@ -1158,7 +1158,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(shardsWithState(routingNodes, "test_frozen", RELOCATING).size(), equalTo(7));
     }
 
-    public static void assertShardsUnassigned(IndexRoutingTable indexRoutingTable) {
+    void assertShardsUnassigned(IndexRoutingTable indexRoutingTable) {
         assertShardStates(indexRoutingTable, UNASSIGNED, UNASSIGNED);
 
         for (int i = 0; i < indexRoutingTable.size(); i++) {
@@ -1168,15 +1168,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    public static void assertPrimariesInitializing(IndexRoutingTable indexRoutingTable) {
+    void assertPrimariesInitializing(IndexRoutingTable indexRoutingTable) {
         assertShardStates(indexRoutingTable, INITIALIZING, UNASSIGNED);
     }
 
-    public static void assertReplicasInitializing(IndexRoutingTable indexRoutingTable) {
+    void assertReplicasInitializing(IndexRoutingTable indexRoutingTable) {
         assertShardStates(indexRoutingTable, STARTED, INITIALIZING);
     }
 
-    public static void assertShardStates(IndexRoutingTable indexRoutingTable, ShardRoutingState primaryState, ShardRoutingState replicaState) {
+    void assertShardStates(IndexRoutingTable indexRoutingTable, ShardRoutingState primaryState, ShardRoutingState replicaState) {
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
             assertThat(shardRouting.size(), equalTo(2));

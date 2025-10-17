@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
@@ -27,6 +30,17 @@ import static java.util.Collections.emptyList;
  * A specialization of {@link Values} for collecting dimension fields in time-series queries.
  */
 public class DimensionValues extends AggregateFunction implements ToAggregator {
+    private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.KEYWORD, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.TEXT, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.IP, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.VERSION, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.GEO_POINT, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.CARTESIAN_POINT, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.GEO_SHAPE, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
+        Map.entry(DataType.CARTESIAN_SHAPE, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new)
+    );
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DimensionValues",
@@ -78,7 +92,10 @@ public class DimensionValues extends AggregateFunction implements ToAggregator {
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        // TODO: link new implementation
+        Supplier<AggregatorFunctionSupplier> supplier = SUPPLIERS.get(field().dataType());
+        if (supplier != null) {
+            return supplier.get();
+        }
         return new Values(source(), field(), filter()).supplier();
     }
 }

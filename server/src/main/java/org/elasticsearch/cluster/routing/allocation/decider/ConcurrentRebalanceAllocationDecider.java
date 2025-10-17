@@ -23,13 +23,14 @@ import org.elasticsearch.common.settings.Setting.Property;
  * re-balance (shard relocation) operations and restricts node allocations
  * if the configured threshold is reached. Frozen and non-frozen shards are
  * considered separately. The default number of concurrent rebalance operations
- * is set to {@code 2} for non-frozen shards, and {@code 10} for frozen shards.
+ * is set to {@code 2} for non-frozen shards. For frozen shards, the default is
+ * the same setting as non-frozen shards, until set explicitly.
  * <p>
  * Re-balance operations can be controlled in real-time via the cluster update API using
  * {@code cluster.routing.allocation.cluster_concurrent_rebalance} and
  * {@code cluster.routing.allocation.cluster_concurrent_frozen_rebalance}.
  * Iff either setting is set to {@code -1} the number of concurrent re-balance operations
- * are unlimited.
+ * within the setting's category (frozen or non-frozen) are unlimited.
  */
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 

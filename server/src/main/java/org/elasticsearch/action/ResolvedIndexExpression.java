@@ -43,7 +43,7 @@ import java.util.Set;
  * @param localExpressions the local expressions that replace the original along with their resolution result
  *                         and failure info
  * @param remoteExpressions the remote expressions that replace the original one (in the case of CPS/flat index resolution).
- *                          Only set on the local ResolvedIndexExpression, null otherwise.
+ *                          Only set on the local ResolvedIndexExpression, empty otherwise.
  */
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions)
     implements
@@ -65,7 +65,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      * Failures can be due to concrete resources not being visible (either missing or not visible due to indices options)
      * or unauthorized concrete resources.
      * A wildcard expression resolving to nothing is still considered a successful resolution.
-     * The NONE result indicates that no local resolution was attempted, because the expression is known to be remote-only.
+     * The NONE result indicates that no local resolution was attempted because the expression is known to be remote-only.
      */
     public enum LocalIndexResolutionResult {
         NONE,

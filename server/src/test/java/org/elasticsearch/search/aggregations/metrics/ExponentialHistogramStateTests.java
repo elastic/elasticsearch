@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
@@ -26,14 +27,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -124,7 +123,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        try(ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
+        try (ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
             assertThat(state.isEmpty(), equalTo(true));
             assertThat(state.centroids(), empty());
             assertThat(state.centroidCount(), equalTo(0));
@@ -138,11 +137,11 @@ public class ExponentialHistogramStateTests extends ESTestCase {
     }
 
     public void testQuantiles() {
-        try(ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
+        try (ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
             ExponentialHistogram sample = ExponentialHistogram.create(
                 100,
                 ExponentialHistogramCircuitBreaker.noop(),
-                new double[] {10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0}
+                new double[] { 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0 }
             );
             state.add(sample);
 
@@ -156,8 +155,25 @@ public class ExponentialHistogramStateTests extends ESTestCase {
         }
     }
 
+    public void testCDF() {
+        try (ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
+            ExponentialHistogram sample = ExponentialHistogram.create(
+                100,
+                ExponentialHistogramCircuitBreaker.noop(),
+                IntStream.range(0, 100).mapToDouble(i -> i).toArray()
+            );
+            state.add(sample);
+
+            assertThat(state.cdf(0.0 - 0.001), closeTo(0.0, 0.0000001));
+            assertThat(state.cdf(10.0 - 0.001), closeTo(0.1, 0.0000001));
+            assertThat(state.cdf(50.0 - 0.001), closeTo(0.5, 0.0000001));
+            assertThat(state.cdf(90.0 - 0.001), closeTo(0.9, 0.0000001));
+            assertThat(state.cdf(100.0 - 0.001), closeTo(1.0, 0.0000001));
+        }
+    }
+
     public void testSizeMinMax() {
-        try(ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
+        try (ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
             ExponentialHistogram sample;
             do {
                 sample = randomHistogram(randomIntBetween(4, 100));
@@ -171,14 +187,12 @@ public class ExponentialHistogramStateTests extends ESTestCase {
     }
 
     public void testCentroids() {
-        try(ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
+        try (ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
             List<Centroid> expectedCentroids = new ArrayList<>();
             ExponentialHistogramBuilder builder = ExponentialHistogram.builder(0, ExponentialHistogramCircuitBreaker.noop());
 
             if (randomBoolean()) {
-                builder
-                    .setNegativeBucket(-1, 11)
-                    .setNegativeBucket(2, 22);
+                builder.setNegativeBucket(-1, 11).setNegativeBucket(2, 22);
                 expectedCentroids.add(new Centroid(-ExponentialScaleUtils.getPointOfLeastRelativeError(2, 0), 22));
                 expectedCentroids.add(new Centroid(-ExponentialScaleUtils.getPointOfLeastRelativeError(-1, 0), 11));
             }
@@ -187,9 +201,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
                 expectedCentroids.add(new Centroid(0.0, 123));
             }
             if (randomBoolean()) {
-                builder
-                    .setPositiveBucket(-11, 40)
-                    .setPositiveBucket(12, 41);
+                builder.setPositiveBucket(-11, 40).setPositiveBucket(12, 41);
                 expectedCentroids.add(new Centroid(ExponentialScaleUtils.getPointOfLeastRelativeError(-11, 0), 40));
                 expectedCentroids.add(new Centroid(ExponentialScaleUtils.getPointOfLeastRelativeError(12, 0), 41));
             }
@@ -202,7 +214,7 @@ public class ExponentialHistogramStateTests extends ESTestCase {
 
             Iterator<Centroid> actualIt = centroids.iterator();
             Iterator<Centroid> expectedIt = expectedCentroids.iterator();
-            for (int i=0; i < expectedCentroids.size(); i++) {
+            for (int i = 0; i < expectedCentroids.size(); i++) {
                 Centroid actual = actualIt.next();
                 Centroid expected = expectedIt.next();
                 assertThat(actual.mean(), closeTo(expected.mean(), 0.00001));
@@ -212,52 +224,18 @@ public class ExponentialHistogramStateTests extends ESTestCase {
     }
 
     public void testCentroidSorted() {
-        try(ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
-           state.add(randomHistogram(randomIntBetween(4, 500)));
+        try (ExponentialHistogramState state = ExponentialHistogramState.create(breaker())) {
+            state.add(randomHistogram(randomIntBetween(4, 500)));
 
-           List<Double> actualCentroidMeans = state.centroids().stream().map(Centroid::mean).toList();
-           List<Double> sortedMeans = new ArrayList<>(actualCentroidMeans);
-           Collections.sort(sortedMeans);
-           assertThat(actualCentroidMeans, equalTo(sortedMeans));
+            List<Double> actualCentroidMeans = state.centroids().stream().map(Centroid::mean).toList();
+            List<Double> sortedMeans = new ArrayList<>(actualCentroidMeans);
+            Collections.sort(sortedMeans);
+            assertThat(actualCentroidMeans, equalTo(sortedMeans));
         }
     }
 
     private static ReleasableExponentialHistogram randomHistogram(int maxBuckets) {
-        int numPositiveValues = randomBoolean() ? 0 : randomIntBetween(1, 1000);
-        int numNegativeValues = randomBoolean() ? 0 : randomIntBetween(1, 1000);
-
-        double[] values = IntStream.concat(
-            IntStream.range(0, numPositiveValues).map(i -> 1),
-            IntStream.range(0, numNegativeValues).map(i -> -1)
-        ).mapToDouble(sign -> sign * Math.pow(1_000_000_000, randomDouble())).toArray();
-        ReleasableExponentialHistogram histogram = ExponentialHistogram.create(
-            maxBuckets,
-            ExponentialHistogramCircuitBreaker.noop(),
-            values
-        );
-
-        if (randomBoolean()) {
-            double zeroThreshold = Arrays.stream(values).map(Math::abs).min().orElse(1.0) / 2.0;
-            long zeroBucketCount = randomIntBetween(0, 100);
-            ZeroBucket zeroBucket;
-            if (randomBoolean()) {
-                zeroBucket = ZeroBucket.create(zeroThreshold, zeroBucketCount);
-            } else {
-                // define the zero bucket using index and scale to verify serialization is exact
-                int scale = randomIntBetween(0, MAX_SCALE);
-                long index = ExponentialScaleUtils.computeIndex(zeroThreshold, scale) - 1;
-                zeroBucket = ZeroBucket.create(index, scale, zeroBucketCount);
-            }
-            ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).zeroBucket(zeroBucket);
-            if ((Double.isNaN(histogram.min()) || histogram.min() > -zeroThreshold ) && zeroBucketCount != 0) {
-                builder.min(-zeroThreshold);
-            }
-            if ((Double.isNaN(histogram.max()) || histogram.max() < zeroThreshold ) && zeroBucketCount != 0) {
-                builder.max(zeroThreshold);
-            }
-            histogram = builder.build();
-        }
-        return histogram;
+        return ExponentialHistogramTestUtils.randomHistogram(maxBuckets, ExponentialHistogramCircuitBreaker.noop());
     }
 
     private CircuitBreaker breaker() {

@@ -307,6 +307,7 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 
 percentile_over_time
 required_capability: ts_command_v0
+required_capability: percentile_over_time
 // tag::percentile_over_time[]
 TS k8s
 | STATS p95_cost=MAX(PERCENTILE_OVER_TIME(network.cost, 95)), p99_cost=MAX(PERCENTILE_OVER_TIME(network.cost, 99)) BY cluster, time_bucket = TBUCKET(1minute)

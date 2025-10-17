@@ -2982,6 +2982,7 @@ FROM employees
 std_var_height:double
 0.0426061
 // end::stdVar-result[]
+;
 
 stdDeviationNested
 required_capability: std_dev

@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -36,6 +37,7 @@ import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -174,9 +176,23 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             }
                         } else {
                             assert item.getResponse() != null;
-                            var rankDocs = getRankDocs(item.getResponse());
-                            innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
-                            topDocs.add(rankDocs);
+                            if(item.getResponse().getFailedShards() > 0) {
+                                StringBuilder shardIds = new StringBuilder();
+                                ShardSearchFailure[] shardFailures = item.getResponse().getShardFailures();
+                                for(int s = 0; s < shardFailures.length; s++) {
+                                    if(shardFailures[s] != null) {
+                                        shardIds.append(shardFailures[s].shardId());
+                                        if(s < shardFailures.length -1) {
+                                            shardIds.append(",");
+                                        }
+                                    }
+                                }
+                                failures.add(new IllegalStateException("failed to retrieve data from some shards [" + shardIds + "]"));
+                            } else {
+                                var rankDocs = getRankDocs(item.getResponse());
+                                innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
+                                topDocs.add(rankDocs);
+                            }
                         }
                     }
                     if (false == failures.isEmpty()) {

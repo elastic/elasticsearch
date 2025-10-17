@@ -97,7 +97,8 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
                     valueHint = { "standard" },
                     description = "The locale to use when parsing the date, relevant when parsing month names or week days."
                 ) },
-            description = "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>.",
+            description = "(Optional) Additional options for date parsing, specifying time zone and locale" +
+                "as <<esql-function-named-params,function named parameters>>.",
             optional = true
         ) Expression options
     ) {

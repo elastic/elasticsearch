@@ -27,6 +27,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+
+
 public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCase<HealthApiFeatureSetUsage> {
 
     @Override
@@ -37,9 +39,9 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
     @Override
     protected HealthApiFeatureSetUsage mutateInstance(HealthApiFeatureSetUsage instance) {
         Map<String, Object> originalStats = instance.stats();
-        Counters newStats = randomCounters();
+        Counters newStats = randomCounters(false);
         while (originalStats.equals(newStats.toMutableNestedMap())) {
-            newStats = randomCounters();
+            newStats = randomCounters(false);
         }
         return new HealthApiFeatureSetUsage(true, true, newStats);
     }
@@ -50,7 +52,11 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     private Counters randomCounters() {
-        if (rarely()) {
+        return randomCounters(true);
+    }
+
+    private Counters randomCounters(boolean allowNull) {
+        if (allowNull && rarely()) {
             return null;
         }
         Counters counters = new Counters();

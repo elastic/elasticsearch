@@ -66,13 +66,12 @@ public abstract class ExponentialHistogramTestUtils {
                     long index = ExponentialScaleUtils.computeIndex(zeroThreshold, scale) - 1;
                     zeroBucket = ZeroBucket.create(index, scale, histo.zeroBucket().count());
                 }
-                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, breaker)
-                    .zeroBucket(zeroBucket);
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, breaker).zeroBucket(zeroBucket);
 
-                if ((Double.isNaN(histo.min()) || histo.min() > -zeroThreshold )) {
+                if ((Double.isNaN(histo.min()) || histo.min() > -zeroThreshold)) {
                     builder.min(-zeroThreshold);
                 }
-                if ((Double.isNaN(histo.max()) || histo.max() < zeroThreshold )) {
+                if ((Double.isNaN(histo.max()) || histo.max() < zeroThreshold)) {
                     builder.max(zeroThreshold);
                 }
                 histo = builder.build();

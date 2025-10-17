@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -108,6 +109,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
@@ -710,6 +712,27 @@ public class AuthorizationService {
                 )
             );
         } else {
+            if (request instanceof IndicesRequest.Replaceable replaceable) {
+                var indexExpressions = replaceable.getResolvedIndexExpressions();
+                if (indexExpressions != null) {
+                    indexExpressions.expressions().forEach(resolved -> {
+                        if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                            resolved.localExpressions()
+                                .setException(
+                                    actionDenied(
+                                        authentication,
+                                        authzInfo,
+                                        action,
+                                        request,
+                                        IndexAuthorizationResult.getFailureDescription(List.of(resolved.original()), restrictedIndices),
+                                        null
+                                    )
+                                );
+                        }
+                    });
+                }
+            }
+
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
         }
     }

@@ -266,7 +266,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         }
     }
 
-    private void addRawInputSubRange(int groupId, int from, int to,  DoubleVector valueVector, LongVector timestampVector) {
+    private void addRawInputSubRange(int groupId, int from, int to, DoubleVector valueVector, LongVector timestampVector) {
         var buffer = getBuffer(groupId, to - from, timestampVector.getLong(from));
         for (int p = from; p < to; p++) {
             buffer.appendWithoutResize(timestampVector.getLong(p), valueVector.getDouble(p));

@@ -64,7 +64,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      *
      * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
         boolean entirelyNullPreservesType,
         List<TestCaseSupplier> suppliers
@@ -82,7 +82,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
      * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         ExpectedType nullsExpectedType,
         ExpectedEvaluatorToString evaluatorToString,
         List<TestCaseSupplier> suppliers

@@ -63,7 +63,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         List<TestCaseSupplier> suppliers,
         boolean entirelyNullPreservesType,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
@@ -85,7 +85,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *
      * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
         List<TestCaseSupplier> suppliers,
         boolean entirelyNullPreservesType
@@ -93,7 +93,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
     }
 
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(List<TestCaseSupplier> suppliers) {
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 

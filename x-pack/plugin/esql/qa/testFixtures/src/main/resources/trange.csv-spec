@@ -115,13 +115,3 @@ FROM k8s
 @timestamp:datetime
 // tag::docsTRangeOffsetFromNow-result[]
 ;
-
-trangeNegativeOffsetFromNow
-required_capability: fn_trange
-FROM k8s 
-| WHERE TRANGE(-1h) 
-| KEEP @timestamp
-;
-
-@timestamp:datetime
-;

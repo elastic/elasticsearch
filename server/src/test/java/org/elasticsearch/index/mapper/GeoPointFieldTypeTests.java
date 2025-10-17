@@ -159,8 +159,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenDocValuesAreEnabledAndThePreferenceIsToUseDocValues() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("potato");
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES).when(blContextMock).fieldExtractPreference();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.DOC_VALUES);
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -173,8 +172,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenDocValuesAreEnabledAndThereIsNoPreference() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("potato");
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.NONE).when(blContextMock).fieldExtractPreference();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.NONE);
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -187,9 +185,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenFieldIsStoredAndThePreferenceIsToUseStoredFields() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(true, false, false);
-
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.STORED).when(blContextMock).fieldExtractPreference();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.STORED);
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -202,9 +198,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenFieldIsStoredAndThereIsNoPreference() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(true, false, false);
-
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.NONE).when(blContextMock).fieldExtractPreference();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(false, MappedFieldType.FieldExtractPreference.NONE);
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -217,17 +211,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenSyntheticSourceIsEnabledAndFieldIsStoredInIgnoredSource() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(false, false, true);
-
-        Settings settings = Settings.builder()
-            .put("index.mapping.source.mode", "synthetic")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.NONE).when(blContextMock).fieldExtractPreference();
-        doReturn(indexSettings).when(blContextMock).indexSettings();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(true, MappedFieldType.FieldExtractPreference.NONE);
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -240,17 +224,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderWhenSyntheticSourceAndDocValuesAreEnabled() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = createFieldType(false, true, true);
-
-        Settings settings = Settings.builder()
-            .put("index.mapping.source.mode", "synthetic")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings);
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.NONE).when(blContextMock).fieldExtractPreference();
-        doReturn(indexSettings).when(blContextMock).indexSettings();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(true, MappedFieldType.FieldExtractPreference.NONE);
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -263,8 +237,10 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     public void testBlockLoaderFallsBackToSource() {
         // given
         GeoPointFieldMapper.GeoPointFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("potato");
-        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS).when(blContextMock).fieldExtractPreference();
+        MappedFieldType.BlockLoaderContext blContextMock = mockBlockLoaderContext(
+            false,
+            MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
+        );
 
         // when
         BlockLoader loader = fieldType.blockLoader(blContextMock);
@@ -272,6 +248,30 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         // then
         // verify that we use the correct block value reader
         assertThat(loader, instanceOf(BlockSourceReader.GeometriesBlockLoader.class));
+    }
+
+    private MappedFieldType.BlockLoaderContext mockBlockLoaderContext(
+        boolean enableSyntheticSource,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
+    ) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+
+        if (enableSyntheticSource) {
+            builder.put("index.mapping.source.mode", "synthetic");
+        }
+
+        Settings settings = builder.build();
+
+        IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("index").settings(builder).build(), settings);
+
+        MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(fieldExtractPreference).when(blContextMock).fieldExtractPreference();
+        doReturn(indexSettings).when(blContextMock).indexSettings();
+
+        return blContextMock;
     }
 
     private GeoPointFieldMapper.GeoPointFieldType createFieldType(

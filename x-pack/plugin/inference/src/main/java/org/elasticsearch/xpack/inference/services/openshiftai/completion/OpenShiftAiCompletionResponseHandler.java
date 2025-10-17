@@ -19,7 +19,7 @@ public class OpenShiftAiCompletionResponseHandler extends OpenAiChatCompletionRe
     /**
      * Constructs a OpenShiftAiCompletionResponseHandler with the specified request type and response parser.
      *
-     * @param requestType The type of request being handled (e.g., "llama completions").
+     * @param requestType The type of request being handled (e.g., "Openshift AI completions").
      * @param parseFunction The function to parse the response.
      */
     public OpenShiftAiCompletionResponseHandler(String requestType, ResponseParser parseFunction) {

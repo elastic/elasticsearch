@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -23,16 +26,21 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.ccr.AbstractCCRRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
 import org.elasticsearch.xpack.ilm.action.RestPutLifecycleAction;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
+public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CCRIndexLifecycleIT.class);
     private static final String TEST_PHASE = "hot";
@@ -88,18 +96,71 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             }
         }""";
 
+    public static TemporaryFolder repoDir = new TemporaryFolder();
+
+    public static ElasticsearchCluster leaderCluster = ElasticsearchCluster.local()
+        .module("x-pack-ilm")
+        .module("x-pack-ccr")
+        .module("searchable-snapshots")
+        .module("data-streams")
+        .setting("path.repo", () -> repoDir.getRoot().getAbsolutePath())
+        .setting("xpack.ccr.enabled", "true")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("indices.lifecycle.poll_interval", "1000ms")
+        .build();
+
+    public static ElasticsearchCluster followerCluster = ElasticsearchCluster.local()
+        .module("x-pack-ilm")
+        .module("x-pack-ccr")
+        .module("searchable-snapshots")
+        .module("data-streams")
+        .setting("path.repo", () -> repoDir.getRoot().getAbsolutePath())
+        .setting("xpack.ccr.enabled", "true")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("indices.lifecycle.poll_interval", "1000ms")
+        .setting("cluster.remote.leader_cluster.seeds", () -> "\"" + leaderCluster.getTransportEndpoints() + "\"")
+        .build();
+
+    @ClassRule
+    public static RuleChain ruleChain = RuleChain.outerRule(repoDir).around(leaderCluster).around(followerCluster);
+
+    public CCRIndexLifecycleIT(@Name("targetCluster") TargetCluster targetCluster) {
+        super(targetCluster);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return leaderFollower();
+    }
+
+    @Override
+    protected ElasticsearchCluster getFollowerCluster() {
+        return followerCluster;
+    }
+
+    @Override
+    protected ElasticsearchCluster getLeaderCluster() {
+        return leaderCluster;
+    }
+
     public void testBasicCCRAndILMIntegration() throws Exception {
         String indexName = "logs-1";
 
         String policyName = "basic-test";
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7 * 24));
             Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", "logs")
                 .build();
             createIndex(indexName, indexSettings, "", "\"logs\": { }");
             ensureGreen(indexName);
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             // Policy with the same name must exist in follower cluster too:
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7 * 24));
             followIndex(indexName, indexName);
@@ -136,7 +197,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // ILM should have unfollowed the follower index, so the following_index setting should have been removed:
                     // (this controls whether the follow engine is used)
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
-                });
+                }, 30, TimeUnit.SECONDS);
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -145,10 +206,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             createIndex(adminClient(), indexName, indexSettings(2, 0).build());
             ensureGreen(indexName);
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             createNewSingletonPolicy("unfollow-only", "hot", UnfollowAction.INSTANCE, TimeValue.ZERO);
             followIndex(indexName, indexName);
             ensureGreen(indexName);
@@ -162,7 +223,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                         .field("type", "fs")
                         .startObject("settings")
                         .field("compress", randomBoolean())
-                        .field("location", System.getProperty("tests.path.repo"))
+                        .field("location", repoDir.getRoot().getAbsolutePath())
                         .field("max_snapshot_bytes_per_sec", "256b")
                         .endObject()
                         .endObject()
@@ -215,7 +276,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String nextIndexName = "mymetrics-000002";
         String policyName = "rollover-test";
 
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             // Create a policy on the leader
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "/_index_template/my_template");
@@ -226,7 +287,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 "{\"index_patterns\":  [\"mymetrics-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
             assertOK(client().performRequest(templateRequest));
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             // Policy with the same name must exist in follower cluster too:
             putILMPolicy(policyName, null, 1, null);
 
@@ -330,7 +391,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String policyName = "shrink-test-policy";
         final int numberOfAliases = randomIntBetween(0, 4);
 
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             // this policy won't exist on the leader, that's fine
             Settings indexSettings = indexSettings(3, 0).put("index.lifecycle.name", policyName).build();
             final StringBuilder aliases = new StringBuilder();
@@ -349,7 +410,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             }
             createIndex(indexName, indexSettings, "", aliases.toString());
             ensureGreen(indexName);
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             // Create a policy with just a Shrink action on the follower
             putShrinkOnlyPolicy(client(), policyName);
 
@@ -391,12 +452,12 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String indexName = "shrink-test";
         final String policyName = "shrink-test-policy";
 
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             // this policy won't exist on the leader, that's fine
             Settings indexSettings = indexSettings(3, 0).put("index.lifecycle.name", policyName).build();
             createIndex(indexName, indexSettings, "", "");
             ensureGreen(indexName);
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             // Create a policy with just a Shrink action on the follower
             putShrinkOnlyPolicy(client(), policyName);
 
@@ -433,14 +494,14 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     public void testCannotShrinkLeaderIndex() throws Exception {
         String indexName = "shrink-leader-test";
         String policyName = "shrink-leader-test-policy";
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             // Set up the policy and index, but don't attach the policy yet,
             // otherwise it'll proceed through shrink before we can set up the
             // follower
             putShrinkOnlyPolicy(client(), policyName);
             createIndex(indexName, indexSettings(2, 0).build(), "", "");
             ensureGreen(indexName);
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Policy with the same name must exist in follower cluster too:
@@ -505,16 +566,15 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String followerIndex = "follower";
         final String policyName = "unfollow_only_policy";
 
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName) // this policy won't exist on the leader,
                                                                                                  // that's fine
                 .build();
             createIndex(leaderIndex, indexSettings, "", "");
             ensureGreen(leaderIndex);
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             try (RestClient leaderClient = buildLeaderClient()) {
-                String leaderRemoteClusterSeed = System.getProperty("tests.leader_remote_cluster_seed");
-                configureRemoteClusters("other_remote", leaderRemoteClusterSeed);
+                configureRemoteClusters("other_remote", leaderCluster.getTransportEndpoints());
                 assertBusy(() -> {
                     Map<?, ?> localConnection = (Map<?, ?>) toMap(client().performRequest(new Request("GET", "/_remote/info"))).get(
                         "other_remote"
@@ -579,12 +639,12 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String dataStream = "tsdb-index-cpu";
         String policyName = "tsdb-policy";
 
-        if ("leader".equals(targetCluster)) {
+        if (targetCluster == TargetCluster.LEADER) {
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "/_index_template/tsdb_template");
             templateRequest.setJsonEntity(Strings.format(TSDB_INDEX_TEMPLATE, indexPattern, policyName));
             assertOK(client().performRequest(templateRequest));
-        } else if ("follow".equals(targetCluster)) {
+        } else if (targetCluster == TargetCluster.FOLLOWER) {
             // Use unfollow-only policy for follower cluster instead of regular ILM policy
             // Follower clusters should not have their own rollover actions as they are meant
             // to follow the rollover behavior of the leader index, not initiate their own rollovers

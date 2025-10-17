@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public abstract class ESCCRRestTestCase extends ESRestTestCase {
 
-    protected final String targetCluster = System.getProperty("tests.target_cluster");
+    protected final String targetCluster = System.getProperty("tests.target_cluster", "follow");
 
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -381,16 +381,6 @@ public abstract class ESCCRRestTestCase extends ESRestTestCase {
     protected RestClient buildLeaderClient() throws IOException {
         assert "leader".equals(targetCluster) == false;
         return buildClient(System.getProperty("tests.leader_host"));
-    }
-
-    protected RestClient buildLeaderClient(final Settings settings) throws IOException {
-        assert "leader".equals(targetCluster) == false;
-        return buildClient(System.getProperty("tests.leader_host"), settings);
-    }
-
-    protected RestClient buildMiddleClient() throws IOException {
-        assert "middle".equals(targetCluster) == false;
-        return buildClient(System.getProperty("tests.middle_host"));
     }
 
     private RestClient buildClient(final String url) throws IOException {

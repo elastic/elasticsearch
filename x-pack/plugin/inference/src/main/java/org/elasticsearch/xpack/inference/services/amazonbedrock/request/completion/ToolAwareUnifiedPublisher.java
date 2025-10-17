@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
-
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
+
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -99,7 +99,6 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
                             }
                         });
 
-
                         boolean toolRequested = "TOOL_USE".equalsIgnoreCase(stopReasons[0]) || !toolUses.isEmpty();
 
                         if (!toolRequested) {
@@ -110,20 +109,20 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
                         for (var toolUse : toolUses) {
 
                             String jsonIn = toolUse.inputJson.toString();
-//                          String jsonOut = execute(toolUse.getName(), jsonIn);
+                            // String jsonOut = execute(toolUse.getName(), jsonIn);
 
                             toolResultBlocks.add(
                                 ContentBlock.builder()
-                                    .toolResult(ToolResultBlock.builder()
-                                        .toolUseId(toolUse.getId())
-//                                      .content((Collection<ToolResultContentBlock>) Document.fromString(jsonOut))
-                                        .build())
-                                    .build());
+                                    .toolResult(
+                                        ToolResultBlock.builder()
+                                            .toolUseId(toolUse.getId())
+                                            // .content((Collection<ToolResultContentBlock>) Document.fromString(jsonOut))
+                                            .build()
+                                    )
+                                    .build()
+                            );
 
-                            Message toolResultMsg = Message.builder()
-                                .role(ConversationRole.USER)
-                                .content(toolResultBlocks)
-                                .build();
+                            Message toolResultMsg = Message.builder().role(ConversationRole.USER).content(toolResultBlocks).build();
 
                             history.add(toolResultMsg);
 

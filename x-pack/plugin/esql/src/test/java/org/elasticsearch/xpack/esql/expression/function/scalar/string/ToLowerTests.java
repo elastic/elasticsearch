@@ -64,7 +64,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             randomLocale(random()),
             null,
             null,
-            new QueryPragmas(Settings.EMPTY),
+            QueryPragmas.EMPTY,
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",

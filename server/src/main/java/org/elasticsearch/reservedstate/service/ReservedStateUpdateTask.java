@@ -123,12 +123,8 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
-        // Transform the cluster state first
-        Set<String> unhandledNames = (reservedStateMetadata == null)
-            ? new HashSet<>()
-            : new HashSet<>(reservedStateMetadata.handlers().keySet());
+        // First apply the updates to transform the cluster state
         for (var handlerName : updateSequence) {
-            unhandledNames.remove(handlerName);
             T handler = handlers.get(handlerName);
             try {
                 Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
@@ -140,14 +136,21 @@ public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>>
             }
         }
 
-        // Any existing reserved state we didn't transform must have been removed
-        for (var handlerName : unhandledNames) {
-            T handler = handlers.get(handlerName);
-            try {
-                Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
-                state = remove(handler, new TransformState(state, existingKeys));
-            } catch (Exception e) {
-                errors.add(format("Error processing %s state removal: %s", handler.name(), stackTrace(e)));
+        // Now, any existing handler not listed in updateSequence must have been removed.
+        // We do removals after updates in case one of the updated handlers depends on one of these,
+        // to give that handler a chance to clean up before its dependency vanishes.
+        if (reservedStateMetadata != null) {
+            Set<String> toRemove = new HashSet<>(reservedStateMetadata.handlers().keySet());
+            toRemove.removeAll(updateSequence);
+            SequencedSet<String> removalSequence = orderedStateHandlers(toRemove, handlers).reversed();
+            for (var handlerName : removalSequence) {
+                T handler = handlers.get(handlerName);
+                try {
+                    Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                    state = remove(handler, new TransformState(state, existingKeys));
+                } catch (Exception e) {
+                    errors.add(format("Error processing %s state removal: %s", handler.name(), stackTrace(e)));
+                }
             }
         }
 

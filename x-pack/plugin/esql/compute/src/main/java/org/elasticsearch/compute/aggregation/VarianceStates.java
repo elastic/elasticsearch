@@ -23,13 +23,15 @@ public final class VarianceStates {
     static final class SingleState implements AggregatorState {
 
         private final WelfordAlgorithm welfordAlgorithm;
+        private final boolean stdDev;
 
         SingleState(boolean stdDev) {
             this(0, 0, 0, stdDev);
         }
 
         SingleState(double mean, double m2, long count, boolean stdDev) {
-            this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count, stdDev);
+            this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
+            this.stdDev = stdDev;
         }
 
         public void add(long value) {
@@ -73,7 +75,7 @@ public final class VarianceStates {
         }
 
         public double evaluateFinal() {
-            return welfordAlgorithm.evaluate();
+            return welfordAlgorithm.evaluate(stdDev);
         }
 
         public Block evaluateFinal(DriverContext driverContext) {
@@ -117,7 +119,7 @@ public final class VarianceStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new WelfordAlgorithm(meanValue, m2Value, countValue, stdDev);
+                state = new WelfordAlgorithm(meanValue, m2Value, countValue);
                 states.set(groupId, state);
             } else {
                 state.add(meanValue, m2Value, countValue);
@@ -128,7 +130,7 @@ public final class VarianceStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new WelfordAlgorithm(stdDev);
+                state = new WelfordAlgorithm();
                 states.set(groupId, state);
             }
             return state;
@@ -191,7 +193,7 @@ public final class VarianceStates {
                         if (count == 0 || Double.isFinite(m2) == false) {
                             builder.appendNull();
                         } else {
-                            builder.appendDouble(st.evaluate());
+                            builder.appendDouble(st.evaluate(stdDev));
                         }
                     } else {
                         builder.appendNull();

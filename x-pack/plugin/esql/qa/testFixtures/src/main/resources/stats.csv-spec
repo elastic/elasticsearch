@@ -2969,6 +2969,20 @@ std_dev_height:double
 // end::stdev-result[]
 ;
 
+stdVariance
+
+// tag::stdVar[]
+FROM employees
+| STATS std_var_height = STD_VAR(height)
+// end::stdVar[]
+| EVAL std_var_height = ROUND(std_var_height, 7)
+;
+
+// tag::stdVar-result[]
+std_var_height:double
+0.0426061
+// end::stdVar-result[]
+
 stdDeviationNested
 required_capability: std_dev
 // tag::docsStatsStdDevNestedExpression[]

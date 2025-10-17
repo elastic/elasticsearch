@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -37,7 +38,10 @@ public class StdVar extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         returnType = "double",
         description = "The population standard variance of a numeric field.",
-        type = FunctionType.AGGREGATE
+        type = FunctionType.AGGREGATE,
+        examples = {
+            @Example(file = "stats", tag = "stdev")
+        }
     )
     public StdVar(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         this(source, field, Literal.TRUE);

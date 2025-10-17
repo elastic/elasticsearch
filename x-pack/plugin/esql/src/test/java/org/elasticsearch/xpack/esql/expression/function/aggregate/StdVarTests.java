@@ -64,7 +64,8 @@ public class StdVarTests extends AbstractAggregationTestCase {
             var expected = Double.isFinite(result) ? result : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                standardAggregatorName("StdVar", fieldSupplier.type()),
+                // Note that this stddev because it's the operator that implements both of these
+                standardAggregatorName("StdDev", fieldSupplier.type()),
                 DataType.DOUBLE,
                 equalTo(expected)
             );

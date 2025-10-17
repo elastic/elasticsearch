@@ -36,7 +36,13 @@ public final class CsvSpecReader {
                 if (line.toLowerCase(Locale.ROOT).startsWith("required_capability:")) {
                     requiredCapabilities.add(line.substring("required_capability:".length()).trim());
                 } else {
-                    if (line.endsWith(";")) {
+                    if (line.endsWith("\\;")) {
+                        // SET statement with escaped ";"
+                        var updatedLine = line.substring(0, line.length() - 2);
+                        query.append(updatedLine);
+                        query.append(";");
+                        query.append("\r\n");
+                    } else if (line.endsWith(";")) {
                         // pick up the query
                         testCase = new CsvTestCase();
                         query.append(line.substring(0, line.length() - 1).trim());

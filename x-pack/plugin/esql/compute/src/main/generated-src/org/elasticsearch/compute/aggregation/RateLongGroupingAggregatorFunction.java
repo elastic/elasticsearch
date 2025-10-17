@@ -203,26 +203,19 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
-            buffer.appendRange(positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
+            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
         } else {
             int lastGroup = groups.getInt(0);
             int lastPosition = 0;
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                    var from = lastPosition + positionOffset;
-                    var count = p - lastPosition;
-                    var buffer = getBuffer(lastGroup, count, timestampVector.getLong(from));
-                    buffer.appendRange(from, from + count, valueBlock, timestampVector);
+                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
                     lastGroup = group;
                     lastPosition = p;
                 }
             }
-            var from = lastPosition + positionOffset;
-            var count = positionCount - lastPosition;
-            var buffer = getBuffer(lastGroup, count, timestampVector.getLong(from));
-            buffer.appendRange(from, from + count, valueBlock, timestampVector);
+            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);
         }
     }
 
@@ -230,27 +223,30 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
-            buffer.appendRange(positionOffset, positionOffset + positionCount, valueVector, timestampVector);
+            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector);
         } else {
             int lastGroup = groups.getInt(0);
             int lastPosition = 0;
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                    var from = lastPosition + positionOffset;
-                    var count = p - lastPosition;
-                    var buffer = getBuffer(lastGroup, count, timestampVector.getLong(from));
-                    buffer.appendRange(from, from + count, valueVector, timestampVector);
+                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueVector, timestampVector);
                     lastGroup = group;
                     lastPosition = p;
                 }
             }
-            var from = lastPosition + positionOffset;
-            var count = positionCount - lastPosition;
-            var buffer = getBuffer(lastGroup, from, timestampVector.getLong(from));
-            buffer.appendRange(from, from + count, valueVector, timestampVector);
+            addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueVector, timestampVector);
         }
+    }
+
+    private void addSubRange(int group, int from, int to, LongVector valueVector, LongVector timestampVector) {
+        var buffer = getBuffer(group, to - from, timestampVector.getLong(from));
+        buffer.appendRange(from, to, valueVector, timestampVector);
+    }
+
+    private void addSubRange(int group, int from, int to, LongBlock valueBlock, LongVector timestampVector) {
+        var buffer = getBuffer(group, to - from, timestampVector.getLong(from));
+        buffer.appendRange(from, to, valueBlock, timestampVector);
     }
 
     @Override

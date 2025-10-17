@@ -50,6 +50,20 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testPushingDownEvalWithNestedScore() {
+        var query = """
+            FROM test
+            | EVAL first_score = to_integer(0.2 + score(match(content, "dog")))
+            | LIMIT 2
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "integer"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "first_score"));
+            assertValues(resp.values(), List.of(List.of("This is a brown fox", 1, 0), List.of("This is a brown dog", 2, 1)));
+        }
+    }
+
     public void testScoreSingleNoMetadata() {
         var query = """
             FROM test

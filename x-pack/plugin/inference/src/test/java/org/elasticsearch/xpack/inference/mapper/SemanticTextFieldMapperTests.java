@@ -172,7 +172,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             protected Supplier<ModelRegistry> getModelRegistry() {
                 return () -> globalModelRegistry;
             }
-        }, new XPackClientPlugin(), new TestInferenceServicePlugin());
+        }, new XPackClientPlugin());
     }
 
     private void registerDefaultEisEndpoint() {

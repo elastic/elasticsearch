@@ -18,9 +18,9 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SequencedCollection;
 import java.util.function.Consumer;
 
 public class ReservedClusterStateUpdateTask extends ReservedStateUpdateTask<ReservedClusterStateHandler<?>> {
@@ -29,11 +29,11 @@ public class ReservedClusterStateUpdateTask extends ReservedStateUpdateTask<Rese
         ReservedStateChunk stateChunk,
         ReservedStateVersionCheck versionCheck,
         Map<String, ReservedClusterStateHandler<?>> handlers,
-        Collection<String> orderedHandlers,
+        SequencedCollection<String> updateSequence,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
-        super(namespace, stateChunk, versionCheck, handlers, orderedHandlers, errorReporter, listener);
+        super(namespace, stateChunk, versionCheck, handlers, updateSequence, errorReporter, listener);
     }
 
     @Override

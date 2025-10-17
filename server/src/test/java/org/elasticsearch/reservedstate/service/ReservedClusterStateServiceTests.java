@@ -57,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongFunction;
 
+import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.orderedStateHandlers;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -211,7 +212,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 stateChunk,
                 versionCheck,
                 Map.of(),
-                Set.of(),
+                List.of(),
                 errorState -> {},
                 ActionListener.noop()
             )
@@ -367,7 +368,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             initialStateChunk,
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of("test_handler_name", handler),
-            initialStateChunk.state().keySet(),
+            List.copyOf(initialStateChunk.state().keySet()),
             Assert::assertNull,
             ActionListener.noop()
         );
@@ -397,7 +398,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             changedStateChunk,
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of("test_handler_name", handler),
-            changedStateChunk.state().keySet(),
+            List.copyOf(changedStateChunk.state().keySet()),
             Assert::assertNull,
             ActionListener.noop()
         );
@@ -424,7 +425,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             removedStateChunk,
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of("test_handler_name", handler),
-            removedStateChunk.state().keySet(),
+            List.copyOf(removedStateChunk.state().keySet()),
             Assert::assertNull,
             ActionListener.noop()
         );
@@ -446,7 +447,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             stillGoneStateChunk,
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of("test_handler_name", handler),
-            stillGoneStateChunk.state().keySet(),
+            List.copyOf(stillGoneStateChunk.state().keySet()),
             Assert::assertNull,
             ActionListener.noop()
         );
@@ -479,7 +480,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             createEmptyTask(
                 randomBoolean() ? Optional.empty() : Optional.of(randomProjectIdOrDefault()),
                 "test",
-                null,
+                new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY
             )
         );
@@ -767,7 +768,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                     new ReservedStateChunk(Map.of(), new ReservedStateVersion(version, BuildVersion.current())),
                     ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                     Map.of(),
-                    Set.of(),
+                    List.of(),
                     errorState -> {},
                     ActionListener.noop()
                 )
@@ -917,7 +918,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 }
             };
 
-            var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
+            var updateSequence = List.of(exceptionThrower.name(), newStateMaker.name());
 
             task = new ReservedProjectStateUpdateTask(
                 projectId.get(),
@@ -925,7 +926,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 chunk,
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
-                orderedHandlers,
+                updateSequence,
                 e -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, e.version(), e.versionCheck())),
                 ActionListener.noop()
             );
@@ -940,7 +941,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 )
             );
 
-            var trialRunErrors = controller.trialRun(projectId.get(), "namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
+            var trialRunErrors = controller.trialRun(projectId.get(), "namespace_one", state, chunk, new LinkedHashSet<>(updateSequence));
             assertThat(trialRunErrors, contains(containsString("Error processing one state change:")));
         } else {
             ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new TestClusterStateHandler("maker");
@@ -951,14 +952,14 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 }
             };
 
-            var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
+            var updateSequence = List.of(exceptionThrower.name(), newStateMaker.name());
 
             task = new ReservedClusterStateUpdateTask(
                 "namespace_one",
                 chunk,
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
-                orderedHandlers,
+                updateSequence,
                 e -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, e.version(), e.versionCheck())),
                 ActionListener.noop()
             );
@@ -973,7 +974,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 )
             );
 
-            var trialRunErrors = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
+            var trialRunErrors = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(updateSequence));
             assertThat(trialRunErrors, contains(containsString("Error processing one state change:")));
         }
 
@@ -1130,19 +1131,22 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             List.of(oh1, oh2, oh3),
             List.of()
         );
-        Collection<String> ordered = controller.orderedClusterStateHandlers(Set.of("one", "two", "three"));
+        Collection<String> ordered = orderedStateHandlers(Set.of("one", "two", "three"), controller.clusterHandlers());
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedClusterStateHandlers(Set.of("one", "two", "three", "four")))
-                .getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> orderedStateHandlers(Set.of("one", "two", "three", "four"), controller.clusterHandlers())
+            ).getMessage(),
             is("Unknown handler type: four")
         );
 
         // assure that we bail on missing dependency link
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedClusterStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(IllegalStateException.class, () -> orderedStateHandlers(Set.of("one", "two"), controller.clusterHandlers()))
+                .getMessage(),
             is("Missing handler dependency definition: one -> three")
         );
 
@@ -1152,7 +1156,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         final var controller1 = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2), List.of());
 
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller1.orderedClusterStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(IllegalStateException.class, () -> orderedStateHandlers(Set.of("one", "two"), controller1.clusterHandlers()))
+                .getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")
@@ -1172,19 +1177,22 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             List.of(),
             List.of(oh1, oh2, oh3)
         );
-        Collection<String> ordered = controller.orderedProjectStateHandlers(Set.of("one", "two", "three"));
+        Collection<String> ordered = orderedStateHandlers(Set.of("one", "two", "three"), controller.projectHandlers());
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedProjectStateHandlers(Set.of("one", "two", "three", "four")))
-                .getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> orderedStateHandlers(Set.of("one", "two", "three", "four"), controller.projectHandlers())
+            ).getMessage(),
             is("Unknown handler type: four")
         );
 
         // assure that we bail on missing dependency link
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedProjectStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(IllegalStateException.class, () -> orderedStateHandlers(Set.of("one", "two"), controller.projectHandlers()))
+                .getMessage(),
             is("Missing handler dependency definition: one -> three")
         );
 
@@ -1194,7 +1202,8 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         final var controller1 = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(), List.of(oh1, oh2));
 
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller1.orderedProjectStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(IllegalStateException.class, () -> orderedStateHandlers(Set.of("one", "two"), controller1.projectHandlers()))
+                .getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")

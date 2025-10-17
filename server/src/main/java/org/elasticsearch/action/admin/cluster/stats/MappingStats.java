@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -269,7 +270,9 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
         runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
         var transportVersion = in.getTransportVersion();
-        sourceModeUsageCount = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
+        sourceModeUsageCount = canReadOrWriteSourceModeTelemetry(transportVersion)
+            ? in.readImmutableMap(StreamInput::readString, StreamInput::readVInt)
+            : Map.of();
     }
 
     @Override
@@ -281,7 +284,14 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
-        out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);
+        var transportVersion = out.getTransportVersion();
+        if (canReadOrWriteSourceModeTelemetry(transportVersion)) {
+            out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);
+        }
+    }
+
+    private static boolean canReadOrWriteSourceModeTelemetry(TransportVersion version) {
+        return version.isPatchFrom(TransportVersions.V_8_17_0) || version.supports(TransportVersions.V_8_18_0);
     }
 
     private static OptionalLong ofNullable(Long l) {

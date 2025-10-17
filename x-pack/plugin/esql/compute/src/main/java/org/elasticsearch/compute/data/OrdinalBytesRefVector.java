@@ -99,26 +99,14 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRefVector filter(int... positions) {
-        if (positions.length >= ordinals.getPositionCount()) {
-            OrdinalBytesRefVector result = null;
-            IntVector filteredOrdinals = ordinals.filter(positions);
-            try {
-                result = new OrdinalBytesRefVector(filteredOrdinals, bytes);
-                bytes.incRef();
-            } finally {
-                if (result == null) {
-                    filteredOrdinals.close();
-                }
+        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
+        // may reappear when hashing the dictionary in BlockHash.
+        final BytesRef scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
+            for (int p : positions) {
+                builder.appendBytesRef(getBytesRef(p, scratch));
             }
-            return result;
-        } else {
-            final BytesRef scratch = new BytesRef();
-            try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-                for (int p : positions) {
-                    builder.appendBytesRef(getBytesRef(p, scratch));
-                }
-                return builder.build();
-            }
+            return builder.build();
         }
     }
 

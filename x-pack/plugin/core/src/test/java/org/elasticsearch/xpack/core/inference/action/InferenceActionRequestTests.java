@@ -695,7 +695,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance,
                 getNamedWriteableRegistry(),
                 instanceReader(),
-                TransportVersion.minimumCompatible()
+                TransportVersions.V_8_18_0
             );
 
             assertEquals(instance, deserializedInstance);

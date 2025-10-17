@@ -67,7 +67,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
             indexFailedCount = in.readVLong();
-            indexFailedDueToVersionConflictCount = in.readVLong();
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                indexFailedDueToVersionConflictCount = in.readVLong();
+            }
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
@@ -305,7 +307,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
             out.writeVLong(indexFailedCount);
-            out.writeVLong(indexFailedDueToVersionConflictCount);
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                out.writeVLong(indexFailedDueToVersionConflictCount);
+            }
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);

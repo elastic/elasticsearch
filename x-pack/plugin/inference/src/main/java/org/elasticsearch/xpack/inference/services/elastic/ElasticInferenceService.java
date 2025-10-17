@@ -110,19 +110,19 @@ public class ElasticInferenceService extends SenderService {
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = dotPrefixElasticSuffix(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
     // elser-2
     static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
+    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = dotPrefixElasticSuffix("elser-2");
 
-    // multilingual-text-embed
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
-    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+    // jina-embeddings-v3
+    static final String DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID = "jina-embeddings-v3";
+    static final String DEFAULT_JINA_EMBEDDINGS_V3_ENDPOINT_ID = dotPrefix(DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID);
 
-    // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+    // elastic-rerank-v1
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
+    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = dotPrefix(DEFAULT_RERANK_MODEL_ID_V1);
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -133,7 +133,11 @@ public class ElasticInferenceService extends SenderService {
         TaskType.TEXT_EMBEDDING
     );
 
-    public static String defaultEndpointId(String modelId) {
+    public static String dotPrefix(String modelId) {
+        return Strings.format(".%s", modelId);
+    }
+
+    public static String dotPrefixElasticSuffix(String modelId) {
         return Strings.format(".%s-elastic", modelId);
     }
 
@@ -213,14 +217,14 @@ public class ElasticInferenceService extends SenderService {
                 ),
                 MinimalServiceSettings.sparseEmbedding(NAME)
             ),
-            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+            DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceDenseTextEmbeddingsModel(
                     DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
                     TaskType.TEXT_EMBEDDING,
                     NAME,
                     new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                        DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+                        DEFAULT_JINA_EMBEDDINGS_V3_MODEL_ID,
                         defaultDenseTextEmbeddingsSimilarity(),
                         null,
                         null

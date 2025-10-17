@@ -114,7 +114,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
             semanticTextFields.put(fieldName, inferenceId);
         }
 
-        XContentBuilder mapping = IntegrationTestUtils.generateMapping(semanticTextFields);
+        XContentBuilder mapping = IntegrationTestUtils.generateSemanticTextMapping(semanticTextFields);
         assertAcked(prepareCreate(INDEX_NAME).setMapping(mapping));
 
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();

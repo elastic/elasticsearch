@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.inference.services.jinaai.response;
 
 import org.apache.http.HttpResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -26,11 +26,33 @@ import static org.mockito.Mockito.mock;
 public class JinaAIRerankResponseEntityTests extends ESTestCase {
 
     public void testResponseLiteral() throws IOException {
+        String responseLiteral = """
+            {
+                "model": "model",
+                "results": [
+                    {
+                        "index": 2,
+                        "relevance_score": 0.98005307
+                    },
+                    {
+                        "index": 3,
+                        "relevance_score": 0.27904198
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
         InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseLiteral.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        assertThat(parsedResults, instanceOf(RankedDocsResults.class));
         List<RankedDocsResults.RankedDoc> expected = responseLiteralDocs();
         for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
             assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).index(), expected.get(i).index());
@@ -68,7 +90,7 @@ public class JinaAIRerankResponseEntityTests extends ESTestCase {
         InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseBuilder.toString().getBytes(StandardCharsets.UTF_8))
         );
-        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        assertThat(parsedResults, instanceOf(RankedDocsResults.class));
         for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
             assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).index(), expected.get(i).index());
         }
@@ -82,81 +104,92 @@ public class JinaAIRerankResponseEntityTests extends ESTestCase {
         list.add(new RankedDocsResults.RankedDoc(0, 0.10194652F, null));
         return list;
 
-    };
+    }
 
-    private final String responseLiteral = """
-        {
-            "model": "model",
-            "results": [
-                {
-                    "index": 2,
-                    "relevance_score": 0.98005307
-                },
-                {
-                    "index": 3,
-                    "relevance_score": 0.27904198
-                },
-                {
-                    "index": 0,
-                    "relevance_score": 0.10194652
-                }
-            ],
-            "usage": {
-                "total_tokens": 15
-            }
-        }
-        """;
+    private final String WASHINGTON_TEXT = "Washington, D.C..";
+    private final String CAPITAL_PUNISHMENT_TEXT =
+        "Capital punishment has existed in the United States since before the United States was a country. ";
+    private final String CARSON_CITY_TEXT = "Carson City is the capital city of the American state of Nevada.";
+
+    private final List<RankedDocsResults.RankedDoc> responseLiteralDocsWithText = List.of(
+        new RankedDocsResults.RankedDoc(2, 0.98005307F, WASHINGTON_TEXT),
+        new RankedDocsResults.RankedDoc(3, 0.27904198F, CAPITAL_PUNISHMENT_TEXT),
+        new RankedDocsResults.RankedDoc(0, 0.10194652F, CARSON_CITY_TEXT)
+    );
 
     public void testResponseLiteralWithDocuments() throws IOException {
+        String responseLiteralWithDocuments = Strings.format("""
+            {
+                "model": "model",
+                "results": [
+                    {
+                        "document": {
+                            "text": "%s"
+                        },
+                        "index": 2,
+                        "relevance_score": 0.98005307
+                    },
+                    {
+                        "document": {
+                            "text": "%s"
+                        },
+                        "index": 3,
+                        "relevance_score": 0.27904198
+                    },
+                    {
+                        "document": {
+                            "text": "%s"
+                        },
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """, WASHINGTON_TEXT, CAPITAL_PUNISHMENT_TEXT, CARSON_CITY_TEXT);
         InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseLiteralWithDocuments.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
-        MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
+        assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
     }
 
-    private final String responseLiteralWithDocuments = """
-        {
-            "model": "model",
-            "results": [
-                {
-                    "document": {
-                        "text": "Washington, D.C.."
+    public void testResponseLiteralWithDocumentsAsString() throws IOException {
+        String responseLiteralWithDocuments = Strings.format("""
+            {
+                "model": "model",
+                "results": [
+                    {
+                        "document": "%s",
+                        "index": 2,
+                        "relevance_score": 0.98005307
                     },
-                    "index": 2,
-                    "relevance_score": 0.98005307
-                },
-                {
-                    "document": {
-                        "text": "Capital punishment has existed in the United States since beforethe United States was a country. "
+                    {
+                        "document": "%s",
+                        "index": 3,
+                        "relevance_score": 0.27904198
                     },
-                    "index": 3,
-                    "relevance_score": 0.27904198
-                },
-                {
-                    "document": {
-                        "text": "Carson City is the capital city of the American state of Nevada."
-                    },
-                    "index": 0,
-                    "relevance_score": 0.10194652
+                    {
+                        "document": "%s",
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
                 }
-            ],
-            "usage": {
-                "total_tokens": 15
             }
-        }
-        """;
+            """, WASHINGTON_TEXT, CAPITAL_PUNISHMENT_TEXT, CARSON_CITY_TEXT);
+        InferenceServiceResults parsedResults = JinaAIRerankResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseLiteralWithDocuments.getBytes(StandardCharsets.UTF_8))
+        );
 
-    private final List<RankedDocsResults.RankedDoc> responseLiteralDocsWithText = List.of(
-        new RankedDocsResults.RankedDoc(2, 0.98005307F, "Washington, D.C.."),
-        new RankedDocsResults.RankedDoc(
-            3,
-            0.27904198F,
-            "Capital punishment has existed in the United States since beforethe United States was a country. "
-        ),
-        new RankedDocsResults.RankedDoc(0, 0.10194652F, "Carson City is the capital city of the American state of Nevada.")
-    );
+        assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
+    }
 
     private ArrayList<Integer> linear(int n) {
         ArrayList<Integer> list = new ArrayList<>();

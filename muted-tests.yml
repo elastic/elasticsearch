@@ -579,15 +579,15 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136493
-- class: org.elasticsearch.xpack.core.HealthApiFeatureSetUsageTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/136648
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/136585
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyConcat
   issue: https://github.com/elastic/elasticsearch/issues/136728
+- class: org.elasticsearch.compute.data.BasicPageTests
+  method: testEqualityAndHashCode
+  issue: https://github.com/elastic/elasticsearch/issues/136753
 
 # Examples:
 #

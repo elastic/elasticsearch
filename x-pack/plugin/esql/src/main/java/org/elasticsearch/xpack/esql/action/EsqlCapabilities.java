@@ -1517,6 +1517,11 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
+         * Allow multiple patterns for GROK command
+         */
+        GROK_MULTI_PATTERN,
+
+        /**
          * Fix double release in inline stats when LocalRelation is reused
          */
         INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)

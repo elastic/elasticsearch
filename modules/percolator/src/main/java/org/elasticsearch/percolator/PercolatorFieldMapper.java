@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -239,7 +240,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         boolean mapUnmappedFieldsAsText;
 
         private PercolatorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, false, meta);
+            super(name, IndexType.NONE, false, meta);
         }
 
         @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -25,8 +26,9 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  *  This indicator reports health data about the shard capacity across the cluster.
@@ -45,8 +47,6 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
     static final String NAME = "shards_capacity";
 
-    static final String DATA_NODE_NAME = "data";
-    static final String FROZEN_NODE_NAME = "frozen";
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade.";
     private static final String UPGRADE_AT_RISK =
         "The cluster is running low on room to add new shard. Upgrading to a new version is at risk.";
@@ -90,9 +90,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     );
 
     private final ClusterService clusterService;
+    private final List<ShardLimitValidator.LimitGroup> shardLimitGroups;
 
     public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
+        this.shardLimitGroups = ShardLimitValidator.applicableLimitGroups(DiscoveryNode.isStateless(clusterService.getSettings()));
     }
 
     @Override
@@ -109,26 +111,23 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         }
 
         var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
-        return mergeIndicators(
-            verbose,
-            calculateFrom(
-                shardLimitsMetadata.maxShardsPerNode(),
-                state.nodes(),
-                state.metadata(),
-                ShardLimitValidator::checkShardLimitForNormalNodes
-            ),
-            calculateFrom(
-                shardLimitsMetadata.maxShardsPerNodeFrozen(),
-                state.nodes(),
-                state.metadata(),
-                ShardLimitValidator::checkShardLimitForFrozenNodes
+        final List<StatusResult> statusResults = shardLimitGroups.stream()
+            .map(
+                limitGroup -> calculateFrom(
+                    ShardLimitValidator.getShardLimitPerNode(limitGroup, shardLimitsMetadata),
+                    state.nodes(),
+                    state.metadata(),
+                    limitGroup::checkShardLimit
+                )
             )
-        );
+            .toList();
+
+        return mergeIndicators(verbose, statusResults);
     }
 
-    private HealthIndicatorResult mergeIndicators(boolean verbose, StatusResult dataNodes, StatusResult frozenNodes) {
-        var finalStatus = HealthStatus.merge(Stream.of(dataNodes.status, frozenNodes.status));
-        var diagnoses = List.<Diagnosis>of();
+    private HealthIndicatorResult mergeIndicators(boolean verbose, List<StatusResult> statusResults) {
+        var finalStatus = HealthStatus.merge(statusResults.stream().map(StatusResult::status));
+        var diagnoses = new LinkedHashSet<Diagnosis>();
         var symptomBuilder = new StringBuilder();
 
         if (finalStatus == HealthStatus.GREEN) {
@@ -139,19 +138,22 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         // frozen* nodes, so we have to check each of the groups in order of provide the right message.
         if (finalStatus.indicatesHealthProblem()) {
             symptomBuilder.append("Cluster is close to reaching the configured maximum number of shards for ");
-            if (dataNodes.status == frozenNodes.status) {
-                symptomBuilder.append(DATA_NODE_NAME).append(" and ").append(FROZEN_NODE_NAME);
-                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES);
-
-            } else if (dataNodes.status.indicatesHealthProblem()) {
-                symptomBuilder.append(DATA_NODE_NAME);
-                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES);
-
-            } else if (frozenNodes.status.indicatesHealthProblem()) {
-                symptomBuilder.append(FROZEN_NODE_NAME);
-                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES);
+            final var nodeTypeNames = new ArrayList<String>();
+            for (var statusResult : statusResults) {
+                if (statusResult.status.indicatesHealthProblem()) {
+                    nodeTypeNames.add(nodeTypeFroLimitGroup(statusResult.result.group()));
+                    diagnoses.add(diagnosisForLimitGroup(statusResult.result.group()));
+                }
             }
 
+            assert nodeTypeNames.isEmpty() == false;
+            symptomBuilder.append(nodeTypeNames.getFirst());
+            for (int i = 1; i < nodeTypeNames.size() - 1; i++) {
+                symptomBuilder.append(", ").append(nodeTypeNames.get(i));
+            }
+            if (nodeTypeNames.size() > 1) {
+                symptomBuilder.append(" and ").append(nodeTypeNames.getLast());
+            }
             symptomBuilder.append(" nodes.");
         }
 
@@ -164,9 +166,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            verbose ? buildDetails(dataNodes.result, frozenNodes.result) : HealthIndicatorDetails.EMPTY,
+            verbose ? buildDetails(statusResults.stream().map(StatusResult::result).toList()) : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
-            verbose ? diagnoses : List.of()
+            verbose ? List.copyOf(diagnoses) : List.of()
         );
     }
 
@@ -189,22 +191,14 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(ShardLimitValidator.Result dataNodes, ShardLimitValidator.Result frozenNodes) {
+    static HealthIndicatorDetails buildDetails(List<ShardLimitValidator.Result> results) {
         return (builder, params) -> {
             builder.startObject();
-            {
-                builder.startObject(DATA_NODE_NAME);
-                builder.field("max_shards_in_cluster", dataNodes.maxShardsInCluster());
-                if (dataNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards", dataNodes.currentUsedShards().get());
-                }
-                builder.endObject();
-            }
-            {
-                builder.startObject("frozen");
-                builder.field("max_shards_in_cluster", frozenNodes.maxShardsInCluster());
-                if (frozenNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards", frozenNodes.currentUsedShards().get());
+            for (var result : results) {
+                builder.startObject(nodeTypeFroLimitGroup(result.group()));
+                builder.field("max_shards_in_cluster", result.maxShardsInCluster());
+                if (result.currentUsedShards().isPresent()) {
+                    builder.field("current_used_shards", result.currentUsedShards().get());
                 }
                 builder.endObject();
             }
@@ -221,6 +215,22 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             List.of(),
             List.of()
         );
+    }
+
+    private static String nodeTypeFroLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
+        return switch (limitGroup) {
+            case NORMAL -> "data";
+            case FROZEN -> "frozen";
+            case INDEX -> "index";
+            case SEARCH -> "search";
+        };
+    }
+
+    private static Diagnosis diagnosisForLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
+        return switch (limitGroup) {
+            case NORMAL, INDEX, SEARCH -> SHARDS_MAX_CAPACITY_REACHED_DATA_NODES;
+            case FROZEN -> SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES;
+        };
     }
 
     record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}

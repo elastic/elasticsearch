@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -38,7 +39,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.INDEX_SOURCE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -46,31 +46,41 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Creates indices with all supported fields and fetches values from them.
+ * Creates indices with all supported fields and fetches values from them to
+ * confirm that release builds correctly handle data types, even if they were
+ * introduced in later versions.
+ * <p>
+ *     Entirely skipped in snapshot builds; data types that are under
+ *     construction are normally tested well enough in spec tests, skipping
+ *     old versions via {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}.
  * <p>
  *     In a single cluster where all nodes are on a single version this is
  *     just an "is it plugged in" style smoke test. In a mixed version cluster
  *     this is testing the behavior of fetching potentially unsupported field
- *     types. The same is true multi-cluster cases.
- * </p>
+ *     types. The same is true for multi-cluster cases.
  * <p>
  *     This isn't trying to test complex interactions with field loading so we
  *     load constant field values and have simple mappings.
- * </p>
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+
+    private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "pref=%s mode=%s")
     public static List<Object[]> args() {
+        if (Build.current().isSnapshot()) {
+            // We only test behavior in release builds. Snapshot builds will have data types enabled that are still under construction.
+            return List.of();
+        }
+
         List<Object[]> args = new ArrayList<>();
         for (MappedFieldType.FieldExtractPreference extractPreference : Arrays.asList(
             null,
@@ -120,9 +130,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean supportsNodeAssignment() throws IOException {
         if (supportsNodeAssignment == null) {
-            for (NodeInfo i : allNodeToInfo().values()) {
-                logger.error("NOCOMMIT {}", i);
-            }
             supportsNodeAssignment = allNodeToInfo().values()
                 .stream()
                 .allMatch(i -> (i.roles.contains("index") && i.roles.contains("search")) || (i.roles.contains("data")));
@@ -168,6 +175,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    // TODO: Also add a test for _tsid once we can determine the minimum transport version of all nodes.
     public final void testFetchAll() throws IOException {
         Map<String, Object> response = esql("""
             , _id, _ignored, _index_mode, _score, _source, _version
@@ -204,7 +212,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 if (supportedInIndex(type) == false) {
                     continue;
                 }
-                expectedValues = expectedValues.entry(fieldName(type), expectedValue(nodeInfo.version, type));
+                expectedValues = expectedValues.entry(fieldName(type), expectedValue(type));
             }
             expectedValues = expectedValues.entry("_id", any(String.class))
                 .entry("_ignored", nullValue())
@@ -219,6 +227,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         profileLogger.clearProfile();
     }
 
+    // Tests a workaround and will become obsolete once we can determine the actual minimum transport version of all nodes.
     public final void testFetchDenseVector() throws IOException {
         Map<String, Object> response;
         try {
@@ -400,7 +409,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(request);
     }
 
-    private Matcher<?> expectedValue(TransportVersion version, DataType type) throws IOException {
+    // This will become dependent on the minimum transport version of all nodes once we can determine that.
+    private Matcher<?> expectedValue(DataType type) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
             case COUNTER_LONG, LONG, COUNTER_INTEGER, INTEGER, UNSIGNED_LONG, SHORT, BYTE -> equalTo(1);
@@ -419,26 +429,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                if (denseVectorAggMetricDoubleIfFns()) {
-                    // If all versions are new we get null. If any are old, some *might* support aggregate_metric_double
-                    yield nullValue();
-                }
-                Matcher<String> expected = equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
-                yield anyOf(nullValue(), expected);
+                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
+                // TODO: Fix this once we know the node versions.
+                yield nullValue();
             }
             case DENSE_VECTOR -> {
-                if (denseVectorAggMetricDoubleIfFns()) {
-                    // If all versions are new we get null. If any are old, some *might* support dense_vector
-                    yield nullValue();
-                }
-                yield anyOf(nullValue(), expectedDenseVector(version));
+                // Currently, we cannot tell if all nodes support it or not so we treat it as unsupported.
+                // TODO: Fix this once we know the node versions.
+                yield nullValue();
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
     }
 
     private Matcher<List<?>> expectedDenseVector(TransportVersion version) {
-        return version.onOrAfter(INDEX_SOURCE) // *after* 9.1
+        return version.supports(INDEX_SOURCE) // *after* 9.1
             ? matchesList().item(0.5).item(10.0).item(5.9999995)
             : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
     }
@@ -449,6 +454,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static boolean supportedInIndex(DataType t) {
         return switch (t) {
             // These are supported but implied by the index process.
+            // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
                 UNSUPPORTED, PARTIAL_AGG,
@@ -502,7 +508,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return result;
     }
 
-    private Matcher<String> expectedType(DataType type) throws IOException {
+    // This will become dependent on the minimum transport version of all nodes once we can determine that.
+    private Matcher<String> expectedType(DataType type) {
         return switch (type) {
             case COUNTER_DOUBLE, COUNTER_LONG, COUNTER_INTEGER -> {
                 if (indexMode == IndexMode.TIME_SERIES) {
@@ -514,13 +521,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
             case NULL -> equalTo("keyword");
             // Currently unsupported without TS command or KNN function
-            case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
-                if (denseVectorAggMetricDoubleIfFns()) {
-                    // If all versions are new we get null. If any are old, some *might* support dense_vector
-                    yield equalTo("unsupported");
-                }
-                yield either(equalTo("unsupported")).or(equalTo(type.esType()));
-            }
+            case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR ->
+                // TODO: Fix this once we know the node versions.
+                equalTo("unsupported");
             default -> equalTo(type.esType());
         };
     }
@@ -538,10 +541,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     private Map<String, NodeInfo> expectedIndices() throws IOException {
-        logger.error("ADFADF NOCOMMIT");
         Map<String, NodeInfo> result = new TreeMap<>();
         if (supportsNodeAssignment()) {
-            logger.error("supports {}", allNodeToInfo());
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
                 String name = indexMode + "_" + e.getKey();
                 if (e.getValue().cluster != null) {
@@ -550,7 +551,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 result.put(name, e.getValue());
             }
         } else {
-            logger.error("one per {}", allNodeToInfo());
             for (Map.Entry<String, NodeInfo> e : allNodeToInfo().entrySet()) {
                 String name = indexMode.toString();
                 if (e.getValue().cluster != null) {

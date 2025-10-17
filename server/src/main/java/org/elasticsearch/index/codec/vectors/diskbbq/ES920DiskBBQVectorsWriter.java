@@ -52,19 +52,40 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int centroidsPerParentCluster;
 
     public ES920DiskBBQVectorsWriter(
-        String rawVectorFormatName,
         SegmentWriteState state,
+        String rawVectorFormatName,
+        boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
-        super(state, rawVectorFormatName, rawVectorDelegate);
+        this(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            rawVectorDelegate,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            ES920DiskBBQVectorsFormat.VERSION_CURRENT
+        );
+    }
+
+    ES920DiskBBQVectorsWriter(
+        SegmentWriteState state,
+        String rawVectorFormatName,
+        Boolean useDirectIOReads,
+        FlatVectorsWriter rawVectorDelegate,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        int writeVersion
+    ) throws IOException {
+        super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate, writeVersion);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
     }
 
     @Override
-    CentroidOffsetAndLength buildAndWritePostingsLists(
+    public CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -160,7 +181,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    CentroidOffsetAndLength buildAndWritePostingsLists(
+    public CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -347,12 +368,17 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid) {
+    public CentroidSupplier createCentroidSupplier(
+        IndexInput centroidsInput,
+        int numCentroids,
+        FieldInfo fieldInfo,
+        float[] globalCentroid
+    ) {
         return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
     }
 
     @Override
-    void writeCentroids(
+    public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
@@ -367,6 +393,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         } else {
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         }
+    }
+
+    @Override
+    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids) {
+        // Do Nothing Extra
     }
 
     private void writeCentroidsWithParents(
@@ -502,10 +533,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException {
-
-        long nanoTime = System.nanoTime();
 
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         CentroidAssignments centroidAssignments = buildCentroidAssignments(floatVectorValues, vectorPerCluster);
@@ -523,7 +552,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
             logger.debug("final centroid count: {}", centroids.length);
         }
         return centroidAssignments;
@@ -627,7 +655,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             return corrections;
         }
     }
@@ -679,7 +707,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call next first");
             }
@@ -729,7 +757,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call readQuantizedVector first");
             }

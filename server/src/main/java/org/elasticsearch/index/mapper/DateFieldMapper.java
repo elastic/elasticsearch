@@ -20,12 +20,10 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -46,6 +44,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
@@ -187,9 +186,9 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final String type;
         private final NumericType numericType;
-        private final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
-        Resolution(String type, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+        Resolution(String type, NumericType numericType, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
             this.type = type;
             this.numericType = numericType;
             this.toScriptFieldFactory = toScriptFieldFactory;
@@ -203,7 +202,7 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        ToScriptFieldFactory<SortedNumericDocValues> getDefaultToScriptFieldFactory() {
+        ToScriptFieldFactory<SortedNumericLongValues> getDefaultToScriptFieldFactory() {
             return toScriptFieldFactory;
         }
 
@@ -419,9 +418,7 @@ public final class DateFieldMapper extends FieldMapper {
             }
         }
 
-        @Override
-        public DateFieldMapper build(MapperBuilderContext context) {
-            final String fullFieldName = context.buildFullName(leafName());
+        private IndexType indexType(String fullFieldName) {
             boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(
                 indexCreatedVersion,
                 useDocValuesSkipper,
@@ -430,14 +427,23 @@ public final class DateFieldMapper extends FieldMapper {
                 indexSortConfig,
                 fullFieldName
             );
-            boolean hasPoints = hasDocValuesSkipper == false && index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false;
+            if (hasDocValuesSkipper) {
+                return IndexType.skippers();
+            }
+            if (indexCreatedVersion.isLegacyIndexVersion()) {
+                return IndexType.archivedPoints();
+            }
+            return IndexType.points(index.get(), docValues.get());
+        }
+
+        @Override
+        public DateFieldMapper build(MapperBuilderContext context) {
+            final String fullFieldName = context.buildFullName(leafName());
+            IndexType indexType = indexType(fullFieldName);
             DateFieldType ft = new DateFieldType(
                 fullFieldName,
-                hasPoints,
-                hasDocValuesSkipper == false && index.getValue(),
+                indexType,
                 store.getValue(),
-                docValues.getValue(),
-                hasDocValuesSkipper,
                 context.isSourceSynthetic(),
                 buildFormatter(),
                 resolution,
@@ -463,7 +469,7 @@ public final class DateFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 indexMode,
                 indexSortConfig,
-                hasDocValuesSkipper,
+                indexType.hasDocValuesSkipper(),
                 this
             );
         }
@@ -505,45 +511,12 @@ public final class DateFieldMapper extends FieldMapper {
         private final Resolution resolution;
         private final String nullValue;
         private final FieldValues<Long> scriptValues;
-        private final boolean pointsMetadataAvailable;
-        private final boolean hasDocValuesSkipper;
         private final boolean isSyntheticSource;
 
         public DateFieldType(
             String name,
-            boolean isIndexed,
-            boolean pointsMetadataAvailable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
-            DateFormatter dateTimeFormatter,
-            Resolution resolution,
-            String nullValue,
-            FieldValues<Long> scriptValues,
-            Map<String, String> meta
-        ) {
-            this(
-                name,
-                isIndexed,
-                pointsMetadataAvailable,
-                isStored,
-                hasDocValues,
-                false,
-                false,
-                dateTimeFormatter,
-                resolution,
-                nullValue,
-                scriptValues,
-                meta
-            );
-        }
-
-        public DateFieldType(
-            String name,
-            boolean isIndexed,
-            boolean pointsMetadataAvailable,
-            boolean isStored,
-            boolean hasDocValues,
-            boolean hasDocValuesSkipper,
             boolean isSyntheticSource,
             DateFormatter dateTimeFormatter,
             Resolution resolution,
@@ -551,52 +524,32 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            super(name, isIndexed, isStored, hasDocValues, meta);
+            super(name, indexType, isStored, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
-            this.pointsMetadataAvailable = pointsMetadataAvailable;
-            this.hasDocValuesSkipper = hasDocValuesSkipper;
             this.isSyntheticSource = isSyntheticSource;
         }
 
         public DateFieldType(
             String name,
-            boolean isIndexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(
-                name,
-                isIndexed,
-                isIndexed,
-                isStored,
-                hasDocValues,
-                false,
-                false,
-                dateTimeFormatter,
-                resolution,
-                nullValue,
-                scriptValues,
-                meta
-            );
+            this(name, indexType, isStored, false, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
         }
 
         public DateFieldType(String name) {
             this(
                 name,
-                true,
-                true,
-                false,
-                true,
-                false,
+                IndexType.points(true, true),
                 false,
                 DEFAULT_DATE_TIME_FORMATTER,
                 Resolution.MILLISECONDS,
@@ -609,11 +562,7 @@ public final class DateFieldMapper extends FieldMapper {
         public DateFieldType(String name, boolean isIndexed, Resolution resolution) {
             this(
                 name,
-                isIndexed,
-                isIndexed,
-                false,
-                true,
-                false,
+                IndexType.points(isIndexed, true),
                 false,
                 DEFAULT_DATE_TIME_FORMATTER,
                 resolution,
@@ -628,15 +577,15 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, true, false, true, false, false, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, true, false, true, false, false, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, true, true, false, true, false, false, dateFormatter, resolution, null, null, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, dateFormatter, resolution, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -652,7 +601,7 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution;
         }
 
-        protected DateMathParser dateMathParser() {
+        public DateMathParser dateMathParser() {
             return dateMathParser;
         }
 
@@ -662,7 +611,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public boolean hasDocValuesSkipper() {
-            return hasDocValuesSkipper;
+            return indexType.hasDocValuesSkipper();
         }
 
         @Override
@@ -713,8 +662,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         // returns a Long to support source fallback which emulates numeric doc values for dates
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 public Long parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
@@ -730,7 +679,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
         }
 
         @Override
@@ -766,7 +715,7 @@ public final class DateFieldMapper extends FieldMapper {
                 name(),
                 (l, u) -> {
                     Query query;
-                    if (isIndexed()) {
+                    if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
                             Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
@@ -804,9 +753,7 @@ public final class DateFieldMapper extends FieldMapper {
                     if (includeLower == false) {
                         ++l;
                     }
-                    if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-                        context.setRangeTimestampFrom(l);
-                    }
+                    context.setTimeRangeFilterFromMillis(fieldName, l, resolution);
                 }
                 if (upperTerm == null) {
                     u = Long.MAX_VALUE;
@@ -885,7 +832,7 @@ public final class DateFieldMapper extends FieldMapper {
                 u = (includeUpper == false) ? upperTerm - 1 : upperTerm;
             }
             Query query;
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
@@ -906,8 +853,8 @@ public final class DateFieldMapper extends FieldMapper {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             long pivotLong = resolution.convert(pivotTime);
-            // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
-            if (isIndexed()) {
+            // As we already apply boost in AbstractQueryBuilder::toQuery, we always pass a boost of 1.0 to distanceFeatureQuery
+            if (indexType.hasPoints()) {
                 return LongField.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
                 return new LongScriptFieldDistanceFeatureQuery(
@@ -931,8 +878,8 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
-                if (hasDocValuesSkipper() == false) {
+            if (indexType.hasPointsMetadata() == false && hasDocValues()) {
+                if (indexType.hasDocValuesSkipper() == false) {
                     // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                     return Relation.INTERSECTS;
                 }
@@ -949,7 +896,7 @@ public final class DateFieldMapper extends FieldMapper {
                     minValue = Long.min(minValue, skipper.minValue());
                     maxValue = Long.max(maxValue, skipper.maxValue());
                 }
-                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
@@ -959,7 +906,7 @@ public final class DateFieldMapper extends FieldMapper {
             long minValue = LongPoint.decodeDimension(minPackedValue, 0);
             long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
-            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
         }
 
         public DateMathParser resolveDateMathParser(DateMathParser dateParser, Object from, Object to) {
@@ -982,7 +929,8 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             ZoneId timeZone,
             DateMathParser dateParser,
-            QueryRewriteContext context
+            QueryRewriteContext context,
+            String fieldName
         ) {
             dateParser = resolveDateMathParser(dateParser, from, to);
 
@@ -995,6 +943,9 @@ public final class DateFieldMapper extends FieldMapper {
                     }
                     ++fromInclusive;
                 }
+                // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
+                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 
             long toInclusive = Long.MAX_VALUE;
@@ -1019,7 +970,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 return resolution()::parsePointAsMillis;
             }
             return null;
@@ -1044,11 +995,13 @@ public final class DateFieldMapper extends FieldMapper {
                     }
                 };
             }
-
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || indexType.hasPoints()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.LongsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()),
+                lookup
+            );
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -1105,7 +1058,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType(),
                     resolution.getDefaultToScriptFieldFactory(),
-                    isIndexed()
+                    indexType.hasPoints()
                 );
             }
 
@@ -1116,7 +1069,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType().getValuesSourceType(),
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );

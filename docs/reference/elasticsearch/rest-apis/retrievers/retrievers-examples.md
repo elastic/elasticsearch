@@ -440,7 +440,7 @@ GET /retrievers_example/_search
             "query": "artificial intelligence"
         }
     }
-}     
+}
 ```
 
 This returns the following response based on the final rrf score for each result.
@@ -497,7 +497,7 @@ GET /retrievers_example/_search
             "fields": ["text", "text_semantic"]
         }
     }
-}     
+}
 ```
 
 ::::{note}
@@ -570,7 +570,7 @@ GET /retrievers_example/_search
             "normalizer": "minmax"
         }
     }
-}     
+}
 ```
 
 This returns the following response based on the normalized score for each result:
@@ -1503,6 +1503,7 @@ PUT _inference/rerank/my-rerank-model
 ```
 
 Let’s start by reranking the results of the `rrf` retriever in our previous example.
+We'll also apply a `chunk_rescorer` to ensure that we only consider the best scoring chunks when sending information to the reranker.
 
 ```console
 GET retrievers_example/_search
@@ -1541,7 +1542,15 @@ GET retrievers_example/_search
             },
             "field": "text",
             "inference_id": "my-rerank-model",
-            "inference_text": "What are the state of the art applications of AI in information retrieval?"
+            "inference_text": "What are the state of the art applications of AI in information retrieval?",
+            "chunk_rescorer": {
+                "size": 1,
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": 300,
+                    "sentence_overlap": 0
+                }
+            },
         }
     },
     "_source": false

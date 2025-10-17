@@ -1,0 +1,5 @@
+pr: 135701
+summary: Add Google Model Garden's Meta, Mistral, Hugging Face and Ai21 providers support to Inference Plugin
+area: Machine Learning
+type: enhancement
+issues: []

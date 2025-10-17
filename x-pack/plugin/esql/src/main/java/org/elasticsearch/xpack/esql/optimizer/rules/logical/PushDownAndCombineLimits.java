@@ -94,20 +94,14 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
      * This is used to prevent pushing down limits past operations that need to evaluate expressions using document data.
      */
     private boolean evalAliasNeedsData(Alias alias) {
-        var expr = alias.child();
-        var children = new ArrayDeque<>(expr.children());
-        while (false == children.isEmpty()) {
-            var child = children.removeFirst();
-            if (child instanceof Score) {
+        ArrayDeque<Expression> exprStack = new ArrayDeque<>();
+        exprStack.add(alias.child());
+        while (false == exprStack.isEmpty()) {
+            var expr = exprStack.removeFirst();
+            if (expr instanceof Score) {
                 return true;
             }
-            for (Expression childExpr : child.children()) {
-                if (childExpr instanceof Score) {
-                    return true;
-                } else {
-                    children.addLast(childExpr);
-                }
-            }
+            exprStack.addAll(expr.children());
         }
         return false;
     }

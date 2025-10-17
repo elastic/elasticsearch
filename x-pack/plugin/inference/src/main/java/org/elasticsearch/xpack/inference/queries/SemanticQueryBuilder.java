@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -387,6 +388,25 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         });
     }
 
+    static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
+        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
+        T currentQueryBuilder,
+        Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap,
+        Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
+    ) {
+        T rewritten = currentQueryBuilder;
+        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = supplier.get();
+        if (newInferenceResultsMap != null) {
+            Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = mergeInferenceResultsMaps(
+                currentInferenceResultsMap,
+                newInferenceResultsMap
+            );
+            rewritten = copyGenerator.apply(mergedInferenceResultsMap);
+        }
+
+        return rewritten;
+    }
+
     private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
         InferenceResultsMapSupplier inferenceResultsMapSupplier,
         int inferenceRequestCount,
@@ -515,18 +535,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
-            SemanticQueryBuilder rewritten = this;
-
-            Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = inferenceResultsMapSupplier.get();
-            if (newInferenceResultsMap != null) {
-                Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = mergeInferenceResultsMaps(
-                    inferenceResultsMap,
-                    newInferenceResultsMap
-                );
-                rewritten = new SemanticQueryBuilder(this, mergedInferenceResultsMap, null, ccsRequest);
-            }
-
-            return rewritten;
+            return getNewInferenceResultsFromSupplier(
+                inferenceResultsMapSupplier,
+                this,
+                inferenceResultsMap,
+                m -> new SemanticQueryBuilder(this, m, null, ccsRequest)
+            );
         }
 
         Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForField(

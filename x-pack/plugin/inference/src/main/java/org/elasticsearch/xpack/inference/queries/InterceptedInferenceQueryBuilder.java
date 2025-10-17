@@ -44,7 +44,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getInferenceResults;
-import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.mergeInferenceResultsMaps;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getNewInferenceResultsFromSupplier;
 
 /**
  * <p>
@@ -344,18 +344,12 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
-            QueryBuilder rewritten = this;
-
-            Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = inferenceResultsMapSupplier.get();
-            if (newInferenceResultsMap != null) {
-                Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = mergeInferenceResultsMaps(
-                    inferenceResultsMap,
-                    newInferenceResultsMap
-                );
-                rewritten = copy(mergedInferenceResultsMap, null, ccsRequest);
-            }
-
-            return rewritten;
+            return getNewInferenceResultsFromSupplier(
+                inferenceResultsMapSupplier,
+                this,
+                inferenceResultsMap,
+                m -> copy(m, null, ccsRequest)
+            );
         }
 
         FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 
 import java.io.IOException;
@@ -39,7 +38,7 @@ import java.util.Objects;
  * A function to be used to score specific portions of an ES|QL query e.g., in conjunction with
  * an {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
  */
-public class Score extends Function implements EvaluatorMapper, ExecutesOn.Data {
+public class Score extends Function implements EvaluatorMapper {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "score", Score::readFrom);
 

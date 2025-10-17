@@ -345,7 +345,8 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10023          |330870342              |3.181719481E8                |null             |5                    |F
 ;
 
-three
+three-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: inline_stats
 
 FROM employees
@@ -2567,7 +2568,8 @@ emp_no:integer | gender:keyword | languages:integer | greater_than:double | less
 10010          | null           | 4                 | 6.94921             | 7.12723          | 27921.22074   | 10
 ;
 
-twoConsecutiveInlinestatsWithFalseFilters
+twoConsecutiveInlinestatsWithFalseFilters-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: inline_stats
 from employees
 | keep emp_no
@@ -2946,7 +2948,8 @@ mc:l           | count:l       | event_duration:l
 6              |2              |3450233
 ;
 
-multiIndexIpStringInlinestats_Inline4
+multiIndexIpStringInlinestats_Inline4-Ignore
+// temporarily forbid LIMIT before INLINE STATS 
 required_capability: inline_stats
 
 FROM sample_data, sample_data_str

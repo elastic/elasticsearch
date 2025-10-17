@@ -41,7 +41,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     }
 
     private static Boolean readIsOfficial(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             return in.readBoolean();
         } else {
             return null;
@@ -49,7 +49,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     }
 
     private static PluginApiInfo readApiInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             return in.readOptionalWriteable(PluginApiInfo::new);
         } else {
             return null;
@@ -73,7 +73,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         descriptor.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             out.writeBoolean(isOfficial);
             out.writeOptionalWriteable(pluginApiInfo);
         }

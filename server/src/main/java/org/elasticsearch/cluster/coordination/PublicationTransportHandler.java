@@ -187,7 +187,7 @@ public class PublicationTransportHandler {
         ClusterState incomingState;
         try {
             final Diff<ClusterState> diff;
-            final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
+            final boolean includesLastCommittedData = request.version().supports(INCLUDES_LAST_COMMITTED_DATA_VERSION);
             final boolean clusterUuidCommitted;
             final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
 
@@ -305,7 +305,7 @@ public class PublicationTransportHandler {
                 stream.setTransportVersion(version);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
-                if (version.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
+                if (version.supports(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
                     stream.writeBoolean(newState.metadata().clusterUUIDCommitted());
                     newState.getLastCommittedConfiguration().writeTo(stream);
                 }

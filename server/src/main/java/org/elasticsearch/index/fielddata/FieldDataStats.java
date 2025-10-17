@@ -48,7 +48,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         memorySize = in.readVLong();
         evictions = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             long buildTimeMillis = in.readVLong();
             Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
             if (in.readBoolean()) {
@@ -111,7 +111,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
         out.writeOptionalWriteable(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeVLong(globalOrdinalsStats.buildTimeMillis);
             if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
                 out.writeBoolean(true);

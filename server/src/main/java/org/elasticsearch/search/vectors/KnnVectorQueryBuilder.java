@@ -257,12 +257,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             this.k = in.readOptionalVInt();
         } else {
             this.k = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             this.numCands = in.readOptionalVInt();
         } else {
             this.numCands = in.readVInt();
@@ -272,11 +272,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
             if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                || in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 this.queryVector = VectorData.fromFloats(in.readFloatArray());
             } else {
                 in.readBoolean();
@@ -284,15 +284,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 in.readBoolean(); // used for byteQueryVector, which was always null
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             this.filterQueries.addAll(readQueries(in));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             this.vectorSimilarity = in.readOptionalFloat();
         } else {
             this.vectorSimilarity = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
             this.queryVectorBuilder = null;
@@ -363,10 +363,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             throw new IllegalStateException("missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(k);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeOptionalVInt(numCands);
         } else {
             if (numCands == null) {
@@ -384,11 +384,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                || out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 out.writeFloatArray(queryVector.asFloatVector());
             } else {
                 out.writeBoolean(true);
@@ -396,10 +396,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeBoolean(false); // used for byteQueryVector, which was always null
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             writeQueries(out, filterQueries);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
         if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
@@ -411,7 +411,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 )
             );
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {

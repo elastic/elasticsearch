@@ -57,13 +57,13 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             this.maxConcurrentShardRequests = in.readVInt();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             this.allowPartialSearchResults = in.readBoolean();
         }
     }
@@ -76,13 +76,13 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeVInt(maxConcurrentShardRequests);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             out.writeBoolean(allowPartialSearchResults);
         } else if (allowPartialSearchResults) {
             throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());

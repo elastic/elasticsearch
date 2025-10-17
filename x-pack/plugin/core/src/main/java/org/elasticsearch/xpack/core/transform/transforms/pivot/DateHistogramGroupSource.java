@@ -228,7 +228,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         super(in);
         this.interval = readInterval(in);
         this.timeZone = in.readOptionalZoneId();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             this.offset = in.readLong();
         } else {
             this.offset = 0;
@@ -331,7 +331,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         super.writeTo(out);
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             out.writeLong(offset);
         }
     }

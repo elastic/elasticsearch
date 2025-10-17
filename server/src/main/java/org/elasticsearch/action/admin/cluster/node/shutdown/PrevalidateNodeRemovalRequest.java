@@ -46,7 +46,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         names = in.readStringArray();
         ids = in.readStringArray();
         externalIds = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             timeout = in.readTimeValue();
         }
     }
@@ -57,7 +57,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         out.writeStringArray(names);
         out.writeStringArray(ids);
         out.writeStringArray(externalIds);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             out.writeTimeValue(timeout);
         }
     }

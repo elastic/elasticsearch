@@ -63,7 +63,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.serialNumber = in.readString();
         this.hasPrivateKey = in.readBoolean();
         this.expiry = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             this.issuer = in.readString();
         } else {
             this.issuer = "";
@@ -79,7 +79,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         out.writeString(serialNumber);
         out.writeBoolean(hasPrivateKey);
         out.writeLong(expiry.toInstant().toEpochMilli());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeString(issuer);
         }
     }

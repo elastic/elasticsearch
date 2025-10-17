@@ -185,7 +185,7 @@ public class GetDataStreamLifecycleAction {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                     out.writeBoolean(isInternalDataStream);
                 }
             }
@@ -264,7 +264,7 @@ public class GetDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }

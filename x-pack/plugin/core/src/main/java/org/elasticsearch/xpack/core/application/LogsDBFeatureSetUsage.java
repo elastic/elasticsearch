@@ -28,7 +28,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super(input);
         indicesCount = input.readVInt();
         indicesWithSyntheticSource = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+        if (input.getTransportVersion().supports(TransportVersions.V_8_17_0)) {
             numDocs = input.readVLong();
             sizeInBytes = input.readVLong();
         } else {
@@ -48,7 +48,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super.writeTo(out);
         out.writeVInt(indicesCount);
         out.writeVInt(indicesWithSyntheticSource);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_17_0)) {
             out.writeVLong(numDocs);
             out.writeVLong(sizeInBytes);
         }

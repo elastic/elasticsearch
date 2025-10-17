@@ -69,7 +69,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         this.historyID = in.readString();
         this.version = in.readLong();
         this.nodes = in.readCollectionAsList(DesiredNode::readFrom);
-        if (in.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
+        if (in.getTransportVersion().supports(DRY_RUN_VERSION)) {
             this.dryRun = in.readBoolean();
         } else {
             this.dryRun = false;
@@ -82,7 +82,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         out.writeString(historyID);
         out.writeLong(version);
         out.writeCollection(nodes);
-        if (out.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
+        if (out.getTransportVersion().supports(DRY_RUN_VERSION)) {
             out.writeBoolean(dryRun);
         }
     }

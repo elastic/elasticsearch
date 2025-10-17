@@ -25,7 +25,7 @@ public record JoinStatus(DiscoveryNode remoteNode, long term, String message, Ti
             new DiscoveryNode(in),
             in.readLong(),
             in.readString(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
+            in.getTransportVersion().supports(TransportVersions.V_8_15_0)
                 ? in.readTimeValue()
                 : new TimeValue(in.readLong(), TimeUnit.valueOf(in.readString()))
         );
@@ -36,7 +36,7 @@ public record JoinStatus(DiscoveryNode remoteNode, long term, String message, Ti
         remoteNode.writeTo(out);
         out.writeLong(term);
         out.writeString(message);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeTimeValue(age);
         } else {
             out.writeLong(age.duration());

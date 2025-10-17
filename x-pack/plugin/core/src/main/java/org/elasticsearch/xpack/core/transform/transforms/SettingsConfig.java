@@ -162,17 +162,17 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.alignCheckpoints = in.readOptionalInt();
         this.usePit = in.readOptionalInt();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             deduceMappings = in.readOptionalInt();
         } else {
             deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             numFailureRetries = in.readOptionalInt();
         } else {
             numFailureRetries = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             unattended = in.readOptionalInt();
         } else {
             unattended = DEFAULT_UNATTENDED;
@@ -278,13 +278,13 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         out.writeOptionalInt(alignCheckpoints);
         out.writeOptionalInt(usePit);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
             out.writeOptionalInt(deduceMappings);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeOptionalInt(numFailureRetries);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             out.writeOptionalInt(unattended);
         }
     }

@@ -104,7 +104,7 @@ public class DownsampleAction implements LifecycleAction {
     public DownsampleAction(StreamInput in) throws IOException {
         this(
             new DateHistogramInterval(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
+            in.getTransportVersion().supports(TransportVersions.V_8_10_X)
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
                 : DEFAULT_WAIT_TIMEOUT,
             in.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING) ? in.readOptionalBoolean() : null
@@ -114,7 +114,7 @@ public class DownsampleAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             out.writeString(waitTimeout.getStringRep());
         } else {
             out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());

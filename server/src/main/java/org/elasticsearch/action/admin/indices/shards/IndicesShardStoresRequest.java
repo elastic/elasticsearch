@@ -58,7 +58,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
             statuses.add(ClusterHealthStatus.readFrom(in));
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             maxConcurrentShardRequests = in.readVInt();
         } else {
             // earlier versions had unlimited concurrency
@@ -72,7 +72,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         out.writeStringArrayNullable(indices);
         out.writeCollection(statuses, (o, v) -> o.writeByte(v.value()));
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeVInt(maxConcurrentShardRequests);
         } else if (maxConcurrentShardRequests != DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS) {
             throw new IllegalArgumentException(

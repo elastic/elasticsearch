@@ -102,7 +102,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.runNodeLevelReduction = false;
         }
-        if (in.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+        if (in.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             this.reductionLateMaterialization = in.readBoolean();
         } else {
             this.reductionLateMaterialization = false;
@@ -123,7 +123,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(runNodeLevelReduction);
         }
-        if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+        if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
         }
     }

@@ -115,7 +115,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         description = in.readString();
         startTime = in.readInstant();
         endTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             skipResult = in.readBoolean();
             skipModelUpdate = in.readBoolean();
             forceTimeShift = in.readOptionalInt();
@@ -204,7 +204,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         out.writeString(description);
         out.writeInstant(startTime);
         out.writeInstant(endTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             out.writeBoolean(skipResult);
             out.writeBoolean(skipModelUpdate);
             out.writeOptionalInt(forceTimeShift);

@@ -69,8 +69,8 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
-        final boolean canIncludeRemoteCluster = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
+        final boolean canIncludeRemoteIndices = version.supports(TransportVersions.V_8_8_0);
+        final boolean canIncludeRemoteCluster = version.supports(ROLE_REMOTE_CLUSTER_PRIVS);
 
         final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices, canIncludeRemoteCluster);
 

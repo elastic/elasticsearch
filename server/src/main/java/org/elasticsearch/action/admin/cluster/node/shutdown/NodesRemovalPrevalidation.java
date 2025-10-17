@@ -149,7 +149,7 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isSafe);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 reason.writeTo(out);
             }
             out.writeString(message);

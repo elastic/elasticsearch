@@ -152,14 +152,14 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         public Response(StreamInput in) throws IOException {
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
-            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+            primaryTerm = in.getTransportVersion().supports(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             out.writeOptionalWriteable(getResult);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 out.writeVLong(primaryTerm);
             }
         }

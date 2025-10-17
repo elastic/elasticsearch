@@ -124,12 +124,12 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             elasticsearchVersion = in.readString();
         }
         javaVersion = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             this.classname = in.readOptionalString();
         } else {
             this.classname = in.readString();
         }
-        if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (in.getTransportVersion().supports(MODULE_NAME_SUPPORT)) {
             this.moduleName = in.readOptionalString();
         } else {
             this.moduleName = null;
@@ -143,7 +143,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         }
         isLicensed = in.readBoolean();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             isModular = in.readBoolean();
             isStable = in.readBoolean();
         } else {
@@ -165,12 +165,12 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             out.writeString(elasticsearchVersion);
         }
         out.writeString(javaVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeOptionalString(classname);
         } else {
             out.writeString(classname);
         }
-        if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (out.getTransportVersion().supports(MODULE_NAME_SUPPORT)) {
             out.writeOptionalString(moduleName);
         }
         out.writeStringCollection(extendedPlugins);
@@ -181,7 +181,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             out.writeOptionalString(null);
         }
         out.writeBoolean(isLicensed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeBoolean(isModular);
             out.writeBoolean(isStable);
         }

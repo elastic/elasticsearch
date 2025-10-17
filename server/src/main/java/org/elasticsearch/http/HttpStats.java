@@ -43,7 +43,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
             in.readVLong(),
             in.readVLong(),
             in.readCollectionAsList(ClientStats::new),
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(HttpRouteStats::new) : Map.of()
+            in.getTransportVersion().supports(V_8_12_0) ? in.readMap(HttpRouteStats::new) : Map.of()
         );
     }
 
@@ -52,7 +52,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeCollection(clientStats);
-        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
+        if (out.getTransportVersion().supports(V_8_12_0)) {
             out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
         }
     }

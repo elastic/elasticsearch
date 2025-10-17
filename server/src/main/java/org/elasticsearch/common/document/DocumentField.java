@@ -47,7 +47,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         name = in.readString();
         values = in.readCollectionAsList(StreamInput::readGenericValue);
         ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             lookupFields = in.readCollectionAsList(LookupField::new);
         } else {
             lookupFields = List.of();
@@ -122,7 +122,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
         out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             out.writeCollection(lookupFields);
         } else {
             if (lookupFields.isEmpty() == false) {

@@ -78,8 +78,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.queries = in.readMap(StreamInput::readLong);
         this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
-        this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
-        this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
+        this.rescorers = in.getTransportVersion().supports(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
+        this.retrievers = in.getTransportVersion().supports(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
         this.extendedSearchUsageStats = in.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY)
             ? new ExtendedSearchUsageStats(in)
             : ExtendedSearchUsageStats.EMPTY;
@@ -91,10 +91,10 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         out.writeMap(sections, StreamOutput::writeLong);
         out.writeVLong(totalSearchCount);
 
-        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
+        if (out.getTransportVersion().supports(V_8_12_0)) {
             out.writeMap(rescorers, StreamOutput::writeLong);
         }
-        if (out.getTransportVersion().onOrAfter(V_8_16_0)) {
+        if (out.getTransportVersion().supports(V_8_16_0)) {
             out.writeMap(retrievers, StreamOutput::writeLong);
         }
         if (out.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY)) {

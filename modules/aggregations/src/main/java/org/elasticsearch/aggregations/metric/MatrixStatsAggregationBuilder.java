@@ -57,14 +57,14 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
         }
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             multiValueMode.writeTo(out);
         }
     }

@@ -52,7 +52,7 @@ public class OsInfo implements ReportingService.Info {
     public OsInfo(StreamInput in) throws IOException {
         this.refreshInterval = in.readLong();
         this.availableProcessors = in.readInt();
-        if (in.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
+        if (in.getTransportVersion().supports(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
             this.allocatedProcessors = Processors.readFrom(in);
         } else {
             this.allocatedProcessors = Processors.of((double) in.readInt());
@@ -67,7 +67,7 @@ public class OsInfo implements ReportingService.Info {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
-        if (out.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
+        if (out.getTransportVersion().supports(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
             allocatedProcessors.writeTo(out);
         } else {
             out.writeInt(getAllocatedProcessors());

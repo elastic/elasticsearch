@@ -62,7 +62,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             if (in.readBoolean()) {
                 state = TDigestState.read(in);
             } else {
@@ -78,7 +78,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             if (this.state != null) {
                 out.writeBoolean(true);
                 TDigestState.write(state, out);

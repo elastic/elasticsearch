@@ -85,7 +85,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
             outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
         } else {
             transportActionStats = Map.of();
@@ -112,7 +112,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
             out.writeVLong(handlingTimeBucketFrequency);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeMap(transportActionStats, StreamOutput::writeWriteable);
         } // else just drop these stats
     }

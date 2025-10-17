@@ -50,7 +50,7 @@ public class SimulateIndexTemplateRequest extends LocalClusterStateRequest {
         super(in);
         indexName = in.readString();
         indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             includeDefaults = in.readBoolean();
         }
     }

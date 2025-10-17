@@ -121,7 +121,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
+        return in.getTransportVersion().supports(TransportVersions.V_8_13_0)
             ? in.readCollectionAsImmutableSet(StreamInput::readString)
             : Set.of();
     }
@@ -345,7 +345,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private static final TransportVersion DIFFABLE_VERSION = TransportVersions.V_8_5_0;
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
+        if (in.getTransportVersion().supports(DIFFABLE_VERSION)) {
             return new SnapshotInProgressDiff(in);
         }
         return readDiffFrom(Custom.class, TYPE, in);
@@ -363,7 +363,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeStringCollection(nodesIdsForRemoval);
         } else {
             assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
@@ -551,7 +551,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
-        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
+        assert clusterState.getMinTransportVersion().supports(TransportVersions.V_8_13_0);
 
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
@@ -1876,7 +1876,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
-            if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
+            if (out.getTransportVersion().supports(DIFFABLE_VERSION)) {
                 if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                     DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
                         if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
@@ -1895,7 +1895,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
                 out.writeStringCollection(nodeIdsForRemoval);
             } else {
                 assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;

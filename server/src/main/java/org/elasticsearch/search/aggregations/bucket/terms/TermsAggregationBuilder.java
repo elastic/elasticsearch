@@ -198,7 +198,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             excludeDeletedDocs = in.readBoolean();
         }
     }
@@ -216,7 +216,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeBoolean(excludeDeletedDocs);
         }
     }

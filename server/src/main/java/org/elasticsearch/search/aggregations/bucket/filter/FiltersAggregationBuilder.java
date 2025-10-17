@@ -128,7 +128,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         otherBucket = in.readBoolean();
         otherBucketKey = in.readString();
-        keyedBucket = in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readBoolean() : true;
+        keyedBucket = in.getTransportVersion().supports(TransportVersions.V_8_8_0) ? in.readBoolean() : true;
     }
 
     @Override
@@ -137,7 +137,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         out.writeCollection(filters, keyed ? StreamOutput::writeWriteable : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeBoolean(keyedBucket);
         }
     }

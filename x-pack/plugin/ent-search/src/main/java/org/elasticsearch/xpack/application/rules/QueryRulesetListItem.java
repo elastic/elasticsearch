@@ -62,13 +62,13 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public QueryRulesetListItem(StreamInput in) throws IOException {
         this.rulesetId = in.readString();
         this.ruleTotalCount = in.readInt();
-        if (in.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().supports(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
             this.criteriaTypeToCountMap = in.readMap(m -> in.readEnum(QueryRuleCriteriaType.class), StreamInput::readInt);
         } else {
             this.criteriaTypeToCountMap = Map.of();
         }
         TransportVersion streamTransportVersion = in.getTransportVersion();
-        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
+        if (streamTransportVersion.supports(TransportVersions.V_8_16_1)) {
             this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
         } else {
             this.ruleTypeToCountMap = Map.of();
@@ -98,11 +98,11 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(rulesetId);
         out.writeInt(ruleTotalCount);
-        if (out.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
             out.writeMap(criteriaTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
         }
         TransportVersion streamTransportVersion = out.getTransportVersion();
-        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
+        if (streamTransportVersion.supports(TransportVersions.V_8_16_1)) {
             out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
         }
     }

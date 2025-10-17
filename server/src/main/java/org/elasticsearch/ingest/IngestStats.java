@@ -88,7 +88,7 @@ public record IngestStats(
                 : Metadata.DEFAULT_PROJECT_ID;
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
+            var byteStat = in.getTransportVersion().supports(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
             pipelineStats.add(new PipelineStat(projectId, pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
@@ -117,7 +117,7 @@ public record IngestStats(
             }
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 pipelineStat.byteStats().writeTo(out);
             }
             List<ProcessorStat> processorStatsForPipeline = processorStats.getOrDefault(pipelineStat.projectId(), Map.of())

@@ -264,7 +264,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         } else {
             assignmentMemoryBasis = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             outputMemoryAllocatorBytes = in.readOptionalVLong();
         } else {
             outputMemoryAllocatorBytes = null;
@@ -306,7 +306,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeOptionalVLong(outputMemoryAllocatorBytes);
         }
         out.writeVLong(categorizedDocCount);

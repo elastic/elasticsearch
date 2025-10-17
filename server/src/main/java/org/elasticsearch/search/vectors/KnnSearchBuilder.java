@@ -332,30 +332,30 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
             this.queryVector = VectorData.fromFloats(in.readFloatArray());
         }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             this.queryName = in.readOptionalString();
         } else {
             this.queryName = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
             this.queryVectorBuilder = null;
         }
         this.querySupplier = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             this.similarity = in.readOptionalFloat();
         } else {
             this.similarity = null;
         }
-        if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
+        if (in.getTransportVersion().supports(V_8_11_X)) {
             this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         }
         if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
@@ -603,14 +603,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
             out.writeFloatArray(queryVector.asFloatVector());
         }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeOptionalString(queryName);
         }
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {
@@ -622,13 +622,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 )
             );
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(similarity);
         }
-        if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
+        if (out.getTransportVersion().supports(V_8_11_X)) {
             out.writeOptionalWriteable(innerHitBuilder);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {

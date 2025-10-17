@@ -226,7 +226,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
         } else {
             ecsCompatibility = getNonNullEcsCompatibilityString(null);
@@ -272,7 +272,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             out.writeString(ecsCompatibility);
         }
         if (jodaTimestampFormats == null) {

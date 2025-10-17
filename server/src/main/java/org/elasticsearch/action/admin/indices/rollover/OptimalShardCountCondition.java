@@ -66,6 +66,6 @@ public class OptimalShardCountCondition extends Condition<Integer> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_14_0);
+        return version.supports(TransportVersions.V_8_14_0);
     }
 }

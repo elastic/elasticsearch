@@ -51,7 +51,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super(in);
         repository = in.readString();
         snapshots = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             waitForCompletion = in.readBoolean();
         }
     }
@@ -61,7 +61,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeBoolean(waitForCompletion);
         } else {
             assert waitForCompletion : "Using wait_for_completion parameter when it should have been disallowed";

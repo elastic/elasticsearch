@@ -66,7 +66,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             if (in.readBoolean()) {
                 this.config = new TransformConfig(in);
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 if (in.readBoolean()) {
                     this.authState = new AuthorizationState(in);
                 }
@@ -153,7 +153,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 out.writeBoolean(true);
                 config.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 if (authState == null) {
                     out.writeBoolean(false);
                 } else {

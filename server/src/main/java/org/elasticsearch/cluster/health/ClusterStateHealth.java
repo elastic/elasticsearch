@@ -142,7 +142,7 @@ public final class ClusterStateHealth implements Writeable {
         status = ClusterHealthStatus.readFrom(in);
         indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             unassignedPrimaryShards = in.readVInt();
         } else {
             unassignedPrimaryShards = 0;
@@ -234,7 +234,7 @@ public final class ClusterStateHealth implements Writeable {
         out.writeByte(status.value());
         out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             out.writeVInt(unassignedPrimaryShards);
         }
     }

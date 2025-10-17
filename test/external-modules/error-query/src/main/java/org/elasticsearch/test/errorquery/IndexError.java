@@ -54,7 +54,7 @@ public class IndexError implements Writeable, ToXContentFragment {
         this.shardIds = in.readBoolean() ? in.readIntArray() : null;
         this.errorType = in.readEnum(ERROR_TYPE.class);
         this.message = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             this.stallTimeSeconds = in.readVInt();
         } else {
             this.stallTimeSeconds = 0;
@@ -70,7 +70,7 @@ public class IndexError implements Writeable, ToXContentFragment {
         }
         out.writeEnum(errorType);
         out.writeString(message);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
             out.writeVInt(stallTimeSeconds);
         }
     }

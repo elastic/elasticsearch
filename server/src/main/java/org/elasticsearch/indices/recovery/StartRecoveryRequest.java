@@ -44,7 +44,7 @@ public class StartRecoveryRequest extends AbstractTransportRequest {
         targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
             clusterStateVersion = in.readVLong();
         } else {
             clusterStateVersion = 0L; // bwc: do not wait for cluster state to be applied
@@ -161,7 +161,7 @@ public class StartRecoveryRequest extends AbstractTransportRequest {
         out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
             out.writeVLong(clusterStateVersion);
         } // else bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         metadataSnapshot.writeTo(out);

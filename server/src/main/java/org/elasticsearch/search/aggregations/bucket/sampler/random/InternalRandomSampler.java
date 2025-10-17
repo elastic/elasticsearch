@@ -57,7 +57,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
         super(in);
         this.seed = in.readInt();
         this.probability = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             this.shardSeed = in.readOptionalInt();
         } else {
             this.shardSeed = null;
@@ -69,7 +69,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
         super.doWriteTo(out);
         out.writeInt(seed);
         out.writeDouble(probability);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeOptionalInt(shardSeed);
         }
     }

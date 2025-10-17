@@ -49,7 +49,7 @@ public class GetCcrRestoreFileChunkRequest extends LegacyActionRequest implement
         sessionUUID = in.readString();
         fileName = in.readString();
         size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
+        if (in.getTransportVersion().supports(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
             shardId = new ShardId(in);
         } else {
             shardId = null;
@@ -62,7 +62,7 @@ public class GetCcrRestoreFileChunkRequest extends LegacyActionRequest implement
         out.writeString(sessionUUID);
         out.writeString(fileName);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
+        if (out.getTransportVersion().supports(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
             shardId.writeTo(out);
         }
     }

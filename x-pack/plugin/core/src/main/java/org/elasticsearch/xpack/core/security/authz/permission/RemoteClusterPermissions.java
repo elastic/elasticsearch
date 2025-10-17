@@ -128,7 +128,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
      */
     public RemoteClusterPermissions removeUnsupportedPrivileges(TransportVersion outboundVersion) {
         Objects.requireNonNull(outboundVersion, "outboundVersion must not be null");
-        if (outboundVersion.onOrAfter(lastTransportVersionPermission)) {
+        if (outboundVersion.supports(lastTransportVersionPermission)) {
             return this;
         }
         RemoteClusterPermissions copyForOutboundVersion = new RemoteClusterPermissions();

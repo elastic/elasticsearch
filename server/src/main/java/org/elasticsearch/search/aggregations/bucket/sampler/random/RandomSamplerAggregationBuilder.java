@@ -80,7 +80,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             this.shardSeed = in.readOptionalInt();
         }
     }
@@ -100,7 +100,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeInt(seed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeOptionalInt(shardSeed);
         }
     }

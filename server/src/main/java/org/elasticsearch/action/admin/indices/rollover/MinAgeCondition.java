@@ -67,6 +67,6 @@ public class MinAgeCondition extends Condition<TimeValue> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_4_0);
+        return version.supports(TransportVersions.V_8_4_0);
     }
 }

@@ -50,10 +50,10 @@ public record HealthInfo(
     public HealthInfo(StreamInput input) throws IOException {
         this(
             input.readMap(DiskHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
+            input.getTransportVersion().supports(TransportVersions.V_8_12_0)
                 ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
                 : null,
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
+            input.getTransportVersion().supports(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : INDETERMINATE
@@ -63,10 +63,10 @@ public record HealthInfo(
     @Override
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (output.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             output.writeOptionalWriteable(dslHealthInfo);
         }
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (output.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         }
         if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {

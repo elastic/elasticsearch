@@ -336,7 +336,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         IndexVersion maxIndexVersion = IndexVersion.readVersion(in);
         versionInfo = new VersionInformation(version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
-        if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
+        if (in.getTransportVersion().supports(EXTERNAL_ID_VERSION)) {
             this.externalId = readStringLiteral.read(in);
         } else {
             this.externalId = nodeName;
@@ -374,7 +374,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             IndexVersion.writeVersion(versionInfo.minReadOnlyIndexVersion(), out);
         }
         IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
-        if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
+        if (out.getTransportVersion().supports(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);
         }
     }

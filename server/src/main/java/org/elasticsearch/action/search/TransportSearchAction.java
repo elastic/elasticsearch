@@ -991,7 +991,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 final String[] indices = entry.getValue().indices();
                 final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                 // TODO: support point-in-time
-                if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                if (searchContext == null && connection.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                     SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                         indices,
                         indicesOptions,

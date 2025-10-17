@@ -194,7 +194,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             seqNo = in.readZLong();
             term = in.readVLong();
             aborted = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 failureStoreStatus = IndexDocFailureStoreStatus.read(in);
             } else {
                 failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
@@ -209,7 +209,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             out.writeZLong(seqNo);
             out.writeVLong(term);
             out.writeBoolean(aborted);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 failureStoreStatus.writeTo(out);
             }
         }

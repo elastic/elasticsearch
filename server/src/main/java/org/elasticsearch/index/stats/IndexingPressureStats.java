@@ -83,13 +83,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentPrimaryOps = 0;
         this.currentReplicaOps = 0;
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             primaryDocumentRejections = in.readVLong();
         } else {
             primaryDocumentRejections = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             totalCoordinatingRequests = in.readVLong();
         } else {
             totalCoordinatingRequests = -1L;
@@ -185,11 +185,11 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         out.writeVLong(memoryLimit);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeVLong(primaryDocumentRejections);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeVLong(totalCoordinatingRequests);
         }
 

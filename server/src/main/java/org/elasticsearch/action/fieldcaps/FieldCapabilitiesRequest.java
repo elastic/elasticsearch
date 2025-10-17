@@ -81,11 +81,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
         runtimeFields = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             filters = in.readStringArray();
             types = in.readStringArray();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
         if (in.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
@@ -135,11 +135,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(types);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
         if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {

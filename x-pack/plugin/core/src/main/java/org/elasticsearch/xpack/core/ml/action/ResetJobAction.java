@@ -62,7 +62,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             skipJobStateValidation = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 deleteUserAnnotations = in.readBoolean();
             } else {
                 deleteUserAnnotations = false;
@@ -74,7 +74,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(skipJobStateValidation);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 out.writeBoolean(deleteUserAnnotations);
             }
         }

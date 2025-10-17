@@ -48,9 +48,9 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(V_8_2_0.after(V_8_2_0), is(false));
         assertThat(V_8_16_0.after(V_8_2_0), is(true));
 
-        assertThat(V_8_2_0.onOrAfter(V_8_16_0), is(false));
-        assertThat(V_8_2_0.onOrAfter(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrAfter(V_8_2_0), is(true));
+        assertThat(V_8_2_0.supports(V_8_16_0), is(false));
+        assertThat(V_8_2_0.supports(V_8_2_0), is(true));
+        assertThat(V_8_16_0.supports(V_8_2_0), is(true));
 
         assertThat(V_8_2_0, is(lessThan(V_8_16_0)));
         assertThat(V_8_2_0.compareTo(V_8_2_0), is(0));
@@ -191,7 +191,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+            if (tv.supports(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv
@@ -420,6 +420,14 @@ public class TransportVersionTests extends ESTestCase {
                 + "and generateTransportVersion gradle task",
             TransportVersions.DEFINED_VERSIONS.getLast().id(),
             equalTo(8_840_0_00)
+        );
+    }
+
+    public void testMinimumCompatibleHasNoPatchVersion() {
+        assertThat(
+            "TransportVersion.minimumCompatible() should not have a patch version",
+            TransportVersion.minimumCompatible().nextPatchVersion(),
+            is(null)
         );
     }
 }

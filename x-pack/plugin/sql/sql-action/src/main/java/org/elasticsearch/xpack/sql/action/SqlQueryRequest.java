@@ -163,7 +163,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
         this.keepAlive = in.readOptionalTimeValue();
-        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
+        allowPartialSearchResults = in.getTransportVersion().supports(TransportVersions.V_8_3_0) && in.readBoolean();
     }
 
     /**
@@ -295,7 +295,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeBoolean(keepOnCompletion);
         out.writeOptionalTimeValue(keepAlive);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
         }
     }

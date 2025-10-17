@@ -109,7 +109,7 @@ public record CompatibilityVersions(
         TransportVersion transportVersion = TransportVersion.readVersion(in);
 
         Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = Map.of();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
             mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
         }
 
@@ -120,7 +120,7 @@ public record CompatibilityVersions(
     public void writeTo(StreamOutput out) throws IOException {
         TransportVersion.writeVersion(this.transportVersion(), out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
             out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
         }
     }

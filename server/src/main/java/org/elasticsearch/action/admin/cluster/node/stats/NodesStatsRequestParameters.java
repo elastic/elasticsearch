@@ -39,7 +39,7 @@ public class NodesStatsRequestParameters implements Writeable {
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
         requestedMetrics = Metric.readSetFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             includeShardsStats = in.readBoolean();
         } else {
             includeShardsStats = true;
@@ -50,7 +50,7 @@ public class NodesStatsRequestParameters implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
         Metric.writeSetTo(out, requestedMetrics);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeBoolean(includeShardsStats);
         }
     }
@@ -117,7 +117,7 @@ public class NodesStatsRequestParameters implements Writeable {
         }
 
         public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 out.writeEnumSet(metrics);
             } else {
                 out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
@@ -125,7 +125,7 @@ public class NodesStatsRequestParameters implements Writeable {
         }
 
         public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 return in.readEnumSet(Metric.class);
             } else {
                 return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {

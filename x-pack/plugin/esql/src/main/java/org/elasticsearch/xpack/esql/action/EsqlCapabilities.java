@@ -1615,6 +1615,11 @@ public class EsqlCapabilities {
          */
         FIX_FILTER_ORDINALS,
 
+        /**
+         * Fix double release in inline stats when LocalRelation is reused
+         */
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)
+
         ;
 
         private final boolean enabled;

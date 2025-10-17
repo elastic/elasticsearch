@@ -187,11 +187,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         deleteJob(jobId);
 
         // Verify the index still exists but has no aliases
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-            .setIndices(indexName)
-            .get();
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(indexName).get();
         assertThat(getIndexResponse.getIndices().length, is(1));
         assertThat(getIndexResponse.getAliases().size(), is(0));
 
@@ -208,11 +204,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
         List<String> expectedIndexList = List.of(indexName, rolledIndexName);
         List<String> actualIndexList = Arrays.asList(finalIndexResponse.getIndices());
 
-        assertThat(
-            "Mismatch for indices",
-            actualIndexList,
-            containsInAnyOrder(expectedIndexList.toArray(String[]::new))
-        );
+        assertThat("Mismatch for indices", actualIndexList, containsInAnyOrder(expectedIndexList.toArray(String[]::new)));
 
         assertThat(finalIndexResponse.getIndices()[0], is(indexName));
         assertThat(finalIndexResponse.getIndices()[1], is(rolledIndexName));

@@ -37,7 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
@@ -595,7 +595,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         InferenceResults inferenceResults = inferenceResultsList.getFirst();
         if (inferenceResults instanceof TextExpansionResults == false
-            && inferenceResults instanceof MlTextEmbeddingResults == false
+            && inferenceResults instanceof MlDenseEmbeddingResults == false
             && inferenceResults instanceof ErrorInferenceResults == false
             && inferenceResults instanceof WarningInferenceResults == false) {
             return new ErrorInferenceResults(
@@ -603,7 +603,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     "Expected query inference results to be of type ["
                         + TextExpansionResults.NAME
                         + "] or ["
-                        + MlTextEmbeddingResults.NAME
+                        + MlDenseEmbeddingResults.NAME
                         + "], got ["
                         + inferenceResults.getWriteableName()
                         + "]. Has the inference endpoint ["

@@ -25,7 +25,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -201,7 +201,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 fullyQualifiedInferenceId = new FullyQualifiedInferenceId(clusterAlias, semanticTextFieldType.getSearchInferenceId());
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
+            MlDenseEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -232,7 +232,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 throw new IllegalStateException("No query vector or query vector builder model ID specified");
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
+            MlDenseEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -250,20 +250,20 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         return knnQuery;
     }
 
-    private MlTextEmbeddingResults getTextEmbeddingResults(FullyQualifiedInferenceId fullyQualifiedInferenceId) {
+    private MlDenseEmbeddingResults getTextEmbeddingResults(FullyQualifiedInferenceId fullyQualifiedInferenceId) {
         InferenceResults inferenceResults = inferenceResultsMap.get(fullyQualifiedInferenceId);
         if (inferenceResults == null) {
             throw new IllegalStateException("Could not find inference results from inference endpoint [" + fullyQualifiedInferenceId + "]");
-        } else if (inferenceResults instanceof MlTextEmbeddingResults == false) {
+        } else if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
             throw new IllegalArgumentException(
                 "Expected query inference results to be of type ["
-                    + MlTextEmbeddingResults.NAME
+                    + MlDenseEmbeddingResults.NAME
                     + "], got ["
                     + inferenceResults.getWriteableName()
                     + "]. Are you specifying a compatible inference endpoint? Has the inference endpoint configuration changed?"
             );
         }
 
-        return (MlTextEmbeddingResults) inferenceResults;
+        return (MlDenseEmbeddingResults) inferenceResults;
     }
 }

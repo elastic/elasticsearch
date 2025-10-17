@@ -111,23 +111,25 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                 }
-                case DOC -> cases.add(
+                case DOC -> {
                     supportsNull = false;
-                    new Object[] {
-                        new TestCase(
-                            "doc",
-                            e,
-                            new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
-                            () -> new DocVector(
-                                AlwaysReferencedIndexedByShardId.INSTANCE,
-                                // Shard ID should be small and non-negative.
-                                blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
-                                randomBoolean() ? null : randomBoolean()
-                            ).asBlock()
-                        ) }
-                );
+                    cases.add(
+                        new Object[] {
+                            new TestCase(
+                                "doc",
+                                e,
+                                new DocVectorEncoder(AlwaysReferencedIndexedByShardId.INSTANCE),
+                                () -> new DocVector(
+                                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                                    // Shard ID should be small and non-negative.
+                                    blockFactory.newConstantIntBlockWith(randomIntBetween(0, 255), 1).asVector(),
+                                    blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                    blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                    randomBoolean() ? null : randomBoolean()
+                                ).asBlock()
+                            ) }
+                    );
+                }
                 case NULL -> {
                 }
                 default -> {

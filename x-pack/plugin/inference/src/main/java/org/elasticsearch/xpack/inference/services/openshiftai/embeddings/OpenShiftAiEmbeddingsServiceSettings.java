@@ -15,7 +15,9 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -78,10 +80,24 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
             OpenShiftAiService.NAME,
             context
         );
-        Boolean dimensionsSetByUser = switch (context) {
-            case REQUEST -> dimensions != null;
-            case PERSISTENT -> extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
-        };
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        switch (context) {
+            case REQUEST -> {
+                if (dimensionsSetByUser != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+                dimensionsSetByUser = dimensions != null;
+            }
+            case PERSISTENT -> {
+                if (dimensionsSetByUser == null) {
+                    validationException.addValidationError(
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+            }
+        }
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
@@ -108,7 +124,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
-        this.dimensionsSetByUser = in.readOptionalBoolean();
+        this.dimensionsSetByUser = in.readBoolean();
     }
 
     /**
@@ -120,7 +136,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
      * @param rateLimitSettings the rate limit settings for the service, can be null
-     *                          @param dimensionsSetByUser indicates if dimensions were set by the user, can be null
+     * @param dimensionsSetByUser indicates if dimensions were set by the user
      */
     public OpenShiftAiEmbeddingsServiceSettings(
         @Nullable String modelId,
@@ -129,7 +145,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable Boolean dimensionsSetByUser
+        Boolean dimensionsSetByUser
     ) {
         super(modelId, uri, rateLimitSettings);
         this.dimensions = dimensions;
@@ -147,7 +163,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
      * @param similarity the similarity measure to use, can be null
      * @param maxInputTokens the maximum number of input tokens, can be null
      * @param rateLimitSettings the rate limit settings for the service, can be null
-     *                          @param dimensionsSetByUser indicates if dimensions were set by the user, can be null
+     * @param dimensionsSetByUser indicates if dimensions were set by the user
      */
     public OpenShiftAiEmbeddingsServiceSettings(
         String modelId,
@@ -156,7 +172,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable Boolean dimensionsSetByUser
+        Boolean dimensionsSetByUser
     ) {
         this(modelId, createUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
     }
@@ -201,7 +217,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalBoolean(dimensionsSetByUser);
+        out.writeBoolean(dimensionsSetByUser);
     }
 
     @Override
@@ -217,9 +233,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        if (dimensionsSetByUser != null) {
-            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
-        }
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         return builder;
     }
 

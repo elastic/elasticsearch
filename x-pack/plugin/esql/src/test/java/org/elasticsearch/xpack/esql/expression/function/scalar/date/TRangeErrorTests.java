@@ -44,6 +44,11 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         // two parameters
         suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> null));
         suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.TIME_DURATION), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.DATE_PERIOD), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.TIME_DURATION), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.DATE_PERIOD), () -> null));
+
         return suppliers;
     }
 
@@ -97,15 +102,19 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
             }
         } else {
-            // 2nd parameter must have the same type as the first (the 1st one is taken from signature to compare)
-            validPerPosition = List.of(Set.of(DataType.KEYWORD, DataType.LONG), Set.of(signature.getFirst()));
+            if (DataType.isTemporalAmount(signature.get(1)) == false) {
+                // 2nd parameter must have the same type as the first (the 1st one is taken from signature to compare)
+                validPerPosition = List.of(Set.of(DataType.KEYWORD, DataType.LONG), Set.of(signature.getFirst()));
+            } else {
+                validPerPosition = List.of(Set.of(DataType.KEYWORD, DataType.LONG), Set.of(DataType.TIME_DURATION, DataType.DATE_PERIOD));
+            }
+
             for (int i = 0; i < signature.size(); i++) {
                 if (validPerPosition.get(i).contains(signature.get(i)) == false) {
                     return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
                 }
             }
         }
-
         return "";
     }
 }

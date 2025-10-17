@@ -2,9 +2,9 @@
 
 **Parameters**
 
-`start_time_or_interval`
+`start_time_or_offset`
 :    Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. 
 
-`end_time`
-:   Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter. The modifier can be a time duration or date period.
+`end_time_or_offset`
+:   Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative.
 

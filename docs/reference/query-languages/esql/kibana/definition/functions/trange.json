@@ -7,7 +7,7 @@
     {
       "params" : [
         {
-          "name" : "start_time_or_interval",
+          "name" : "start_time_or_offset",
           "type" : "date_period",
           "optional" : false,
           "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
@@ -19,7 +19,7 @@
     {
       "params" : [
         {
-          "name" : "start_time_or_interval",
+          "name" : "start_time_or_offset",
           "type" : "keyword",
           "optional" : false,
           "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
@@ -31,16 +31,16 @@
     {
       "params" : [
         {
-          "name" : "start_time_or_interval",
+          "name" : "start_time_or_offset",
           "type" : "keyword",
           "optional" : false,
           "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
         },
         {
-          "name" : "end_time",
-          "type" : "keyword",
+          "name" : "end_time_or_offset",
+          "type" : "date_period",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter. The modifier can be a time duration or date period."
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative."
         }
       ],
       "variadic" : false,
@@ -49,7 +49,43 @@
     {
       "params" : [
         {
-          "name" : "start_time_or_interval",
+          "name" : "start_time_or_offset",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+        },
+        {
+          "name" : "end_time_or_offset",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "start_time_or_offset",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+        },
+        {
+          "name" : "end_time_or_offset",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "start_time_or_offset",
           "type" : "long",
           "optional" : false,
           "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
@@ -61,16 +97,16 @@
     {
       "params" : [
         {
-          "name" : "start_time_or_interval",
+          "name" : "start_time_or_offset",
           "type" : "long",
           "optional" : false,
           "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
         },
         {
-          "name" : "end_time",
-          "type" : "long",
+          "name" : "end_time_or_offset",
+          "type" : "date_period",
           "optional" : true,
-          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter. The modifier can be a time duration or date period."
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative."
         }
       ],
       "variadic" : false,
@@ -79,7 +115,43 @@
     {
       "params" : [
         {
-          "name" : "start_time_or_interval",
+          "name" : "start_time_or_offset",
+          "type" : "long",
+          "optional" : false,
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+        },
+        {
+          "name" : "end_time_or_offset",
+          "type" : "long",
+          "optional" : true,
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "start_time_or_offset",
+          "type" : "long",
+          "optional" : false,
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+        },
+        {
+          "name" : "end_time_or_offset",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset). The offset can be a time duration or date period and can be either positive or negative."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "start_time_or_offset",
           "type" : "time_duration",
           "optional" : false,
           "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "

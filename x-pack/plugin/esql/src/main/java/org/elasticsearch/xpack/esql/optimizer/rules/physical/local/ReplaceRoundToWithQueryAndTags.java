@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -294,6 +296,12 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                     queryExec.query(),
                     queryExec.indexMode()
                 );
+                if (queryExec.indexMode() == IndexMode.TIME_SERIES) {
+                    var rewritten = rewriteRoundToForTimeSeriesQuery(roundTo, evalExec, roundingPointsUpperLimit, queryExec, ctx);
+                    if (rewritten != plan) {
+                        return rewritten;
+                    }
+                }
                 if (count > roundingPointsUpperLimit) {
                     logger.debug(
                         "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
@@ -303,7 +311,8 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                     );
                     return evalExec;
                 }
-                plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
+                var queries = queryBuilderAndTags(roundTo, queryExec, ctx);
+                plan = rewriteWithQueryAndTags(roundTo, evalExec, queryExec, queries);
             }
         }
         return plan;
@@ -312,15 +321,18 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     /**
      * Rewrite the {@code RoundTo} to a list of {@code QueryBuilderAndTags} as input to {@code EsPhysicalOperationProviders}.
      */
-    private static PhysicalPlan planRoundTo(RoundTo roundTo, EvalExec evalExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+    private static PhysicalPlan rewriteWithQueryAndTags(
+        RoundTo roundTo,
+        EvalExec evalExec,
+        EsQueryExec queryExec,
+        List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags
+    ) {
         // Usually EsQueryExec has only one QueryBuilder, one Lucene query, without RoundTo push down.
         // If the RoundTo can be pushed down, a list of QueryBuilders with tags will be added into EsQueryExec, and it will be sent to
         // EsPhysicalOperationProviders.sourcePhysicalOperation to create a list of LuceneSliceQueue.QueryAndTags
-        List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = queryBuilderAndTags(roundTo, queryExec, ctx);
         if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
             return evalExec;
         }
-
         FieldAttribute fieldAttribute = (FieldAttribute) roundTo.field();
         String tagFieldName = Attribute.rawTemporaryName(
             // $$fieldName$round_to$dateType
@@ -402,6 +414,68 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
         }
         return queries;
+    }
+
+    private static PhysicalPlan rewriteRoundToForTimeSeriesQuery(
+        RoundTo roundTo,
+        EvalExec evalExec,
+        int roundingPointsThreshold,
+        EsQueryExec queryExec,
+        LocalPhysicalOptimizerContext ctx
+    ) {
+        Expression field = roundTo.field();
+        if (isTimestampField(field) == false) {
+            return evalExec;
+        }
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
+        int taskConcurrency = ctx.configuration().pragmas().taskConcurrency();
+        int numPoints = roundTo.points().size();
+        // A single rounding point cannot be split into ranges.
+        if (numPoints == 1) {
+            return evalExec;
+        }
+        int numShards = ctx.searchStats().numShards();
+        int estimatedSlices = numPoints * numShards;
+        // Try to create at least half of task_concurrency slices to increase parallelism
+        // and reduce the memory used by the rate aggregation.
+        if (estimatedSlices <= Math.max(roundingPointsThreshold * numShards, (taskConcurrency + 1) / 2)) {
+            DataType dataType = roundTo.dataType();
+            List<Object> points = resolveRoundingPoints(roundTo.points(), dataType);
+            if (points == null || points.size() != numPoints) {
+                return evalExec;
+            }
+            final long oneMinute = field.dataType() == DataType.DATE_NANOS
+                ? TimeValue.timeValueMinutes(1).nanos()
+                : TimeValue.timeValueMinutes(1).millis();
+            int desireSlices = Math.max(
+                Math.max((taskConcurrency + 1) / 2, Math.min(taskConcurrency, roundingPointsThreshold * numShards)),
+                estimatedSlices
+            );
+            int scalingFactor = Math.ceilDiv(desireSlices, estimatedSlices);
+            List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(desireSlices);
+            Source source = roundTo.source();
+            ZoneId zoneId = ctx.configuration().zoneId();
+            long lower = (Long) points.get(0);
+            Queries.Clause clause = Queries.Clause.FILTER;
+            for (int i = 1; i < points.size(); i++) {
+                long prev = (Long) points.get(i - 1);
+                long next = (Long) points.get(i);
+                // round the interval to at least one minute for better caching
+                long interval = Math.ceilDiv(Math.ceilDiv(next - prev, scalingFactor), oneMinute) * oneMinute;
+                long upper = prev;
+                while (upper < next) {
+                    upper = Math.min(upper + interval, next);
+                    queries.add(rangeBucket(source, field, dataType, lower, upper, prev, zoneId, queryExec, pushdownPredicates, clause));
+                    lower = upper;
+                }
+                assert upper == next : "upper [" + upper + "] != next [" + next + "]";
+                assert lower == next : "lower [" + lower + "] != next [" + next + "]";
+            }
+            queries.add(rangeBucket(source, field, dataType, lower, null, lower, zoneId, queryExec, pushdownPredicates, clause));
+            return rewriteWithQueryAndTags(roundTo, evalExec, queryExec, queries);
+        }
+        // TODO: support combine multiple points into a single range
+        return evalExec;
     }
 
     private static List<Object> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
@@ -561,5 +635,9 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             return total;
         }
         return 1;
+    }
+
+    private static boolean isTimestampField(Expression field) {
+        return field instanceof FieldAttribute fa && fa.name().equals(MetadataAttribute.TIMESTAMP_FIELD);
     }
 }

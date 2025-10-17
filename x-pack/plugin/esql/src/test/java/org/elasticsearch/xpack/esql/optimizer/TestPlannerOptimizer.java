@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -99,5 +102,48 @@ public class TestPlannerOptimizer {
         LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
+    }
+
+    public PhysicalPlan dataNodePlan(String query, SearchStats searchStats, EsqlFlags esqlFlags) {
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        PhysicalPlan physical = mapper.map(new Versioned<>(logical, TransportVersion.current()));
+        var dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physical, config).v2();
+        var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
+        );
+        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, esqlFlags, config, FoldContext.small(), searchStats),
+            true
+        );
+        return PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+    }
+
+    public TestPlannerOptimizer withAnalyzer(Analyzer newAnalyzer) {
+        return new TestPlannerOptimizer(config, newAnalyzer, logicalOptimizer);
+    }
+
+    public TestPlannerOptimizer withTaskConcurrency(int taskConcurrency) {
+        return withQueryPragma(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), taskConcurrency).build());
+    }
+
+    public TestPlannerOptimizer withQueryPragma(Settings pragmas) {
+        Settings pragmaSettings = Settings.builder().put(config.pragmas().getSettings()).put(pragmas).build();
+        Configuration newConfig = new Configuration(
+            config.zoneId(),
+            config.locale(),
+            config.username(),
+            config.clusterName(),
+            new QueryPragmas(pragmaSettings),
+            config.resultTruncationMaxSize(false),
+            config.resultTruncationDefaultSize(false),
+            config.query(),
+            config.profile(),
+            config.tables(),
+            config.getQueryStartTimeNanos(),
+            config.allowPartialResults(),
+            config.resultTruncationMaxSize(true),
+            config.resultTruncationDefaultSize(true)
+        );
+        return new TestPlannerOptimizer(newConfig, analyzer, logicalOptimizer);
     }
 }

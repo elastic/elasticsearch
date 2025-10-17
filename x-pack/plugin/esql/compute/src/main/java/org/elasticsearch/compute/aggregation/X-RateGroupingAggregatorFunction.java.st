@@ -76,12 +76,16 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         new IntermediateStateDesc("resets", ElementType.DOUBLE)
     );
 
-    private ObjectArray<Buffer> buffers;
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
+    // raw inputs
+    private ObjectArray<Buffer> buffers;
+    private int minRawInputGroupId = Integer.MAX_VALUE;
+    private int maxRawInputGroupId = Integer.MIN_VALUE;
+    private int lastSliceIndex = -1;
 
     public Rate$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
         this.channels = channels;
@@ -140,6 +144,11 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
 
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex != lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
+        }
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -244,21 +253,23 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.get$Type$(valuePosition));
             }
         } else {
-            int lastGroup = -1;
-            Buffer buffer = null;
-            for (int p = 0; p < positionCount; p++) {
-                int valuePosition = positionOffset + p;
-                long timestamp = timestampVector.getLong(valuePosition);
-                var value = valueVector.get$Type$(valuePosition);
-                int groupId = groups.getInt(p);
-                if (lastGroup != groupId) {
-                    buffer = getBuffer(groupId, 1, timestamp);
-                    buffer.appendWithoutResize(timestamp, value);
-                    lastGroup = groupId;
-                } else {
-                    buffer.maybeResizeAndAppend(bigArrays, timestamp, value);
+            int lastGroup = groups.getInt(0);
+            int lastPosition = 0;
+            for (int p = 1; p < positionCount; p++) {
+                int group = groups.getInt(p);
+                if (group != lastGroup) {
+                    addRawInputSubRange(lastGroup, lastPosition + positionOffset, p + positionOffset, valueVector, timestampVector);
+                    lastGroup = group;
                 }
             }
+            addRawInputSubRange(lastGroup, lastPosition + positionOffset, positionCount + positionOffset, valueVector, timestampVector);
+        }
+    }
+
+    private void addRawInputSubRange(int groupId, int from, int to,  $Type$Vector valueVector, LongVector timestampVector) {
+        var buffer = getBuffer(groupId, to - from, timestampVector.getLong(from));
+        for (int p = from; p < to; p++) {
+            buffer.appendWithoutResize(timestampVector.getLong(p), valueVector.get$Type$(p));
         }
     }
 
@@ -386,7 +397,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
 
     @Override
     public void close() {
-        for (long i = 0; i < buffers.size(); i++) {
+        for (long i = minRawInputGroupId; i <= maxRawInputGroupId; i++) {
             Buffer buffer = buffers.get(i);
             if (buffer != null) {
                 buffer.close();
@@ -396,7 +407,11 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     }
 
     private Buffer getBuffer(int groupId, int newElements, long firstTimestamp) {
-        buffers = bigArrays.grow(buffers, groupId + 1);
+        minRawInputGroupId = Math.min(minRawInputGroupId, groupId);
+        if (groupId > maxRawInputGroupId) {
+            maxRawInputGroupId = groupId;
+            buffers = bigArrays.grow(buffers, groupId + 1);
+        }
         Buffer buffer = buffers.get(groupId);
         if (buffer == null) {
             buffer = new Buffer(bigArrays, newElements);
@@ -568,8 +583,8 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 for (int i = 1; i < intervals.length; i++) {
                     Interval next = intervals[i - 1]; // reversed
                     Interval prev = intervals[i];
-                    if (prev.v2 > next.v2) {
-                        state.resets += prev.v2;
+                    if (prev.v1 > next.v2) {
+                        state.resets += prev.v1;
                     }
                 }
                 final double rate;
@@ -582,6 +597,28 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
             }
             blocks[offset] = rates.build();
         }
+    }
+
+    void flushRawBuffers() {
+        if (minRawInputGroupId > maxRawInputGroupId) {
+            return;
+        }
+        reducedStates = bigArrays.grow(reducedStates, maxRawInputGroupId + 1);
+        for (int groupId = minRawInputGroupId; groupId <= maxRawInputGroupId; groupId++) {
+            Buffer buffer = buffers.getAndSet(groupId, null);
+            if (buffer != null) {
+                try (buffer) {
+                    ReducedState state = reducedStates.get(groupId);
+                    if (state == null) {
+                        state = new ReducedState();
+                        reducedStates.set(groupId, state);
+                    }
+                    buffer.flush(state);
+                }
+            }
+        }
+        minRawInputGroupId = Integer.MAX_VALUE;
+        maxRawInputGroupId = Integer.MIN_VALUE;
     }
 
     ReducedState flushAndCombineState(int groupId) {

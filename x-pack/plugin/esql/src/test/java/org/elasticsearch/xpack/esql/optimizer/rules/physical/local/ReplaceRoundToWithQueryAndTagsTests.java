@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,10 +71,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPlanOptimizerTests {
+    static DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     public ReplaceRoundToWithQueryAndTagsTests(String name, Configuration config) {
         super(name, config);
@@ -543,9 +547,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
         return IntStream.range(0, numPoints).mapToObj(Integer::toString).collect(Collectors.joining(","));
     }
 
-    static int queryAndTags(PhysicalPlan plan) {
+    static List<EsQueryExec.QueryBuilderAndTags> queryAndTags(PhysicalPlan plan) {
         EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
-        return esQuery.queryBuilderAndTags().size();
+        return esQuery.queryBuilderAndTags();
     }
 
     public void testAdjustThresholdForQueries() {
@@ -556,7 +560,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = queryAndTags(plan).size();
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -567,7 +571,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = queryAndTags(plan).size();
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -578,7 +582,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = queryAndTags(plan).size();
             assertThat(queryAndTags, equalTo(1)); // no rewrite
         }
         {
@@ -590,7 +594,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = queryAndTags(plan).size();
             assertThat("points=" + points, queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -602,8 +606,139 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = queryAndTags(plan).size();
             assertThat("points=" + points, queryAndTags, equalTo(1)); // no rewrite
+        }
+    }
+
+    public void testExpandForTimeSeries() {
+        long startTime = DATE_FORMATTER.parseMillis("2024-04-15T01:10:00Z");
+        long endTime = DATE_FORMATTER.parseMillis("2024-04-15T05:06:00Z");
+        var searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of("@timestamp", startTime), Map.of("@timestamp", endTime));
+        var optimizer = plannerOptimizer.withAnalyzer(makeAnalyzer("k8s-mappings.json"));
+        long[] points = new long[] { 1713142800000L, 1713146400000L, 1713150000000L, 1713153600000L, 1713157200000L };
+        String matchAll = """
+            TS test
+            | stats sum(rate(network.total_bytes_in)) by bucket(@timestamp, 1 hour)
+            """;
+        String matchAllSource = "bucket(@timestamp, 1 hour)@2:46";
+        for (int taskConcurrency = 1; taskConcurrency <= 5; taskConcurrency++) {
+            optimizer = optimizer.withTaskConcurrency(taskConcurrency);
+            PhysicalPlan plan = optimizer.dataNodePlan(matchAll, searchStats, new EsqlFlags(randomBoolean()));
+            var queryAndTags = queryAndTags(plan);
+            assertThat(queryAndTags, hasSize(5));
+            for (int i = 0; i < 4; i++) {
+                long prev = points[i];
+                long next = points[i + 1];
+                assertThat(queryAndTags.get(i).query().toString(), equalTo(queryDescription(prev, next, matchAllSource)));
+                assertThat(queryAndTags.get(i).tags(), equalTo(List.of(prev)));
+            }
+            assertThat(queryAndTags.get(4).tags(), equalTo(List.of(points[4])));
+            assertThat(queryAndTags.get(4).query().toString(), equalTo(queryDescription(points[4], null, matchAllSource)));
+        }
+        for (int taskConcurrency = 6; taskConcurrency <= 10; taskConcurrency++) {
+            optimizer = optimizer.withTaskConcurrency(taskConcurrency);
+            PhysicalPlan plan = optimizer.dataNodePlan(matchAll, searchStats, new EsqlFlags(randomBoolean()));
+            var queryAndTags = queryAndTags(plan);
+            assertThat(queryAndTags, hasSize(9));
+            for (int i = 0; i < 4; i++) {
+                long prev = points[i];
+                long next = points[i + 1];
+                long mid = (next + prev) / 2;
+                assertThat(queryAndTags.get(2 * i).query().toString(), equalTo(queryDescription(prev, mid, matchAllSource)));
+                assertThat(queryAndTags.get(2 * i).tags(), equalTo(List.of(prev)));
+                assertThat(queryAndTags.get(2 * i + 1).query().toString(), equalTo(queryDescription(mid, next, matchAllSource)));
+                assertThat(queryAndTags.get(2 * i + 1).tags(), equalTo(List.of(prev)));
+            }
+            assertThat(queryAndTags.get(8).tags(), equalTo(List.of(points[4])));
+            assertThat(queryAndTags.get(8).query().toString(), equalTo(queryDescription(points[4], null, matchAllSource)));
+        }
+        for (int taskConcurrency = 11; taskConcurrency <= 13; taskConcurrency++) {
+            optimizer = optimizer.withTaskConcurrency(taskConcurrency);
+            PhysicalPlan plan = optimizer.dataNodePlan(matchAll, searchStats, new EsqlFlags(randomBoolean()));
+            var queryAndTags = queryAndTags(plan);
+            assertThat(queryAndTags, hasSize(13));
+            for (int i = 0; i < 4; i++) {
+                long prev = points[i];
+                long next = points[i + 1];
+                long mid1 = (2 * prev + next) / 3;
+                long mid2 = (prev + 2 * next) / 3;
+                assertThat(queryAndTags.get(3 * i).query().toString(), equalTo(queryDescription(prev, mid1, matchAllSource)));
+                assertThat(queryAndTags.get(3 * i).tags(), equalTo(List.of(prev)));
+                assertThat(queryAndTags.get(3 * i + 1).query().toString(), equalTo(queryDescription(mid1, mid2, matchAllSource)));
+                assertThat(queryAndTags.get(3 * i + 1).tags(), equalTo(List.of(prev)));
+                assertThat(queryAndTags.get(3 * i + 2).query().toString(), equalTo(queryDescription(mid2, next, matchAllSource)));
+                assertThat(queryAndTags.get(3 * i + 2).tags(), equalTo(List.of(prev)));
+            }
+            assertThat(queryAndTags.get(12).tags(), equalTo(List.of(points[4])));
+            assertThat(queryAndTags.get(12).query().toString(), equalTo(queryDescription(points[4], null, matchAllSource)));
+        }
+    }
+
+    private static String queryDescription(long startTime, Long endTime, String source) {
+        if (endTime != null) {
+            return String.format(Locale.ROOT, """
+                {
+                  "bool" : {
+                    "filter" : [
+                      {
+                        "exists" : {
+                          "field" : "network.total_bytes_in",
+                          "boost" : 0.0
+                        }
+                      },
+                      {
+                        "esql_single_value" : {
+                          "field" : "@timestamp",
+                          "next" : {
+                            "range" : {
+                              "@timestamp" : {
+                                "gte" : "%s",
+                                "lt" : "%s",
+                                "time_zone" : "Z",
+                                "format" : "strict_date_optional_time",
+                                "boost" : 0.0
+                              }
+                            }
+                          },
+                          "source" : "%s"
+                        }
+                      }
+                    ],
+                    "boost" : 1.0
+                  }
+                }""", DATE_FORMATTER.formatMillis(startTime), DATE_FORMATTER.formatMillis(endTime), source);
+        } else {
+            return String.format(Locale.ROOT, """
+                {
+                  "bool" : {
+                    "filter" : [
+                      {
+                        "exists" : {
+                          "field" : "network.total_bytes_in",
+                          "boost" : 0.0
+                        }
+                      },
+                      {
+                        "esql_single_value" : {
+                          "field" : "@timestamp",
+                          "next" : {
+                            "range" : {
+                              "@timestamp" : {
+                                "gte" : "%s",
+                                "time_zone" : "Z",
+                                "format" : "strict_date_optional_time",
+                                "boost" : 0.0
+                              }
+                            }
+                          },
+                          "source" : "%s"
+                        }
+                      }
+                    ],
+                    "boost" : 1.0
+                  }
+                }""", DATE_FORMATTER.formatMillis(startTime), source);
         }
     }
 

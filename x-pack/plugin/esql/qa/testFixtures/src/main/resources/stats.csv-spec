@@ -2994,6 +2994,18 @@ FROM employees
 | EVAL stddev_salary_change = ROUND(stddev_salary_change, 5)
 ;
 
+stdVarianceNested
+required_capability: variance_stddev_over_time
+
+FROM employees
+| STATS stdvar_salary_change = STD_VAR(MV_MAX(salary_change)
+| EVAL stdvar_salary_change = ROUND(stdvar_salary_change, 5)
+;
+
+stdvar_salary_change:double
+47.29269
+;
+
 // tag::docsStatsStdDevNestedExpression-result[]
 stddev_salary_change:double
 6.87583
@@ -3012,6 +3024,17 @@ std_dev:double
 5.7601043E7
 ;
 
+stdVarianceWithLongs
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS std_var = STD_VAR(avg_worked_seconds)
+| EVAL std_var = ROUND(std_var, 0)
+;
+
+std_var:double
+3.3179235E15
+;
+
 stdDeviationWithInts
 required_capability: std_dev
 FROM employees
@@ -3021,6 +3044,17 @@ FROM employees
 
 std_dev:double
 13765.1255
+;
+
+stdVarianceWithInts
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS std_var = STD_VAR(salary)
+| EVAL std_var = ROUND(std_var, 5)
+;
+
+std_var:double
+189493870.63564
 ;
 
 stdDeviationConstantValue
@@ -3075,10 +3109,10 @@ stdDeviationNoRows
 required_capability: std_dev
 FROM employees
 | WHERE languages IS null
-| STATS STD_DEV(languages)
+| STATS sd=STD_DEV(languages)
 ;
 
-STD_DEV(languages):double
+sd:double
 null
 ;
 

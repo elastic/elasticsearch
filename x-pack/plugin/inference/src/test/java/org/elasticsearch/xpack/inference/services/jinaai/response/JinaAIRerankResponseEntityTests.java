@@ -25,6 +25,17 @@ import static org.mockito.Mockito.mock;
 
 public class JinaAIRerankResponseEntityTests extends ESTestCase {
 
+    private static final String WASHINGTON_TEXT = "Washington, D.C..";
+    private static final String CAPITAL_PUNISHMENT_TEXT =
+        "Capital punishment has existed in the United States since before the United States was a country. ";
+    private static final String CARSON_CITY_TEXT = "Carson City is the capital city of the American state of Nevada.";
+
+    private static final List<RankedDocsResults.RankedDoc> RESPONSE_LITERAL_DOCS_WITH_TEXT = List.of(
+        new RankedDocsResults.RankedDoc(2, 0.98005307F, WASHINGTON_TEXT),
+        new RankedDocsResults.RankedDoc(3, 0.27904198F, CAPITAL_PUNISHMENT_TEXT),
+        new RankedDocsResults.RankedDoc(0, 0.10194652F, CARSON_CITY_TEXT)
+    );
+
     public void testResponseLiteral() throws IOException {
         String responseLiteral = """
             {
@@ -106,17 +117,6 @@ public class JinaAIRerankResponseEntityTests extends ESTestCase {
 
     }
 
-    private final String WASHINGTON_TEXT = "Washington, D.C..";
-    private final String CAPITAL_PUNISHMENT_TEXT =
-        "Capital punishment has existed in the United States since before the United States was a country. ";
-    private final String CARSON_CITY_TEXT = "Carson City is the capital city of the American state of Nevada.";
-
-    private final List<RankedDocsResults.RankedDoc> responseLiteralDocsWithText = List.of(
-        new RankedDocsResults.RankedDoc(2, 0.98005307F, WASHINGTON_TEXT),
-        new RankedDocsResults.RankedDoc(3, 0.27904198F, CAPITAL_PUNISHMENT_TEXT),
-        new RankedDocsResults.RankedDoc(0, 0.10194652F, CARSON_CITY_TEXT)
-    );
-
     public void testResponseLiteralWithDocuments() throws IOException {
         String responseLiteralWithDocuments = Strings.format("""
             {
@@ -154,7 +154,7 @@ public class JinaAIRerankResponseEntityTests extends ESTestCase {
         );
 
         assertThat(parsedResults, instanceOf(RankedDocsResults.class));
-        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
+        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(RESPONSE_LITERAL_DOCS_WITH_TEXT));
     }
 
     public void testResponseLiteralWithDocumentsAsString() throws IOException {
@@ -188,7 +188,7 @@ public class JinaAIRerankResponseEntityTests extends ESTestCase {
         );
 
         assertThat(parsedResults, instanceOf(RankedDocsResults.class));
-        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
+        assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(RESPONSE_LITERAL_DOCS_WITH_TEXT));
     }
 
     private ArrayList<Integer> linear(int n) {

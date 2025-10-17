@@ -41,6 +41,7 @@ public class JinaAIRerankResponseEntity {
      *                   "Capital punishment (the death penalty) ... As of 2017, capital punishment is legal in 30 of the 50 states."]
      * <p>
      *  The response will look like (without whitespace):
+     *  <pre>
      *     {
      *     "id": "1983d114-a6e8-4940-b121-eb4ac3f6f703",
      *     "results": [
@@ -68,6 +69,7 @@ public class JinaAIRerankResponseEntity {
      *     ],
      *     "usage": {"total_tokens": 15}
      *     }
+     *  </pre>
      *
      * @param response the http response from JinaAI
      * @return the parsed response
@@ -96,7 +98,7 @@ public class JinaAIRerankResponseEntity {
                 .map(
                     item -> new RankedDocsResults.RankedDoc(
                         item.index(),
-                        item.relevance_score(),
+                        item.relevanceScore(),
                         item.document() != null ? item.document().text() : null
                     )
                 )
@@ -105,7 +107,7 @@ public class JinaAIRerankResponseEntity {
         }
     }
 
-    private record ResultItem(int index, float relevance_score, @Nullable Document document) {
+    private record ResultItem(int index, float relevanceScore, @Nullable Document document) {
         public static final ConstructingObjectParser<ResultItem, Void> PARSER = new ConstructingObjectParser<>(
             ResultItem.class.getSimpleName(),
             true,

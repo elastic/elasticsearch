@@ -1491,11 +1491,6 @@ public class EsqlCapabilities {
         TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON,
 
         /**
-         * Fix double release in inline stats when LocalRelation is reused
-         */
-        INLINE_STATS_DOUBLE_RELEASE_FIX,
-
-        /**
          * Fix management of plans with no columns
          * https://github.com/elastic/elasticsearch/issues/120272
          */
@@ -1520,6 +1515,11 @@ public class EsqlCapabilities {
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
+
+        /**
+         * Fix double release in inline stats when LocalRelation is reused
+         */
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)
 
         ;
 

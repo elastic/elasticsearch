@@ -10,16 +10,13 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.request.complet
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
-import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
-import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Flow;
 
@@ -114,13 +111,12 @@ public class ToolAwareUnifiedPublisher implements Flow.Publisher<StreamingUnifie
 
                             String jsonIn = toolUse.inputJson.toString();
 //                          String jsonOut = execute(toolUse.getName(), jsonIn);
-                            String jsonOut = "";
 
                             toolResultBlocks.add(
                                 ContentBlock.builder()
                                     .toolResult(ToolResultBlock.builder()
                                         .toolUseId(toolUse.getId())
-                                        .content((Collection<ToolResultContentBlock>) Document.fromString(jsonOut))
+//                                      .content((Collection<ToolResultContentBlock>) Document.fromString(jsonOut))
                                         .build())
                                     .build());
 

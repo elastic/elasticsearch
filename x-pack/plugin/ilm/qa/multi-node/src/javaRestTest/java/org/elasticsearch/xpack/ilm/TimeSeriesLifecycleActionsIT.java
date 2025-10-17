@@ -30,6 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -80,7 +81,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
+public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 

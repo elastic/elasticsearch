@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettin
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 
-public class ChangePolicyForIndexIT extends ESRestTestCase {
+public class ChangePolicyForIndexIT extends IlmESRestTestCase {
 
     /**
      * This test aims to prove that an index will finish the current phase on an

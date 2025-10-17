@@ -22,6 +22,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -56,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShrinkActionIT extends ESRestTestCase {
+public class ShrinkActionIT extends IlmESRestTestCase {
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
 

@@ -23,9 +23,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DownsampleActionIT extends ESRestTestCase {
+public class DownsampleActionIT extends IlmESRestTestCase {
 
     private String index;
     private String policy;

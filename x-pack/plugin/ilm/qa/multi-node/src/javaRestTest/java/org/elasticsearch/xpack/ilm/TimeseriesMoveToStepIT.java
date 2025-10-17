@@ -16,7 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeseriesMoveToStepIT extends ESRestTestCase {
+public class TimeseriesMoveToStepIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeseriesMoveToStepIT.class);
 
     private String policy;

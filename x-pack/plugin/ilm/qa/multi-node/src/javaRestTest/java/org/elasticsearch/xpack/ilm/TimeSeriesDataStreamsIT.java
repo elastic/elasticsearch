@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.DeleteStep;
@@ -55,7 +56,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class TimeSeriesDataStreamsIT extends ESRestTestCase {
+public class TimeSeriesDataStreamsIT extends IlmESRestTestCase {
 
     private String policyName;
     private String dataStream;

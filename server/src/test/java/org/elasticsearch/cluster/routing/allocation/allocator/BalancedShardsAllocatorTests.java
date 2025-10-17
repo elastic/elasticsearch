@@ -1131,6 +1131,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertAssignedTo(allocationService, null, List.of("no"));
         assertAssignedTo(allocationService, "not-preferred", List.of("not-preferred", "no"));
         assertAssignedTo(allocationService, null, List.of("throttle", "not-preferred", "no"));
+        assertAssignedTo(allocationService, null, List.of("throttle", "not-preferred"));
         assertAssignedTo(allocationService, "yes", List.of("not-preferred", "yes", "throttle", "no"));
     }
 

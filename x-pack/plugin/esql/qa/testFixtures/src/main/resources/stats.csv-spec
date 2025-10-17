@@ -2970,7 +2970,7 @@ std_dev_height:double
 ;
 
 stdVariance
-required_capability: VARIANCE_STDDEV_OVER_TIME
+required_capability: variance_stddev_over_time
 
 // tag::stdvar[]
 FROM employees

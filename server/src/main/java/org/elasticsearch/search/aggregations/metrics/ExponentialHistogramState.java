@@ -124,10 +124,23 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         mergedHistograms.add(histogram);
     }
 
+    /**
+     * Returns the number of scalar values added to this histogram, so the sum
+     * of {@link ExponentialHistogram#valueCount()} for all histograms added.
+     * @return the number of values
+     */
     public long size() {
         return histogram().valueCount();
     }
 
+    /**
+     * Returns the fraction of all points added which are &le; x. Points
+     * that are exactly equal get half credit (i.e. we use the mid-point
+     * rule)
+     *
+     * @param x The cutoff for the cdf.
+     * @return The fraction of all data which is less or equal to x.
+     */
     public double cdf(double x) {
         ExponentialHistogram histogram = histogram();
         long numValuesLess = ExponentialHistogramQuantile.estimateRank(histogram, x, false);
@@ -137,14 +150,24 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         return (numValuesLess + numValuesEqual / 2.0) / histogram.valueCount();
     }
 
+    /**
+     * Returns an estimate of a cutoff such that a specified fraction of the data
+     * added to this TDigest would be less than or equal to the cutoff.
+     *
+     * @param q The desired fraction
+     * @return The smallest value x such that cdf(x) &ge; q
+     */
     public double quantile(double q) {
         return ExponentialHistogramQuantile.getQuantile(histogram(), q);
     }
 
+    /**
+     * @return an array of the mean values of the populated histogram buckets with their counts
+     */
     public Collection<Centroid> centroids() {
         List<Centroid> centroids = new ArrayList<>();
         addBucketCentersAsCentroids(centroids, histogram().negativeBuckets().iterator(), -1);
-        // negative
+        // negative buckets are in decreasing order, we want increasing order, therefore reverse
         Collections.reverse(centroids);
         if (histogram().zeroBucket().count() > 0) {
             centroids.add(new Centroid(0.0, histogram().zeroBucket().count()));
@@ -162,6 +185,9 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         }
     }
 
+    /**
+     * @return the length of the array returned by {@link #centroids()}.
+     */
     public int centroidCount() {
         ExponentialHistogram histo = histogram();
         int count = histo.zeroBucket().count() > 0 ? 1 : 0;
@@ -170,11 +196,19 @@ public class ExponentialHistogramState implements Releasable, Accountable {
         return count;
     }
 
+    /**
+     * The minimum value of the histogram, or {@code Double.POSITIVE_INFINITY} if the histogram is empty.
+     * @return the minimum
+     */
     public double getMin() {
         double min = histogram().min();
         return Double.isNaN(min) ? Double.POSITIVE_INFINITY : min;
     }
 
+    /**
+     * The maximum value of the histogram, or {@code Double.NEGATIVE_INFINITY} if the histogram is empty.
+     * @return the maximum
+     */
     public double getMax() {
         double max = histogram().max();
         return Double.isNaN(max) ? Double.NEGATIVE_INFINITY : max;

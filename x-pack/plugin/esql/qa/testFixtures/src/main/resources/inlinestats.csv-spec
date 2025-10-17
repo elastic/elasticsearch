@@ -4050,6 +4050,7 @@ QaoRGYyf:long
 
 
 inlineStatsAfterPruningAggregate5
+// https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
@@ -4076,6 +4077,7 @@ null                 | 0
 
 
 inlineStatsAfterPruningAggregate6
+// https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
@@ -4104,6 +4106,7 @@ null             | null                            | null            | null     
 
 
 inlineStatsAfterPruningAggregate7
+// https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 required_capability: fork_v9
@@ -4130,6 +4133,7 @@ VizcTbjMnBlQ:long | wXPJguff:double
 
 
 inlineStatsAfterPruningAggregate8
+// https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 
 from dense_vector,airport_city_boundaries

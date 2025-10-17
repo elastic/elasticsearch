@@ -154,6 +154,18 @@ public class InlineJoin extends Join {
      * \_Limit[1000[INTEGER],false]
      *   \_LocalRelation[[x{r}#99],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
      * </pre>
+     *
+     * <p>In the end the method returns a tuple like this:
+     * <pre>
+     * LogicalPlanTuple[
+     *      stubReplacedSubPlan=
+     *                          Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     *                          \_LocalRelation[[x{r}#99],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@7c1]
+     *      originalSubPlan=
+     *                          Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     *                          \_StubRelation[[x{r}#99]]
+     *                  ]
+     * </pre>
      */
     public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
         final Holder<LogicalPlan> stubReplacedSubPlanHolder = new Holder<>();
@@ -179,8 +191,8 @@ public class InlineJoin extends Join {
             }
         });
         LogicalPlanTuple tuple = null;
-        if (stubReplacedSubPlanHolder.get() != null) {
-            var plan = stubReplacedSubPlanHolder.get();
+        var plan = stubReplacedSubPlanHolder.get();
+        if (plan != null) {
             plan = plan.transformUp(LocalRelation.class, lr -> {
                 if (lr.supplier() instanceof CopyingLocalSupplier == false) {
                     return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -27,7 +28,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 
 //@TestLogging(value="org.elasticsearch.xpack.esql:TRACE", reason="debug tests")
-@Ignore("Proper assertions need to be added")
+//@Ignore("Proper assertions need to be added")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -59,7 +60,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql("""
             EXPLAIN (
             TS k8s
-            | promql avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
+            | promql step 5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             )
             """);
@@ -88,7 +89,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))
+            | promql step 5m ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
             """);
 
@@ -137,7 +138,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`metrics.system.memory.utilization`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         var plan = planPromql("""
             TS k8s
-            | promql max by (pod) (avg_over_time(network.total_bytes_in[1h]))
+            | promql step 10 ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
         System.out.println(plan);
@@ -149,9 +150,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(RATE(`metrics.system.cpu.time`)) BY host.name, TBUCKET(1h) | LIMIT 10000"
         String testQuery = """
             TS k8s
-            | promql
-                avg by (pod) (rate(network.total_bytes_in[1h]))
-
+            | promql step a (
+                avg by (pod) (rate(network.bytes_in[1h]))
+                )
             """;
 
         var plan = planPromql(testQuery);
@@ -165,8 +166,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // | STATS AVG(AVG_OVER_TIME(`system.cpu.load_average.1m`)) BY host.name, TBUCKET(5m) | LIMIT 10000"
         String testQuery = """
             TS k8s
-            | promql
-                max by (pod)(avg_over_time(network.total_bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
+            | promql time now (
+                max by (pod)(avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
+                )
 
             """;
 
@@ -181,9 +183,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // STATS AVG(AVG_OVER_TIME(`metrics.system.cpu.load_average.1m`)) BY host.name, TBUCKET(5 minutes)"
         String testQuery = """
             TS k8s
-            | promql
+            | promql time now (
                 avg by (pod)(avg_over_time(network.total_bytes_in{pod=~"host-.*"}[5m]))
-
+                )
             """;
 
         var plan = planPromql(testQuery);
@@ -201,9 +203,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // topk(5, sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m])))
         String testQuery = """
             TS k8s
-            | promql
+            | promql step 5m (
                 sum by (host.name, mountpoint) (last_over_time(system.filesystem.usage{state=~"used|free"}[5m]))
-
+                )
             """;
 
         var plan = planPromql(testQuery);

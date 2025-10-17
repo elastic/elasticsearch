@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -1089,11 +1089,62 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
+        Map<String, Expression> params = new HashMap<>();
+        String TIME = "time", START = "start", STOP = "stop", STEP = "step";
+        Set<String> allowed = Set.of(TIME, START, STOP, STEP);
 
-        TerminalNode terminalNode = ctx.PROMQL_TEXT();
-        String query = terminalNode != null ? terminalNode.getText().trim() : StringUtils.EMPTY;
+        if (ctx.promqlParam().isEmpty()) {
+            throw new ParsingException(source(ctx), "Parameter [{}] or [{}] is required", STEP, TIME);
+        }
 
-        if (query.isEmpty()) {
+        for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
+            var paramNameCtx = paramCtx.name;
+            String name = paramNameCtx.getText();
+            if (params.containsKey(name)) {
+                throw new ParsingException(source(paramNameCtx), "[{}] already specified", name);
+            }
+            if (allowed.contains(name) == false) {
+                String message = "Unknown parameter [{}]";
+                List<String> similar = StringUtils.findSimilar(name, allowed);
+                if (CollectionUtils.isEmpty(similar) == false) {
+                    message += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
+                }
+                throw new ParsingException(source(paramNameCtx), message, name);
+            }
+            String value = paramCtx.value.getText();
+            // TODO: validate and convert the value
+
+        }
+
+        // Validation logic for time parameters
+        Expression time = params.get(TIME);
+        Expression start = params.get(START);
+        Expression stop = params.get(STOP);
+        Expression step = params.get(STEP);
+
+        if (time != null && (start != null || stop != null || step != null)) {
+            throw new ParsingException(
+                source,
+                "Specify either [{}] for instant query or [{}}], [{}] or [{}}] for a range query",
+                TIME,
+                STEP,
+                START,
+                STOP
+            );
+        }
+        if ((start != null || stop != null) && step == null) {
+            throw new ParsingException(source, "[{}}] is required alongside [{}}] or [{}}]", STEP, START, STOP);
+        }
+
+        // TODO: Perform type and value validation
+        var queryCtx = ctx.promqlQueryPart();
+
+        String promqlQuery = queryCtx == null || queryCtx.isEmpty()
+            ? StringUtils.EMPTY
+            // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
+            : source(queryCtx.get(0).start, queryCtx.get(queryCtx.size() - 1).stop).text();
+
+        if (promqlQuery.isEmpty()) {
             throw new ParsingException(source, "PromQL expression cannot be empty");
         }
 
@@ -1103,14 +1154,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;
         try {
-            // TODO: Consider passing timestamps from query context if needed
-            promqlPlan = promqlParser.createStatement(query);
+            // The existing PromqlParser is used to parse the inner query
+            promqlPlan = promqlParser.createStatement(promqlQuery);
         } catch (ParsingException pe) {
-            ParsingException adjusted = getParsingException(pe, promqlStartLine, promqlStartColumn);
-            throw adjusted;
+            throw getParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> new PromqlCommand(source, plan, promqlPlan);
+        return plan -> time != null
+            ? new PromqlCommand(source, plan, promqlPlan, time)
+            : new PromqlCommand(source, plan, promqlPlan, start, stop, step);
     }
 
     private static ParsingException getParsingException(ParsingException pe, int promqlStartLine, int promqlStartColumn) {

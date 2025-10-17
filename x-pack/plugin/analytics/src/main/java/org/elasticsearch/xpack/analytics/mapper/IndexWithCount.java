@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.exponentialhistogram;
+package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -21,7 +21,7 @@ import java.util.OptionalLong;
  */
 public record IndexWithCount(long index, long count) {
 
-    static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
+    public static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
         return new ExponentialHistogram.Buckets() {
             @Override
             public CopyableBucketIterator iterator() {

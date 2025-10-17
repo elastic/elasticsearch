@@ -168,7 +168,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         } catch (Throwable t) {
             throw new IOException("Failed to flush GPU index: ", t);
         }
-        var elapsed = started - System.nanoTime();
+        var elapsed = System.nanoTime() - started;
         logger.debug("Flush total time [{}ms]", elapsed / 1_000_000.0);
     }
 
@@ -210,7 +210,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     }
                 }
             }
-            var elapsed = started - System.nanoTime();
+            var elapsed = System.nanoTime() - started;
             logger.debug("Flushed [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
         }
     }
@@ -474,7 +474,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     mergeByteVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
                 }
             }
-            var elapsed = started - System.nanoTime();
+            var elapsed = System.nanoTime() - started;
             logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
         } catch (Throwable t) {
             throw new IOException("Failed to merge GPU index: ", t);

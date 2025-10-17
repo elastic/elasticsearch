@@ -93,11 +93,13 @@ public class JinaAIRerankResponseEntity {
 
         public RankedDocsResults toRankedDocsResults() {
             List<RankedDocsResults.RankedDoc> rankedDocs = results.stream()
-                .map(item -> new RankedDocsResults.RankedDoc(
-                    item.index(),
-                    item.relevance_score(),
-                    item.document() != null ? item.document().text() : null
-                ))
+                .map(
+                    item -> new RankedDocsResults.RankedDoc(
+                        item.index(),
+                        item.relevance_score(),
+                        item.document() != null ? item.document().text() : null
+                    )
+                )
                 .toList();
             return new RankedDocsResults(rankedDocs);
         }

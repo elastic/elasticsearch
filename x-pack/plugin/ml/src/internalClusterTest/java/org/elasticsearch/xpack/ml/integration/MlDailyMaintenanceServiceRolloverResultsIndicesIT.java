@@ -12,11 +12,11 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -42,7 +43,6 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
 
     @Before
     public void createComponents() throws Exception {
-        Settings settings = nodeSettings(0, Settings.EMPTY);
         ThreadPool threadPool = mockThreadPool();
 
         ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
@@ -112,6 +112,110 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
 
         runTestScenarioWithUnmetConditions(jobs_with_default_index, "shared");
         runTestScenarioWithUnmetConditions(jobs_with_custom_index, "custom-fred");
+    }
+
+    public void testTriggerRollResultsIndicesIfNecessaryTask_withMixedIndexTypes() throws Exception {
+        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
+
+        // 1. Create a job using the default shared index
+        Job.Builder sharedJob = createJob("shared-job");
+        putJob(sharedJob);
+        assertIndicesAndAliases(
+            "After shared job creation",
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*",
+            Map.of(
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001",
+                List.of(writeAlias(sharedJob.getId()), readAlias(sharedJob.getId()))
+            )
+        );
+
+        // 2. Create a job using a custom index
+        Job.Builder customJob = createJob("custom-job").setResultsIndexName("my-custom");
+        putJob(customJob);
+        assertIndicesAndAliases(
+            "After custom job creation",
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom*",
+            Map.of(
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom-000001",
+                List.of(writeAlias(customJob.getId()), readAlias(customJob.getId()))
+            )
+        );
+
+        // 3. Trigger a single maintenance run
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 4. Verify BOTH indices were rolled over correctly
+        assertIndicesAndAliases(
+            "After rollover (shared)",
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*",
+            Map.of(
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001",
+                List.of(readAlias(sharedJob.getId())),
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002",
+                List.of(writeAlias(sharedJob.getId()), readAlias(sharedJob.getId()))
+            )
+        );
+
+        assertIndicesAndAliases(
+            "After rollover (custom)",
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom*",
+            Map.of(
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom-000001",
+                List.of(readAlias(customJob.getId())),
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + "custom-my-custom-000002",
+                List.of(writeAlias(customJob.getId()), readAlias(customJob.getId()))
+            )
+        );
+    }
+
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenNoJobAliases() throws Exception {
+        maintenanceService.setRolloverConditions(RolloverConditions.newBuilder().build());
+
+        String jobId = "job-to-be-deleted";
+        Job.Builder job = createJob(jobId);
+        putJob(job);
+
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001";
+        String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000002";
+        assertIndicesAndAliases(
+            "Before job deletion",
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*",
+            Map.of(indexName, List.of(writeAlias(jobId), readAlias(jobId)))
+        );
+
+        // Delete the job, which also removes its aliases
+        deleteJob(jobId);
+
+        // Verify the index still exists but has no aliases
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(indexName)
+            .get();
+        assertThat(getIndexResponse.getIndices().length, is(1));
+        assertThat(getIndexResponse.getAliases().size(), is(0));
+
+        // Trigger maintenance
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // Verify that the index was rolled over, even though it had no ML aliases
+        GetIndexResponse finalIndexResponse = client().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared*")
+            .get();
+        assertThat(finalIndexResponse.getIndices().length, is(2));
+        List<String> expectedIndexList = List.of(indexName, rolledIndexName);
+        List<String> actualIndexList = Arrays.asList(finalIndexResponse.getIndices());
+
+        assertThat(
+            "Mismatch for indices",
+            actualIndexList,
+            containsInAnyOrder(expectedIndexList.toArray(String[]::new))
+        );
+
+        assertThat(finalIndexResponse.getIndices()[0], is(indexName));
+        assertThat(finalIndexResponse.getIndices()[1], is(rolledIndexName));
     }
 
     public void testTriggerRollResultsIndicesIfNecessaryTask() throws Exception {
@@ -260,7 +364,7 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     private <T> void blockingCall(Consumer<ActionListener<T>> function) throws InterruptedException {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(r -> { latch.countDown(); }, e -> {
+        ActionListener<T> listener = ActionListener.wrap(r -> latch.countDown(), e -> {
             exceptionHolder.set(e);
             latch.countDown();
         });
@@ -274,5 +378,13 @@ public class MlDailyMaintenanceServiceRolloverResultsIndicesIT extends BaseMlInt
     private PutJobAction.Response putJob(Job.Builder job) {
         PutJobAction.Request request = new PutJobAction.Request(job);
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
+    }
+
+    private void deleteJob(String jobId) {
+        try {
+            client().execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).actionGet();
+        } catch (Exception e) {
+            // noop
+        }
     }
 }

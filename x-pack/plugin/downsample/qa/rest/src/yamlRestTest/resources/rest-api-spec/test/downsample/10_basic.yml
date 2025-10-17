@@ -450,7 +450,7 @@ setup:
   - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
   - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { test-downsample.settings.index.downsample.source.name: test }
-  - match: { test-downsample.settings.index.downsample.method: last_value }
+  - match: { test-downsample.settings.index.downsample.sampling_method: last_value }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
 
   # Assert rollup index mapping

@@ -45,6 +45,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds the data stream lifecycle configuration that defines how the data stream indices of a data stream are managed. The lifecycle also
@@ -166,7 +167,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     /**
      * This factory method creates a lifecycle applicable for the data index component of a data stream. This
-     * means it supports all configuration applicable for backing indices.
+     * means it supports all configurations applicable for backing indices.
      */
     public static DataStreamLifecycle createDataLifecycle(
         @Nullable Boolean enabled,
@@ -553,8 +554,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 ObjectParser.ValueType.STRING
             );
             PARSER.declareField(
-                constructorArg(),
-                p -> DownsampleConfig.SamplingMethod.fromLabel(p.text()),
+                optionalConstructorArg(),
+                p -> DownsampleConfig.SamplingMethod.fromString(p.text()),
                 SAMPLING_METHOD,
                 ObjectParser.ValueType.STRING
             );

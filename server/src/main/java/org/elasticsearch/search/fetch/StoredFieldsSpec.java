@@ -35,7 +35,7 @@ public record StoredFieldsSpec(
     }
 
     public boolean noRequirements() {
-        return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty();
+        return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty() && sourcePaths.isEmpty();
     }
 
     public boolean onlyRequiresSource() {

@@ -210,9 +210,9 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
             for (int p = 1; p < positionCount; p++) {
                 int group = groups.getInt(p);
                 if (group != lastGroup) {
-                     addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
-                     lastGroup = group;
-                     lastPosition = p;
+                    addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + p, valueBlock, timestampVector);
+                    lastGroup = group;
+                    lastPosition = p;
                 }
             }
             addSubRange(lastGroup, positionOffset + lastPosition, positionOffset + positionCount, valueBlock, timestampVector);

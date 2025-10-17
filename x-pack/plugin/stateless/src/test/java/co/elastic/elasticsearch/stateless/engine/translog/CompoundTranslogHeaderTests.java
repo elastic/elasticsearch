@@ -146,7 +146,7 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                     oldValue.operations(),
                     new TranslogMetadata.Directory(
                         oldValue.directory().estimatedOperationsToRecover(),
-                        randomValueOtherThan(oldValue.directory().referencedTranslogFileOffsets(), () -> randomInts(10).toArray())
+                        randomArrayOtherThan(oldValue.directory().referencedTranslogFileOffsets(), () -> randomInts(10).toArray())
                     )
                 );
                 default -> throw new AssertionError("Unexpected value");

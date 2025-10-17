@@ -23,6 +23,11 @@ public class PercentileOverTimeTests extends AbstractFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return PercentileTests.parameters();

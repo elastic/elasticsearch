@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,21 +23,10 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
-
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
 public class PercentileOverTime extends TimeSeriesAggregateFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "PercentileOverTime",
-        PercentileOverTime::new
-    );
-
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the percentile over time of a numeric field.",
@@ -72,16 +60,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution resolution = isNumeric(field(), sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return isNumeric(children().get(2), sourceText(), SECOND).and(isFoldable(children().get(2), sourceText(), SECOND));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+        return perTimeSeriesAggregation().resolveType();
     }
 
     @Override
@@ -107,5 +86,10 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
         return new Percentile(source(), field(), filter(), children().get(2));
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("PercentileOverTime is not directly serializable");
     }
 }

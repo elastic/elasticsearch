@@ -86,7 +86,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
         List<TestCaseSupplier> suppliers,
         boolean entirelyNullPreservesType
     ) {

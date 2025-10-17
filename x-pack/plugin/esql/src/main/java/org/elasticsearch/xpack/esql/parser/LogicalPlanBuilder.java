@@ -216,9 +216,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
+            FoldContext patternFoldContext = FoldContext.small(); /* TODO remove me */
             List<String> patterns = ctx.string()
                 .stream()
-                .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(FoldContext.small() /* TODO remove me */)))
+                .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(patternFoldContext)))
                 .toList();
 
             String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);

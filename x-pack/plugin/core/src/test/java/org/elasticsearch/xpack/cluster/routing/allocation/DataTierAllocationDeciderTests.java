@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -1088,25 +1089,11 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         IndexRoutingTable index = clusterState.routingTable().index("test");
         assertThat(index.size(), equalTo(5));
-        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
-            IndexShardRoutingTable shardRouting = index.shard(i);
-            assertThat(shardRouting.size(), equalTo(2));
-            assertThat(shardRouting.shard(0).state(), equalTo(UNASSIGNED));
-            assertThat(shardRouting.shard(1).state(), equalTo(UNASSIGNED));
-            assertThat(shardRouting.shard(0).currentNodeId(), nullValue());
-            assertThat(shardRouting.shard(1).currentNodeId(), nullValue());
-        }
+        assertShardsUnassigned(index);
 
         IndexRoutingTable frozenIndex = clusterState.routingTable().index("test_frozen");
         assertThat(frozenIndex.size(), equalTo(5));
-        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
-            IndexShardRoutingTable shardRouting = frozenIndex.shard(i);
-            assertThat(shardRouting.size(), equalTo(2));
-            assertThat(shardRouting.shard(0).state(), equalTo(UNASSIGNED));
-            assertThat(shardRouting.shard(1).state(), equalTo(UNASSIGNED));
-            assertThat(shardRouting.shard(0).currentNodeId(), nullValue());
-            assertThat(shardRouting.shard(1).currentNodeId(), nullValue());
-        }
+        assertShardsUnassigned(index);
 
         logger.info("start two nodes and fully start the shards");
         clusterState = ClusterState.builder(clusterState)
@@ -1121,39 +1108,19 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         index = clusterState.routingTable().index("test");
-        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
-            IndexShardRoutingTable shardRouting = index.shard(i);
-            assertThat(shardRouting.size(), equalTo(2));
-            assertThat(shardRouting.primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(shardRouting.replicaShards().get(0).state(), equalTo(UNASSIGNED));
-        }
+        assertPrimariesInitializing(index);
 
         frozenIndex = clusterState.routingTable().index("test_frozen");
-        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
-            IndexShardRoutingTable shardRouting = frozenIndex.shard(i);
-            assertThat(shardRouting.size(), equalTo(2));
-            assertThat(shardRouting.primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(shardRouting.replicaShards().get(0).state(), equalTo(UNASSIGNED));
-        }
+        assertPrimariesInitializing(frozenIndex);
 
         logger.info("start all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         index = clusterState.routingTable().index("test");
-        for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
-            IndexShardRoutingTable shardRouting = index.shard(i);
-            assertThat(shardRouting.size(), equalTo(2));
-            assertThat(shardRouting.primaryShard().state(), equalTo(STARTED));
-            assertThat(shardRouting.replicaShards().get(0).state(), equalTo(INITIALIZING));
-        }
+        assertReplicasInitializing(index);
 
         frozenIndex = clusterState.routingTable().index("test_frozen");
-        for (int i = 0; i < clusterState.routingTable().index("test_frozen").size(); i++) {
-            IndexShardRoutingTable shardRouting = frozenIndex.shard(i);
-            assertThat(shardRouting.size(), equalTo(2));
-            assertThat(shardRouting.primaryShard().state(), equalTo(STARTED));
-            assertThat(shardRouting.replicaShards().get(0).state(), equalTo(INITIALIZING));
-        }
+        assertReplicasInitializing(frozenIndex);
 
         logger.info("now, start 8 more frozen and hot nodes");
         clusterState = ClusterState.builder(clusterState)
@@ -1189,5 +1156,32 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         assertThat(shardsWithState(routingNodes, "test_frozen", STARTED).size(), equalTo(3));
         assertThat(shardsWithState(routingNodes, "test_frozen", RELOCATING).size(), equalTo(7));
+    }
+
+    public static void assertShardsUnassigned(IndexRoutingTable indexRoutingTable) {
+        assertShardStates(indexRoutingTable, UNASSIGNED, UNASSIGNED);
+
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
+            assertThat(shardRouting.shard(0).currentNodeId(), nullValue());
+            assertThat(shardRouting.shard(1).currentNodeId(), nullValue());
+        }
+    }
+
+    public static void assertPrimariesInitializing(IndexRoutingTable indexRoutingTable) {
+        assertShardStates(indexRoutingTable, INITIALIZING, UNASSIGNED);
+    }
+
+    public static void assertReplicasInitializing(IndexRoutingTable indexRoutingTable) {
+        assertShardStates(indexRoutingTable, STARTED, INITIALIZING);
+    }
+
+    public static void assertShardStates(IndexRoutingTable indexRoutingTable, ShardRoutingState primaryState, ShardRoutingState replicaState) {
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
+            assertThat(shardRouting.size(), equalTo(2));
+            assertThat(shardRouting.primaryShard().state(), equalTo(primaryState));
+            assertThat(shardRouting.replicaShards().get(0).state(), equalTo(replicaState));
+        }
     }
 }

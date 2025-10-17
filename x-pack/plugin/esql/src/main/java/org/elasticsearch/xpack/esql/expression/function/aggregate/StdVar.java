@@ -39,9 +39,7 @@ public class StdVar extends AggregateFunction implements ToAggregator {
         returnType = "double",
         description = "The population standard variance of a numeric field.",
         type = FunctionType.AGGREGATE,
-        examples = {
-            @Example(file = "stats", tag = "stdev")
-        }
+        examples = { @Example(file = "stats", tag = "stdev") }
     )
     public StdVar(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         this(source, field, Literal.TRUE);

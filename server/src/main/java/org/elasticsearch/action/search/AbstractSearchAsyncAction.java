@@ -669,7 +669,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     // the target node for this shard entry in the PIT has changed, we need to update it
                     idChanged = true;
                     if (updatedShardMap == null) {
-                        updatedShardMap = new HashMap<>(original.shards().size());
+                        // initialize the map with entries from old map to keep ids for shards that have not responded in this results
+                        updatedShardMap = new HashMap<>(original.shards());
                     }
                     updatedShardMap.put(
                         shardId,
@@ -700,13 +701,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace("Failure while freeing old point in time contexts", e);
                 }
             });
-            // we also need to add shard that are not in the results for some reason (e.g. query rewrote to match none) but that
-            // were part of the original PIT
-            for (ShardId shardId : original.shards().keySet()) {
-                if (updatedShardMap.containsKey(shardId) == false) {
-                    updatedShardMap.put(shardId, original.shards().get(shardId));
-                }
-            }
             return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return originalPit.getEncodedId();

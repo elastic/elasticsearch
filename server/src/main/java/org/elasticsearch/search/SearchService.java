@@ -1293,7 +1293,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         shard,
                         searcherSupplier,
                         false,
-                        keepAliveInMillis
+                        getDefaultKeepAliveInMillis()
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {

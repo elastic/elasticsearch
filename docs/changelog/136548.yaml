@@ -1,0 +1,6 @@
+pr: 136548
+summary: Locale and timezone argument for `date_parse`
+area: ES|QL
+type: enhancement
+issues:
+ - 132487

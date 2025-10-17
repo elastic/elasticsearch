@@ -71,6 +71,35 @@ public class JinaAIRerankResponseEntity {
      *     }
      *  </pre>
      *
+     *  Or like this where documents is a string:
+     *  <pre>
+     *      {
+     *      "id": "1983d114-a6e8-4940-b121-eb4ac3f6f703",
+     *      "results": [
+     *           {
+     *                "document": "Washington, D.C.  is the capital of the United States. It is a federal district.",
+     *                "index": 2,
+     *                "relevance_score": 0.98005307
+     *           },
+     *           {
+     *                "document":  "abc",
+     *                "index": 3,
+     *                "relevance_score": 0.27904198
+     *           },
+     *           {
+     *                "document": "Carson City is the capital city of the American state of Nevada.",
+     *                "index": 0,
+     *                "relevance_score": 0.10194652
+     *           }
+     *      ],
+     *      "usage": {
+     *           "total_tokens": 15
+     *      }
+     * }
+     *  </pre>
+     *
+     *  This parsing logic handles both cases.
+     *
      * @param response the http response from JinaAI
      * @return the parsed response
      * @throws IOException if there is an error parsing the response

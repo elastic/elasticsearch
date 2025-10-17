@@ -1,0 +1,5 @@
+pr: 136547
+summary: Add index.phrase_query.max_terms index setting to limit the maximum number of terms and excessive memory use
+area: Search
+type: enhancement
+issues: []

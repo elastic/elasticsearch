@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -48,13 +49,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -1105,18 +1106,20 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.allocation_explain:DEBUG,"
-            + "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE",
-        reason = "test"
-    )
-    public void testAssignNotPreferred() {
+    public void testAssigmentPreferenceForUnassignedShards() {
         final var notPreferredDecider = new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return Decision.NOT_PREFERRED;
+                return switch (node.node().getId()) {
+                    case "not-preferred" -> Decision.NOT_PREFERRED;
+                    case "yes" -> Decision.YES;
+                    case "no" -> Decision.NO;
+                    case "throttle" -> Decision.THROTTLE;
+                    default -> throw new AssertionError("unexpected node name: " + node.node().getName());
+                };
             }
         };
+
         final var allocationService = new MockAllocationService(
             new AllocationDeciders(List.of(notPreferredDecider)),
             new TestGatewayAllocator(),
@@ -1125,9 +1128,15 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
-        final var nodeNames = List.of("node-0", "node-1");
+        assertAssignedTo(allocationService, null, List.of("no"));
+        assertAssignedTo(allocationService, "not-preferred", List.of("not-preferred", "no"));
+        assertAssignedTo(allocationService, null, List.of("throttle", "not-preferred", "no"));
+        assertAssignedTo(allocationService, "yes", List.of("not-preferred", "yes", "throttle", "no"));
+    }
+
+    private void assertAssignedTo(AllocationService allocationService, @Nullable String expectedNodeId, List<String> allNodeIds) {
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
-        for (String nodeName : nodeNames) {
+        for (String nodeName : allNodeIds) {
             discoveryNodesBuilder.add(newNode(nodeName));
         }
         final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
@@ -1147,7 +1156,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
         final ShardRouting primaryShard = routingTable.shardRoutingTable(indexMetadata.getIndex().getName(), 0).primaryShard();
-        assertThat("unexpected " + primaryShard, primaryShard.unassigned(), equalTo(false));
+        assertThat(primaryShard.currentNodeId(), equalTo(expectedNodeId));
     }
 
     /**

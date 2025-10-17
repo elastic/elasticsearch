@@ -102,7 +102,9 @@ public class SharedBlobCacheWarmingService {
         INDEXING_EARLY,
         INDEXING,
         INDEXING_MERGE,
-        SEARCH
+        SEARCH,
+        HOLLOWING,
+        UNHOLLOWING
     }
 
     public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
@@ -590,7 +592,10 @@ public class SharedBlobCacheWarmingService {
         }
 
         private boolean canSkipLocation(String fileName, long position, long length) {
-            if (warmingRun.type != Type.INDEXING && warmingRun.type != Type.INDEXING_EARLY) {
+            if (warmingRun.type != Type.INDEXING
+                && warmingRun.type != Type.INDEXING_EARLY
+                && warmingRun.type != Type.HOLLOWING
+                && warmingRun.type != Type.UNHOLLOWING) {
                 return false;
             }
             if (length > Short.MAX_VALUE) {

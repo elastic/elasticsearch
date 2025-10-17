@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -363,7 +364,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     // (since we the shard is already in the primary mode and has checkpoint information)
                     logger.info("{} unhollowing shard (reason: ingestion)", shardId);
                     // Pre-warm the cache for the new index engine
-                    indexShardCacheWarmer.preWarmIndexShardCache(indexShard, false);
+                    indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.UNHOLLOWING);
                     indexShard.resetEngine(engine -> {
                         assert assertIndexEngineLastCommitHollow(shardId, engine, true);
                         assert engine.getEngineConfig().getEngineResetLock().isWriteLockedByCurrentThread() : shardId;

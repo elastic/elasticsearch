@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.recovery;
 
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
@@ -295,6 +296,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         // The block will be removed when the source shard is successfully relocated and closed,
                         // or will remain in place if the relocation fails until the shard is unhollowed.
                         logger.debug(() -> "hollowing index engine for shard " + shardId);
+                        // We prewarm, because the new HollowIndexEngine potentially needs to read referenced .si files, and prewarming
+                        // brings them in the cache in parallel, rather than the engine fetching them on-demand sequentially.
+                        // TODO: remove prewarming if and when we optimize reading .si files (ES-11204)
+                        indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.HOLLOWING);
                         long startTime = threadPool.relativeTimeInMillisSupplier().getAsLong();
                         try {
                             indexShard.resetEngine(newEngine -> {

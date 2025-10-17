@@ -40,7 +40,13 @@ public final class RandomDocumentPicks {
             if (i > 0) {
                 fieldName.append('.');
             }
-            fieldName.append(randomLeafFieldName(random));
+
+            String pathSegment;
+            // generate new path segments until we get one that doesn't contain a dot "."
+            do {
+                pathSegment = randomString(random);
+            } while (pathSegment.contains("."));
+            fieldName.append(pathSegment);
         }
         return fieldName.toString();
     }

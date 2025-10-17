@@ -353,20 +353,8 @@ public class MlDailyMaintenanceService implements Releasable {
                         MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
                     );
 
-                ActionListener<Boolean> traceListener = ActionListener.wrap(r -> {
-                    if (r) {
-                        logger.trace("Successfully removed rollover alias {} from index {}", rolloverAlias, index);
-                    } else {
-                        logger.trace("Failed to remove rollover alias {} from index {}", rolloverAlias, index);
-                    }
-                    listener.onResponse(r);
-                }, x -> {
-                    logger.trace("Failed to remove rollover alias {} from index {}, caught exception {}", rolloverAlias, index, x);
-                    listener.onFailure(x);
-                });
-
                 // Execute the cleanup, no need to propagate the original failure.
-                removeRolloverAlias(indexName, rolloverAlias, localAliasRequestBuilder, traceListener);
+                removeRolloverAlias(indexName, rolloverAlias, localAliasRequestBuilder, listener);
             } else {
                 listener.onFailure(e);
             }
@@ -391,11 +379,7 @@ public class MlDailyMaintenanceService implements Releasable {
         // 2 rollover the index alias to the new index name
         ActionListener<IndicesAliasesResponse> getIndicesAliasesListener = ActionListener.wrap(getIndicesAliasesResponse -> {
             rollover(originSettingClient, rolloverAlias, newIndexName, rolloverListener);
-        }, e -> {
-            // If rollover fails, we must still clean up the temporary alias from the original index.
-            removeRolloverAlias(index, rolloverAlias, aliasRequestBuilder, aliasListener);
-            rolloverListener.onFailure(e);
-        });
+        }, rolloverListener::onFailure);
 
         // 1. Create necessary aliases
         MlIndexAndAlias.createAliasForRollover(originSettingClient, index, rolloverAlias, getIndicesAliasesListener);

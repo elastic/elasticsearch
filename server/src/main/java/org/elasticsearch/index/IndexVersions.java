@@ -190,9 +190,7 @@ public class IndexVersions {
     public static final IndexVersion KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = def(9_040_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_1 = def(9_041_0_00, Version.LUCENE_10_3_1);
 
-    public static final IndexVersion REENABLED_HOSTNAME_DOC_VALUES_SPARSE_INDEX = def(9_042_0_00, Version.LUCENE_10_3_1);
-    public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_043_0_00, Version.LUCENE_10_3_1);
-    public static final IndexVersion REENABLED_TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX = def(9_044_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_042_0_00, Version.LUCENE_10_3_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

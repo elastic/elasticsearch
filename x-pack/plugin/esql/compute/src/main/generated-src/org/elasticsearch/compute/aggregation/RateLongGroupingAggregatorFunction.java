@@ -253,21 +253,23 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.getLong(valuePosition));
             }
         } else {
-            int lastGroup = -1;
-            Buffer buffer = null;
-            for (int p = 0; p < positionCount; p++) {
-                int valuePosition = positionOffset + p;
-                long timestamp = timestampVector.getLong(valuePosition);
-                var value = valueVector.getLong(valuePosition);
-                int groupId = groups.getInt(p);
-                if (lastGroup != groupId) {
-                    buffer = getBuffer(groupId, 1, timestamp);
-                    buffer.appendWithoutResize(timestamp, value);
-                    lastGroup = groupId;
-                } else {
-                    buffer.maybeResizeAndAppend(bigArrays, timestamp, value);
+            int lastGroup = groups.getInt(0);
+            int lastPosition = 0;
+            for (int p = 1; p < positionCount; p++) {
+                int group = groups.getInt(p);
+                if (group != lastGroup) {
+                    addRawInputSubRange(lastGroup, lastPosition + positionOffset, p + positionOffset, valueVector, timestampVector);
+                    lastGroup = group;
                 }
             }
+            addRawInputSubRange(lastGroup, lastPosition + positionOffset, positionCount + positionOffset, valueVector, timestampVector);
+        }
+    }
+
+    private void addRawInputSubRange(int groupId, int from, int to,  LongVector valueVector, LongVector timestampVector) {
+        var buffer = getBuffer(groupId, to - from, timestampVector.getLong(from));
+        for (int p = from; p < to; p++) {
+            buffer.appendWithoutResize(timestampVector.getLong(p), valueVector.getLong(p));
         }
     }
 

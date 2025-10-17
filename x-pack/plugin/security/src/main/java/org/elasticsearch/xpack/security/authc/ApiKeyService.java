@@ -1793,9 +1793,9 @@ public class ApiKeyService implements Closeable {
         }
 
         /**
-         * The identity (Subject DistinguishedName) of the X.509 certificate that was provided by the client 
-         * alongside the API during authenticate. 
-         * <em>At the time of writing, the only place where this is used is for cross cluster request signing</em>     
+         * The identity (Subject DistinguishedName) of the X.509 certificate that was provided by the client
+         * alongside the API during authenticate.
+         * <em>At the time of writing, the only place where this is used is for cross cluster request signing</em>
          */
         public String getCertificateIdentity() {
             return certificateIdentity;

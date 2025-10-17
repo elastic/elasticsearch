@@ -98,12 +98,7 @@ public class CrossProjectIndexResolutionValidator {
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
-                ElasticsearchException e = checkResolutionFailure(
-                    localExpressions.expressions(),
-                    result,
-                    originalExpression,
-                    indicesOptions
-                );
+                ElasticsearchException e = checkResolutionFailure(localExpressions.indices(), result, originalExpression, indicesOptions);
                 if (e != null) {
                     return e;
                 }
@@ -123,7 +118,7 @@ public class CrossProjectIndexResolutionValidator {
                 }
             } else {
                 ElasticsearchException localException = checkResolutionFailure(
-                    localExpressions.expressions(),
+                    localExpressions.indices(),
                     result,
                     originalExpression,
                     indicesOptions
@@ -196,7 +191,7 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         return checkResolutionFailure(
-            matchingExpression.expressions(),
+            matchingExpression.indices(),
             matchingExpression.localIndexResolutionResult(),
             remoteExpression,
             indicesOptions

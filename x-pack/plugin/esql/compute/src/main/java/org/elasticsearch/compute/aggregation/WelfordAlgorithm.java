@@ -34,14 +34,21 @@ public final class WelfordAlgorithm {
         return count;
     }
 
-    public WelfordAlgorithm() {
-        this(0, 0, 0, true);
-    }
-
+    /**
+     * Creates a new WelfordAlgorithm instance.
+     * @param stdDev if true, compute standard deviation, otherwise compute variance
+     */
     public WelfordAlgorithm(boolean stdDev) {
         this(0, 0, 0, stdDev);
     }
 
+    /**
+     * Creates a new WelfordAlgorithm instance with the given state.
+     * @param mean the mean calculated so far
+     * @param m2 the sum of squares of differences from the current mean
+     * @param count the number of values added so far
+     * @param stdDev if true, compute standard deviation, otherwise compute variance
+     */
     public WelfordAlgorithm(double mean, double m2, long count, boolean stdDev) {
         this.mean = mean;
         this.m2 = m2;

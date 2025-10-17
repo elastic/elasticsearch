@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.actions;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -295,7 +296,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
+                    // We create the policy with maxDocs 2 since we're required to have a rollover action if we're creating a searchable
+                    // snapshot in the hot phase. But we will only index one document and trigger the rollover manually,
+                    // to improve reliability and speed of the test.
+                    new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build()),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -319,8 +323,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         indexDocument(client(), dataStream, true);
+        rolloverMaxOneDocCondition(client(), dataStream);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         awaitIndexExists(restoredIndexName);
         TimeSeriesRestDriver.awaitStepKey(client(), restoredIndexName, "hot", null, PhaseCompleteStep.NAME);
@@ -357,7 +364,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
+                    // We create the policy with maxDocs 2 since we're required to have a rollover action if we're creating a searchable
+                    // snapshot in the hot phase. But we will only index one document and trigger the rollover manually,
+                    // to improve reliability and speed of the test.
+                    new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build()),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -383,8 +393,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         // indexing only one document as we want only one rollover to be triggered
         indexDocument(client(), dataStream, true);
+        rolloverMaxOneDocCondition(client(), dataStream);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
+        String backingIndexName = backingIndices.getFirst();
         String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         awaitIndexExists(searchableSnapMountedIndexName);
         TimeSeriesRestDriver.awaitStepKey(client(), searchableSnapMountedIndexName, "hot", null, PhaseCompleteStep.NAME);
@@ -453,15 +466,24 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testIdenticalSearchableSnapshotActionIsNoop() throws Exception {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
-        hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
         createPolicy(
             client(),
             policy,
             null,
             null,
-            new Phase("hot", TimeValue.ZERO, hotActions),
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                Map.of(
+                    RolloverAction.NAME,
+                    // We create the policy with maxDocs 2 since we're required to have a rollover action if we're creating a searchable
+                    // snapshot in the hot phase. But we will only index one document and trigger the rollover manually,
+                    // to improve reliability and speed of the test.
+                    new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build()),
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, randomBoolean())
+                )
+            ),
             new Phase(
                 "cold",
                 TimeValue.ZERO,
@@ -472,16 +494,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createIndex(
             index,
-            Settings.builder().put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").build(),
+            Settings.builder().put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
             null,
             "\"alias\": {\"is_write_index\": true}"
         );
         ensureGreen(index);
         indexDocument(client(), index, true);
-
-        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
-        // `index_not_found_exception`
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        rolloverMaxOneDocCondition(client(), "alias");
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
 
@@ -772,7 +791,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
+                    // We create the policy with maxDocs 2 since we're required to have a rollover action if we're creating a searchable
+                    // snapshot in the hot phase. But we will only index one document and trigger the rollover manually,
+                    // to improve reliability and speed of the test.
+                    new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build()),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo, randomBoolean())
                 )
@@ -804,6 +826,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // rollover the data stream so searchable_snapshot can complete
         indexDocument(client(), dataStream, true);
+        rolloverMaxOneDocCondition(client(), dataStream);
 
         final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
         logger.info("--> waiting for [{}] to exist...", restoredIndex);

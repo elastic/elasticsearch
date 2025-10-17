@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,8 +25,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsSourceExec extends LeafExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -64,7 +63,7 @@ public class EsSourceExec extends LeafExec {
         var source = Source.readFrom((PlanStreamInput) in);
         String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             indexPattern = in.readString();
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
@@ -74,14 +73,14 @@ public class EsSourceExec extends LeafExec {
         }
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
-        var indexMode = EsRelation.readIndexMode(in);
+        var indexMode = IndexMode.fromString(in.readString());
         return new EsSourceExec(source, indexPattern, indexMode, indexNameWithModes, attributes, query);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeString(indexPattern);
             out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {
@@ -89,7 +88,7 @@ public class EsSourceExec extends LeafExec {
         }
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
-        EsRelation.writeIndexMode(out, indexMode());
+        out.writeString(indexMode().getName());
     }
 
     @Override

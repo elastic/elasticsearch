@@ -10,7 +10,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -41,6 +40,9 @@ import java.util.Map;
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */
 public abstract class DelayableWriteable<T extends Writeable> implements Writeable, Releasable {
+
+    private static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = TransportVersion.fromName("compress_delayable_writeable");
+
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
      * but is serialized so that deserializing it can be delayed.
@@ -59,7 +61,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             reader,
             in.getTransportVersion(),
             in.namedWriteableRegistry(),
-            in.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
+            in.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)
                 ? in.readReleasableBytesReference(in.readInt())
                 : in.readReleasableBytesReference()
         );
@@ -67,7 +69,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
     public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
         try (
-            ReleasableBytesReference serialized = in.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
+            ReleasableBytesReference serialized = in.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)
                 ? in.readReleasableBytesReference(in.readInt())
                 : in.readReleasableBytesReference()
         ) {
@@ -75,7 +77,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
     }
 
-    private DelayableWriteable() {}
+    protected DelayableWriteable() {}
 
     /**
      * Returns a {@linkplain DelayableWriteable} that stores its contents
@@ -108,7 +110,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)) {
+            if (out.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                 out.writeWithSizePrefix(reference);
             } else {
                 out.legacyWriteWithSizePrefix(reference);
@@ -179,7 +181,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                  * which is good because this is how shard request caching
                  * works.
                  */
-                if (out.getTransportVersion().onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)) {
+                if (out.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                     out.writeInt(serialized.length());
                     serialized.writeTo(out);
                 } else {
@@ -249,7 +251,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         BytesReference serialized
     ) throws IOException {
         try (
-            StreamInput in = serializedAtVersion.onOrAfter(TransportVersions.COMPRESS_DELAYABLE_WRITEABLE)
+            StreamInput in = serializedAtVersion.supports(COMPRESS_DELAYABLE_WRITEABLE)
                 ? CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
                 : serialized.streamInput()
         ) {

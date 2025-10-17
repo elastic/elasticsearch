@@ -48,7 +48,8 @@ public class ToGeohex extends AbstractConvertFunction {
         description = """
             Converts an input value to a `geohex` value.
             A string will only be successfully converted if it respects the
-            `geohex` format.""",
+            `geohex` format, as described for the
+            [geohex grid aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "to_geohex")
     )
     public ToGeohex(

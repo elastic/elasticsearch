@@ -1976,12 +1976,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne) that `kibana_system` has full management access to
+        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera) that `kibana_system`
+        // has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
             "logs-extrahop.investigation-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-qualys_gav.asset-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-sentinel_one.application-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-sentinel_one.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-island_browser.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-island_browser.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-cyera.classification-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-cyera.issue-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 
@@ -3809,6 +3815,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
 
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
@@ -3881,6 +3888,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));

@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
@@ -70,15 +69,16 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
@@ -88,6 +88,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -450,10 +451,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 )
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [cohere] service"));
+            assertThat(thrownException.getMessage(), containsString("The [cohere] service does not support task type [sparse_embedding]"));
         }
     }
 
@@ -687,10 +686,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [cohere] service"));
+            assertThat(thrownException.getMessage(), containsString("The [cohere] service does not support task type [sparse_embedding]"));
         }
     }
 
@@ -774,7 +771,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotCohereModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -803,7 +800,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1559,7 +1556,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                             "model_id": {
                                 "description": "The name of the model to use for the inference task.",
                                 "label": "Model ID",
-                                "required": false,
+                                "required": true,
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "str",

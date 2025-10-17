@@ -441,32 +441,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         public Builder assignModelToNode(Deployment deployment, Node node, int allocations, long requiredMemory) {
-            if (allocations <= 0) {
+            if (allocations <= 0 || canAssign(deployment, node, allocations, requiredMemory) == false) {
                 return this;
-            }
-            if (requiredMemory > remainingNodeMemory.get(node)) {
-                throw new IllegalArgumentException(
-                    "not enough memory on node ["
-                        + node.id()
-                        + "] to assign ["
-                        + allocations
-                        + "] allocations to deployment ["
-                        + deployment.deploymentId()
-                        + "]"
-                );
-            }
-            if (deployment.priority == Priority.NORMAL && allocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
-                throw new IllegalArgumentException(
-                    "not enough cores on node ["
-                        + node.id()
-                        + "] to assign ["
-                        + allocations
-                        + "] allocations to deployment ["
-                        + deployment.deploymentId()
-                        + "]; required threads per allocation ["
-                        + deployment.threadsPerAllocation()
-                        + "]"
-                );
             }
 
             assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + allocations);

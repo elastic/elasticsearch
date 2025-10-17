@@ -15,6 +15,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
@@ -55,8 +56,10 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -92,7 +95,6 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -119,8 +121,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
@@ -128,9 +132,10 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnr
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
@@ -166,8 +171,11 @@ public class AnalyzerTests extends ESTestCase {
         "FROM"
     );
 
-    private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
-    private static final int DEFAULT_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
+    private static final int MAX_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_TIMESERIES_LIMIT = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
+        Settings.EMPTY
+    );
 
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -1634,7 +1642,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+            + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -1669,7 +1677,7 @@ public class AnalyzerTests extends ESTestCase {
         enrichResolution.addError("languages", Enrich.Mode.ANY, "error-2");
         enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
 
-        AnalyzerContext context = new AnalyzerContext(
+        AnalyzerContext context = testAnalyzerContext(
             configuration("from test"),
             new EsqlFunctionRegistry(),
             testIndex,
@@ -1825,7 +1833,7 @@ public class AnalyzerTests extends ESTestCase {
                 languageIndex.get().mapping()
             )
         );
-        AnalyzerContext context = new AnalyzerContext(
+        AnalyzerContext context = testAnalyzerContext(
             configuration(query),
             new EsqlFunctionRegistry(),
             testIndex,
@@ -2212,13 +2220,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownIndex() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
 
         Analyzer analyzerMissingLookupIndex = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),
@@ -2242,8 +2248,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         String errorMessage = "1:45: Unknown column [last_name] in right side of join";
 
@@ -2265,8 +2269,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMultipleLookupJoinsGiveDifferentAttributes() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         // The field attributes that get contributed by different LOOKUP JOIN commands must have different name ids,
         // even if they have the same names. Otherwise, things like dependency analysis - like in PruneColumns - cannot work based on
         // name ids and shadowing semantics proliferate into all kinds of optimizer code.
@@ -2347,15 +2349,32 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingKnn() {
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
-
+        checkDenseVectorCastingHexKnn("float_vector");
         checkDenseVectorCastingKnn("float_vector");
+        checkDenseVectorCastingKnn("byte_vector");
+        checkDenseVectorCastingHexKnn("byte_vector");
+        checkDenseVectorEvalCastingKnn("byte_vector");
+        checkDenseVectorCastingKnn("bit_vector");
+        checkDenseVectorCastingHexKnn("bit_vector");
+        checkDenseVectorEvalCastingKnn("bit_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, [0.342, 0.164, 0.234])
+            from test | where knn(%s, [0, 1, 2])
+            """, fieldName), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var conversion = as(knn.query(), ToDenseVector.class);
+        var literal = as(conversion.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
+    }
+
+    private static void checkDenseVectorCastingHexKnn(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, "000102")
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
@@ -2363,44 +2382,83 @@ public class AnalyzerTests extends ESTestCase {
         var knn = as(filter.condition(), Knn.class);
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));
+        assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
+    }
+
+    private static void checkDenseVectorEvalCastingKnn(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
+            """, fieldName), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var queryVector = as(knn.query(), ReferenceAttribute.class);
+        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
+        assertThat(queryVector.name(), is("query"));
+    }
+
+    public void testDenseVectorImplicitCastingKnnQueryParams() {
+        checkDenseVectorCastingKnnQueryParams("float_vector");
+        checkDenseVectorCastingKnnQueryParams("byte_vector");
+        checkDenseVectorCastingKnnQueryParams("bit_vector");
+    }
+
+    private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | where knn(%s, ?query_vector)
+            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        var queryVector = as(knn.query(), ToDenseVector.class);
+        var literal = as(queryVector.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_cosine(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342f, 0.164f, 0.234f)
+                List.of(0.342, 0.164, 0.234)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342f, 0.164f, 0.234f)
+                List.of(0.342, 0.164, 0.234)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_l1_norm(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342f, 0.164f, 0.234f)
+                List.of(0.342, 0.164, 0.234)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_l2_norm(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342f, 0.164f, 0.234f)
+                List.of(0.342, 0.164, 0.234)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1, 2, 3));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
+            }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342f, 0.164f, 0.234f)
+                List.of(0.342, 0.164, 0.234)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1, 2));
+            }
         }
     }
 
@@ -2415,36 +2473,77 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
-        var right = as(similarity.right(), Literal.class);
-        assertThat(right.dataType(), is(DENSE_VECTOR));
-        assertThat(right.value(), equalTo(expectedElems));
+        assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
+        var right = as(similarity.right(), ToDenseVector.class);
+        var literal = as(right.field(), Literal.class);
+        assertThat(literal.value(), equalTo(expectedElems));
     }
 
-    public void testNoDenseVectorFailsSimilarityFunction() {
+    public void testDenseVectorEvalCastingSimilarityFunctions() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkNoDenseVectorFailsSimilarityFunction("v_cosine([0, 1, 2], 0.342)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkNoDenseVectorFailsSimilarityFunction("v_dot_product([0, 1, 2], 0.342)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkNoDenseVectorFailsSimilarityFunction("v_l1_norm([0, 1, 2], 0.342)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkNoDenseVectorFailsSimilarityFunction("v_l2_norm([0, 1, 2], 0.342)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkNoDenseVectorFailsSimilarityFunction("v_hamming([0, 1, 2], 0.342)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
+            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
         }
     }
 
-    private void checkNoDenseVectorFailsSimilarityFunction(String similarityFunction) {
-        var query = String.format(Locale.ROOT, "row a = 1 |  eval similarity = %s", similarityFunction);
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+    private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
+        var plan = analyze(String.format(Locale.ROOT, """
+            from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
+            """, similarityFunction), "mapping-dense_vector.json");
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("similarity", alias.name());
+        var similarity = as(alias.child(), VectorSimilarityFunction.class);
+        var left = as(similarity.left(), FieldAttribute.class);
+        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
+        var right = as(similarity.right(), ReferenceAttribute.class);
+        assertThat(right.dataType(), is(DENSE_VECTOR));
+        assertThat(right.name(), is("query"));
+    }
+
+    public void testVectorFunctionHexImplicitCastingError() {
+        checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_l1_norm(\"notcorrect\", 0.342)");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_l2_norm(\"notcorrect\", 0.342)");
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionHexImplicitCastingError("eval s = v_hamming(\"notcorrect\", 0.342)");
+        }
+    }
+
+    private void checkVectorFunctionHexImplicitCastingError(String clause) {
+        var query = "from test | " + clause;
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, "mapping-dense_vector.json"));
         assertThat(
             error.getMessage(),
-            containsString("second argument of [" + similarityFunction + "] must be" + " [dense_vector], found value [0.342] type [double]")
+            containsString(
+                "Cannot convert string [notcorrect] to [DENSE_VECTOR], "
+                    + "error [notcorrect is not a valid hex string: not a hexadecimal digit: \"n\" = 110]"
+            )
         );
     }
 
@@ -2460,24 +2559,33 @@ public class AnalyzerTests extends ESTestCase {
         var alias = as(eval.fields().get(0), Alias.class);
         assertEquals("scalar", alias.name());
         var scalar = as(alias.child(), Magnitude.class);
-        var child = as(scalar.field(), Literal.class);
-        assertThat(child.dataType(), is(DENSE_VECTOR));
-        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
+        var child = as(scalar.field(), ToDenseVector.class);
+        var literal = as(child.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(1, 2, 3)));
     }
 
-    public void testNoDenseVectorFailsForMagnitude() {
-        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
-
-        var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
-        assertThat(
-            error.getMessage(),
-            containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
-        );
+    public void testTimeseriesDefaultLimitIs1B() {
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        // Tuples of (query, isTimeseries)
+        for (var queryExp : List.of(
+            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in))", true),
+            Tuple.tuple("TS test", false),
+            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
+            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false)
+        )) {
+            var query = queryExp.v1();
+            var expectedLimit = queryExp.v2() ? DEFAULT_TIMESERIES_LIMIT : DEFAULT_LIMIT;
+            var plan = analyze(query, analyzer);
+            var limit = as(plan, Limit.class);
+            try {
+                assertThat(as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
+            } catch (AssertionError e) {
+                throw new AssertionError("Failed for query: " + query, e);
+            }
+        }
     }
 
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
@@ -3043,12 +3151,16 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new FieldCapabilitiesResponse(
-                List.of(
-                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
-                    fieldCapabilitiesIndexResponse("bar", Map.of())
+            new IndexResolver.FieldsInfo(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
+                        fieldCapabilitiesIndexResponse("bar", Map.of())
+                    ),
+                    List.of()
                 ),
-                List.of()
+                true,
+                true
             )
         );
 
@@ -3066,9 +3178,16 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new FieldCapabilitiesResponse(
-                List.of(fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")), fieldCapabilitiesIndexResponse("bar", Map.of())),
-                List.of()
+            new IndexResolver.FieldsInfo(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                        fieldCapabilitiesIndexResponse("bar", Map.of())
+                    ),
+                    List.of()
+                ),
+                true,
+                true
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3087,13 +3206,17 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new FieldCapabilitiesResponse(
-                List.of(
-                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                    fieldCapabilitiesIndexResponse("bazz", Map.of())
+            new IndexResolver.FieldsInfo(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                        fieldCapabilitiesIndexResponse("bazz", Map.of())
+                    ),
+                    List.of()
                 ),
-                List.of()
+                true,
+                true
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3111,12 +3234,16 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new FieldCapabilitiesResponse(
-                List.of(
-                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
+            new IndexResolver.FieldsInfo(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
+                    ),
+                    List.of()
                 ),
-                List.of()
+                true,
+                true
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3132,14 +3259,18 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new FieldCapabilitiesResponse(
-                List.of(
-                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                    fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
-                    fieldCapabilitiesIndexResponse("qux", Map.of())
+            new IndexResolver.FieldsInfo(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                        fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
+                        fieldCapabilitiesIndexResponse("qux", Map.of())
+                    ),
+                    List.of()
                 ),
-                List.of()
+                true,
+                true
             )
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
@@ -3157,13 +3288,17 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo, bar",
-            new FieldCapabilitiesResponse(
-                List.of(
-                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                    fieldCapabilitiesIndexResponse("bazz", Map.of())
+            new IndexResolver.FieldsInfo(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                        fieldCapabilitiesIndexResponse("bazz", Map.of())
+                    ),
+                    List.of()
                 ),
-                List.of()
+                true,
+                true
             )
         );
         VerificationException e = expectThrows(
@@ -3175,6 +3310,52 @@ public class AnalyzerTests extends ESTestCase {
             e.getMessage(),
             containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")
         );
+    }
+
+    public void testResolveDenseVector() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build()))),
+            List.of()
+        );
+        {
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            assertThat(plan.output(), hasSize(1));
+            assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
+        }
+        {
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, false));
+            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            assertThat(plan.output(), hasSize(1));
+            assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
+        }
+    }
+
+    public void testResolveAggregateMetricDouble() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse(
+                    "foo",
+                    Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+                )
+            ),
+            List.of()
+        );
+        {
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, true, true));
+            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            assertThat(plan.output(), hasSize(1));
+            assertThat(
+                plan.output().getFirst().dataType(),
+                equalTo(EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED)
+            );
+        }
+        {
+            IndexResolution resolution = IndexResolver.mergedMappings("foo", new IndexResolver.FieldsInfo(caps, false, true));
+            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            assertThat(plan.output(), hasSize(1));
+            assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
+        }
     }
 
     public void testBasicFork() {
@@ -3493,8 +3674,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
-
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
              | fork ( where first_name:"foo" )
@@ -3517,8 +3696,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
-
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | fuse
@@ -3610,14 +3787,21 @@ public class AnalyzerTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
+        return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
+    }
+
+    // TODO: drop after next minor release
+    public static List<String> withInlinestatsWarning(List<String> warnings) {
+        List<String> allWarnings = warnings != null ? new ArrayList<>(warnings) : new ArrayList<>();
+        allWarnings.add("INLINESTATS is deprecated, use INLINE STATS instead");
+        return allWarnings;
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
+        IndexResolver.FieldsInfo caps = new IndexResolver.FieldsInfo(new FieldCapabilitiesResponse(idxResponses, List.of()), true, true);
         IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
@@ -3627,6 +3811,99 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
+    }
+
+    public void testTextEmbeddingResolveInferenceId() {
+        LogicalPlan plan = analyze(
+            String.format(Locale.ROOT, """
+                FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
+            "mapping-books.json"
+        );
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("embedding"));
+        TextEmbedding function = as(alias.child(), TextEmbedding.class);
+
+        assertThat(function.inputText(), equalTo(string("italian food recipe")));
+        assertThat(function.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testTextEmbeddingFunctionResolveType() {
+        LogicalPlan plan = analyze(
+            String.format(Locale.ROOT, """
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
+            "mapping-books.json"
+        );
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("embedding"));
+
+        TextEmbedding function = as(alias.child(), TextEmbedding.class);
+
+        assertThat(function.foldable(), equalTo(true));
+        assertThat(function.dataType(), equalTo(DENSE_VECTOR));
+    }
+
+    public void testTextEmbeddingFunctionMissingInferenceIdError() {
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> analyze(
+                String.format(Locale.ROOT, """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", "unknow-inference-id"),
+                "mapping-books.json"
+            )
+        );
+
+        assertThat(ve.getMessage(), containsString("unresolved inference [unknow-inference-id]"));
+    }
+
+    public void testTextEmbeddingFunctionInvalidInferenceIdError() {
+        String inferenceId = randomInferenceIdOtherThan(TEXT_EMBEDDING_INFERENCE_ID);
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> analyze(
+                String.format(Locale.ROOT, """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", inferenceId),
+                "mapping-books.json"
+            )
+        );
+
+        assertThat(
+            ve.getMessage(),
+            containsString(String.format(Locale.ROOT, "cannot use inference endpoint [%s] with task type", inferenceId))
+        );
+    }
+
+    public void testTextEmbeddingFunctionWithoutModel() {
+        ParsingException ve = expectThrows(ParsingException.class, () -> analyze("""
+            FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""", "mapping-books.json"));
+
+        assertThat(
+            ve.getMessage(),
+            containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
+        );
+    }
+
+    public void testKnnFunctionWithTextEmbedding() {
+        LogicalPlan plan = analyze(
+            String.format(Locale.ROOT, """
+                from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
+            "mapping-dense_vector.json"
+        );
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Knn knn = as(filter.condition(), Knn.class);
+        assertThat(knn.field(), instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) knn.field()).name(), equalTo("float_vector"));
+
+        TextEmbedding textEmbedding = as(knn.query(), TextEmbedding.class);
+        assertThat(textEmbedding.inputText(), equalTo(string("italian food recipe")));
+        assertThat(textEmbedding.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
     }
 
     public void testResolveRerankInferenceId() {
@@ -3837,9 +4114,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankFieldsInvalidTypes() {
-        List<String> invalidFieldNames = DENSE_VECTOR_FEATURE_FLAG.isEnabled()
-            ? List.of("date", "date_nanos", "ip", "version", "dense_vector")
-            : List.of("date", "date_nanos", "ip", "version");
+        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
@@ -4263,12 +4538,25 @@ public class AnalyzerTests extends ESTestCase {
             """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
     }
 
-    public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testGroupingOverridesInInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         verifyUnsupported("""
             from test
-            | inlinestats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
+            | inline stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testInlineStatsStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inline stats stats
+            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
+        // TODO: drop after next minor release
+        verifyUnsupported("""
+            from test
+            | inlinestats stats
+            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
@@ -4316,7 +4604,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testImplicitCastingForAggregateMetricDouble() {
         assumeTrue(
             "aggregate metric double implicit casting must be available",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.isEnabled()
+            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()
         );
         Map<String, EsField> mapping = Map.of(
             "@timestamp",
@@ -4335,7 +4623,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         var indexResolution = IndexResolution.valid(esIndex);
         var analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 indexResolution,
@@ -4361,7 +4649,6 @@ public class AnalyzerTests extends ESTestCase {
             """, analyzer);
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
-        assumeTrue("Metrics command must be available for TS", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var plan2 = analyze("""
             TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),

@@ -43,20 +43,72 @@ public final class SecureString implements CharSequence, Releasable {
         this(s.toCharArray());
     }
 
-    /** Constant time equality to avoid potential timing attacks. */
     @Override
     public synchronized boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof CharSequence cs) {
+            return equals(cs);
+        } else {
+            return false;
+        }
+    }
+
+    /** Constant time equality to avoid potential timing attacks. */
+    public synchronized boolean equals(CharSequence that) {
         ensureNotClosed();
-        if (this == o) return true;
-        if (o == null || o instanceof CharSequence == false) return false;
-        CharSequence that = (CharSequence) o;
-        if (chars.length != that.length()) {
+        // This is intentional to make sure the check is constant time relative to the length of the comparison string
+        return that != null && compareChars(0, that, 0, that.length()) && this.length() == that.length();
+    }
+
+    public boolean startsWith(CharSequence other) {
+        ensureNotClosed();
+        return compareChars(0, other, 0, other.length());
+    }
+
+    /**
+     * Compare the characters in this {@code SecureString} from {@code thisOffset} to {@code thisOffset + len}
+     * against that characters in {@code other} from {@code otherOffset} to {@code otherOffset + len}
+     * <br />
+     * This operation is performed in constant time (relative to {@code len})
+     */
+    public synchronized boolean regionMatches(int thisOffset, CharSequence other, int otherOffset, int len) {
+        ensureNotClosed();
+        if (otherOffset < 0 || thisOffset < 0) {
+            // cannot start from a negative value
             return false;
         }
 
+        // Perform some calculations as long to prevent overflow
+        if (otherOffset + (long) len > other.length()) {
+            // cannot compare a region that runs past the end of the comparison string
+            // we don't check the length of our string because we want to run in constant time
+            return false;
+        }
+
+        if (len < 0) {
+            throw new IllegalArgumentException("length cannot be negative");
+        }
+        if (len == 0) {
+            // zero length regions are always equals
+            return true;
+        }
+
+        return compareChars(thisOffset, other, otherOffset, len);
+    }
+
+    /**
+     * Constant time comparison of a range from {@link #chars} against an identical length range from {@code other}
+     */
+    private boolean compareChars(int thisOffset, CharSequence other, int otherOffset, int len) {
+        assert len <= other.length() : "len is longer that comparison string: " + len + " vs " + other.length();
+
         int equals = 0;
-        for (int i = 0; i < chars.length; i++) {
-            equals |= chars[i] ^ that.charAt(i);
+        for (int i = 0; i < len; i++) {
+            final char o = other.charAt(otherOffset + i);
+            final int t = thisOffset + i < chars.length ? chars[thisOffset + i] : (Character.MAX_VALUE + 1);
+            equals |= t ^ o;
         }
 
         return equals == 0;

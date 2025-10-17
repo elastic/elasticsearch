@@ -217,9 +217,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            bulk = in.readOptionalWriteable(BulkStats::new);
-        }
+        bulk = in.readOptionalWriteable(BulkStats::new);
         shards = in.readOptionalWriteable(ShardCountStats::new);
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
@@ -250,9 +248,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalWriteable(bulk);
-        }
+        out.writeOptionalWriteable(bulk);
         out.writeOptionalWriteable(shards);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             out.writeOptionalWriteable(nodeMappings);

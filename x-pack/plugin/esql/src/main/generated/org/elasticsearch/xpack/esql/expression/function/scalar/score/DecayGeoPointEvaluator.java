@@ -81,18 +81,19 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (valueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valueBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valueBlock.getValueCount(p) != 1) {
-          if (valueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Decay.process(valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        BytesRef value = valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch);
+        result.appendDouble(Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -102,7 +103,8 @@ public final class DecayGeoPointEvaluator implements EvalOperator.ExpressionEval
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getBytesRef(p, valueScratch), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        BytesRef value = valueVector.getBytesRef(p, valueScratch);
+        result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }

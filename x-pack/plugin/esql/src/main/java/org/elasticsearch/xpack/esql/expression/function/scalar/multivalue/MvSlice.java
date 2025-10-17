@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -41,7 +42,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -167,7 +168,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCounters(field, sourceText(), FIRST);
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(field, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -264,7 +265,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Boolean", warnExceptions = { InvalidArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int position, BooleanBlock field, int start, int end) {
+    static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -288,7 +289,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Int", warnExceptions = { InvalidArgumentException.class })
-    static void process(IntBlock.Builder builder, int position, IntBlock field, int start, int end) {
+    static void process(IntBlock.Builder builder, @Position int position, IntBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -312,7 +313,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Long", warnExceptions = { InvalidArgumentException.class })
-    static void process(LongBlock.Builder builder, int position, LongBlock field, int start, int end) {
+    static void process(LongBlock.Builder builder, @Position int position, LongBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -336,7 +337,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Double", warnExceptions = { InvalidArgumentException.class })
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock field, int start, int end) {
+    static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -360,7 +361,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "BytesRef", warnExceptions = { InvalidArgumentException.class })
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock field, int start, int end) {
+    static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end); // append null here ?
         int first = field.getFirstValueIndex(position);

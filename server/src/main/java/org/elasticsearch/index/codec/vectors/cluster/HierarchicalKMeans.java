@@ -10,11 +10,11 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.ReadAdvice;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -32,6 +32,7 @@ public class HierarchicalKMeans {
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
     public static final int DEFAULT_OFF_HEAP_MEMORY_MB = 2048; // 2 Gib
+    public static final int NO_SOAR_ASSIGNMENT = -1;
 
     final int dimension;
     final int maxIterations;
@@ -237,11 +238,11 @@ public class HierarchicalKMeans {
                     try (
                         IndexInput input = directory.openInput(
                             tmpVectorNames[adjustedCentroid],
-                            IOContext.DEFAULT.withReadAdvice(ReadAdvice.SEQUENTIAL)
+                            IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
                         );
                         IndexInput docInput = directory.openInput(
                             tmpDocNames[adjustedCentroid],
-                            IOContext.DEFAULT.withReadAdvice(ReadAdvice.SEQUENTIAL)
+                            IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
                         )
                     ) {
                         FloatVectorValues slice = new OffHeapFloatVectorValues(input, count, dimension, docInput);

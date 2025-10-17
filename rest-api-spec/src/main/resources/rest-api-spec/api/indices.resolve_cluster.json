@@ -7,17 +7,23 @@
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"]
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_resolve/cluster",
-          "methods": ["GET"]
+          "methods": [
+            "GET"
+          ]
         },
         {
           "path": "/_resolve/cluster/{name}",
-          "methods": ["GET"],
+          "methods": [
+            "GET"
+          ],
           "parts": {
             "name": {
               "type": "list",
@@ -30,19 +36,28 @@
     "params": {
       "ignore_unavailable": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed). Only allowed when providing an index expression."
       },
       "ignore_throttled": {
         "type": "boolean",
+        "default": false,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled. Only allowed when providing an index expression."
       },
       "allow_no_indices": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified). Only allowed when providing an index expression."
       },
       "expand_wildcards": {
         "type": "enum",
-        "options": ["open", "closed", "hidden", "none", "all"],
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
         "default": "open",
         "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open). Only allowed when providing an index expression."
       },
@@ -53,4 +68,3 @@
     }
   }
 }
-

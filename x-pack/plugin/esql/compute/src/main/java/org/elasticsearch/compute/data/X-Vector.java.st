@@ -195,15 +195,15 @@ $if(BytesRef)$
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayVector v) {
+        } else if (this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+        } else if (this instanceof OrdinalBytesRefVector v && v.isDense()) {
             out.writeByte(SERIALIZE_VECTOR_ORDINAL);
             v.writeOrdinalVector(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayVector v) {
+        } else if (this instanceof $Type$BigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
 $endif$

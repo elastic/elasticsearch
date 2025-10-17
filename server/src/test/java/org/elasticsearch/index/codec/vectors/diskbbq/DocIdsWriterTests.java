@@ -36,8 +36,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
-
 public class DocIdsWriterTests extends LuceneTestCase {
 
     public void testNoDocs() throws Exception {
@@ -50,7 +48,7 @@ public class DocIdsWriterTests extends LuceneTestCase {
         int numIters = atLeast(100);
         try (Directory dir = newDirectory()) {
             for (int iter = 0; iter < numIters; ++iter) {
-                int count = random().nextBoolean() ? 1 + random().nextInt(5000) : DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+                int count = 1 + random().nextInt(5000);
                 int[] docIDs = new int[count];
                 final int bpv = TestUtil.nextInt(random(), 1, 32);
                 for (int i = 0; i < docIDs.length; ++i) {
@@ -80,7 +78,7 @@ public class DocIdsWriterTests extends LuceneTestCase {
         int numIters = atLeast(100);
         try (Directory dir = newDirectory()) {
             for (int iter = 0; iter < numIters; ++iter) {
-                int count = random().nextBoolean() ? 1 + random().nextInt(5000) : DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+                int count = 1 + random().nextInt(5000);
                 int[] docIDs = new int[count];
                 int min = random().nextInt(1000);
                 final int bpv = TestUtil.nextInt(random(), 1, 16);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
@@ -18,14 +18,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
-
 /**
  * Information about a field in an ES index that cannot be supported by ESQL.
  * All the subfields (properties) of an unsupported type are also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
+
+    private static final TransportVersion ESQL_REPORT_ORIGINAL_TYPES = TransportVersion.fromName("esql_report_original_types");
 
     private final List<String> originalTypes;
     private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
@@ -52,7 +51,7 @@ public class UnsupportedEsField extends EsField {
 
     public UnsupportedEsField(StreamInput in) throws IOException {
         this(
-            readCachedStringWithVersionCheck(in),
+            ((PlanStreamInput) in).readCachedString(),
             readOriginalTypes(in),
             in.readOptionalString(),
             in.readImmutableMap(EsField::readFrom),
@@ -61,22 +60,20 @@ public class UnsupportedEsField extends EsField {
     }
 
     private static List<String> readOriginalTypes(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             return in.readCollectionAsList(i -> ((PlanStreamInput) i).readCachedString());
         } else {
-            return List.of(readCachedStringWithVersionCheck(in).split(","));
+            return List.of(((PlanStreamInput) in).readCachedString().split(","));
         }
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, getName());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
+        ((PlanStreamOutput) out).writeCachedString(getName());
+        if (out.getTransportVersion().supports(ESQL_REPORT_ORIGINAL_TYPES)) {
             out.writeCollection(getOriginalTypes(), (o, s) -> ((PlanStreamOutput) o).writeCachedString(s));
         } else {
-            writeCachedStringWithVersionCheck(out, String.join(",", getOriginalTypes()));
+            ((PlanStreamOutput) out).writeCachedString(String.join(",", getOriginalTypes()));
         }
         out.writeOptionalString(getInherited());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));

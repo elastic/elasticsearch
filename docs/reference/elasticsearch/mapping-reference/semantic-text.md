@@ -60,6 +60,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ### Using a custom endpoint
 
@@ -81,6 +82,7 @@ PUT my-index-000002
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
 
@@ -105,6 +107,7 @@ PUT my-index-000003
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ### Using ELSER on EIS
 ```{applies_to}
@@ -128,6 +131,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ::::{note}
 While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
@@ -311,6 +315,7 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Use `"format": "chunks"` to return the field’s text as the original text chunks that were indexed.
 
@@ -338,6 +343,7 @@ POST test-index/_search
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Specifies the maximum number of fragments to return.
 2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
@@ -349,7 +355,7 @@ fragments when the field is not of type semantic_text, you can explicitly
 enforce the `semantic` highlighter in the query:
 
 ```console
-PUT test-index
+POST test-index/_search
 {
     "query": {
         "match": {
@@ -367,6 +373,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
@@ -392,6 +399,7 @@ POST test-index/_search
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
 
@@ -412,6 +420,98 @@ If you want to avoid unnecessary inference and keep existing embeddings:
 
     * Use **partial updates through the Bulk API**.
     * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
+
+## Returning semantic field embeddings in `_source`
+
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
+
+By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
+
+To include the full inference fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
+This works with the
+[Get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get),
+[Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search),
+and
+[Reindex](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex)
+APIs.
+
+```console
+POST my-index/_search
+{
+  "_source": {
+    "exclude_vectors": false
+  },
+  "query": {
+    "match_all": {}
+  }
+}
+```
+% TEST[skip:Requires inference endpoint]
+
+The embeddings will appear under `_inference_fields` in `_source`.
+
+**Use cases**
+Including embeddings in `_source` is useful when you want to:
+
+* Reindex documents into another index **with the same `inference_id`** without re-running inference.
+* Export or migrate documents while preserving their embeddings.
+* Inspect or debug the raw embeddings generated for your content.
+
+### Example: Reindex while preserving embeddings
+
+```console
+POST _reindex
+{
+  "source": {
+    "index": "my-index-src",
+    "_source": {
+      "exclude_vectors": false            <1>
+    }
+  },
+  "dest": {
+    "index": "my-index-dest"
+  }
+}
+```
+% TEST[skip:Requires inference endpoint]
+
+1. Sends the source documents with their stored embeddings to the destination index.
+
+::::{warning}
+If the target index’s `semantic_text` field does **not** use the **same `inference_id`** as the source index,
+the documents will **fail the reindex task**.
+Matching `inference_id` values are required to reuse the existing embeddings.
+::::
+
+This allows documents to be re-indexed without triggering inference again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
+
+::::{note}
+**For versions prior to 9.2.0**
+
+Older versions do not support the `exclude_vectors` option to retrieve the embeddings of the semantic text fields.
+To return the `_inference_fields`, use the `fields` option in a search request instead:
+
+```console
+POST test-index/_search
+{
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  },
+  "fields": [
+    "_inference_fields"
+  ]
+}
+```
+% TEST[skip:Requires inference endpoint]
+
+This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
+Note that the `fields` option is **not** available for the Reindex API.
+::::
 
 ## Customizing `semantic_text` indexing [custom-indexing]
 
@@ -457,6 +557,7 @@ PUT my-index-000004
   }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 ## Updates to `semantic_text` fields [update-script]
 
@@ -500,6 +601,7 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 can also be declared as multi-fields:
 
@@ -521,6 +623,32 @@ PUT test-index
     }
 }
 ```
+% TEST[skip:Requires inference endpoint]
+
+## Querying `semantic_text` fields [querying-semantic-text-fields]
+
+You can query `semantic_text` fields using the following query types:
+
+- Match query: The recommended method for querying `semantic_text` fields. You can use [Query DSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ES|QL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax.
+<!--
+Refer to examples of match queries on `semantic_text` fields. 
+-->
+
+- [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md): Finds the nearest vectors to a query vector using a similarity metric, mainly for advanced or combined search use cases. 
+<!-- 
+Refer to examples of kNN queries on `semantic_text` fields. 
+-->
+
+- [Sparse vector query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md): Executes searches using sparse vectors generated by a sparse retrieval model such as [ELSER](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md).
+<!-- 
+Refer to examples of sparse vector queries on `semantic_text` fields.
+-->
+
+- [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md): We don't recommend this legacy query type for _new_ projects, because the alternatives in this list enable more flexibility and customization. The `semantic` query remains available to support existing implementations.
+<!-- 
+Refer to examples of semantic queries on `semantic_text` fields.
+-->
+
 
 ## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
 
@@ -540,9 +668,31 @@ POST test-index/_search
   ]
 }
 ```
+% TEST[skip:Requires inference endpoint]
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
+
+## Cross-cluster search (CCS) [ccs]
+```{applies_to}
+stack: ga 9.2
+serverless: unavailable
+```
+
+`semantic_text` supports [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)
+when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `true`.
+This is the default value for `ccs_minimize_roundtrips`, so most CCS queries should work automatically:
+
+```console
+POST local-index,remote-cluster:remote-index/_search
+{
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  }
+}
+```
 
 ## Limitations [limitations]
 
@@ -552,5 +702,6 @@ semantic search for `semantic_text` fields.
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
-  Cross-Cluster Replication (CCR).
+* `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `false`.
+* `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
+* `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).

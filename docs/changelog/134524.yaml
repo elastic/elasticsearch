@@ -1,0 +1,5 @@
+pr: 134524
+summary: Add support for flexible access pattern to `NormalizeForStreamProcessor`
+area: Ingest Node
+type: bug
+issues: []

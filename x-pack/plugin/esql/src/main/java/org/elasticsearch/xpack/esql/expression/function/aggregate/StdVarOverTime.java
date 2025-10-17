@@ -38,7 +38,7 @@ public class StdVarOverTime extends TimeSeriesAggregateFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the population standard deviation over time of a numeric field.",
+        description = "Calculates the population standard variance over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         preview = true,
@@ -48,8 +48,8 @@ public class StdVarOverTime extends TimeSeriesAggregateFunction {
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "double", "integer", "long" },
-            description = "Expression that outputs values to calculate the standard deviation of."
+            type = { "double", "integer", "long" },
+            description = "Expression that outputs values to calculate the variance of."
         ) Expression field
     ) {
         this(source, field, Literal.TRUE);

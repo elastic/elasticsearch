@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class StdVarOverTimeTests extends AbstractFunctionTestCase {
-    public StdVarOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class StdvarOverTimeTests extends AbstractFunctionTestCase {
+    public StdvarOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
     }
 

@@ -48,7 +48,7 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "double", "integer", "long" },
+            type = { "double", "integer", "long" },
             description = "Expression that outputs values to calculate the standard deviation of."
         ) Expression field
     ) {

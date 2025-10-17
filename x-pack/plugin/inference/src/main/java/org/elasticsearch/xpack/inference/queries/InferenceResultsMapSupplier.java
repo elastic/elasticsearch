@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 class InferenceResultsMapSupplier implements Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> {
-    private Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = null;
+    private volatile Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = null;
 
     void set(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         this.inferenceResultsMap = inferenceResultsMap;

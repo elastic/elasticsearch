@@ -1516,6 +1516,11 @@ public class EsqlCapabilities {
          */
         FIX_FILTER_ORDINALS,
 
+        /**
+         * "time_zone" parameter in request body and in {@code SET "time_zone"="x"}
+         */
+        GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
+
         ;
 
         private final boolean enabled;

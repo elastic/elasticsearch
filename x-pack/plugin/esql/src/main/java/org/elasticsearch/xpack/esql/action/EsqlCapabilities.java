@@ -1516,6 +1516,11 @@ public class EsqlCapabilities {
          */
         FIX_FILTER_ORDINALS,
 
+        /**
+         * Optional options argument for DATE_PARSE
+         */
+        DATE_PARSE_OPTIONS,
+
         ;
 
         private final boolean enabled;

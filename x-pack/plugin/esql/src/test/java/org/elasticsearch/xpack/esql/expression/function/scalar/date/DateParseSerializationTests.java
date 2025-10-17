@@ -19,7 +19,8 @@ public class DateParseSerializationTests extends AbstractExpressionSerialization
         Source source = randomSource();
         Expression first = randomChild();
         Expression second = randomBoolean() ? null : randomChild();
-        return new DateParse(source, first, second);
+        Expression options = second != null && randomBoolean() ? randomChild() : null;
+        return new DateParse(source, first, second, options);
     }
 
     @Override
@@ -32,6 +33,11 @@ public class DateParseSerializationTests extends AbstractExpressionSerialization
         } else {
             second = randomValueOtherThan(second, () -> randomBoolean() ? null : randomChild());
         }
-        return new DateParse(source, first, second);
+        Expression options = instance.children().size() == 3 ? instance.children().get(2) : null;
+
+        if (randomBoolean()) {
+            options = randomValueOtherThan(first, AbstractExpressionSerializationTests::randomChild);
+        }
+        return new DateParse(source, first, second, options);
     }
 }

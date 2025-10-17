@@ -94,7 +94,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> SamplingMethod.fromLabel(p.text()),
+            p -> SamplingMethod.fromString(p.text()),
             new ParseField(SAMPLING_METHOD),
             ObjectParser.ValueType.STRING
         );
@@ -166,9 +166,9 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         if (Objects.equals(source.getEffectiveSamplingMethod(), target.getEffectiveSamplingMethod()) == false) {
             throw new IllegalArgumentException(
                 "Downsampling method ["
-                    + target.getEffectiveSamplingMethod().label()
+                    + target.getEffectiveSamplingMethod()
                     + "] is not compatible with the source index downsampling method ["
-                    + source.getEffectiveSamplingMethod().label()
+                    + source.getEffectiveSamplingMethod()
                     + "]."
             );
         }
@@ -342,10 +342,6 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             this.label = label;
         }
 
-        public String label() {
-            return label;
-        }
-
         byte id() {
             return id;
         }
@@ -366,7 +362,7 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         }
 
         @Nullable
-        public static SamplingMethod fromLabel(@Nullable String label) {
+        public static SamplingMethod fromString(@Nullable String label) {
             if (label == null) {
                 return null;
             }
@@ -377,10 +373,14 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
                     "Sampling method ["
                         + label
                         + "] is not one of the accepted methods "
-                        + Arrays.stream(values()).map(SamplingMethod::label).toList()
+                        + Arrays.stream(values()).map(SamplingMethod::toString).toList()
                         + "."
                 );
             };
+        }
+
+        public static SamplingMethod fromIndexMetadata(IndexMetadata indexMetadata) {
+            return fromString(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD_KEY));
         }
 
         /**
@@ -394,6 +394,11 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(id);
+        }
+
+        @Override
+        public String toString() {
+            return label;
         }
     }
 }

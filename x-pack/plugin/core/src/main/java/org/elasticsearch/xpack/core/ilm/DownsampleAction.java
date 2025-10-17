@@ -86,7 +86,7 @@ public class DownsampleAction implements LifecycleAction {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> DownsampleConfig.SamplingMethod.fromLabel(p.text()),
+            p -> DownsampleConfig.SamplingMethod.fromString(p.text()),
             SAMPLING_METHOD_FIELD,
             ObjectParser.ValueType.STRING
         );
@@ -154,7 +154,7 @@ public class DownsampleAction implements LifecycleAction {
             builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
         }
         if (samplingMethod != null) {
-            builder.field(SAMPLING_METHOD_FIELD.getPreferredName(), samplingMethod.label());
+            builder.field(SAMPLING_METHOD_FIELD.getPreferredName(), samplingMethod.toString());
         }
         builder.endObject();
         return builder;

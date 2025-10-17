@@ -482,11 +482,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
             if (Objects.equals(firstEffectiveSamplingMethod, secondEffectiveSamplingMethod) == false) {
                 throw new IllegalArgumentException(
                     "Downsampling method ["
-                        + secondEffectiveSamplingMethod.label()
+                        + secondEffectiveSamplingMethod
                         + "] for phase ["
                         + secondDownsample.v1()
                         + "] must be compatible with the method ["
-                        + firstEffectiveSamplingMethod.label()
+                        + firstEffectiveSamplingMethod
                         + "] for phase ["
                         + firstDownsample.v1()
                         + "]"

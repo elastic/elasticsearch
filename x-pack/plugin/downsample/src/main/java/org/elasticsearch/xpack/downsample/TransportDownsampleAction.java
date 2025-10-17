@@ -866,9 +866,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             String interval = meta.get(config.getIntervalType());
             if (interval != null) {
                 try {
-                    DownsampleConfig.SamplingMethod samplingMethod = DownsampleConfig.SamplingMethod.fromLabel(
-                        sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD_KEY)
-                    );
+                    DownsampleConfig.SamplingMethod samplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
                     DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), samplingMethod);
                     DownsampleConfig.validateSourceAndTargetConfiguration(sourceConfig, config);
                 } catch (IllegalArgumentException exception) {
@@ -992,7 +990,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
             );
         // We explicitly store the sampling method used when downsampling.
-        builder.put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getEffectiveSamplingMethod().label());
+        builder.put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getEffectiveSamplingMethod().toString());
         if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
             builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
         }

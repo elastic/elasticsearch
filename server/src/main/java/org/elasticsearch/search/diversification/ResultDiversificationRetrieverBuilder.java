@@ -11,6 +11,7 @@ package org.elasticsearch.search.diversification;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.Mapper;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -258,6 +260,15 @@ public final class ResultDiversificationRetrieverBuilder extends CompoundRetriev
     @Override
     public String getName() {
         return NAME;
+    }
+
+    public static ResultDiversificationRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
+        throws IOException {
+        try {
+            return PARSER.apply(parser, context);
+        } catch (Exception e) {
+            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
+        }
     }
 
     @Override

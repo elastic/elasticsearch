@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -22,13 +25,17 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
-    public PushDownAndCombineLimits() {
+    private final boolean local;
+
+    public PushDownAndCombineLimits(boolean local) {
         super(OptimizerRules.TransformDirection.DOWN);
+        this.local = local;
     }
 
     @Override
@@ -45,7 +52,12 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof RegexExtract
                 || unary instanceof Enrich
                 || unary instanceof InferencePlan<?>) {
-                return unary.replaceChild(limit.replaceChild(unary.child()));
+                if (false == local && unary instanceof Eval && ((Eval) unary).fields().stream().anyMatch(this::evalAliasNeedsData)) {
+                    // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
+                    return limit;
+                } else {
+                    return unary.replaceChild(limit.replaceChild(unary.child()));
+                }
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
@@ -74,6 +86,24 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             return duplicateLimitAsFirstGrandchild(limit);
         }
         return limit;
+    }
+
+    /**
+     * Determines if the provided {@link Alias} expression depends on document data by traversing its expression tree.
+     * Returns {@code true} if any child expression requires access to document-specific values, such as the {@link Score} function.
+     * This is used to prevent pushing down limits past operations that need to evaluate expressions using document data.
+     */
+    private boolean evalAliasNeedsData(Alias alias) {
+        ArrayDeque<Expression> exprStack = new ArrayDeque<>();
+        exprStack.add(alias.child());
+        while (false == exprStack.isEmpty()) {
+            var expr = exprStack.removeFirst();
+            if (expr instanceof Score) {
+                return true;
+            }
+            exprStack.addAll(expr.children());
+        }
+        return false;
     }
 
     /**

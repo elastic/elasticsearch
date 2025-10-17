@@ -26,6 +26,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCase<ModelRegistryMetadata> {
@@ -63,7 +64,33 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
     @Override
     protected ModelRegistryMetadata mutateInstance(ModelRegistryMetadata instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        int choice = randomIntBetween(0, 2);
+        switch (choice) {
+            case 0: // Mutate modelMap
+                var models = new HashMap<>(instance.getModelMap());
+                models.put(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance());
+                if (instance.isUpgraded()) {
+                    return new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+                } else {
+                    return new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), new HashSet<>(instance.getTombstones()));
+                }
+            case 1: // Mutate tombstones
+                if (instance.getTombstones() == null) {
+                    return new ModelRegistryMetadata(instance.getModelMap(), Set.of(randomAlphaOfLength(10)));
+                } else {
+                    var tombstones = new HashSet<>(instance.getTombstones());
+                    tombstones.add(randomAlphaOfLength(10));
+                    return new ModelRegistryMetadata(instance.getModelMap(), tombstones);
+                }
+            case 2: // Mutate isUpgraded
+                if (instance.isUpgraded()) {
+                    return new ModelRegistryMetadata(instance.getModelMap(), new HashSet<>());
+                } else {
+                    return new ModelRegistryMetadata(instance.getModelMap());
+                }
+            default:
+                throw new IllegalStateException("Unexpected value: " + choice);
+        }
     }
 
     @Override
@@ -119,7 +146,6 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
         var newMetadata = metadata.withAddedModel(inferenceId, settings);
         assertThat(newMetadata, sameInstance(metadata));
-        assertThat(newMetadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
     }
 
     public void testWithAddedModel_ReturnsNewMetadataInstance_ForNewInferenceId() {
@@ -132,6 +158,9 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var newInferenceId = "new_id";
         var newSettings = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(new ModelRegistryMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, settings, newInferenceId, newSettings)).build()))
@@ -148,6 +177,9 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
         var newSettings = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(
@@ -170,7 +202,6 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
             List.of(new ModelRegistry.ModelAndSettings(inferenceId, settings), new ModelRegistry.ModelAndSettings(inferenceId, settings))
         );
         assertThat(newMetadata, sameInstance(metadata));
-        assertThat(newMetadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
     }
 
     public void testWithAddedModels_ReturnsSameMetadataInstance_MultipleEntriesInMap() {
@@ -189,7 +220,6 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
             )
         );
         assertThat(newMetadata, sameInstance(metadata));
-        assertThat(newMetadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
     }
 
     public void testWithAddedModels_ReturnsNewMetadataInstance_ForNewInferenceId() {
@@ -211,6 +241,9 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
                 new ModelRegistry.ModelAndSettings(inferenceId3, settings3)
             )
         );
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(
@@ -239,6 +272,9 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
                 new ModelRegistry.ModelAndSettings(newInferenceId2, newSettings)
             )
         );
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
             is(

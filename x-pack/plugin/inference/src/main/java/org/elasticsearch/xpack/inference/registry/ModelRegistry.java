@@ -574,7 +574,7 @@ public class ModelRegistry implements ClusterStateListener {
             } else {
                 // Since the model configurations were successfully updated, we can now try to store the new secrets
                 var secretsRequestBuilder = createIndexRequestBuilder(
-                    newModel.getConfigurations().getInferenceEntityId(),
+                    inferenceEntityId,
                     InferenceSecretsIndex.INDEX_NAME,
                     newModel.getSecrets(),
                     true,
@@ -675,7 +675,7 @@ public class ModelRegistry implements ClusterStateListener {
                         "Inference endpoint [{}] already exists",
                         RestStatus.BAD_REQUEST,
                         failureItem.failureCause(),
-                        failureItem.inferenceId
+                        failureItem.inferenceId()
                     )
                 );
                 return;
@@ -683,7 +683,7 @@ public class ModelRegistry implements ClusterStateListener {
 
             delegate.onFailure(
                 new ElasticsearchStatusException(
-                    format("Failed to store inference endpoint [%s]", failureItem.inferenceId),
+                    format("Failed to store inference endpoint [%s]", failureItem.inferenceId()),
                     RestStatus.INTERNAL_SERVER_ERROR,
                     failureItem.failureCause()
                 )
@@ -748,8 +748,8 @@ public class ModelRegistry implements ClusterStateListener {
             var inferenceIdToModel = models.stream()
                 .collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity(), (id1, id2) -> id1));
 
-            var inferenceEntityIds = String.join(", ", models.stream().map(Model::getInferenceEntityId).toList());
             if (bulkItemResponses.getItems().length == 0) {
+                var inferenceEntityIds = String.join(", ", models.stream().map(Model::getInferenceEntityId).toList());
                 logger.warn("Storing inference endpoints [{}] failed, no items were received from the bulk response", inferenceEntityIds);
 
                 listener.onFailure(
@@ -825,6 +825,13 @@ public class ModelRegistry implements ClusterStateListener {
             var secretsItem = bulkItems[i + 1];
             var secretsStoreResponse = createModelStoreResponse(secretsItem, docIdToInferenceId);
 
+            assert secretsStoreResponse.inferenceId().equals(configStoreResponse.inferenceId())
+                : "Mismatched inference ids in bulk response items, configuration id ["
+                    + configStoreResponse.inferenceId()
+                    + "] secrets id ["
+                    + secretsStoreResponse.inferenceId()
+                    + "]";
+
             if (configStoreResponse.failed()) {
                 responses.add(new StoreResponseWithIndexInfo(configStoreResponse, secretsStoreResponse.failed() == false));
             } else if (secretsStoreResponse.failed()) {
@@ -880,7 +887,7 @@ public class ModelRegistry implements ClusterStateListener {
     private void updateClusterState(List<Model> models, ActionListener<AcknowledgedResponse> listener, TimeValue timeout) {
         var inferenceIdsSet = models.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet());
         var storeListener = listener.delegateResponse((delegate, exc) -> {
-            logger.warn(format("Failed to add inference endpoint %s minimal service settings to cluster state", inferenceIdsSet), exc);
+            logger.warn(format("Failed to add minimal service settings to cluster state for inference endpoints %s", inferenceIdsSet), exc);
             deleteModels(
                 inferenceIdsSet,
                 ActionListener.running(
@@ -888,7 +895,7 @@ public class ModelRegistry implements ClusterStateListener {
                         new ElasticsearchStatusException(
                             format(
                                 "Failed to add the inference endpoints %s. The service may be in an "
-                                    + "inconsistent state. Please try deleting and re-adding the endpoint.",
+                                    + "inconsistent state. Please try deleting and re-adding the endpoints.",
                                 inferenceIdsSet
                             ),
                             RestStatus.INTERNAL_SERVER_ERROR,
@@ -901,7 +908,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         try {
             metadataTaskQueue.submitTask(
-                format("add models %s", inferenceIdsSet),
+                format("add model metadata for %s", inferenceIdsSet),
                 new AddModelMetadataTask(
                     ProjectId.DEFAULT,
                     models.stream()

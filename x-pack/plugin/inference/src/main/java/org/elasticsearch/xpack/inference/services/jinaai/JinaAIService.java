@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -330,7 +331,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

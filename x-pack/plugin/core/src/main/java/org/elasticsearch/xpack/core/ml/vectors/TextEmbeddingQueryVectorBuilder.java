@@ -63,7 +63,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        this.modelId = in.readOptionalString();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            this.modelId = in.readOptionalString();
+        } else {
+            this.modelId = in.readString();
+        }
         this.modelText = in.readString();
     }
 
@@ -79,7 +83,11 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(modelId);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeOptionalString(modelId);
+        } else {
+            out.writeString(modelId);
+        }
         out.writeString(modelText);
     }
 

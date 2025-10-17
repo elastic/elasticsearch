@@ -49,7 +49,8 @@ public class AggregateWritables {
             Present.ENTRY,
             PresentOverTime.ENTRY,
             Absent.ENTRY,
-            AbsentOverTime.ENTRY
+            AbsentOverTime.ENTRY,
+            DimensionValues.ENTRY
         );
     }
 }

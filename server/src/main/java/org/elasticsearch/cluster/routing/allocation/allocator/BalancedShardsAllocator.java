@@ -1374,7 +1374,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                     } else {
                         if (decision == null) {
-                            // This is our first YES/NO/THROTTLE, just take it
+                            // This is our first YES/NOT_PREFERRED/THROTTLE, just take it
                             updateMinNode = true;
                         } else if (decision.type() == currentDecision.type()) {
                             // For the same type we take the lower weight

@@ -16,20 +16,21 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-public class MlTextEmbeddingResults extends NlpInferenceResults {
+public class MlDenseEmbeddingResults extends NlpInferenceResults {
 
+    // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_result";
 
     private final String resultsField;
     private final double[] inference;
 
-    public MlTextEmbeddingResults(String resultsField, double[] inference, boolean isTruncated) {
+    public MlDenseEmbeddingResults(String resultsField, double[] inference, boolean isTruncated) {
         super(isTruncated);
         this.inference = inference;
         this.resultsField = resultsField;
     }
 
-    public MlTextEmbeddingResults(StreamInput in) throws IOException {
+    public MlDenseEmbeddingResults(StreamInput in) throws IOException {
         super(in);
         inference = in.readDoubleArray();
         resultsField = in.readString();
@@ -89,7 +90,7 @@ public class MlTextEmbeddingResults extends NlpInferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        MlTextEmbeddingResults that = (MlTextEmbeddingResults) o;
+        MlDenseEmbeddingResults that = (MlDenseEmbeddingResults) o;
         return Objects.equals(resultsField, that.resultsField) && Arrays.equals(inference, that.inference);
     }
 

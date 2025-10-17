@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,9 +24,13 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
 public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
@@ -83,6 +88,10 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
             DataType.KEYWORD,
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatNanos(DateUtils.toLong((Instant) value))),
             List.of()
+        );
+        suppliers = TestCaseSupplier.mapTestCases(
+            suppliers,
+            testCase -> testCase.withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
         );
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }

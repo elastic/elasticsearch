@@ -42,7 +42,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
                         matchesPattern("LiteralsEvaluator\\[lit=.*]"),
                         DataType.DATETIME,
                         equalTo(TestCaseSupplier.TEST_CONFIGURATION.now().toInstant().toEpochMilli())
-                    )
+                    ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
                 )
             )
         );

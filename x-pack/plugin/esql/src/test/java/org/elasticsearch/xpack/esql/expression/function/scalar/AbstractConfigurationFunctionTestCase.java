@@ -7,18 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 
 public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
@@ -35,29 +34,9 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         assertSerialization(expr, config);
 
-        Configuration differentConfig = randomValueOtherThan(config, AbstractConfigurationFunctionTestCase::randomConfiguration);
+        Configuration differentConfig = randomValueOtherThan(config, () -> randomConfiguration(testCase.getSource().text(), randomTables()));
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertNotEquals(expr, differentExpr);
-    }
-
-    private static Configuration randomConfiguration() {
-        // TODO: Randomize the query and maybe the pragmas.
-        return new Configuration(
-            randomZone(),
-            randomLocale(random()),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            QueryPragmas.EMPTY,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            StringUtils.EMPTY,
-            randomBoolean(),
-            Map.of(),
-            System.nanoTime(),
-            randomBoolean(),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
-        );
     }
 }

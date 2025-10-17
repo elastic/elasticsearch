@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -62,7 +63,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(null)
-                )
+                ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
             )
         );
 
@@ -78,7 +79,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(new BytesRef(expectedWeekDay))
-                )
+                ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
             ),
             new TestCaseSupplier(
                 List.of(DataType.DATE_NANOS),
@@ -87,7 +88,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.is("DayNameNanosEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(new BytesRef(expectedWeekDay))
-                )
+                ).withConfiguration(TestCaseSupplier.TEST_CONFIGURATION)
             )
         );
     }

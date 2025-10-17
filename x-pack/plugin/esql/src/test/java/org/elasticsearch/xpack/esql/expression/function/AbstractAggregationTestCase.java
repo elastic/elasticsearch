@@ -117,6 +117,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                     var newData = testCase.getData().stream().map(td -> td.isMultiRow() ? td.withData(List.of()) : td).toList();
 
                     return new TestCaseSupplier.TestCase(
+                        testCase.getSource(),
+                        testCase.getConfiguration(),
                         newData,
                         testCase.evaluatorToString(),
                         testCase.expectedType(),

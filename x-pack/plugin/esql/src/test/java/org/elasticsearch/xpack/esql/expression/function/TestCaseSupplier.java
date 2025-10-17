@@ -23,6 +23,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -42,8 +43,10 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
@@ -1570,6 +1573,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new UnsupportedOperationException();
     }
 
+    public static List<TestCaseSupplier> mapTestCases(
+        Collection<TestCaseSupplier> suppliers,
+        Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
+    ) {
+        return suppliers.stream().map(supplier ->
+            new TestCaseSupplier(supplier.name(), supplier.types(), () ->
+                mapper.apply(supplier.get())
+            )
+        ).toList();
+    }
+
     public static final class TestCase {
         /**
          * The {@link Source} this test case should be run with
@@ -1655,6 +1669,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra
         ) {
             this(
+                TEST_SOURCE,
+                ConfigurationTestUtils.randomConfiguration(TEST_SOURCE.text(), Map.of()),
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1670,6 +1686,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         TestCase(
+            Source source,
+            Configuration configuration,
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
@@ -1682,8 +1700,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = TEST_SOURCE;
-            this.configuration = TEST_CONFIGURATION;
+            this.source = source;
+            this.configuration = configuration;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType == null ? null : expectedType.noText();
@@ -1780,10 +1798,33 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Build a new {@link TestCase} with new {@link #configuration}.
+         */
+        public TestCase withConfiguration(Configuration configuration) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        /**
          * Build a new {@link TestCase} with new {@link #data}.
          */
         public TestCase withData(List<TestCaseSupplier.TypedData> data) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1803,6 +1844,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withExtra(Object extra) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1819,6 +1862,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1839,6 +1884,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withBuildEvaluatorWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1864,6 +1911,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1886,6 +1935,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withoutEvaluator() {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,

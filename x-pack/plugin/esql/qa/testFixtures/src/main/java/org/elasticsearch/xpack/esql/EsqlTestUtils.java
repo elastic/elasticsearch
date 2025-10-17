@@ -545,7 +545,7 @@ public final class EsqlTestUtils {
     }
 
     public static Configuration configuration(String query) {
-        return configuration(new QueryPragmas(Settings.EMPTY), query);
+        return configuration(QueryPragmas.EMPTY, query);
     }
 
     public static AnalyzerSettings queryClusterSettings() {

@@ -49,8 +49,10 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestCase {
 
-    public void testConcurrentUnlimited() {
-        ClusterState clusterState = setupConcurrentRelocations(5);
+    public void testConcurrentRelocationsAllowed() {
+        final int relocations = randomIntBetween(2, 20);
+        final int relocationLimit = relocations + randomIntBetween(1, 10);
+        ClusterState clusterState = setupConcurrentRelocations(relocations);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -60,32 +62,42 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             clusterState,
             settings,
             Decision.Type.YES,
-            "below threshold [cluster.routing.allocation.cluster_concurrent_rebalance=-1] for concurrent rebalances, "
-                + "current rebalance shard count [5]"
+            String.format("below threshold [cluster.routing.allocation.cluster_concurrent_rebalance=-1] for concurrent rebalances, "
+                + "current rebalance shard count [%d]",
+                relocations
+            )
         );
         assertShardAllocationDecision(clusterState, settings, Decision.Type.YES, "unlimited concurrent rebalances are allowed");
 
         settings = Settings.builder()
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 6)
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", relocationLimit)
             .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 0)
             .build();
         assertClusterAllocationDecision(
             clusterState,
             settings,
             Decision.Type.YES,
-            "below threshold [cluster.routing.allocation.cluster_concurrent_rebalance=6] for concurrent rebalances, "
-                + "current rebalance shard count [5]"
+            String.format("below threshold [cluster.routing.allocation.cluster_concurrent_rebalance=%d] for concurrent rebalances, "
+                + "current rebalance shard count [%d]",
+                relocationLimit,
+                relocations
+            )
         );
         assertShardAllocationDecision(
             clusterState,
             settings,
             Decision.Type.YES,
-            "below threshold [6] for concurrent rebalances, current rebalance shard count [5]"
+            String.format("below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
+                relocationLimit,
+                relocations
+            )
         );
     }
 
-    public void testFrozenConcurrentUnlimited() {
-        ClusterState clusterState = setupConcurrentFrozenRelocations(5);
+    public void testFrozenConcurrentRelocationsAllowed() {
+        final int relocations = randomIntBetween(2, 20);
+        final int relocationLimit = relocations + randomIntBetween(1, 10);
+        ClusterState clusterState = setupConcurrentFrozenRelocations(relocations);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 0)
@@ -95,77 +107,93 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
             clusterState,
             settings,
             Decision.Type.YES,
-            "below threshold [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=-1] for concurrent frozen rebalances, "
-                + "current frozen rebalance shard count [5]"
+            String.format("below threshold [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=-1] for concurrent frozen "
+                + "rebalances, current frozen rebalance shard count [%d]", relocations)
         );
         assertShardAllocationDecision(clusterState, settings, Decision.Type.YES, "unlimited concurrent frozen rebalances are allowed");
 
         settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 0)
-            .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 6)
+            .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", relocationLimit)
             .build();
         assertClusterAllocationDecision(
             clusterState,
             settings,
             Decision.Type.YES,
-            "below threshold [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=6] for concurrent frozen rebalances, "
-                + "current frozen rebalance shard count [5]"
+            String.format("below threshold [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=%d] for concurrent frozen "
+                + "rebalances, current frozen rebalance shard count [%d]", relocationLimit, relocations)
         );
         assertShardAllocationDecision(
             clusterState,
             settings,
             Decision.Type.YES,
-            "below threshold [6] for concurrent frozen rebalances, current frozen rebalance shard count [5]"
+            String.format("below threshold [%d] for concurrent frozen rebalances, current frozen rebalance shard count [%d]",
+                relocationLimit,
+                relocations)
         );
     }
 
     public void testThrottleDecision() {
-        ClusterState clusterState = setupConcurrentRelocations(2);
+        final int relocations = randomIntBetween(2, 20);
+        final int relocationThrottleLimit = relocations - randomIntBetween(0, relocations - 1);
+        ClusterState clusterState = setupConcurrentRelocations(relocations);
 
         Settings settings = Settings.builder()
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", relocationThrottleLimit)
             .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 0)
             .build();
         assertClusterAllocationDecision(
             clusterState,
             settings,
             Decision.Type.THROTTLE,
-            "reached the limit of concurrently rebalancing shards [2] for concurrent rebalances, "
-                + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=2], "
+            String.format("reached the limit of concurrently rebalancing shards [%d] for concurrent rebalances, "
+                + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=%d], "
                 + "and [0] for concurrent frozen rebalances, frozen cluster setting "
-                + "[cluster.routing.allocation.cluster_concurrent_frozen_rebalance=0]"
+                + "[cluster.routing.allocation.cluster_concurrent_frozen_rebalance=0]",
+                relocations,
+                relocationThrottleLimit
+            )
         );
         assertShardAllocationDecision(
             clusterState,
             settings,
             Decision.Type.THROTTLE,
-            "reached the limit of concurrently rebalancing shards [2], "
-                + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=2]"
+            String.format("reached the limit of concurrently rebalancing shards [%d], "
+                + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=%d]",
+                relocations,
+                relocationThrottleLimit
+            )
         );
     }
 
     public void testFrozenThrottleDecision() {
-        ClusterState clusterState = setupConcurrentFrozenRelocations(2);
+        final int relocations = randomIntBetween(2, 20);
+        final int relocationThrottleLimit = relocations - randomIntBetween(0, relocations - 1);
+        ClusterState clusterState = setupConcurrentFrozenRelocations(relocations);
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 0)
-            .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", 2)
+            .put("cluster.routing.allocation.cluster_concurrent_frozen_rebalance", relocationThrottleLimit)
             .build();
         assertClusterAllocationDecision(
             clusterState,
             settings,
             Decision.Type.THROTTLE,
-            "reached the limit of concurrently rebalancing shards [0] for concurrent rebalances, "
+            String.format("reached the limit of concurrently rebalancing shards [0] for concurrent rebalances, "
                 + "cluster setting [cluster.routing.allocation.cluster_concurrent_rebalance=0], "
-                + "and [2] for concurrent frozen rebalances, "
-                + "frozen cluster setting [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=2]"
+                + "and [%d] for concurrent frozen rebalances, "
+                + "frozen cluster setting [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=%d]",
+                relocations,
+                relocationThrottleLimit)
         );
         assertShardAllocationDecision(
             clusterState,
             settings,
             Decision.Type.THROTTLE,
-            "reached the limit of concurrently rebalancing frozen shards [2], "
-                + "cluster setting [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=2]"
+            String.format("reached the limit of concurrently rebalancing frozen shards [%d], "
+                + "cluster setting [cluster.routing.allocation.cluster_concurrent_frozen_rebalance=%d]",
+                relocations,
+                relocationThrottleLimit)
         );
     }
 

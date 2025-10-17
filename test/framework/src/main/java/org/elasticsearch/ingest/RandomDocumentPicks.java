@@ -42,7 +42,7 @@ public final class RandomDocumentPicks {
             }
 
             String pathSegment;
-            // generate new path segments until we get one that doesn't contain a dot "."
+            // can't contain a dot since might lead to invalid empty segment, e.g. `one..two.three`
             do {
                 pathSegment = randomString(random);
             } while (pathSegment.contains("."));

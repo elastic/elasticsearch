@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.exponentialhistogram;
+package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
 
@@ -20,7 +21,7 @@ import java.util.OptionalLong;
  */
 public record IndexWithCount(long index, long count) {
 
-    static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
+    public static ExponentialHistogram.Buckets asBuckets(int scale, List<IndexWithCount> bucketIndices) {
         return new ExponentialHistogram.Buckets() {
             @Override
             public CopyableBucketIterator iterator() {
@@ -40,6 +41,15 @@ public record IndexWithCount(long index, long count) {
                 throw new UnsupportedOperationException("not implemented");
             }
         };
+    }
+
+    public static List<IndexWithCount> fromIterator(CopyableBucketIterator iterator) {
+        List<IndexWithCount> result = new ArrayList<>();
+        while (iterator.hasNext()) {
+            result.add(new IndexWithCount(iterator.peekIndex(), iterator.peekCount()));
+            iterator.advance();
+        }
+        return result;
     }
 
     private static class Iterator implements CopyableBucketIterator {

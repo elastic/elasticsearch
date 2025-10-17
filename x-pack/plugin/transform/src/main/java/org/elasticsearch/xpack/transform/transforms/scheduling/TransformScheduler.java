@@ -235,16 +235,18 @@ public final class TransformScheduler {
 
     public void updateFrequency(String transformId, TimeValue frequency) {
         logger.trace("[{}] handle transform frequency change to [{}]", transformId, frequency);
-        scheduledTasks.update(
-            transformId,
-            task -> new TransformScheduledTask(
+        scheduledTasks.update(transformId, task -> {
+            if (task.getFrequency().equals(frequency)) {
+                return task;
+            }
+            return new TransformScheduledTask(
                 task.getTransformId(),
                 getFrequency(frequency),
                 task.getLastTriggeredTimeMillis(),
                 task.getFailureCount(),
                 task.getListener()
-            )
-        );
+            );
+        });
     }
 
     /**

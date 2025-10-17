@@ -176,17 +176,21 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         } else {
                             assert item.getResponse() != null;
                             if (item.getResponse().getFailedShards() > 0) {
-                                StringBuilder shardIds = new StringBuilder();
                                 ShardSearchFailure[] shardFailures = item.getResponse().getShardFailures();
-                                for (int s = 0; s < shardFailures.length; s++) {
-                                    if (shardFailures[s] != null) {
-                                        shardIds.append(shardFailures[s].shardId());
-                                        if (s < shardFailures.length - 1) {
-                                            shardIds.append(",");
-                                        }
+                                for (ShardSearchFailure shardFailure : shardFailures) {
+                                    if (shardFailure != null) {
+                                        statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
+                                        failures.add(
+                                            new ElasticsearchStatusException(
+                                                "failed to retrieve data from shard ["
+                                                    + shardFailure.shardId()
+                                                    + "] with message: "
+                                                    + shardFailure.getMessage(),
+                                                RestStatus.fromCode(statusCode)
+                                            )
+                                        );
                                     }
                                 }
-                                failures.add(new IllegalStateException("failed to retrieve data from some shards [" + shardIds + "]"));
                             } else {
                                 var rankDocs = getRankDocs(item.getResponse());
                                 innerRetrievers.get(i).retriever().setRankDocs(rankDocs);

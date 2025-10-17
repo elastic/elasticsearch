@@ -30,9 +30,6 @@
 
   - match:   { result: updated }
 
-  # every time the data_path setting is accessed this warning is generated, so we must cleanup explicitly to ignore it
   - do:
-      warnings:
-        - "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
       indices.delete:
         index: test_index

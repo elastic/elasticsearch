@@ -29,7 +29,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.isNull;
 
 public class TransportVersionTests extends ESTestCase {
 
@@ -427,7 +429,7 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(
             "TransportVersion.minimumCompatible() should not have a patch version",
             TransportVersion.minimumCompatible().nextPatchVersion(),
-            is(null)
+            is(nullValue())
         );
     }
 }

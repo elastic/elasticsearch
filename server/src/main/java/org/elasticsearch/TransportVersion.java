@@ -281,8 +281,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         return version1.id > version2.id ? version1 : version2;
     }
 
+    @Override
     public boolean onOrAfter(TransportVersion version) {
         throw new UnsupportedOperationException("use TransportVersion.supports instead");
+    }
+
+    @Override
+    public boolean before(TransportVersion version) {
+        return version.id() > id();
     }
 
     @Override

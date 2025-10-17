@@ -4113,10 +4113,10 @@ inlineStatsAfterPruningAggregate7
 required_capability: inline_stats
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
+required_capability: fork_v9
 
 from app_log* 
-| FORK  (where false OR  NOT true) (where true) (where true) (where false OR true) (where false) (where true 
-| mv_expand @timestamp) 
+| FORK  (where false OR  NOT true) (where true) (where true) (where false OR true) (where false) (where true | mv_expand @timestamp) 
 | WHERE _fork == "fork2" 
 | DROP _fork
 | rename service_id as name_str 

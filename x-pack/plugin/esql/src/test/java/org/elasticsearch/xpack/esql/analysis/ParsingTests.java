@@ -50,6 +50,12 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Parses a plan, builds an AST for it, and then runs logical analysis on it.
+ * So if we don't error out in the process,  all references were resolved correctly.
+ * Use this class if you want to test parsing and resolution of a query
+ *  and especially if you expect to get a ParsingException
+ */
 public class ParsingTests extends ESTestCase {
     private static final String INDEX_NAME = "test";
     private static final EsqlParser parser = new EsqlParser();

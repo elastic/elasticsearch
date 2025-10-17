@@ -71,6 +71,12 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+/**
+ * Parses a plan, builds an AST for it, runs logical analysis and post analysis verification.
+ * So if we don't error out in the process, post analysis verification passed
+ * Use this class if you want to test post analysis verification
+ * and especially if you expect to get a VerificationException
+ */
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -2254,7 +2260,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLookupJoinExpressionRightNotPushable() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
@@ -2266,6 +2271,62 @@ public class VerifierTests extends ESTestCase {
             """;
 
         assertEquals("3:71: Unsupported join filter expression:abs(salary) > 1000", error(queryString));
+    }
+
+    public void testLookupJoinExpressionConstant() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON false and languages_left == language_code
+            """;
+
+        assertEquals("3:35: Unsupported join filter expression:false", error(queryString));
+    }
+
+    public void testLookupJoinExpressionTranslatableButFromLeft() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code and languages_left == "English"
+            """;
+
+        assertEquals("3:71: Unsupported join filter expression:languages_left == \"English\"", error(queryString));
+    }
+
+    public void testLookupJoinExpressionTranslatableButMixedLeftRight() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code and CONCAT(languages_left, language_code) == "English"
+            """;
+
+        assertEquals("3:71: Unsupported join filter expression:CONCAT(languages_left, language_code) == \"English\"", error(queryString));
+    }
+
+    public void testLookupJoinExpressionComplexFormula() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code AND STARTSWITH(languages_left, language_code)
+            """;
+
+        assertEquals("3:71: Unsupported join filter expression:STARTSWITH(languages_left, language_code)", error(queryString));
     }
 
     public void testLookupJoinExpressionAmbiguousLeft() {

@@ -167,7 +167,9 @@ public final class AnalyzerTestUtils {
             "languages_lookup",
             loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP),
             "test_lookup",
-            loadMapping("mapping-basic.json", "test_lookup", IndexMode.LOOKUP)
+            loadMapping("mapping-basic.json", "test_lookup", IndexMode.LOOKUP),
+            "spatial_lookup",
+            loadMapping("mapping-multivalue_geometries.json", "spatial_lookup", IndexMode.LOOKUP)
         );
     }
 

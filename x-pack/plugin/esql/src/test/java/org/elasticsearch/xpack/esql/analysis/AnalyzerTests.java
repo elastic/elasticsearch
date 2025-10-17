@@ -159,6 +159,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
+/**
+ * Parses a plan, builds an AST for it, runs logical analysis.
+ * So if we don't error out in the process, analysis was successful
+ * Use this class if you want to test analysis phase
+ * and especially if you expect to get a VerificationException during analysis
+ */
 public class AnalyzerTests extends ESTestCase {
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(

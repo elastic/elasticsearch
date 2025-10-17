@@ -227,7 +227,7 @@ public abstract class FullTextFunction extends Function
             return;
         }
         if (condition instanceof Score) {
-            failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
+            failures.add(fail(condition, "[SCORE] function can't be used in WHERE or LOOKUP JOIN ON conditions"));
         }
         if (isLookupJoinOnCondition == false) {
             List.of(QueryString.class, Kql.class).forEach(functionClass -> {

@@ -747,6 +747,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> resolvedFilters = new ArrayList<>(filters.size());
             for (Expression filter : filters) {
                 Expression filterResolved = filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                // Check if the filterResolved contains unresolved attributes, if it does, we cannot process it further
+                // and the error message about the unresolved attribute is already appropriate
+                if (filterResolved.anyMatch(UnresolvedAttribute.class::isInstance)) {
+                    resolvedFilters.add(filterResolved);
+                    continue;
+                }
                 Expression result = resolveAndOrientJoinCondition(
                     filterResolved,
                     leftChildOutput,
@@ -815,7 +821,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression handleRightOnlyPushableFilter(Expression condition, AttributeSet rightChildOutput) {
-            if (isCompletelyRightSideAndTranslationAware(condition, rightChildOutput)) {
+            if (isCompletelyRightSideAndTranslatable(condition, rightChildOutput)) {
                 // The condition is completely on the right side and is translation aware, so it can be (potentially) pushed down
                 return condition;
             } else {
@@ -871,11 +877,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private boolean isCompletelyRightSideAndTranslationAware(Expression expression, AttributeSet rightOutputSet) {
-            return rightOutputSet.containsAll(expression.references()) && isTranslationAware(expression);
+        private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {
+            return rightOutputSet.containsAll(expression.references()) && isTranslatable(expression);
         }
 
-        private boolean isTranslationAware(Expression expression) {
+        private boolean isTranslatable(Expression expression) {
             // Here we are trying to eliminate cases where the expression is definitely not translatable.
             // We do this early and without access to search stats for the lookup index that are only on the lookup node,
             // so we only eliminate some of the not translatable cases here

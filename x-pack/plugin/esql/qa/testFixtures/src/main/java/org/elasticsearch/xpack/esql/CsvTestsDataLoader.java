@@ -148,7 +148,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset DATE_NANOS_UNION_TYPES = new TestDataset("date_nanos_union_types");
     private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
     private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
-    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries");
+    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries").withSetting(
+        "lookup-settings.json"
+    );
     private static final TestDataset CARTESIAN_MULTIPOLYGONS = new TestDataset("cartesian_multipolygons");
     private static final TestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestDataset("cartesian_multipolygons_no_doc_values")
         .withData("cartesian_multipolygons.csv");

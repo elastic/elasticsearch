@@ -115,6 +115,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+
+/**
+ * Only parses a plan and builds an AST/Logical Plan for it.
+ * Analysis is not run, so the plan will contain unresolved references.
+ * Use this class to test cases where we throw a Parsing exception
+ * especially if it is throw before we get to the Analysis phase
+ */
 public class StatementParserTests extends AbstractStatementParserTests {
 
     private static final LogicalPlan PROCESSING_CMD_INPUT = new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1))));
@@ -3737,8 +3744,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         // Test LOOKUP JOIN ON expression with positional query parameters and MATCH function
         var plan = statement(
-            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?)",
-            new QueryParams(List.of(paramAsConstant(null, "elasticsearch")))
+            "FROM test | LOOKUP JOIN test2 ON left_field >= right_field AND match(left_field, ?2)",
+            new QueryParams(List.of(paramAsConstant(null, "dummy"), paramAsConstant(null, "elasticsearch")))
         );
 
         var join = as(plan, LookupJoin.class);
@@ -3762,6 +3769,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat("Second condition should be UnresolvedFunction", secondChild, instanceOf(UnresolvedFunction.class));
         var function = (UnresolvedFunction) secondChild;
         assertThat("Second condition should be MATCH function", function.name(), equalTo("match"));
+        assertEquals(2, function.children().size());
+        assertEquals("elasticsearch", function.children().get(1).toString());
     }
 
     public void testInvalidInsistAsterisk() {

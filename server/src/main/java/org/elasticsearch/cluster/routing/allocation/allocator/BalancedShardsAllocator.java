@@ -1346,7 +1346,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                     nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
                 }
-                if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
+                if (currentDecision.type() == Type.YES
+                    || currentDecision.type() == Type.THROTTLE
+                    || currentDecision.type() == Type.NOT_PREFERRED) {
                     final boolean updateMinNode;
                     if (currentWeight == minWeight) {
                         /*  we have an equal weight tie breaking:
@@ -1367,10 +1369,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
                                 && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
                         } else {
-                            updateMinNode = currentDecision.type() == Type.YES;
+                            // always prefer a YES, prefer anything over a NOT_PREFERRED
+                            updateMinNode = currentDecision.type() == Type.YES || decision.type() == Type.NOT_PREFERRED;
                         }
                     } else {
-                        updateMinNode = currentWeight < minWeight;
+                        if (decision == null) {
+                            // This is our first YES/NO/THROTTLE, just take it
+                            updateMinNode = true;
+                        } else if (decision.type() == currentDecision.type()) {
+                            // For the same type we take the lower weight
+                            updateMinNode = currentWeight < minWeight;
+                        } else if (decision.type() == Type.NOT_PREFERRED) {
+                            // We prefer anything over a NOT_PREFERRED
+                            assert currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE;
+                            updateMinNode = true;
+                        } else {
+                            // We prefer the lowest-weight YES/THROTTLE
+                            assert currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE;
+                            updateMinNode = currentWeight < minWeight;
+                        }
                     }
                     if (updateMinNode) {
                         minNode = node;

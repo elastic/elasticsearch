@@ -54,6 +54,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -1102,6 +1103,51 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var currentShardId = sortedShards.get(currentIndex++);
             assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
         }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.allocation_explain:DEBUG,"
+            + "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE",
+        reason = "test"
+    )
+    public void testAssignNotPreferred() {
+        final var notPreferredDecider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return Decision.NOT_PREFERRED;
+            }
+        };
+        final var allocationService = new MockAllocationService(
+            new AllocationDeciders(List.of(notPreferredDecider)),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
+            () -> ClusterInfo.EMPTY,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+
+        final var nodeNames = List.of("node-0", "node-1");
+        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : nodeNames) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+        final var indexMetadata = anIndex("index", indexSettings(IndexVersion.current(), 1, 0)).build();
+        projectMetadataBuilder.put(indexMetadata, false);
+        routingTableBuilder.addAsNew(indexMetadata);
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .putProjectMetadata(projectMetadataBuilder)
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
+
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+
+        final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+        final ShardRouting primaryShard = routingTable.shardRoutingTable(indexMetadata.getIndex().getName(), 0).primaryShard();
+        assertThat("unexpected " + primaryShard, primaryShard.unassigned(), equalTo(false));
     }
 
     /**

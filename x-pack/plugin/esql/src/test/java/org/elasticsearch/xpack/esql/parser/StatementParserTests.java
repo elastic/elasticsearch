@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -72,7 +71,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
@@ -1295,7 +1293,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:17: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:17: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
+        );
+
+        expectError(
+            "row a = \"foo bar\" | GROK a \"%{NUMBER:foo}\", \"%{WORD:foo}\"",
+            "line 1:21: Invalid GROK patterns [%{NUMBER:foo}, %{WORD:foo}]:"
+                + " the attribute [foo] is defined multiple times with different types"
+        );
+
+        expectError(
+            "row a = \"foo\" | GROK a \"%{WORD:foo}\", \"(?P<justification>.+)\"",
+            "line 1:17: Invalid GROK patterns [%{WORD:foo}, (?P<justification>.+)]: [undefined group option]"
         );
     }
 
@@ -3214,8 +3223,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPatternFieldJoin() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
         var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
         var numberOfOnFields = randomIntBetween(1, 5);
@@ -3242,12 +3249,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
         assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
 
-        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertThat(joinType.columns(), hasSize(numberOfOnFields));
+        assertThat(join.config().leftFields(), hasSize(numberOfOnFields));
         for (int i = 0; i < numberOfOnFields; i++) {
-            assertThat(as(joinType.columns().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
+            assertThat(as(join.config().leftFields().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
         }
-        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+        assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
     }
 
     /**
@@ -3532,8 +3538,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void testInvalidJoinPatterns(String onClause) {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         {
             // wildcard
             var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER), without(INDEX_SELECTOR));
@@ -4044,11 +4048,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.createStatement(
-                "row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
-            ),
+            parser.createStatement("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
             Rerank.class
         );
 
@@ -4063,8 +4063,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var rerank = as(
             parser.createStatement(
                 "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
+                queryParams
             ),
             Rerank.class
         );
@@ -4143,11 +4142,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.createStatement(
-                "row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
-            ),
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
             Completion.class
         );
 
@@ -4159,11 +4154,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.createStatement(
-                "row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }",
-                queryParams,
-                EsqlTestUtils.TEST_CFG
-            ),
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
             Completion.class
         );
 
@@ -4218,8 +4209,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
@@ -4315,11 +4304,49 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
         options = fuse.options();
         assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | EVAL a.b = my_group
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE GROUP BY a.b KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("a.b"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | EVAL ??p = my_group
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE GROUP BY ??p KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
+            """, new QueryParams(List.of(paramAsConstant("p", "a.b"))));
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("a.b"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
     }
 
     public void testInvalidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V6.isEnabled());
-
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
@@ -4603,9 +4630,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin join = as(limit.child(), LookupJoin.class);
             UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
             assertEquals(ur.indexPattern().indexPattern(), "idx");
-            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-            assertEquals(joinType.columns(), List.of(attribute("f9")));
+            assertEquals(join.config().type().joinName(), "LEFT OUTER");
+            assertEquals(join.config().leftFields(), List.of(attribute("f9")));
             Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
             Grok grok = as(rename.child(), Grok.class);
@@ -4713,9 +4739,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin join = as(limit.child(), LookupJoin.class);
             UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
             assertEquals(ur.indexPattern().indexPattern(), "idx");
-            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-            assertEquals(joinType.columns(), List.of(attribute("f13.f14")));
+            assertEquals(join.config().type().joinName(), "LEFT OUTER");
+            assertEquals(join.config().leftFields(), List.of(attribute("f13.f14")));
             Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
             Grok grok = as(rename.child(), Grok.class);
@@ -4964,9 +4989,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LookupJoin join = as(plan, LookupJoin.class);
         UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
         assertEquals(ur.indexPattern().indexPattern(), "idx");
-        JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-        assertEquals(joinType.columns(), List.of(attribute("f5")));
+        assertEquals(join.config().type().joinName(), "LEFT OUTER");
+        assertEquals(join.config().leftFields(), List.of(attribute("f5")));
         Drop drop = as(join.left(), Drop.class);
         List<? extends NamedExpression> removals = drop.removals();
         assertEquals(removals.size(), 2);

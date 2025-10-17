@@ -133,6 +133,12 @@ public class Present extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types or dense_vector"
+        );
     }
 }

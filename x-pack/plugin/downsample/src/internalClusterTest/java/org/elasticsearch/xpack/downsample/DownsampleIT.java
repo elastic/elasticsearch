@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -285,11 +285,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         };
         bulkIndex(dataStreamName, nextSourceSupplier, 100);
 
-        // check that TS command is available
+        // check that aggregate metric double is available
         var response = clusterAdmin().nodesCapabilities(
             new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
                 .path("/_query")
-                .capabilities(AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.capabilityName())
+                .capabilities(AGGREGATE_METRIC_DOUBLE_V0.capabilityName())
         ).actionGet();
         assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
 

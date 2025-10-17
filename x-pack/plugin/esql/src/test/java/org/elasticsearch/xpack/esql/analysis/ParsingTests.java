@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -55,7 +56,7 @@ public class ParsingTests extends ESTestCase {
 
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
-        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution(), emptyInferenceResolution()),
+        testAnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution(), emptyInferenceResolution()),
         TEST_VERIFIER
     );
 
@@ -110,7 +111,7 @@ public class ParsingTests extends ESTestCase {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
@@ -131,7 +132,6 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinOnConstant() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -151,7 +151,6 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinTwiceOnTheSameField() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
             "1:66: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [languages]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
@@ -159,7 +158,6 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinTwiceOnTheSameField_TwoLookups() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
             "1:108: JOIN ON clause does not support multiple fields with the same name, found multiple instances of [gender]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")
@@ -363,7 +361,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        return parser.createQuery(query, params, TEST_CFG);
+        return parser.createQuery(query, params);
     }
 
     private String error(String query) {

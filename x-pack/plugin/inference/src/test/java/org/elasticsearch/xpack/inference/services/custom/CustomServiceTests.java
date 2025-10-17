@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -27,12 +26,12 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
@@ -40,9 +39,9 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
+import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -74,38 +73,52 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         super(createTestConfiguration());
     }
 
-    private static TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION) {
-            @Override
-            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                return CustomServiceTests.createService(threadPool, clientManager);
-            }
+    public static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.CHAT_COMPLETION,
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
+            ) {
+                @Override
+                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                    return CustomServiceTests.createService(threadPool, clientManager);
+                }
 
-            @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return CustomServiceTests.createServiceSettingsMap(taskType);
-            }
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                    return CustomServiceTests.createServiceSettingsMap(taskType);
+                }
 
-            @Override
-            protected Map<String, Object> createTaskSettingsMap() {
-                return CustomServiceTests.createTaskSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createTaskSettingsMap() {
+                    return CustomServiceTests.createTaskSettingsMap();
+                }
 
-            @Override
-            protected Map<String, Object> createSecretSettingsMap() {
-                return CustomServiceTests.createSecretSettingsMap();
-            }
+                @Override
+                protected Map<String, Object> createSecretSettingsMap() {
+                    return CustomServiceTests.createSecretSettingsMap();
+                }
 
-            @Override
-            protected void assertModel(Model model, TaskType taskType) {
-                CustomServiceTests.assertModel(model, taskType);
-            }
+                @Override
+                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+                    CustomServiceTests.assertModel(model, taskType, modelIncludesSecrets);
+                }
 
-            @Override
-            protected EnumSet<TaskType> supportedStreamingTasks() {
-                return EnumSet.noneOf(TaskType.class);
+                @Override
+                protected EnumSet<TaskType> supportedStreamingTasks() {
+                    return EnumSet.noneOf(TaskType.class);
+                }
+
+                @Override
+                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+                    assertThat(
+                        rerankingInferenceService.rerankerWindowSize("any model"),
+                        CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+                    );
+                }
             }
-        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+        ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
             protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
                 return createInternalEmbeddingModel(similarityMeasure);
@@ -113,38 +126,40 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         }).build();
     }
 
-    private static void assertModel(Model model, TaskType taskType) {
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         switch (taskType) {
-            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model);
-            case COMPLETION -> assertCompletionModel(model);
+            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
+            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
     }
 
-    private static void assertTextEmbeddingModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
 
         assertThat(customModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
-        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(TextEmbeddingResponseParser.class));
+        assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(DenseEmbeddingResponseParser.class));
     }
 
-    private static CustomModel assertCommonModelFields(Model model) {
+    private static CustomModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
         assertThat(model, instanceOf(CustomModel.class));
 
         var customModel = (CustomModel) model;
 
         assertThat(customModel.getServiceSettings().getUrl(), is("http://www.abc.com"));
         assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
-        assertThat(
-            customModel.getSecretSettings().getSecretParameters(),
-            is(Map.of("test_key", new SecureString("test_value".toCharArray())))
-        );
+        if (modelIncludesSecrets) {
+            assertThat(
+                customModel.getSecretSettings().getSecretParameters(),
+                is(Map.of("test_key", new SecureString("test_value".toCharArray())))
+            );
+        }
 
         return customModel;
     }
 
-    private static void assertCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
+        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
         assertThat(customModel.getTaskType(), is(TaskType.COMPLETION));
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
     }
@@ -189,7 +204,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     private static Map<String, Object> createResponseParserMap(TaskType taskType) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new HashMap<>(
-                Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
+                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
             );
             case COMPLETION -> new HashMap<>(Map.of(CompletionResponseParser.COMPLETION_PARSER_RESULT, "$.result.text"));
             case SPARSE_EMBEDDING -> new HashMap<>(
@@ -225,18 +240,18 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     private static CustomModel createInternalEmbeddingModel(SimilarityMeasure similarityMeasure) {
         return createInternalEmbeddingModel(
             similarityMeasure,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             "http://www.abc.com"
         );
     }
 
-    private static CustomModel createInternalEmbeddingModel(TextEmbeddingResponseParser parser, String url) {
+    private static CustomModel createInternalEmbeddingModel(DenseEmbeddingResponseParser parser, String url) {
         return createInternalEmbeddingModel(SimilarityMeasure.DOT_PRODUCT, parser, url);
     }
 
     private static CustomModel createInternalEmbeddingModel(
         @Nullable SimilarityMeasure similarityMeasure,
-        TextEmbeddingResponseParser parser,
+        DenseEmbeddingResponseParser parser,
         String url
     ) {
         var inferenceId = "inference_id";
@@ -261,7 +276,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     private static CustomModel createInternalEmbeddingModel(
         @Nullable SimilarityMeasure similarityMeasure,
-        TextEmbeddingResponseParser parser,
+        DenseEmbeddingResponseParser parser,
         String url,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable Integer batchSize
@@ -321,7 +336,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJson));
 
             var model = createInternalEmbeddingModel(
-                new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+                new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -379,7 +394,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = createInternalEmbeddingModel(
-                new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+                new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -397,12 +412,12 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             );
 
             InferenceServiceResults results = listener.actionGet(TIMEOUT);
-            assertThat(results, instanceOf(TextEmbeddingFloatResults.class));
+            assertThat(results, instanceOf(DenseEmbeddingFloatResults.class));
 
-            var embeddingResults = (TextEmbeddingFloatResults) results;
+            var embeddingResults = (DenseEmbeddingFloatResults) results;
             assertThat(
                 embeddingResults.embeddings(),
-                is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })))
+                is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })))
             );
         }
     }
@@ -661,7 +676,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = createInternalEmbeddingModel(
             SimilarityMeasure.DOT_PRODUCT,
-            new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
             getUrl(webServer),
             ChunkingSettingsTests.createRandomChunkingSettings(),
             2
@@ -717,10 +732,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -729,10 +744,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -747,7 +762,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = createInternalEmbeddingModel(
-            new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
             getUrl(webServer)
         );
         String responseJson = """
@@ -792,10 +807,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -806,18 +821,5 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("input"), is(List.of("a")));
         }
-    }
-
-    @Override
-    public InferenceService createInferenceService() {
-        return createService(threadPool, clientManager);
-    }
-
-    @Override
-    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(
-            rerankingInferenceService.rerankerWindowSize("any model"),
-            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
-        );
     }
 }

@@ -39,11 +39,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -67,15 +66,16 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -86,6 +86,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -652,7 +653,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotGoogleAiStudioModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -681,7 +682,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -690,7 +691,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsValidationErrorWhenInputTypeIsSpecifiedForModelThatDoesNotAcceptTaskType() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -699,28 +700,28 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
         try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for model [model];")
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -940,11 +941,11 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0123f, -0.0123f },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -955,11 +956,11 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0456f, -0.0456f },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }

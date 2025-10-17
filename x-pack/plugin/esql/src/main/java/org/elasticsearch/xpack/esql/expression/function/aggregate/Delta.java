@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -45,8 +46,9 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
         description = "Calculates the absolute change of a gauge field in a time window.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command"
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries-delta", tag = "delta") }
     )
     public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));

@@ -71,6 +71,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ES92GpuHnswVectorsWriter.class);
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
+    private static final long DIRECT_COPY_THRESHOLD_IN_BYTES = 128 * 1024 * 1024; // 128MB
 
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
@@ -162,17 +163,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     @Override
     // TODO: fix sorted index case
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
+        var started = System.nanoTime();
         flatVectorWriter.flush(maxDoc, sortMap);
         try {
             flushFieldsWithoutMemoryMappedFile(sortMap);
         } catch (Throwable t) {
             throw new IOException("Failed to flush GPU index: ", t);
         }
+        var elapsed = System.nanoTime() - started;
+        logger.debug("Flush total time [{}ms]", elapsed / 1_000_000.0);
     }
 
     private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException, InterruptedException {
         // No tmp file written, or the file cannot be mmapped
         for (FieldWriter field : fields) {
+            var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
 
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
@@ -187,10 +192,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // Will not be indexed on the GPU
                 flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
             } else {
-                var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
-                try {
+                try (
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT)
+                    )
+                ) {
                     var builder = CuVSMatrix.deviceBuilder(
-                        cuVSResources,
+                        resourcesHolder.resources(),
                         numVectors,
                         fieldInfo.getVectorDimension(),
                         CuVSMatrix.DataType.FLOAT
@@ -199,12 +208,12 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         builder.addVector(vector);
                     }
                     try (var dataset = builder.build()) {
-                        flushFieldWithGpuGraph(cuVSResources, fieldInfo, dataset, sortMap);
+                        flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap);
                     }
-                } finally {
-                    cuVSResourceManager.release(cuVSResources);
                 }
             }
+            var elapsed = System.nanoTime() - started;
+            logger.debug("Flushed [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
         }
     }
 
@@ -217,17 +226,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void flushFieldWithGpuGraph(
-        CuVSResourceManager.ManagedCuVSResources resources,
-        FieldInfo fieldInfo,
-        CuVSMatrix dataset,
-        Sorter.DocMap sortMap
-    ) throws IOException {
+    private void flushFieldWithGpuGraph(ResourcesHolder resourcesHolder, FieldInfo fieldInfo, CuVSMatrix dataset, Sorter.DocMap sortMap)
+        throws IOException {
         if (sortMap == null) {
-            generateGpuGraphAndWriteMeta(resources, fieldInfo, dataset);
+            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
         } else {
             // TODO: use sortMap
-            generateGpuGraphAndWriteMeta(resources, fieldInfo, dataset);
+            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
         }
     }
 
@@ -259,20 +264,25 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
-    private void generateGpuGraphAndWriteMeta(
-        CuVSResourceManager.ManagedCuVSResources cuVSResources,
-        FieldInfo fieldInfo,
-        CuVSMatrix dataset
-    ) throws IOException {
+    private void generateGpuGraphAndWriteMeta(ResourcesHolder resourcesHolder, FieldInfo fieldInfo, CuVSMatrix dataset) throws IOException {
         try {
             assert dataset.size() >= MIN_NUM_VECTORS_FOR_GPU_BUILD;
 
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            try (var index = buildGPUIndex(cuVSResources, fieldInfo.getVectorSimilarityFunction(), dataset)) {
+            try (var index = buildGPUIndex(resourcesHolder.resources(), fieldInfo.getVectorSimilarityFunction(), dataset)) {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                graph = writeGraph(index.getGraph(), graphLevelNodeOffsets);
+                var deviceGraph = index.getGraph();
+                var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
+                if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
+                    try (var hostGraph = deviceGraph.toHost()) {
+                        resourcesHolder.close();
+                        graph = writeGraph(hostGraph, graphLevelNodeOffsets);
+                    }
+                } else {
+                    graph = writeGraph(deviceGraph, graphLevelNodeOffsets);
+                }
             }
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
             writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, (int) dataset.size(), graph, graphLevelNodeOffsets);
@@ -447,6 +457,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     @Override
     // fix sorted index case
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        var started = System.nanoTime();
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
         final int numVectors;
         String tempRawVectorsFileName = null;
@@ -472,25 +483,35 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             if (numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
                     // Direct access to mmapped file
-                    final var dataset = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
 
-                    var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType);
-                    try {
-                        generateGpuGraphAndWriteMeta(cuVSResources, fieldInfo, dataset);
-                    } finally {
-                        dataset.close();
-                        cuVSResourceManager.release(cuVSResources);
+                    try (
+                        var dataset = DatasetUtils.getInstance()
+                            .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
+                        var resourcesHolder = new ResourcesHolder(
+                            cuVSResourceManager,
+                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        )
+                    ) {
+                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
                     }
                 } else {
                     logger.debug(
                         () -> "Cannot mmap merged raw vectors temporary file. IndexInput type [" + input.getClass().getSimpleName() + "]"
                     );
 
-                    var cuVSResources = cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType);
-                    try {
+                    try (
+                        var resourcesHolder = new ResourcesHolder(
+                            cuVSResourceManager,
+                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType)
+                        )
+                    ) {
                         // Read vector-by-vector
-                        var builder = CuVSMatrix.deviceBuilder(cuVSResources, numVectors, fieldInfo.getVectorDimension(), dataType);
+                        var builder = CuVSMatrix.deviceBuilder(
+                            resourcesHolder.resources(),
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType
+                        );
 
                         // During merging, we use quantized data, so we need to support byte[] too.
                         // That's how our current formats work: use floats during indexing, and quantized data to build a graph
@@ -510,10 +531,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                             }
                         }
                         try (var dataset = builder.build()) {
-                            generateGpuGraphAndWriteMeta(cuVSResources, fieldInfo, dataset);
+                            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset);
                         }
-                    } finally {
-                        cuVSResourceManager.release(cuVSResources);
                     }
                 }
             } else {
@@ -526,6 +545,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         } finally {
             deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
+        var elapsed = System.nanoTime() - started;
+        logger.debug("Merged [{}] vectors in [{}ms]", numVectors, elapsed / 1_000_000.0);
     }
 
     private ByteVectorValues getMergedByteVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {

@@ -28,7 +28,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -144,6 +143,7 @@ public class EsqlDataTypeConverter {
         typeToConverter.put(DATETIME, ToDatetime::new);
         typeToConverter.put(DATE_NANOS, ToDateNanos::new);
         // ToDegrees, typeless
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
         typeToConverter.put(DOUBLE, ToDouble::new);
         typeToConverter.put(GEO_POINT, ToGeoPoint::new);
         typeToConverter.put(GEO_SHAPE, ToGeoShape::new);
@@ -159,10 +159,7 @@ public class EsqlDataTypeConverter {
         typeToConverter.put(VERSION, ToVersion::new);
         typeToConverter.put(DATE_PERIOD, ToDatePeriod::new);
         typeToConverter.put(TIME_DURATION, ToTimeDuration::new);
-
-        if (EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled()) {
-            typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
-        }
+        typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
         TYPE_TO_CONVERTER_FUNCTION = Collections.unmodifiableMap(typeToConverter);
     }
 
@@ -178,6 +175,7 @@ public class EsqlDataTypeConverter {
         MINUTE,
         MINUTES,
         MIN,
+        M,
         HOUR,
         HOURS,
         H,
@@ -211,6 +209,7 @@ public class EsqlDataTypeConverter {
         INTERVALS.MINUTE,
         INTERVALS.MINUTES,
         INTERVALS.MIN,
+        INTERVALS.M,
         INTERVALS.HOUR,
         INTERVALS.HOURS,
         INTERVALS.H
@@ -491,7 +490,7 @@ public class EsqlDataTypeConverter {
             return switch (INTERVALS.valueOf(temporalUnit.toUpperCase(Locale.ROOT))) {
                 case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
                 case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
-                case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
+                case MINUTE, MINUTES, MIN, M -> Duration.ofMinutes(safeToLong(value));
                 case HOUR, HOURS, H -> Duration.ofHours(safeToLong(value));
 
                 case DAY, DAYS, D -> Period.ofDays(safeToInt(safeToLong(value)));

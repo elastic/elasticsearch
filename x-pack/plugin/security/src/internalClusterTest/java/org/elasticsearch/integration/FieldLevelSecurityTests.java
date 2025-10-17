@@ -601,10 +601,10 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         final ShapeQueryBuilder shapeQuery2 = new ShapeQueryBuilder("field", "2").relation(ShapeRelation.WITHIN)
             .indexedShapeIndex("shape_index")
             .indexedShapePath("other");
-        IllegalStateException e;
+        IllegalArgumentException e;
         if (randomBoolean()) {
             e = expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                     .prepareSearch("search_index")
                     .setQuery(QueryBuilders.matchAllQuery())
@@ -613,7 +613,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             );
         } else {
             e = expectThrows(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                     .prepareSearch("search_index")
                     .setQuery(shapeQuery2)

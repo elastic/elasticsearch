@@ -62,17 +62,17 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         SecureString clientId = extractOptionalSecureString(map, CLIENT_ID, ModelSecrets.SECRET_SETTINGS, validationException);
         SecureString clientSecret = extractOptionalSecureString(map, CLIENT_SECRET, ModelSecrets.SECRET_SETTINGS, validationException);
 
-//        if (secureApiToken == null && secureEntraId == null) {
-//            validationException.addValidationError(
-//                format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
-//            );
-//        }
-//
-//        if (secureApiToken != null && secureEntraId != null) {
-//            validationException.addValidationError(
-//                format("[secret_settings] must have only one of the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
-//            );
-//        }
+        // if (secureApiToken == null && secureEntraId == null) {
+        // validationException.addValidationError(
+        // format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+        // );
+        // }
+        //
+        // if (secureApiToken != null && secureEntraId != null) {
+        // validationException.addValidationError(
+        // format("[secret_settings] must have only one of the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+        // );
+        // }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

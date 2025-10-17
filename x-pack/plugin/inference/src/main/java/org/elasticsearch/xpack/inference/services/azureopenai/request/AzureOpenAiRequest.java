@@ -35,35 +35,33 @@ public interface AzureOpenAiRequest extends Request {
         var apiKey = secretSettings.apiKey();
 
         // 1. Initialize the ClientSecretCredential
-        TokenCredential credential = new ClientSecretCredentialBuilder()
-            .tenantId(secretSettings.tenantId().toString())
+        TokenCredential credential = new ClientSecretCredentialBuilder().tenantId(secretSettings.tenantId().toString())
             .clientId(secretSettings.clientId().toString())
             .clientSecret(secretSettings.clientSecret().toString())
             .build();
 
         // 2. Define the Token Request Context
         // This tells the credential what resource/scope you are requesting a token for.
-        TokenRequestContext context = new TokenRequestContext()
-            .setScopes(List.of(AZURE_OPENAI_SCOPE));
+        TokenRequestContext context = new TokenRequestContext().setScopes(List.of(AZURE_OPENAI_SCOPE));
 
         // 3. Retrieve the Access Token
         // We use .block() for a simple synchronous call. In a production environment
         // where performance is critical, you should handle the Mono asynchronously.
-//        AccessToken accessToken = credential.getToken(context).block(Duration.ofSeconds(10));
+        // AccessToken accessToken = credential.getToken(context).block(Duration.ofSeconds(10));
         var token = credential.getToken(context).block(Duration.ofSeconds(10));
         String authorizationHeader = "Bearer " + token.getToken();
         System.out.println("Authorization Header: " + authorizationHeader);
 
         httpPost.setHeader(HttpHeaders.AUTHORIZATION, authorizationHeader);
-//        if (entraId != null && entraId.isEmpty() == false) {
-//            httpPost.setHeader(createAuthBearerHeader(entraId));
-//        } else if (apiKey != null && apiKey.isEmpty() == false) {
-//            httpPost.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
-//        } else {
-//            // should never happen due to the checks on the secret settings, but just in case
-//            ValidationException validationException = new ValidationException();
-//            validationException.addValidationError(Strings.format(MISSING_AUTHENTICATION_ERROR_MESSAGE, API_KEY, ENTRA_ID));
-//            throw validationException;
-//        }
+        // if (entraId != null && entraId.isEmpty() == false) {
+        // httpPost.setHeader(createAuthBearerHeader(entraId));
+        // } else if (apiKey != null && apiKey.isEmpty() == false) {
+        // httpPost.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
+        // } else {
+        // // should never happen due to the checks on the secret settings, but just in case
+        // ValidationException validationException = new ValidationException();
+        // validationException.addValidationError(Strings.format(MISSING_AUTHENTICATION_ERROR_MESSAGE, API_KEY, ENTRA_ID));
+        // throw validationException;
+        // }
     }
 }

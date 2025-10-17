@@ -25,22 +25,25 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
-    private static final String ONE_PARAM_TYPE_ERROR_STRING = "time_duration or date_period";
-    private static final String TWO_PARAM_TYPE_ERROR_STRING = "string, long or integer";
+    private static final String ONE_PARAM_TYPE_ERROR_STRING = "time_duration, date_period, string or long";
+    private static final String TWO_PARAM_TYPE_ERROR_STRING = "string or long";
 
     @Override
     protected List<TestCaseSupplier> cases() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        // one parameter
         suppliers.add(new TestCaseSupplier(List.of(DataType.TIME_DURATION), () -> null));
         suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_PERIOD), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG), () -> null));
+
+        // two parameters
         suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> null));
         suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG), () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> null));
         return suppliers;
     }
 
@@ -54,7 +57,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         );
 
         if (args.size() == 1) {
-            return new TRange(source, timestamp, args.get(0), null, EsqlTestUtils.TEST_CFG);
+            return new TRange(source, timestamp, args.getFirst(), null, EsqlTestUtils.TEST_CFG);
         }
 
         return new TRange(source, timestamp, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
@@ -62,7 +65,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(errorMessageStringForTRange(validPerPosition, signature, (l, p) -> {
+        return equalTo(errorMessageStringForTRange(signature, validPerPosition, (l, p) -> {
             if (signature.size() == 1 && p == 0) {
                 return ONE_PARAM_TYPE_ERROR_STRING;
             }
@@ -76,29 +79,26 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     private String errorMessageStringForTRange(
-        List<Set<DataType>> validPerPosition,
         List<DataType> signature,
+        List<Set<DataType>> validPerPosition,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        String source = sourceForSignature(signature);
-
         for (int i = 0; i < signature.size(); i++) {
             if (signature.get(i) == DataType.NULL) {
                 return TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT)
                     + " argument of ["
-                    + source
+                    + sourceForSignature(signature)
                     + "] cannot be null, received []";
             }
         }
 
         if (signature.size() == 1) {
-            validPerPosition = List.of(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION), emptySet());
             if (validPerPosition.getFirst().contains(signature.getFirst()) == false) {
                 return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
             }
         } else {
             // 2nd parameter must have the same type as the first (the 1st one is taken from signature to compare)
-            validPerPosition = List.of(Set.of(DataType.KEYWORD, DataType.LONG, DataType.INTEGER), Set.of(signature.getFirst()));
+            validPerPosition = List.of(Set.of(DataType.KEYWORD, DataType.LONG), Set.of(signature.getFirst()));
             for (int i = 0; i < signature.size(); i++) {
                 if (validPerPosition.get(i).contains(signature.get(i)) == false) {
                     return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);

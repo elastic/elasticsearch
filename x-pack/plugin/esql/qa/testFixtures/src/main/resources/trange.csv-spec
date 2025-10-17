@@ -1,15 +1,15 @@
-trangeAbsolute
+trangeAbsoluteTimeString
 required_capability: fn_trange
-// tag::docsTRangeAbsolute[]
+// tag::docsTRangeAbsoluteTimeString[]
 FROM k8s 
 | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
 | SORT @timestamp
 | KEEP @timestamp
 | LIMIT 10
-// end::docsTRangeAbsolute[]
+// end::docsTRangeAbsoluteTimeString[]
 ;
 
-// tag::docsTRangeAbsolute-result[]
+// tag::docsTRangeAbsoluteTimeString-result[]
 @timestamp:datetime
 2024-05-10T00:17:14.000Z
 2024-05-10T00:17:16.000Z
@@ -21,21 +21,47 @@ FROM k8s
 2024-05-10T00:17:55.000Z
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
-// end::docsTRangeAbsolute-result[]
+// end::docsTRangeAbsoluteTimeString-result[]
 ;
 
-trangeAbsoluteEpochMillis
+trangeFromExplicitTimeString
 required_capability: fn_trange
-// tag::docsTRangeEpochMillis[]
+// tag::docsTRangeFromExplicitTimeString[]
+FROM k8s 
+| WHERE TRANGE("2024-05-10T00:17:14.000Z")
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeFromExplicitTimeString[]
+;
+
+// tag::docsTRangeFromExplicitTimeString-result[]
+@timestamp:datetime
+2024-05-10T00:17:14.000Z
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeFromExplicitTimeString-result[]
+;
+
+trangeAbsoluteTimeEpochMillis
+required_capability: fn_trange
+// tag::docsTRangeAbsoluteTimeEpochMillis[]
 FROM k8s 
 | WHERE TRANGE(1715300236000, 1715300282000) 
 | SORT @timestamp
 | KEEP @timestamp
 | LIMIT 10
-// end::docsTRangeEpochMillis[]
+// end::docsTRangeAbsoluteTimeEpochMillis[]
 ;
 
-// tag::docsTRangeEpochMillis-result[]
+// tag::docsTRangeAbsoluteTimeEpochMillis-result[]
 @timestamp:datetime
 2024-05-10T00:17:16.000Z
 2024-05-10T00:17:20.000Z
@@ -47,24 +73,50 @@ FROM k8s
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
-// end::docsTRangeEpochMillis-result[]
+// end::docsTRangeAbsoluteTimeEpochMillis-result[]
 ;
 
-trangeInterval
+trangeFromExplicitTimeEpochMillis
 required_capability: fn_trange
-// tag::docsTRangeInterval[]
+// tag::docsTRangeFromExplicitTimeEpochMillis[]
+FROM k8s 
+| WHERE TRANGE(1715300236000) 
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeFromExplicitTimeEpochMillis[]
+;
+
+// tag::docsTRangeFromExplicitTimeEpochMillis-result[]
+@timestamp:datetime
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeFromExplicitTimeEpochMillis-result[]
+;
+
+trangeOffsetFromNow
+required_capability: fn_trange
+// tag::docsTRangeOffsetFromNow[]
 FROM k8s
 | WHERE TRANGE(1h)
 | KEEP @timestamp
-// end::docsTRangeInterval[]
+// end::docsTRangeOffsetFromNow[]
 ;
 
-// tag::docsTRangeInterval-result[]
+// tag::docsTRangeOffsetFromNow-result[]
 @timestamp:datetime
-// tag::docsTRangeInterval-result[]
+// tag::docsTRangeOffsetFromNow-result[]
 ;
 
-trangeIntervalNegative
+trangeNegativeOffsetFromNow
 required_capability: fn_trange
 FROM k8s 
 | WHERE TRANGE(-1h) 

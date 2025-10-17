@@ -42,262 +42,222 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    record TestParameter(DataType dataType, Object value) {}
+
+    record SingleParameterCase(
+        DataType argumentDataType,
+        Object argumentValue,
+        DataType timestampDataType,
+        long timestampValue,
+        long expectedStartTime,
+        long expectedEndTime,
+        boolean expectedResult
+    ) {}
+
+    record TwoParameterCase(
+        DataType argument1DataType,
+        Object argument1Value,
+        DataType argument2DataType,
+        Object argument2Value,
+        DataType timestampDataType,
+        long timestampValue,
+        long expectedStartTime,
+        long expectedEndTime,
+        boolean expectedResult
+    ) {}
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-
-        singleParameterDuration(suppliers, Duration.ofHours(1));
-        singleParameterPeriod(suppliers, Period.ofDays(1));
-
-        twoParameterStringRange(suppliers, "2024-01-01T00:00:00", "2024-01-01T12:00:00");
-
-        long now = fixedNow.toInstant().toEpochMilli();
-        long startEpochMillis = now - Duration.ofHours(2).toMillis();
-        long endEpochMillis = now + Duration.ofHours(1).toMillis();
-        twoParameterEpochRange(suppliers, startEpochMillis, endEpochMillis);
-
+        singleParameterTRangeSuppliers(suppliers, singleParameterTestCases());
+        twoParameterTRangeSuppliers(suppliers, twoParameterTestCases());
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static void singleParameterDuration(List<TestCaseSupplier> suppliers, Duration duration) {
-        for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
-            boolean nanos = timestampDataType == DataType.DATE_NANOS;
-            long expectedEndTime = nanos
-                ? DateUtils.toNanoSeconds(fixedNow.toInstant().toEpochMilli())
-                : fixedNow.toInstant().toEpochMilli();
-            long expectedStartTime = nanos
-                ? expectedEndTime - DateUtils.toNanoSeconds(duration.toMillis())
-                : expectedEndTime - duration.toMillis();
+    private static List<SingleParameterCase> singleParameterTestCases() {
+        List<TestParameter> testParameters = List.of(
+            new TestParameter(DataType.TIME_DURATION, Duration.ofHours(1)),
+            new TestParameter(DataType.DATE_PERIOD, Period.ofDays(1)),
+            new TestParameter(DataType.KEYWORD, "2024-01-01T00:00:00"),
+            new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T00:00:00Z").toInstant().toEpochMilli())
+        );
 
-            long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
-            suppliers.add(
-                new TestCaseSupplier(
-                    List.of(timestampDataType, DataType.TIME_DURATION),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(timestampInsideRange, timestampDataType, "@timestamp"),
-                            new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "start_time_or_interval").forceLiteral()
-                        ),
-                        Matchers.equalTo(
-                            "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedStartTime
-                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedEndTime
-                                + "]]]"
-                        ),
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
-                )
-            );
-
-            long timestampOutsideRange = expectedStartTime - 100_000;
-            suppliers.add(
-                new TestCaseSupplier(
-                    List.of(timestampDataType, DataType.TIME_DURATION),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(timestampOutsideRange, timestampDataType, "@timestamp"),
-                            new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "start_time_or_interval").forceLiteral()
-                        ),
-                        Matchers.equalTo(
-                            "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedStartTime
-                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedEndTime
-                                + "]]]"
-                        ),
-                        DataType.BOOLEAN,
-                        equalTo(false)
-                    )
-                )
-            );
-        }
-    }
-
-    private static void singleParameterPeriod(List<TestCaseSupplier> suppliers, Period period) {
+        List<SingleParameterCase> testCases = new ArrayList<>();
         for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
             boolean nanos = timestampDataType == DataType.DATE_NANOS;
 
-            long expectedEndTime = nanos
-                ? DateUtils.toNanoSeconds(fixedNow.toInstant().toEpochMilli())
-                : fixedNow.toInstant().toEpochMilli();
-            long expectedStartTime = nanos
-                ? DateUtils.toNanoSeconds(fixedNow.toInstant().minus(period).toEpochMilli())
-                : fixedNow.toInstant().minus(period).toEpochMilli();
-
-            long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
-            suppliers.add(
-                new TestCaseSupplier(
-                    List.of(timestampDataType, DataType.DATE_PERIOD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(timestampInsideRange, timestampDataType, "@timestamp"),
-                            new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "start_time_or_interval").forceLiteral()
-                        ),
-                        Matchers.equalTo(
-                            "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedStartTime
-                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedEndTime
-                                + "]]]"
-                        ),
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
-                )
-            );
-
-            long timestampOutsideRange = expectedStartTime - Duration.ofMinutes(10).toMillis();
-            suppliers.add(
-                new TestCaseSupplier(
-                    List.of(timestampDataType, DataType.DATE_PERIOD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(timestampOutsideRange, timestampDataType, "@timestamp"),
-                            new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "start_time_or_interval").forceLiteral()
-                        ),
-                        Matchers.equalTo(
-                            "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedStartTime
-                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedEndTime
-                                + "]]]"
-                        ),
-                        DataType.BOOLEAN,
-                        equalTo(false)
-                    )
-                )
-            );
-        }
-    }
-
-    private static void twoParameterStringRange(List<TestCaseSupplier> suppliers, String startStr, String endStr) {
-        for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
-            boolean nanos = timestampDataType == DataType.DATE_NANOS;
-
-            long expectedStartTime = nanos ? DateUtils.toNanoSeconds(parseDateTime(startStr)) : parseDateTime(startStr);
-            long expectedEndTime = nanos ? DateUtils.toNanoSeconds(parseDateTime(endStr)) : parseDateTime(endStr);
-
-            long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
-            suppliers.add(
-                new TestCaseSupplier(
-                    List.of(timestampDataType, DataType.KEYWORD, DataType.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(timestampInsideRange, timestampDataType, "@timestamp"),
-                            new TestCaseSupplier.TypedData(startStr, DataType.KEYWORD, "start_time_or_interval").forceLiteral(),
-                            new TestCaseSupplier.TypedData(endStr, DataType.KEYWORD, "end_time").forceLiteral()
-                        ),
-                        Matchers.equalTo(
-                            "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedStartTime
-                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedEndTime
-                                + "]]]"
-                        ),
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
-                )
-            );
-
-            long timestampOutsideRange = expectedStartTime - Duration.ofMinutes(10).toMillis();
-            suppliers.add(
-                new TestCaseSupplier(
-                    List.of(timestampDataType, DataType.KEYWORD, DataType.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(timestampOutsideRange, timestampDataType, "@timestamp"),
-                            new TestCaseSupplier.TypedData(startStr, DataType.KEYWORD, "start_time_or_interval").forceLiteral(),
-                            new TestCaseSupplier.TypedData(endStr, DataType.KEYWORD, "end_time").forceLiteral()
-                        ),
-                        Matchers.equalTo(
-                            "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedStartTime
-                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                + expectedEndTime
-                                + "]]]"
-                        ),
-                        DataType.BOOLEAN,
-                        equalTo(false)
-                    )
-                )
-            );
-        }
-    }
-
-    private static void twoParameterEpochRange(List<TestCaseSupplier> suppliers, long startEpoch, long endEpoch) {
-        for (DataType paramsDataType : List.of(DataType.LONG, DataType.INTEGER)) {
-            for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
-                boolean nanos = timestampDataType == DataType.DATE_NANOS;
-
-                long expectedStartTime = nanos ? DateUtils.toNanoSeconds(startEpoch) : startEpoch;
-                long expectedEndTime = nanos ? DateUtils.toNanoSeconds(endEpoch) : endEpoch;
+            for (TestParameter testParameter : testParameters) {
+                long expectedStartTime = getTime(testParameter.value, testParameter.dataType, nanos);
+                long expectedEndTime = getNow(fixedNow.toInstant().toEpochMilli(), nanos);
 
                 long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
-                suppliers.add(
-                    new TestCaseSupplier(
-                        List.of(timestampDataType, paramsDataType, paramsDataType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(timestampInsideRange, timestampDataType, "@timestamp"),
-                                new TestCaseSupplier.TypedData(startEpoch, paramsDataType, "start_time_or_interval").forceLiteral(),
-                                new TestCaseSupplier.TypedData(endEpoch, paramsDataType, "end_time").forceLiteral()
-                            ),
-                            Matchers.equalTo(
-                                "BooleanLogicExpressionEvaluator[bl=source, "
-                                    + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                    + expectedStartTime
-                                    + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                    + expectedEndTime
-                                    + "]]]"
-                            ),
-                            DataType.BOOLEAN,
-                            equalTo(true)
-                        )
+                testCases.add(
+                    new SingleParameterCase(
+                        testParameter.dataType,
+                        testParameter.value,
+                        timestampDataType,
+                        timestampInsideRange,
+                        expectedStartTime,
+                        expectedEndTime,
+                        true
                     )
                 );
 
                 long timestampOutsideRange = expectedStartTime - Duration.ofMinutes(10).toMillis();
-                suppliers.add(
-                    new TestCaseSupplier(
-                        List.of(timestampDataType, paramsDataType, paramsDataType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(timestampOutsideRange, timestampDataType, "@timestamp"),
-                                new TestCaseSupplier.TypedData(startEpoch, paramsDataType, "start_time_or_interval").forceLiteral(),
-                                new TestCaseSupplier.TypedData(endEpoch, paramsDataType, "end_time").forceLiteral()
-                            ),
-                            Matchers.equalTo(
-                                "BooleanLogicExpressionEvaluator[bl=source, "
-                                    + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                    + expectedStartTime
-                                    + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
-                                    + expectedEndTime
-                                    + "]]]"
-                            ),
-                            DataType.BOOLEAN,
-                            equalTo(false)
-                        )
+                testCases.add(
+                    new SingleParameterCase(
+                        testParameter.dataType,
+                        testParameter.value,
+                        timestampDataType,
+                        timestampOutsideRange,
+                        expectedStartTime,
+                        expectedEndTime,
+                        false
                     )
                 );
             }
         }
+        return testCases;
     }
 
-    private static long parseDateTime(String dateTime) {
-        return EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
+    private static void singleParameterTRangeSuppliers(List<TestCaseSupplier> suppliers, List<SingleParameterCase> testCases) {
+        for (SingleParameterCase testCase : testCases) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    List.of(testCase.timestampDataType, testCase.argumentDataType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(testCase.timestampValue, testCase.timestampDataType, "@timestamp"),
+                            new TestCaseSupplier.TypedData(testCase.argumentValue, testCase.argumentDataType, "start_time_or_interval")
+                                .forceLiteral()
+                        ),
+                        Matchers.equalTo(
+                            "BooleanLogicExpressionEvaluator[bl=source, "
+                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
+                                + testCase.expectedStartTime
+                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
+                                + testCase.expectedEndTime
+                                + "]]]"
+                        ),
+                        DataType.BOOLEAN,
+                        equalTo(testCase.expectedResult)
+                    )
+                )
+            );
+        }
+    }
+
+    private static List<TwoParameterCase> twoParameterTestCases() {
+        List<TestParameter[]> testParameters = List.of(
+            new TestParameter[] {
+                new TestParameter(DataType.KEYWORD, "2024-01-01T00:00:00"),
+                new TestParameter(DataType.KEYWORD, "2024-01-01T12:00:00") },
+            new TestParameter[] {
+                new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T00:00:00Z").toInstant().toEpochMilli()),
+                new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T12:00:00Z").toInstant().toEpochMilli()) }
+        );
+
+        List<TwoParameterCase> testCases = new ArrayList<>();
+        for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+            boolean nanos = timestampDataType == DataType.DATE_NANOS;
+
+            for (TestParameter[] testParameter : testParameters) {
+                long expectedStartTime = getTime(testParameter[0].value, testParameter[0].dataType, nanos);
+                long expectedEndTime = getTime(testParameter[1].value, testParameter[1].dataType, nanos);
+
+                long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
+                testCases.add(
+                    new TwoParameterCase(
+                        testParameter[0].dataType,
+                        testParameter[0].value,
+                        testParameter[1].dataType,
+                        testParameter[1].value,
+                        timestampDataType,
+                        timestampInsideRange,
+                        expectedStartTime,
+                        expectedEndTime,
+                        true
+                    )
+                );
+
+                long timestampOutsideRange = expectedStartTime - Duration.ofMinutes(10).toMillis();
+                testCases.add(
+                    new TwoParameterCase(
+                        testParameter[0].dataType,
+                        testParameter[0].value,
+                        testParameter[1].dataType,
+                        testParameter[1].value,
+                        timestampDataType,
+                        timestampOutsideRange,
+                        expectedStartTime,
+                        expectedEndTime,
+                        false
+                    )
+                );
+            }
+        }
+        return testCases;
+    }
+
+    private static void twoParameterTRangeSuppliers(List<TestCaseSupplier> suppliers, List<TwoParameterCase> testCases) {
+        for (TwoParameterCase testCase : testCases) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    List.of(testCase.timestampDataType, testCase.argument1DataType, testCase.argument2DataType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(testCase.timestampValue, testCase.timestampDataType, "@timestamp"),
+                            new TestCaseSupplier.TypedData(testCase.argument1Value, testCase.argument1DataType, "start_time_or_interval")
+                                .forceLiteral(),
+                            new TestCaseSupplier.TypedData(testCase.argument2Value, testCase.argument2DataType, "start_time_or_interval")
+                                .forceLiteral()
+                        ),
+                        Matchers.equalTo(
+                            "BooleanLogicExpressionEvaluator[bl=source, "
+                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
+                                + testCase.expectedStartTime
+                                + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
+                                + testCase.expectedEndTime
+                                + "]]]"
+                        ),
+                        DataType.BOOLEAN,
+                        equalTo(testCase.expectedResult)
+                    )
+                )
+            );
+        }
     }
 
     private static long timestampInRange(long min, long max) {
         return (min + max) / 2;
+    }
+
+    private static long getTime(Object argument, DataType dataType, boolean nanos) {
+        switch (dataType) {
+            case TIME_DURATION -> {
+                return nanos
+                    ? DateUtils.toNanoSeconds(fixedNow.toInstant().minus((Duration) argument).toEpochMilli())
+                    : fixedNow.toInstant().minus((Duration) argument).toEpochMilli();
+            }
+            case DATE_PERIOD -> {
+                return nanos
+                    ? DateUtils.toNanoSeconds(fixedNow.toInstant().minus((Period) argument).toEpochMilli())
+                    : fixedNow.toInstant().minus((Period) argument).toEpochMilli();
+            }
+            case KEYWORD -> {
+                long expectedStartTime = EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) argument);
+                return nanos ? DateUtils.toNanoSeconds(expectedStartTime) : expectedStartTime;
+            }
+            case LONG -> {
+                long expectedStartTime = (Long) argument;
+                return nanos ? DateUtils.toNanoSeconds(expectedStartTime) : expectedStartTime;
+            }
+            default -> throw new IllegalArgumentException("Unexpected data type: " + dataType);
+        }
+    }
+
+    private static long getNow(long now, boolean nanos) {
+        return nanos == false ? now : DateUtils.toNanoSeconds(now);
     }
 
     @Override
@@ -321,11 +281,6 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         assertThat(params, hasSize(3));
         assertThat(params.get(0).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
         return List.of(params.get(1), params.get(2));
-    }
-
-    @Override
-    public void testSerializationWithConfiguration() {
-        super.testSerializationWithConfiguration();
     }
 
     @Override

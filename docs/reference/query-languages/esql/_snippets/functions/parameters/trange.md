@@ -3,8 +3,8 @@
 **Parameters**
 
 `start_time_or_interval`
-:    Time interval (positive only) for single parameter mode, or start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. 
+:    Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. 
 
 `end_time`
-:   End time for two parameter mode (optional). The end time value can be a date string or epoch milliseconds.
+:   Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter. The modifier can be a time duration or date period.
 

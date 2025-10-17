@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -38,18 +40,39 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression {
+/**
+ * In a single-parameter mode, the function always uses the current time as the end of the range.
+ * <br/>
+ * Supported single parameter mode formats:
+ * <ul>
+ *     <li>TRANGE(1h) - [now - 1h; now] - supports time_duration (1h, 1min, etc) and period (1day, 1month, etc.)</li>
+ *     <li>TRANGE(2024-05-12T12:00:00) - [explicit start; now]</li>
+ *     <li>TRANGE(1715504400000) - [explicit start in millis; now]</li>
+ * </ul>
+ * Supported two parameter mode formats:
+ * <ul>
+ *     <li>TRANGE(2024-05-12T12:00:00, 2024-05-12T15:30:00) - [explicit start; explicit end]</li>
+ *     <li>TRANGE(1715504400000, 1715517000000) - [explicit start in millis; explicit end in millis]</li>
+ *     <li>TRANGE(2024-05-12T12:00:00, 1h) - [explicit start; start + 1h] - supports time_duration and period</li>
+ *     <li>TRANGE(2024-05-12T12:00:00, -1h) - [explicit start; start - 1h] - supports time_duration and period</li>
+ *     <li>TRANGE(1715504400000, 1h) - [explicit start in millis; start + 1h] - supports time_duration and period</li>
+ *     <li>TRANGE(1715504400000, -1h) - [explicit start in millis; start - 1h] - supports time_duration and period</li>
+ * </ul>
+ */
+public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression, PostAnalysisVerificationAware {
     public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_INTERVAL_PARAM_NAME = "start_time_or_interval";
@@ -63,26 +86,21 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         returnType = "boolean",
         description = "Filters time-series data for the given time range.",
         examples = {
-            @Example(file = "trange", tag = "docsTRangeInterval"),
-            @Example(file = "trange", tag = "docsTRangeAbsolute"),
-            @Example(file = "trange", tag = "docsTRangeEpochMillis") }
+            @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),
+            @Example(file = "trange", tag = "docsTRangeFromExplicitTimeString"),
+            @Example(file = "trange", tag = "docsTRangeFromExplicitTimeEpochMillis"),
+            @Example(file = "trange", tag = "docsTRangeAbsoluteTimeString"),
+            @Example(file = "trange", tag = "docsTRangeAbsoluteTimeEpochMillis") }
     )
     public TRange(
         Source source,
-        @Param(
-            name = START_TIME_OR_INTERVAL_PARAM_NAME,
-            type = { "time_duration", "date_period", "keyword", "long", "integer" },
-            description = """
-                 Time interval (positive only) for single parameter mode, or start time for two parameter mode.
-                 In two parameter mode, the start time value can be a date string or epoch milliseconds.
-                """
-        ) Expression startTime,
-        @Param(
-            name = END_TIME_PARAM_NAME,
-            type = { "keyword", "long", "integer" },
-            description = "End time for two parameter mode (optional). The end time value can be a date string or epoch milliseconds.",
-            optional = true
-        ) Expression endTime,
+        @Param(name = START_TIME_OR_INTERVAL_PARAM_NAME, type = { "time_duration", "date_period", "keyword", "long" }, description = """
+             Time interval or start time value for single parameter mode. Start time for two parameter mode.
+             In two parameter mode, the start time value can be a date string or epoch milliseconds.
+            """) Expression startTime,
+        @Param(name = END_TIME_PARAM_NAME, type = { "keyword", "long" }, description = """
+            Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter.
+            The modifier can be a time duration or date period.""", optional = true) Expression endTime,
         Configuration configuration
     ) {
         this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), startTime, endTime, configuration);
@@ -145,7 +163,18 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         // Single parameter mode
         if (endTime == null) {
             return isNotNull(startTime, operationName, FIRST).and(isFoldable(startTime, operationName, FIRST))
-                .and(isType(startTime, DataType::isTemporalAmount, operationName, FIRST, "time_duration", "date_period"));
+                .and(
+                    isType(
+                        startTime,
+                        dt -> isTemporalAmount(dt) || dt == KEYWORD || dt == LONG,
+                        operationName,
+                        FIRST,
+                        "time_duration",
+                        "date_period",
+                        "string",
+                        "long"
+                    )
+                );
         }
 
         // Two parameter mode
@@ -157,15 +186,9 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             return resolution;
         }
 
-        resolution = isType(
-            startTime,
-            dt -> dt == KEYWORD || dt == LONG || dt == INTEGER,
-            operationName,
-            FIRST,
-            "string",
-            "long",
-            "integer"
-        ).and(isType(endTime, dt -> dt == startTime.dataType(), operationName, SECOND, startTime.dataType().esType()));
+        resolution = isType(startTime, dt -> dt == KEYWORD || dt == LONG, operationName, FIRST, "string", "long").and(
+            isType(endTime, dt -> dt == startTime.dataType(), operationName, SECOND, startTime.dataType().esType())
+        );
 
         if (resolution.unresolved()) {
             return resolution;
@@ -223,53 +246,29 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     }
 
     private long[] getRange(FoldContext foldContext) {
-        Instant endOfRange;
-        Instant beginningOfRange;
+        Instant end;
+        Instant start;
 
-        if (endTime == null) {
-            Object start = startTime.fold(foldContext);
-            if (start == null) {
-                throw new InvalidArgumentException("start_time_or_interval can not be null in [{}]", sourceText());
+        try {
+            if (this.endTime == null) {
+                end = configuration().now().toInstant();
+                start = calculateStartTime(this.startTime.fold(foldContext), end, START_TIME_OR_INTERVAL_PARAM_NAME);
+            } else {
+                start = parseToInstant(this.startTime.fold(foldContext), START_TIME_OR_INTERVAL_PARAM_NAME);
+                end = parseToInstant(this.endTime.fold(foldContext), END_TIME_PARAM_NAME);
             }
-
-            endOfRange = configuration().now().toInstant();
-            beginningOfRange = calculateStartTime(start, endOfRange, START_TIME_OR_INTERVAL_PARAM_NAME);
-        } else {
-            Object start = startTime.fold(foldContext);
-            if (start == null) {
-                throw new InvalidArgumentException("start_time_or_interval can not be null in [{}]", sourceText());
-            }
-
-            Object end = endTime.fold(foldContext);
-            if (end == null) {
-                throw new InvalidArgumentException("end_time can not be null in [{}]", sourceText());
-            }
-
-            if (start.getClass() != end.getClass()) {
-                throw new InvalidArgumentException("TRANGE start_time_or_interval and end_time parameters must be of the same type.");
-            }
-
-            try {
-                beginningOfRange = parseToInstant(start, START_TIME_OR_INTERVAL_PARAM_NAME);
-                endOfRange = parseToInstant(end, END_TIME_PARAM_NAME);
-            } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
-            }
+        } catch (InvalidArgumentException e) {
+            throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
         }
 
-        if (beginningOfRange.isAfter(endOfRange) || beginningOfRange.equals(endOfRange)) {
-            throw new InvalidArgumentException("TRANGE start time [{}] must be before end time [{}]", beginningOfRange, endOfRange);
+        if (start.isAfter(end)) {
+            throw new InvalidArgumentException("TRANGE start time [{}] must be before end time [{}]", start, end);
         }
 
-        long beginningOfRangeValue = beginningOfRange.toEpochMilli();
-        long endOfRangeValue = endOfRange.toEpochMilli();
-
-        if (timestamp.dataType() == DataType.DATE_NANOS) {
-            beginningOfRangeValue = DateUtils.toNanoSeconds(beginningOfRangeValue);
-            endOfRangeValue = DateUtils.toNanoSeconds(endOfRangeValue);
-        }
-
-        return new long[] { beginningOfRangeValue, endOfRangeValue };
+        boolean nanos = timestamp.dataType() == DataType.DATE_NANOS;
+        return new long[] {
+            nanos == false ? start.toEpochMilli() : DateUtils.toNanoSeconds(start.toEpochMilli()),
+            nanos == false ? end.toEpochMilli() : DateUtils.toNanoSeconds(end.toEpochMilli()) };
     }
 
     private Instant calculateStartTime(Object value, Instant endOfRange, String paramName) {
@@ -280,11 +279,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             period = period.isNegative() ? period.negated() : period;
             return endOfRange.minus(period);
         }
-        throw new InvalidArgumentException(
-            "Unsupported time value type [{}] for parameter [{}]",
-            value.getClass().getSimpleName(),
-            paramName
-        );
+        return parseToInstant(value, paramName);
     }
 
     private Instant parseToInstant(Object value, String paramName) {
@@ -301,14 +296,37 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             return Instant.ofEpochMilli(longValue);
         }
 
-        if (value instanceof Integer intValue) {
-            return Instant.ofEpochMilli(intValue.longValue());
-        }
-
         throw new InvalidArgumentException(
             "Unsupported time value type [{}] for parameter [{}]",
             value.getClass().getSimpleName(),
             paramName
         );
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (startTime.resolved() && startTime.dataType() == DataType.NULL) {
+            failures.add(fail(startTime, "{} cannot be null", START_TIME_OR_INTERVAL_PARAM_NAME));
+        }
+
+        // two parameter mode
+        if (endTime != null) {
+            if (endTime.resolved() && endTime.dataType() == DataType.NULL) {
+                failures.add(fail(endTime, "{} cannot be null", END_TIME_PARAM_NAME));
+            }
+
+            if (comparableTypes(startTime, endTime) == false) {
+                failures.add(fail(endTime, "{} must have the same type as {}", END_TIME_PARAM_NAME, START_TIME_OR_INTERVAL_PARAM_NAME));
+            }
+        }
+    }
+
+    private static boolean comparableTypes(Expression left, Expression right) {
+        DataType leftType = left.dataType();
+        DataType rightType = right.dataType();
+        if (leftType.isNumeric() && rightType.isNumeric()) {
+            return commonType(leftType, rightType) != null;
+        }
+        return leftType.noText() == rightType.noText();
     }
 }

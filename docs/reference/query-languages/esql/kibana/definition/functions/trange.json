@@ -10,25 +10,7 @@
           "name" : "start_time_or_interval",
           "type" : "date_period",
           "optional" : false,
-          "description" : " Time interval (positive only) for single parameter mode, or start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "start_time_or_interval",
-          "type" : "integer",
-          "optional" : false,
-          "description" : " Time interval (positive only) for single parameter mode, or start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
-        },
-        {
-          "name" : "end_time",
-          "type" : "integer",
-          "optional" : true,
-          "description" : "End time for two parameter mode (optional). The end time value can be a date string or epoch milliseconds."
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
         }
       ],
       "variadic" : false,
@@ -40,13 +22,25 @@
           "name" : "start_time_or_interval",
           "type" : "keyword",
           "optional" : false,
-          "description" : " Time interval (positive only) for single parameter mode, or start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "start_time_or_interval",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
         },
         {
           "name" : "end_time",
           "type" : "keyword",
           "optional" : true,
-          "description" : "End time for two parameter mode (optional). The end time value can be a date string or epoch milliseconds."
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter. The modifier can be a time duration or date period."
         }
       ],
       "variadic" : false,
@@ -58,13 +52,25 @@
           "name" : "start_time_or_interval",
           "type" : "long",
           "optional" : false,
-          "description" : " Time interval (positive only) for single parameter mode, or start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "start_time_or_interval",
+          "type" : "long",
+          "optional" : false,
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
         },
         {
           "name" : "end_time",
           "type" : "long",
           "optional" : true,
-          "description" : "End time for two parameter mode (optional). The end time value can be a date string or epoch milliseconds."
+          "description" : "Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter. The modifier can be a time duration or date period."
         }
       ],
       "variadic" : false,
@@ -76,7 +82,7 @@
           "name" : "start_time_or_interval",
           "type" : "time_duration",
           "optional" : false,
-          "description" : " Time interval (positive only) for single parameter mode, or start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
+          "description" : " Time interval or start time value for single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string or epoch milliseconds. "
         }
       ],
       "variadic" : false,
@@ -85,6 +91,8 @@
   ],
   "examples" : [
     "FROM k8s\n| WHERE TRANGE(1h)\n| KEEP @timestamp",
+    "FROM k8s\n| WHERE TRANGE(\"2024-05-10T00:17:14.000Z\")\n| SORT @timestamp\n| KEEP @timestamp\n| LIMIT 10",
+    "FROM k8s\n| WHERE TRANGE(1715300236000)\n| SORT @timestamp\n| KEEP @timestamp\n| LIMIT 10",
     "FROM k8s\n| WHERE TRANGE(\"2024-05-10T00:17:14.000Z\", \"2024-05-10T00:18:33.000Z\")\n| SORT @timestamp\n| KEEP @timestamp\n| LIMIT 10",
     "FROM k8s\n| WHERE TRANGE(1715300236000, 1715300282000)\n| SORT @timestamp\n| KEEP @timestamp\n| LIMIT 10"
   ],

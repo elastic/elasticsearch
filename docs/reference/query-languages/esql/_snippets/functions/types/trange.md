@@ -5,8 +5,9 @@
 | start_time_or_interval | end_time | result |
 | --- | --- | --- |
 | date_period | | boolean |
-| integer | integer | boolean |
 | keyword | keyword | boolean |
+| keyword | | boolean |
 | long | long | boolean |
+| long | | boolean |
 | time_duration | | boolean |
 

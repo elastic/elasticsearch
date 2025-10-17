@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 
 import static org.elasticsearch.cluster.metadata.DataStreamFailureStore.FAILURE_STORE;
 
@@ -42,10 +43,11 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false, null));
     public static final DataStreamOptions EMPTY = new DataStreamOptions(null);
 
-    public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = ConstructingObjectParser.forRecord(
         "options",
         false,
-        (args, unused) -> new DataStreamOptions((DataStreamFailureStore) args[0])
+        DataStreamOptions.class,
+        MethodHandles.lookup()
     );
 
     static {

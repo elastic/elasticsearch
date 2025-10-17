@@ -91,7 +91,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool),
             threadPool,
-            (t) -> () -> null
+            (t) -> () -> null,
+            null
         );
     }
 
@@ -112,7 +113,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 new AsyncExecutionId("0", new TaskId("node1", 1)),
                 new NoOpClient(threadPool),
                 threadPool,
-                (t) -> () -> null
+                (t) -> () -> null,
+                null
             )
         ) {
             assertEquals("""
@@ -135,7 +137,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 new AsyncExecutionId("0", new TaskId("node1", 1)),
                 new NoOpClient(threadPool),
                 threadPool,
-                (t) -> () -> null
+                (t) -> () -> null,
+                null
             )
         ) {
             int numShards = randomIntBetween(0, 10);

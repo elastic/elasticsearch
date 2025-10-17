@@ -3393,7 +3393,16 @@ public class ApiKeyServiceTests extends ESTestCase {
         final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.TERMINATE));
-        assertThat(result.getMessage(), equalTo("Expected signature for cross cluster API key, but no signature was provided"));
+        assertThat(
+            result.getMessage(),
+            equalTo(
+                "API key (type:[cross_cluster], id:["
+                    + credentialsWithoutCertIdentity.getId()
+                    + "]) requires certificate identity matching ["
+                    + certificateIdentityPattern
+                    + "], but no certificate was provided"
+            )
+        );
     }
 
     public void testPatternCache() throws ExecutionException, InterruptedException {

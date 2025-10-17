@@ -151,7 +151,12 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
                     .putNull("cluster.remote.my_remote_cluster.signing.key")
                     .build()
             );
-            assertCrossClusterAuthFail("Expected signature for cross cluster API key, but no signature was provided");
+
+            assertCrossClusterAuthFail(
+                "API key (type:[cross_cluster], id:["
+                    + MY_REMOTE_API_KEY_MAP_REF.get().get("id")
+                    + "]) requires certificate identity matching ["
+            );
 
             // Reset
             updateClusterSettings(

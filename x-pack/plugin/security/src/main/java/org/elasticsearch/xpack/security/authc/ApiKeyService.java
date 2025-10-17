@@ -213,7 +213,11 @@ public class ApiKeyService implements Closeable {
         TimeValue.timeValueHours(48L),
         Property.NodeScope
     );
-    private static final int MAX_PATTERN_CACHE_SIZE = 1000;
+    public static final Setting<Integer> CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING = Setting.intSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.max_keys",
+        100,
+        Property.NodeScope
+    );
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
@@ -280,9 +284,10 @@ public class ApiKeyService implements Closeable {
             this.apiKeyDocCache = docTtl.getNanos() == 0 ? null : new ApiKeyDocCache(docTtl, maximumWeight);
 
             final TimeValue patternTtl = CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING.get(settings);
+            final int maximumPatternWeight = CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING.get(settings);
             this.certificateIdentityPatternCache = patternTtl.getNanos() == 0
                 ? null
-                : CacheBuilder.<String, Pattern>builder().setExpireAfterAccess(patternTtl).setMaximumWeight(MAX_PATTERN_CACHE_SIZE).build();
+                : CacheBuilder.<String, Pattern>builder().setExpireAfterAccess(patternTtl).setMaximumWeight(maximumPatternWeight).build();
 
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
@@ -1510,7 +1515,13 @@ public class ApiKeyService implements Closeable {
             if (credentials.getCertificateIdentity() == null) {
                 listener.onResponse(
                     AuthenticationResult.terminate(
-                        Strings.format("API key (type:[%s], id:[%s]) requires certificate identity [%s], but no certificate was provided", apiKeyDoc.type.value(), credentials.getId(), apiKeyDoc.certificateIdentity));
+                        Strings.format(
+                            "API key (type:[%s], id:[%s]) requires certificate identity matching [%s], but no certificate was provided",
+                            apiKeyDoc.type.value(),
+                            credentials.getId(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
                 );
                 return;
             }

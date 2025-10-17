@@ -69,14 +69,16 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
+            // Extract credentials, including certificate identity from the optional signature without actually verifying the signature
             final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
             // authn must verify only the provided api key and not try to extract any other credential from the thread context
             authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
-            var signature = crossClusterAccessHeaders.signature();
+            var signingInfo = crossClusterAccessHeaders.signature();
 
-            // Always validate a signature if provided
-            if (signature != null && verifySignature(authcContext, signature, crossClusterAccessHeaders, listener) == false) {
+            // Verify the signing info if provided. The signing info contains both the signature and the certificate identity, but only the
+            // signature is validated here. The certificate identity is validated later as part of the ApiKeyCredentials validation
+            if (signingInfo != null && verifySignature(authcContext, signingInfo, crossClusterAccessHeaders, listener) == false) {
                 return;
             }
         } catch (Exception ex) {

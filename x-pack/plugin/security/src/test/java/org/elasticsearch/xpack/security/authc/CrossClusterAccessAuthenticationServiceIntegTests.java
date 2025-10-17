@@ -321,7 +321,11 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
             assertThat(
                 actualException.getCause().getMessage(),
-                containsString("Expected signature for cross cluster API key, but no signature was provided")
+                containsString(
+                    "API key (type:[cross_cluster], id:["
+                        + encodedCrossClusterAccessApiKeyWithId.id
+                        + "]) requires certificate identity matching [CN=ins*], but no certificate was provided"
+                )
             );
         }
     }

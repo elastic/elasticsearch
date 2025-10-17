@@ -1517,6 +1517,11 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
+         * Allow multiple patterns for GROK command
+         */
+        GROK_MULTI_PATTERN,
+
+        /**
          * Support for the TRANGE function
          */
         FN_TRANGE;

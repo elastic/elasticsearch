@@ -34,9 +34,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -516,7 +516,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var firstResult = results.getFirst();
             assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
             Class<?> expectedClass = switch (taskType) {
-                case TEXT_EMBEDDING -> TextEmbeddingFloatResults.Chunk.class;
+                case TEXT_EMBEDDING -> DenseEmbeddingFloatResults.Chunk.class;
                 case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
                 default -> null;
             };
@@ -650,10 +650,10 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         ) {
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
-                    TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
+                    DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(
                         List.of(
-                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
-                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
+                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
+                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
                         )
                     );
 

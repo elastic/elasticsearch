@@ -29,7 +29,7 @@ public class Md5Tests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
         HashTests.addHashFunctionTestCases(cases, "MD5");
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     @Override

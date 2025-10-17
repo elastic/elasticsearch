@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -49,9 +49,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof RegexExtract
                 || unary instanceof Enrich
                 || unary instanceof InferencePlan<?>) {
-                if (false == local
-                    && unary instanceof Eval
-                    && ((Eval) unary).fields().stream().anyMatch(x -> x.child() instanceof ExecutesOn.Data)) {
+                if (false == local && unary instanceof Eval && ((Eval) unary).fields().stream().anyMatch(x -> x.child() instanceof Score)) {
                     // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
                     return limit;
                 } else {

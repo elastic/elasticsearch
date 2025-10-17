@@ -200,37 +200,29 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     }
 
     private void addRawInput(int positionOffset, IntVector groups, LongBlock valueBlock, LongVector timestampVector) {
+        int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(positionOffset));
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition)) {
-                    continue;
-                }
-                assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
-                buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueBlock.getLong(valuePosition));
-            }
+            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
+            buffer.appendRange(positionOffset, positionOffset + positionCount, valueBlock, timestampVector);
         } else {
-            int lastGroup = -1;
-            Buffer buffer = null;
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition)) {
-                    continue;
-                }
-                assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
-                long timestamp = timestampVector.getLong(valuePosition);
-                var value = valueBlock.getLong(valuePosition);
-                int groupId = groups.getInt(p);
-                if (lastGroup != groupId) {
-                    buffer = getBuffer(groupId, 1, timestamp);
-                    buffer.appendWithoutResize(timestamp, value);
-                    lastGroup = groupId;
-                } else {
-                    buffer.maybeResizeAndAppend(bigArrays, timestamp, value);
+            int lastGroup = groups.getInt(0);
+            int lastPosition = 0;
+            for (int p = 1; p < positionCount; p++) {
+                int group = groups.getInt(p);
+                if (group != lastGroup) {
+                    var from = lastPosition + positionOffset;
+                    var count = p - lastPosition;
+                    var buffer = getBuffer(lastGroup, count, timestampVector.getLong(from));
+                    buffer.appendRange(from, from + count, valueBlock, timestampVector);
+                    lastGroup = group;
+                    lastPosition = p;
                 }
             }
+            var from = lastPosition + positionOffset;
+            var count = positionCount - lastPosition;
+            var buffer = getBuffer(lastGroup, count, timestampVector.getLong(from));
+            buffer.appendRange(from, from + count, valueBlock, timestampVector);
         }
     }
 
@@ -239,26 +231,25 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
             Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
-            for (int p = 0; p < positionCount; p++) {
-                int valuePosition = positionOffset + p;
-                buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.getLong(valuePosition));
-            }
+            buffer.appendRange(positionOffset, positionOffset + positionCount, valueVector, timestampVector);
         } else {
-            int lastGroup = -1;
-            Buffer buffer = null;
-            for (int p = 0; p < positionCount; p++) {
-                int valuePosition = positionOffset + p;
-                long timestamp = timestampVector.getLong(valuePosition);
-                var value = valueVector.getLong(valuePosition);
-                int groupId = groups.getInt(p);
-                if (lastGroup != groupId) {
-                    buffer = getBuffer(groupId, 1, timestamp);
-                    buffer.appendWithoutResize(timestamp, value);
-                    lastGroup = groupId;
-                } else {
-                    buffer.maybeResizeAndAppend(bigArrays, timestamp, value);
+            int lastGroup = groups.getInt(0);
+            int lastPosition = 0;
+            for (int p = 1; p < positionCount; p++) {
+                int group = groups.getInt(p);
+                if (group != lastGroup) {
+                    var from = lastPosition + positionOffset;
+                    var count = p - lastPosition;
+                    var buffer = getBuffer(lastGroup, count, timestampVector.getLong(from));
+                    buffer.appendRange(from, from + count, valueVector, timestampVector);
+                    lastGroup = group;
+                    lastPosition = p;
                 }
             }
+            var from = lastPosition + positionOffset;
+            var count = positionCount - lastPosition;
+            var buffer = getBuffer(lastGroup, from, timestampVector.getLong(from));
+            buffer.appendRange(from, from + count, valueVector, timestampVector);
         }
     }
 
@@ -441,6 +432,26 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             timestamps.set(pendingCount, timestamp);
             values.set(pendingCount, value);
             pendingCount++;
+        }
+
+        void appendRange(int fromPosition, int toPosition, LongVector valueVector, LongVector timestampVector) {
+            for (int p = fromPosition; p < toPosition; p++) {
+                values.set(pendingCount, valueVector.getLong(p));
+                timestamps.set(pendingCount, timestampVector.getLong(p));
+                pendingCount++;
+            }
+        }
+
+        void appendRange(int fromPosition, int toPosition, LongBlock valueBlock, LongVector timestampVector) {
+            for (int p = fromPosition; p < toPosition; p++) {
+                if (valueBlock.isNull(p)) {
+                    continue;
+                }
+                assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
+                values.set(pendingCount, valueBlock.getLong(p));
+                timestamps.set(pendingCount, timestampVector.getLong(p));
+                pendingCount++;
+            }
         }
 
         void ensureCapacity(BigArrays bigArrays, int count, long firstTimestamp) {

@@ -515,7 +515,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
 
-            assert loader.rowStrideStoredFieldSpec().requiresSource() == false;
+            assert loader.rowStrideStoredFieldSpec().requiresSource();
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
                 null

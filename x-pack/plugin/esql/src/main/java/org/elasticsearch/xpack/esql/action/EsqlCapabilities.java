@@ -1465,6 +1465,11 @@ public class EsqlCapabilities {
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
         /**
+         * Percentile over time and other ts-aggregations
+         */
+        PERCENTILE_OVER_TIME,
+
+        /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
          */

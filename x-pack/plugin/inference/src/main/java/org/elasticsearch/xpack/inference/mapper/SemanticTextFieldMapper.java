@@ -303,11 +303,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return this;
         }
 
-        public Builder setSearchInferenceId(String id) {
-            this.searchInferenceId.setValue(id);
-            return this;
-        }
-
         public Builder setModelSettings(MinimalServiceSettings value) {
             this.modelSettings.setValue(value);
             return this;
@@ -847,10 +842,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public ChunkingSettings getChunkingSettings() {
             return chunkingSettings;
-        }
-
-        public SemanticTextIndexOptions getIndexOptions() {
-            return indexOptions;
         }
 
         public ObjectMapper getInferenceField() {

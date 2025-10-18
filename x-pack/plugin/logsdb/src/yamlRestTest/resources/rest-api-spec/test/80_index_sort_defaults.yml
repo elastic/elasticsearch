@@ -130,6 +130,175 @@ create logsdb data stream with host.name as keyword and timestamp as date:
   - match: { .$backing_index.defaults.index.sort.missing: [ "_last", "_last" ] }
 
 ---
+create logsdb data stream with message as pattern text, and timestamp as date:
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+              logsdb.default_sort_on_message_template: true
+            mappings:
+              properties:
+                message:
+                  type: pattern_text
+                host:
+                  type: keyword
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+  - do:
+      indices.get_data_stream:
+        name: "logsdb"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index
+        include_defaults: true
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
+  - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: null }
+  - match: { .$backing_index.defaults.index.logsdb.sort_on_host_name: "false" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_message_template: "true" }
+  - match: { .$backing_index.defaults.index.sort.field: [ "message.template_id", "@timestamp" ] }
+  - match: { .$backing_index.defaults.index.sort.order: [ "asc", "desc" ] }
+  - match: { .$backing_index.defaults.index.sort.mode: [ "min", "max" ] }
+  - match: { .$backing_index.defaults.index.sort.missing: [ "_last", "_last" ] }
+
+
+---
+create logsdb data stream with host.name as keyword, message as pattern text, and timestamp as date:
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+              logsdb.default_sort_on_message_template: true
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+                message:
+                  type: pattern_text
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+  - do:
+      indices.get_data_stream:
+        name: "logsdb"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index
+        include_defaults: true
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
+  - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_message_template: "true" }
+  - match: { .$backing_index.defaults.index.sort.field: [ "host.name", "message.template_id", "@timestamp" ] }
+  - match: { .$backing_index.defaults.index.sort.order: [ "asc", "asc", "desc" ] }
+  - match: { .$backing_index.defaults.index.sort.mode: [ "min", "min", "max" ] }
+  - match: { .$backing_index.defaults.index.sort.missing: [ "_last", "_last", "_last" ] }
+
+---
+create logsdb data stream with host.name as keyword, message as pattern text, and timestamp as date, but message sort disabled:
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+                message:
+                  type: pattern_text
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+  - do:
+      indices.get_data_stream:
+        name: "logsdb"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index
+        include_defaults: true
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.logsdb.add_host_name_field: null }
+  - match: { .$backing_index.defaults.index.logsdb.add_host_name_field: "false" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
+  - match: { .$backing_index.settings.index.logsdb.sort_on_message_template: null}
+  - match: { .$backing_index.defaults.index.logsdb.sort_on_message_template: "false" }
+  - match: { .$backing_index.settings.index.logsdb.default_sort_on_message_template: null }
+  - match: { .$backing_index.defaults.index.logsdb.default_sort_on_message_template: "false" }
+  - match: { .$backing_index.defaults.index.sort.field: [ "host.name", "@timestamp" ] }
+  - match: { .$backing_index.defaults.index.sort.order: [ "asc", "desc" ] }
+  - match: { .$backing_index.defaults.index.sort.mode: [ "min", "max" ] }
+  - match: { .$backing_index.defaults.index.sort.missing: [ "_last", "_last" ] }
+
+---
 create logsdb data stream with host.name as integer and timestamp as date:
   - do:
       cluster.put_component_template:

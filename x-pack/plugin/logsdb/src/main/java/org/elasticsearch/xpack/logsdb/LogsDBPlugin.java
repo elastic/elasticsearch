@@ -48,6 +48,12 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    static final Setting<Boolean> LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.default_sort_on_message_template",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
 
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
@@ -97,7 +103,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             FALLBACK_SETTING,
             CLUSTER_LOGSDB_ENABLED,
             LOGSDB_PRIOR_LOGS_USAGE,
-            PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING
+            PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING,
+            LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE
         );
     }
 

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,7 +49,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
             suppliers,
             evaluatorStringLeft + "Int" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
-            i -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral((double) i, (double) i, (double) i, 1),
+            i -> new AggregateMetricDoubleLiteral((double) i, (double) i, (double) i, 1),
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
             emptyList()
@@ -58,7 +58,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
             suppliers,
             evaluatorStringLeft + "Long" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
-            l -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral((double) l, (double) l, (double) l, 1),
+            l -> new AggregateMetricDoubleLiteral((double) l, (double) l, (double) l, 1),
             Long.MIN_VALUE,
             Long.MAX_VALUE,
             emptyList()
@@ -69,7 +69,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
             DataType.AGGREGATE_METRIC_DOUBLE,
             ul -> {
                 var newVal = ul.doubleValue();
-                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(newVal, newVal, newVal, 1);
+                return new AggregateMetricDoubleLiteral(newVal, newVal, newVal, 1);
             },
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -79,9 +79,9 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
             suppliers,
             evaluatorStringLeft + "Double" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
-            d -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, d, 1),
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
+            d -> new AggregateMetricDoubleLiteral(d, d, d, 1),
+            -Double.MAX_VALUE,
+            Double.MAX_VALUE,
             emptyList()
         );
         TestCaseSupplier.forUnaryAggregateMetricDouble(

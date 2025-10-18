@@ -10,6 +10,7 @@ package org.elasticsearch.compute.test;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -58,7 +59,7 @@ public class BlockTestUtils {
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
-            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleLiteral(
                 randomDouble(),
                 randomDouble(),
                 randomDouble(),
@@ -204,12 +205,8 @@ public class BlockTestUtils {
                 return;
             }
         }
-        if (builder instanceof AggregateMetricDoubleBlockBuilder b
-            && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
-            b.min().appendDouble(aggMetric.min());
-            b.max().appendDouble(aggMetric.max());
-            b.sum().appendDouble(aggMetric.sum());
-            b.count().appendInt(aggMetric.count());
+        if (builder instanceof AggregateMetricDoubleBlockBuilder b && value instanceof AggregateMetricDoubleLiteral aggMetric) {
+            b.appendLiteral(aggMetric);
             return;
         }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
@@ -288,19 +285,7 @@ public class BlockTestUtils {
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
-                    case AGGREGATE_METRIC_DOUBLE -> {
-                        AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
-                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
-                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                                b.minBlock().getDouble(i),
-                                b.maxBlock().getDouble(i),
-                                b.sumBlock().getDouble(i),
-                                b.countBlock().getInt(i)
-                            );
-                        i += 1;
-                        yield literal;
-
-                    }
+                    case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlock) block).getAggregateMetricDoubleLiteral(i++);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }

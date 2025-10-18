@@ -111,7 +111,7 @@ public enum ElementType {
             elementType = BYTES_REF;
         } else if (type == Boolean.class) {
             elementType = BOOLEAN;
-        } else if (type == AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class) {
+        } else if (type == AggregateMetricDoubleLiteral.class) {
             elementType = AGGREGATE_METRIC_DOUBLE;
         } else if (type == null || type == Void.class) {
             elementType = NULL;

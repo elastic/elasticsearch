@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -428,8 +428,8 @@ public final class CsvAssert {
             case UNSIGNED_LONG -> rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
             case AGGREGATE_METRIC_DOUBLE -> rebuildExpected(
                 expectedValue,
-                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
-                x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
+                AggregateMetricDoubleLiteral.class,
+                x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleLiteral) x)
             );
             default -> expectedValue;
         };

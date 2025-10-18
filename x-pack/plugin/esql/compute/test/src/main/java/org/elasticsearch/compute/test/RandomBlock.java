@@ -9,6 +9,7 @@ package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -149,11 +150,9 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             double max = ESTestCase.randomDouble();
                             double sum = ESTestCase.randomDouble();
                             int count = ESTestCase.randomNonNegativeInt();
-                            b.min().appendDouble(min);
-                            b.max().appendDouble(max);
-                            b.sum().appendDouble(sum);
-                            b.count().appendInt(count);
-                            valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
+                            AggregateMetricDoubleLiteral aggLiteral = new AggregateMetricDoubleLiteral(min, max, sum, count);
+                            b.appendLiteral(aggLiteral);
+                            valuesAtPosition.add(aggLiteral);
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

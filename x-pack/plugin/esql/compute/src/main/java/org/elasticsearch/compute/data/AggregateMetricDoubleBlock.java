@@ -105,4 +105,28 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
     IntBlock countBlock();
 
     Block getMetricBlock(int index);
+
+    default AggregateMetricDoubleLiteral getAggregateMetricDoubleLiteral(int index) {
+        boolean minAvailable = minBlock().isNull(index) == false;
+        boolean maxAvailable = maxBlock().isNull(index) == false;
+        boolean sumAvailable = sumBlock().isNull(index) == false;
+        boolean countAvailable = countBlock().isNull(index) == false;
+        double min = 0.0;
+        double max = 0.0;
+        double sum = 0.0;
+        int count = 0;
+        if (minAvailable) {
+            min = minBlock().getDouble(index);
+        }
+        if (maxAvailable) {
+            max = maxBlock().getDouble(index);
+        }
+        if (sumAvailable) {
+            sum = sumBlock().getDouble(index);
+        }
+        if (countAvailable) {
+            count = countBlock().getInt(index);
+        }
+        return new AggregateMetricDoubleLiteral(min, max, sum, count, minAvailable, maxAvailable, sumAvailable, countAvailable);
+    }
 }

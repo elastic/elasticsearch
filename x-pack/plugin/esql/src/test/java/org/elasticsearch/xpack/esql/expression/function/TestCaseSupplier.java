@@ -13,7 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
@@ -855,7 +855,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral, Object> expectedValue,
+        Function<AggregateMetricDoubleLiteral, Object> expectedValue,
         List<String> warnings
     ) {
         unary(
@@ -863,7 +863,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             expectedEvaluatorToString,
             aggregateMetricDoubleCases(),
             expectedType,
-            v -> expectedValue.apply((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v),
+            v -> expectedValue.apply((AggregateMetricDoubleLiteral) v),
             warnings
         );
     }
@@ -1495,10 +1495,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(
             new TypedDataSupplier(
                 "<random aggregate metric double>",
-                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                    randomDouble(),
-                    randomDouble(),
-                    randomDouble(),
+                () -> new AggregateMetricDoubleLiteral(
+                    randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true),
+                    randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true),
+                    randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true),
                     randomNonNegativeInt()
                 ),
                 DataType.AGGREGATE_METRIC_DOUBLE

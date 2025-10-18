@@ -11,7 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -561,12 +561,7 @@ public final class MultiRowTestCaseSupplier {
                 maxRows,
                 "0 aggregate metric double with positive count",
                 DataType.AGGREGATE_METRIC_DOUBLE,
-                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                    0.0,
-                    0.0,
-                    0.0,
-                    ESTestCase.randomIntBetween(1, Integer.MAX_VALUE)
-                )
+                () -> new AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, randomIntBetween(1, Integer.MAX_VALUE))
             );
             addSuppliers(
                 cases,
@@ -574,7 +569,7 @@ public final class MultiRowTestCaseSupplier {
                 maxRows,
                 "0 aggregate metric double with count 0",
                 DataType.AGGREGATE_METRIC_DOUBLE,
-                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0)
+                () -> new AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0)
             );
         }
 
@@ -585,7 +580,7 @@ public final class MultiRowTestCaseSupplier {
             double generatedMax = Math.max(v1, v2);
             int count = randomIntBetween(1, Integer.MAX_VALUE);
             double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
-            return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            return new AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
         });
 
         if (min < 0) {
@@ -596,7 +591,7 @@ public final class MultiRowTestCaseSupplier {
                 double generatedMax = Math.max(v1, v2);
                 int count = randomIntBetween(1, Integer.MAX_VALUE);
                 double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
-                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+                return new AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
             });
         }
         if (max > 0) {
@@ -607,7 +602,7 @@ public final class MultiRowTestCaseSupplier {
                 double generatedMax = Math.max(v1, v2);
                 int count = randomIntBetween(1, Integer.MAX_VALUE);
                 double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
-                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+                return new AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
             });
         }
         if (min < 0 && max > 0) {
@@ -616,7 +611,7 @@ public final class MultiRowTestCaseSupplier {
                 var generatedMax = randomDoubleBetween(0, max, false);
                 int count = randomIntBetween(1, Integer.MAX_VALUE);
                 double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
-                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+                return new AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
             });
         }
         return cases;

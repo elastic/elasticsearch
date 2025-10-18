@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -106,13 +106,7 @@ public class CountTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             long count;
             if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
-                count = fieldTypedData.multiRowData().stream().mapToLong(data -> {
-                    var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) data;
-                    if (aggMetric.count() != null) {
-                        return aggMetric.count();
-                    }
-                    return 0;
-                }).sum();
+                count = fieldTypedData.multiRowData().stream().mapToLong(data -> ((AggregateMetricDoubleLiteral) data).getCount()).sum();
             } else {
                 count = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).count();
             }

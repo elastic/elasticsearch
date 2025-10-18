@@ -1,0 +1,6 @@
+pr: 136757
+summary: Allow dynamic updates to frequency
+area: Transform
+type: bug
+issues:
+ - 133321

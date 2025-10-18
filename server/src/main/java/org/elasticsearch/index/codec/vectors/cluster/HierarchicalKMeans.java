@@ -31,7 +31,7 @@ public class HierarchicalKMeans {
     public static final int MAX_ITERATIONS_DEFAULT = 6;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
-    public static final int DEFAULT_OFF_HEAP_MEMORY_MB = 2048; // 2 Gib
+    public static final double DEFAULT_OFF_HEAP_MEMORY_MB = 2048d; // 2 Gib
     public static final int NO_SOAR_ASSIGNMENT = -1;
 
     final int dimension;
@@ -43,7 +43,7 @@ public class HierarchicalKMeans {
     private final String segmentName;
     private final int minVectorsOffHeap;
 
-    public HierarchicalKMeans(Directory directory, String segmentName, int offHeapMemoryInMB, int dimension) {
+    public HierarchicalKMeans(Directory directory, String segmentName, double offHeapMemoryInMB, int dimension) {
         this(
             directory,
             segmentName,
@@ -59,7 +59,7 @@ public class HierarchicalKMeans {
     public HierarchicalKMeans(
         Directory directory,
         String segmentName,
-        int offHeapMemoryInMB,
+        double offHeapMemoryInMB,
         int dimension,
         int maxIterations,
         int samplesPerCluster,
@@ -73,7 +73,7 @@ public class HierarchicalKMeans {
         this.samplesPerCluster = samplesPerCluster;
         this.clustersPerNeighborhood = clustersPerNeighborhood;
         this.soarLambda = soarLambda;
-        this.minVectorsOffHeap = offHeapMemoryInMB * 1024 * 1024 / (dimension * Float.BYTES);
+        this.minVectorsOffHeap = (int) (offHeapMemoryInMB * 1024 * 1024 / (dimension * Float.BYTES));
     }
 
     /**

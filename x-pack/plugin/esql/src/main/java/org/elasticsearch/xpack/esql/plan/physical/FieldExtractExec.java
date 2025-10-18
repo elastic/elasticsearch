@@ -48,7 +48,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      * precision in their doc values, but in some cases doc values provides
      * <strong>enough</strong> precision to do the job.
      * <p>
-     *     This is never serialized between nodes and only used locally.
+     * This is never serialized between nodes and only used locally.
      * </p>
      */
     protected final Set<Attribute> docValuesAttributes;
@@ -56,10 +56,12 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     /**
      * Attributes of a shape whose extent can be extracted directly from the doc-values encoded geometry.
      * <p>
-     *     This is never serialized between nodes and only used locally.
+     * This is never serialized between nodes and only used locally.
      * </p>
      */
     protected final Set<Attribute> boundsAttributes;
+
+    protected final Set<Attribute> fieldFunctionAttributes;
 
     private List<Attribute> lazyOutput;
 
@@ -69,7 +71,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> attributesToExtract,
         MappedFieldType.FieldExtractPreference defaultPreference
     ) {
-        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of());
+        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of(), Set.of());
     }
 
     protected FieldExtractExec(
@@ -78,7 +80,8 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> attributesToExtract,
         MappedFieldType.FieldExtractPreference defaultPreference,
         Set<Attribute> docValuesAttributes,
-        Set<Attribute> boundsAttributes
+        Set<Attribute> boundsAttributes,
+        Set<Attribute> fieldFunctionAttributes
     ) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
@@ -86,6 +89,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         this.docValuesAttributes = docValuesAttributes;
         this.boundsAttributes = boundsAttributes;
         this.defaultPreference = defaultPreference;
+        this.fieldFunctionAttributes = fieldFunctionAttributes;
     }
 
     private FieldExtractExec(StreamInput in) throws IOException {
@@ -96,7 +100,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             MappedFieldType.FieldExtractPreference.NONE
         );
         // defaultPreference is only used on the data node and never serialized.
-        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
+        // docValueAttributes, fieldFunctionAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -105,7 +109,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(attributesToExtract());
         // defaultPreference is only used on the data node and never serialized.
-        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
+        // docValueAttributes, fieldFunctionAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -134,15 +138,63 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(
+            source(),
+            newChild,
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public FieldExtractExec withBoundsAttributes(Set<Attribute> boundsAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
+    }
+
+    public FieldExtractExec withAttributesToExtract(List<Attribute> attributesToExtract) {
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
+    }
+
+    public FieldExtractExec withFieldFunctionAttributes(Set<Attribute> fieldFunctionAttributes) {
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            fieldFunctionAttributes
+        );
     }
 
     public List<Attribute> attributesToExtract() {
@@ -159,6 +211,10 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     public Set<Attribute> boundsAttributes() {
         return boundsAttributes;
+    }
+
+    public Set<Attribute> fieldFunctionAttributes() {
+        return fieldFunctionAttributes;
     }
 
     @Override
@@ -217,6 +273,9 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         }
         if (docValuesAttributes.contains(attr)) {
             return MappedFieldType.FieldExtractPreference.DOC_VALUES;
+        }
+        if (fieldFunctionAttributes.contains(attr)) {
+            return MappedFieldType.FieldExtractPreference.FUNCTION;
         }
         return defaultPreference;
     }

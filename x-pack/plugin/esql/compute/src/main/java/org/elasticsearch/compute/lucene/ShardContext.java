@@ -54,7 +54,12 @@ public interface ShardContext extends RefCounted {
     /**
      * Returns something to load values from this field into a {@link Block}.
      */
-    BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+    BlockLoader blockLoader(
+        String name,
+        boolean asUnsupportedSource,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference,
+        MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction
+    );
 
     /**
      * Returns the {@link MappedFieldType} for the given field name.

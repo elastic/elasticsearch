@@ -2678,6 +2678,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             if (dims == null) {
                 // No data has been indexed yet
@@ -2685,6 +2686,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
+                if (blContext.fieldExtractPreference() == FieldExtractPreference.FUNCTION) {
+                    return new BlockDocValuesReader.DenseVectorValueBlockLoader(
+                        name(),
+                        dims,
+                        this,
+                        (DenseVectorBlockLoaderValueFunction) blContext.blockLoaderValueFunction()
+                    );
+                }
                 return new BlockDocValuesReader.DenseVectorBlockLoader(name(), dims, this);
             }
 
@@ -3128,5 +3137,47 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @FunctionalInterface
     public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
+    }
+
+    public interface SimilarityFunction {
+        float calculateSimilarity(float[] v1, float[] v2);
+
+        float calculateSimilarity(byte[] v1, byte[] v2);
+    }
+
+    /**
+     * A specialized BlockLoaderValueFunction that calculates similarity between an indexed vector and the query vector. As
+     * vectors can be indexed either as float[] or byte[] we need to handle both cases to route similarity correctly
+     */
+    public static class DenseVectorBlockLoaderValueFunction
+        implements
+            MappedFieldType.BlockLoaderValueFunction<float[], BlockLoader.DoubleBuilder> {
+
+        private final SimilarityFunction similarityFunction;
+        private final float[] vector;
+        private byte[] vectorAsBytes;
+
+        public DenseVectorBlockLoaderValueFunction(SimilarityFunction similarityFunction, float[] vector) {
+            this.similarityFunction = similarityFunction;
+            this.vector = vector;
+        }
+
+        public BlockLoader.DoubleBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        public void applyFunctionAndAdd(float[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+            builder.appendDouble(similarityFunction.calculateSimilarity(value, vector));
+        }
+
+        public void applyFunctionAndAdd(byte[] value, BlockLoader.DoubleBuilder builder) throws IOException {
+            if (vectorAsBytes == null) {
+                vectorAsBytes = new byte[vector.length];
+                for (int i = 0; i < vector.length; i++) {
+                    vectorAsBytes[i] = (byte) vector[i];
+                }
+            }
+            builder.appendDouble(similarityFunction.calculateSimilarity(value, vectorAsBytes));
+        }
     }
 }

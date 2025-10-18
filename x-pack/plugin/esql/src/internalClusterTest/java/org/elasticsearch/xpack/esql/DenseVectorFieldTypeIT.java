@@ -217,7 +217,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 for (int j = 0; j < numDims; j++) {
                     switch (elementType) {
                         case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
-                        case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                        case BYTE, BIT -> vector.add((byte) randomIntBetween(-128, 127));
                         default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }

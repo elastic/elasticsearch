@@ -517,6 +517,203 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
+    public static class DenseVectorValueBlockLoader extends DocValuesBlockLoader {
+        private final String fieldName;
+        private final int dimensions;
+        private final DenseVectorFieldMapper.DenseVectorFieldType fieldType;
+        private final DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader;
+
+        public DenseVectorValueBlockLoader(
+            String fieldName,
+            int dimensions,
+            DenseVectorFieldMapper.DenseVectorFieldType fieldType,
+            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader
+        ) {
+            this.fieldName = fieldName;
+            this.dimensions = dimensions;
+            this.fieldType = fieldType;
+            this.blockValueLoader = blockValueLoader;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return blockValueLoader.builder(factory, expectedCount);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            switch (fieldType.getElementType()) {
+                case FLOAT -> {
+                    FloatVectorValues floatVectorValues = context.reader().getFloatVectorValues(fieldName);
+                    if (floatVectorValues != null) {
+                        DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction valueLoader = blockValueLoader;
+                        if (fieldType.isNormalized()) {
+                            // Wrap in a normalizing loader
+                            NumericDocValues magnitudeDocValues = context.reader()
+                                .getNumericDocValues(fieldType.name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                            return new FloatNormalizedBlockLoaderLoaderValueFunction(
+                                floatVectorValues,
+                                dimensions,
+                                blockValueLoader,
+                                magnitudeDocValues
+                            );
+                        }
+                        return new FloatDenseVectorBlockLoaderValueFunctionReader(floatVectorValues, dimensions, valueLoader);
+                    }
+                }
+                case BYTE -> {
+                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
+                    if (byteVectorValues != null) {
+                        return new ByteDenseVectorFunctionLoaderValueFunctionReader(byteVectorValues, dimensions, blockValueLoader);
+                    }
+                }
+                default -> throw new IllegalArgumentException("Unsupported element type: " + fieldType.getElementType());
+            }
+
+            return new ConstantNullsReader();
+        }
+    }
+
+    private abstract static class DenseVectorBlockLoaderValueFunctionReader<T extends KnnVectorValues, U> extends BlockDocValuesReader {
+        protected final T vectorValues;
+        protected final KnnVectorValues.DocIndexIterator iterator;
+        protected final int dimensions;
+        protected final DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader;
+
+        DenseVectorBlockLoaderValueFunctionReader(
+            T vectorValues,
+            int dimensions,
+            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader
+        ) {
+            this.vectorValues = vectorValues;
+            iterator = vectorValues.iterator();
+            this.dimensions = dimensions;
+            this.blockValueLoader = blockValueLoader;
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (DoubleBuilder builder = blockValueLoader.builder(factory, docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    read(docs.get(i), builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (DoubleBuilder) builder);
+        }
+
+        private void read(int doc, DoubleBuilder builder) throws IOException {
+            assertDimensions();
+
+            if (iterator.docID() > doc) {
+                builder.appendNull();
+            } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
+                readValue(builder);
+            } else {
+                builder.appendNull();
+            }
+        }
+
+        protected abstract void readValue(DoubleBuilder builder) throws IOException;
+
+        @Override
+        public int docId() {
+            return iterator.docID();
+        }
+
+        protected void assertDimensions() {
+            assert vectorValues.dimension() == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.FloatDenseVectorFunctionBlockReader";
+        }
+    }
+
+    private static class FloatDenseVectorBlockLoaderValueFunctionReader extends DenseVectorBlockLoaderValueFunctionReader<
+        FloatVectorValues,
+        float[]> {
+
+        FloatDenseVectorBlockLoaderValueFunctionReader(
+            FloatVectorValues vectorValues,
+            int dimensions,
+            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader
+        ) {
+            super(vectorValues, dimensions, blockValueLoader);
+        }
+
+        @Override
+        protected void readValue(DoubleBuilder builder) throws IOException {
+            float[] floats = vectorValues.vectorValue(iterator.index());
+            blockValueLoader.applyFunctionAndAdd(floats, builder);
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.FloatDenseVectorValueBlockReader";
+        }
+    }
+
+    private static class FloatNormalizedBlockLoaderLoaderValueFunction extends FloatDenseVectorBlockLoaderValueFunctionReader {
+
+        private final NumericDocValues magnitudeDocValues;
+
+        FloatNormalizedBlockLoaderLoaderValueFunction(
+            FloatVectorValues vectorValues,
+            int dimensions,
+            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader,
+            NumericDocValues magnitudeDocValues
+        ) {
+            super(vectorValues, dimensions, blockValueLoader);
+            this.magnitudeDocValues = magnitudeDocValues;
+        }
+
+        @Override
+        protected void readValue(DoubleBuilder builder) throws IOException {
+            float[] floats = vectorValues.vectorValue(iterator.index());
+            // If all vectors are normalized, no doc values will be present. The vector may be normalized already, so we may not have a
+            // stored magnitude for all docs
+            if ((magnitudeDocValues != null) && magnitudeDocValues.advanceExact(iterator.docID())) {
+                float magnitude = Float.intBitsToFloat((int) magnitudeDocValues.longValue());
+                for (int i = 0; i < floats.length; i++) {
+                    floats[i] *= magnitude;
+                }
+            }
+            blockValueLoader.applyFunctionAndAdd(floats, builder);
+        }
+    }
+
+    private static class ByteDenseVectorFunctionLoaderValueFunctionReader extends DenseVectorBlockLoaderValueFunctionReader<
+        ByteVectorValues,
+        byte[]> {
+
+        ByteDenseVectorFunctionLoaderValueFunctionReader(
+            ByteVectorValues vectorValues,
+            int dimensions,
+            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction blockValueLoader
+        ) {
+            super(vectorValues, dimensions, blockValueLoader);
+        }
+
+        @Override
+        protected void readValue(DoubleBuilder builder) throws IOException {
+            byte[] bytes = vectorValues.vectorValue(iterator.index());
+            blockValueLoader.applyFunctionAndAdd(bytes, builder);
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.ByteDenseVectorValueBlockReader";
+        }
+    }
+
     public static class DenseVectorBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
         private final int dimensions;
@@ -672,8 +869,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     }
 
     private static class ByteDenseVectorValuesBlockReader extends DenseVectorValuesBlockReader<ByteVectorValues> {
-        ByteDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
-            super(floatVectorValues, dimensions);
+        ByteDenseVectorValuesBlockReader(ByteVectorValues byteVectorValues, int dimensions) {
+            super(byteVectorValues, dimensions);
         }
 
         protected void appendDoc(BlockLoader.FloatBuilder builder) throws IOException {

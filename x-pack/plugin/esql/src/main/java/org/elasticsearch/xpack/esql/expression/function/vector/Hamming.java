@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,7 +26,37 @@ import java.io.IOException;
 public class Hamming extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Hamming::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = Hamming::calculateSimilarity;
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
+        @Override
+        public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+            return Hamming.calculateSimilarity(leftScratch, rightScratch);
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            throw new UnsupportedOperationException("Hamming distance is not supported for float vectors");
+        }
+    };
+    public static final DenseVectorFieldMapper.SimilarityFunction EVALUATOR_SIMILARITY_FUNCTION =
+        new DenseVectorFieldMapper.SimilarityFunction() {
+            @Override
+            public float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+                return Hamming.calculateSimilarity(leftScratch, rightScratch);
+            }
+
+            @Override
+            public float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+                byte[] a = new byte[leftScratch.length];
+                byte[] b = new byte[rightScratch.length];
+                for (int i = 0; i < leftScratch.length; i++) {
+                    a[i] = (byte) leftScratch[i];
+                }
+                for (int i = 0; i < leftScratch.length; i++) {
+                    b[i] = (byte) rightScratch[i];
+                }
+                return Hamming.calculateSimilarity(a, b);
+            }
+        };
 
     @FunctionInfo(
         returnType = "double",
@@ -55,8 +86,12 @@ public class Hamming extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
+    }
+
+    public DenseVectorFieldMapper.SimilarityFunction getEvaluatorSimilarityFunction() {
+        return EVALUATOR_SIMILARITY_FUNCTION;
     }
 
     @Override
@@ -74,15 +109,7 @@ public class Hamming extends VectorSimilarityFunction {
         return ENTRY.name;
     }
 
-    public static float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-        byte[] a = new byte[leftScratch.length];
-        byte[] b = new byte[rightScratch.length];
-        for (int i = 0; i < leftScratch.length; i++) {
-            a[i] = (byte) leftScratch[i];
-        }
-        for (int i = 0; i < leftScratch.length; i++) {
-            b[i] = (byte) rightScratch[i];
-        }
-        return VectorUtil.xorBitCount(a, b);
+    public static float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+        return VectorUtil.xorBitCount(leftScratch, rightScratch);
     }
 }

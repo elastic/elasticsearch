@@ -493,7 +493,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction),
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {

@@ -33,7 +33,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -69,9 +68,9 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -605,13 +604,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 denseVectorElementType
             );
         };
-    }
-
-    public static class FakeMlPlugin extends Plugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
     }
 
     private static TestThreadPool threadPool;

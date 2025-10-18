@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
@@ -61,9 +62,10 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     private InterceptedInferenceSparseVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap, ccsRequest);
+        super(other, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override
@@ -114,8 +116,12 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
-        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap, ccsRequest);
+    protected QueryBuilder copy(
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        boolean ccsRequest
+    ) {
+        return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override

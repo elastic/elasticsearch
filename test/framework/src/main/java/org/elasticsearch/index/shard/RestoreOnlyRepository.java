@@ -105,7 +105,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
                 Collections.singletonMap(indexId, emptyList()),
                 ShardGenerations.EMPTY,
                 IndexMetaDataGenerations.EMPTY,
-                MISSING_UUID
+                MISSING_UUID,
+                Collections.emptyMap()
             )
         );
     }

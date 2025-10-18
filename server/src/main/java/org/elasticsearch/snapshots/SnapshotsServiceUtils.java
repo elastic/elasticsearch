@@ -72,6 +72,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.IndexVersions.INDEX_SHARD_COUNTS_IN_REPOSITORY_DATA;
 import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SnapshotsService.FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION;
 import static org.elasticsearch.snapshots.SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
@@ -260,6 +261,10 @@ public class SnapshotsServiceUtils {
 
     public static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
         return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
+    }
+
+    public static boolean includeIndexShardCounts(IndexVersion repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(INDEX_SHARD_COUNTS_IN_REPOSITORY_DATA);
     }
 
     /**

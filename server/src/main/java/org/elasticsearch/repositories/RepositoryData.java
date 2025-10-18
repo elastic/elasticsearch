@@ -87,7 +87,8 @@ public final class RepositoryData {
         Collections.emptyMap(),
         ShardGenerations.EMPTY,
         IndexMetaDataGenerations.EMPTY,
-        MISSING_UUID
+        MISSING_UUID,
+        Collections.emptyMap()
     );
 
     /**
@@ -135,6 +136,12 @@ public final class RepositoryData {
      */
     private final ShardGenerations shardGenerations;
 
+    /**
+     * The number of shards for each index in the repository.
+     * Keyed by IndexId.
+     */
+    private final Map<String, Integer> indexShardCounts;
+
     public RepositoryData(
         String uuid,
         long genId,
@@ -143,7 +150,8 @@ public final class RepositoryData {
         Map<IndexId, List<SnapshotId>> indexSnapshots,
         ShardGenerations shardGenerations,
         IndexMetaDataGenerations indexMetaDataGenerations,
-        String clusterUUID
+        String clusterUUID,
+        Map<String, Integer> indexShardCounts
     ) {
         this(
             uuid,
@@ -154,7 +162,8 @@ public final class RepositoryData {
             Collections.unmodifiableMap(indexSnapshots),
             shardGenerations,
             indexMetaDataGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -167,7 +176,8 @@ public final class RepositoryData {
         Map<IndexId, List<SnapshotId>> indexSnapshots,
         ShardGenerations shardGenerations,
         IndexMetaDataGenerations indexMetaDataGenerations,
-        String clusterUUID
+        String clusterUUID,
+        Map<String, Integer> indexShardCounts
     ) {
         this.uuid = Objects.requireNonNull(uuid);
         this.genId = genId;
@@ -178,6 +188,7 @@ public final class RepositoryData {
         this.shardGenerations = shardGenerations;
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.clusterUUID = Objects.requireNonNull(clusterUUID);
+        this.indexShardCounts = indexShardCounts;
         assert uuid.equals(MISSING_UUID) == clusterUUID.equals(MISSING_UUID)
             : "Either repository- and cluster UUID must both be missing"
                 + " or neither of them must be missing but saw ["
@@ -204,7 +215,8 @@ public final class RepositoryData {
             indexSnapshots,
             shardGenerations,
             indexMetaDataGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -223,7 +235,8 @@ public final class RepositoryData {
             indexSnapshots,
             ShardGenerations.EMPTY,
             indexMetaDataGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -247,12 +260,56 @@ public final class RepositoryData {
             indexSnapshots,
             shardGenerations,
             indexMetaDataGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
     public ShardGenerations shardGenerations() {
         return shardGenerations;
+    }
+
+    /**
+     * Adds an (indexId, numShards) entry to the indexShardsCount map.
+     * If a value already exists for indexId, then the maximum shard count is stored
+     * @param indexId An index ID
+     * @param numShards The number of shards for this index
+     */
+    public RepositoryData addShardsForIndexId(String indexId, int numShards) {
+        Map<String, Integer> newShardCounts = new HashMap<>(indexShardCounts);
+        // If the value already exists, we want to store the max shard count
+        if (indexShardCounts.containsKey(indexId)) {
+            newShardCounts.put(indexId, Math.max(indexShardCounts.get(indexId), numShards));
+        } else {
+            newShardCounts.put(indexId, numShards);
+        }
+        return new RepositoryData(
+            uuid,
+            genId,
+            snapshotIds,
+            snapshotsDetails,
+            indices,
+            indexSnapshots,
+            shardGenerations,
+            indexMetaDataGenerations,
+            clusterUUID,
+            Collections.unmodifiableMap(newShardCounts)
+        );
+    }
+
+    /**
+     * @param indexId An index UUID
+     * @return The number of shards for the given index ID
+     */
+    public Integer getShardsForIndexId(String indexId) {
+        return indexShardCounts.get(indexId);
+    }
+
+    /**
+     * Returns an unmodifiable map of the {@link IndexId} to shard counts for all indices in the repository.
+     */
+    public Map<String, Integer> getIndexShardCounts() {
+        return this.indexShardCounts;
     }
 
     /**
@@ -461,7 +518,8 @@ public final class RepositoryData {
             allIndexSnapshots,
             ShardGenerations.builder().putAll(this.shardGenerations).update(updatedShardGenerations).build(),
             newIndexMetaGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -484,7 +542,8 @@ public final class RepositoryData {
             indexSnapshots,
             shardGenerations,
             indexMetaDataGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -502,7 +561,8 @@ public final class RepositoryData {
             indexSnapshots,
             shardGenerations,
             indexMetaDataGenerations,
-            MISSING_UUID
+            MISSING_UUID,
+            indexShardCounts
         );
     }
 
@@ -517,7 +577,8 @@ public final class RepositoryData {
             indexSnapshots,
             shardGenerations,
             indexMetaDataGenerations,
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -570,7 +631,8 @@ public final class RepositoryData {
                 .retainIndicesAndPruneDeletes(indexSnapshots.keySet())
                 .build(),
             indexMetaDataGenerations.withRemovedSnapshots(snapshots),
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -677,6 +739,7 @@ public final class RepositoryData {
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String END_TIME_MILLIS = "end_time_millis";
     private static final String SLM_POLICY = "slm_policy";
+    private static final String INDEX_SHARDS_COUNT = "index_shards_count";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -700,6 +763,7 @@ public final class RepositoryData {
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion, boolean permitMissingUuid)
         throws IOException {
 
+        final boolean shouldWriteIndexShardCount = SnapshotsServiceUtils.includeIndexShardCounts(repoMetaVersion);
         final boolean shouldWriteUUIDS = SnapshotsServiceUtils.includesUUIDs(repoMetaVersion);
         final boolean shouldWriteIndexGens = SnapshotsServiceUtils.useIndexGenerations(repoMetaVersion);
         final boolean shouldWriteShardGens = SnapshotsServiceUtils.useShardGenerations(repoMetaVersion);
@@ -712,29 +776,22 @@ public final class RepositoryData {
         if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
             final IndexVersion minVersion;
-            if (shouldWriteUUIDS) {
+            if (shouldWriteIndexShardCount) {
+                minVersion = IndexVersions.INDEX_SHARD_COUNTS_IN_REPOSITORY_DATA;
+            } else if (shouldWriteUUIDS) {
                 minVersion = SnapshotsService.UUIDS_IN_REPO_DATA_VERSION;
             } else if (shouldWriteIndexGens) {
                 minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
-            // Note that all known versions expect the MIN_VERSION field to be a string, and versions before 8.11.0 try and parse it as a
-            // major.minor.patch version number, so if we introduce a numeric format version in future then this will cause them to fail
-            // with an opaque parse error rather than the more helpful:
-            //
-            // IllegalStateException: this snapshot repository format requires Elasticsearch version [x.y.z] or later
-            //
-            // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
-            // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
-            // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
+            // Note that all known versions expect the MIN_VERSION field to be a string.
+            // Versions before 8.11.0 try and parse it as a major.minor.patch version number
+            // Versions after 8.11.0 use a numeric format
             if (minVersion.before(IndexVersions.V_8_10_0)) {
-                // write as a string
                 builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
             } else {
-                assert false : "writing a numeric version [" + minVersion + "] is unhelpful here, see preceding comment";
-                // write an int
-                builder.field(MIN_VERSION, minVersion.id());
+                builder.field(MIN_VERSION, minVersion.toReleaseVersion());
             }
         }
 
@@ -856,6 +913,15 @@ public final class RepositoryData {
             builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
         }
 
+        // Write the indexShardCounts map
+        if (shouldWriteIndexShardCount) {
+            builder.startObject(INDEX_SHARDS_COUNT);
+            for (Map.Entry<String, Integer> entry : indexShardCounts.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
+
         builder.endObject();
 
         return builder;
@@ -881,6 +947,7 @@ public final class RepositoryData {
         final Map<String, IndexId> indexLookup = new HashMap<>();
         final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
         final Map<SnapshotId, Map<String, String>> indexMetaLookup = new HashMap<>();
+        final Map<String, Integer> indexShardCounts = new HashMap<>();
         Map<String, String> indexMetaIdentifiers = null;
         String uuid = MISSING_UUID;
         String clusterUUID = MISSING_UUID;
@@ -901,6 +968,7 @@ public final class RepositoryData {
                         case "7.12.0" -> IndexVersions.V_7_12_0;
                         case "7.9.0" -> IndexVersions.V_7_9_0;
                         case "7.6.0" -> IndexVersions.V_7_6_0;
+                        case "9.3.0" -> IndexVersions.INDEX_SHARD_COUNTS_IN_REPOSITORY_DATA;
                         default ->
                             // All (known) versions only ever emit one of the above strings for the format version, so if we see something
                             // else it must be a newer version or else something wholly invalid. Report the raw string rather than trying
@@ -921,6 +989,7 @@ public final class RepositoryData {
                     clusterUUID = parser.text();
                     assert clusterUUID.equals(MISSING_UUID) == false;
                 }
+                case INDEX_SHARDS_COUNT -> parseIndexShardCounts(parser, indexShardCounts);
                 default -> XContentParserUtils.throwUnknownField(field, parser);
             }
         }
@@ -936,7 +1005,8 @@ public final class RepositoryData {
             indexSnapshots,
             shardGenerations.build(),
             buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers),
-            clusterUUID
+            clusterUUID,
+            indexShardCounts
         );
     }
 
@@ -1152,6 +1222,16 @@ public final class RepositoryData {
             }
         }
         return uuid;
+    }
+
+    private static void parseIndexShardCounts(XContentParser parser, Map<String, Integer> indexShardCounts) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            String index = parser.currentName();
+            parser.nextToken();
+            int shardCount = parser.intValue();
+            indexShardCounts.put(index, shardCount);
+        }
     }
 
     /**

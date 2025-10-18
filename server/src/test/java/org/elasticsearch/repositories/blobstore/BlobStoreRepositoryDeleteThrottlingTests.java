@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -23,6 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -32,7 +35,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,6 +45,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.junit.Assert.assertTrue;
 
 public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCase {
 
@@ -54,10 +57,40 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
     private static final String TEST_REPO_TYPE = "concurrency-limiting-fs";
     private static final String TEST_REPO_NAME = "test-repo";
     private static final int MAX_SNAPSHOT_THREADS = 3;
+    private static final Set<String> activeIndices = ConcurrentCollections.newConcurrentSet();
+    private static final CountDownLatch countDownLatch = new CountDownLatch(MAX_SNAPSHOT_THREADS);
 
     @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings()).put("thread_pool.snapshot.max", MAX_SNAPSHOT_THREADS).build();
+    }
+
+    /**
+     * A test repository that marks when an index is activated / deactivated
+     */
+    public static class IndexActiveRepository extends FsRepository {
+
+        public IndexActiveRepository(
+            ProjectId projectId,
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        }
+
+        @Override
+        protected void indexIsActive(IndexId indexId) {
+            // IndexSnapshotsDeletion has been invoked for indexId so mark the index as active
+            assertTrue(activeIndices.add(indexId.getId()));
+            assertThat(activeIndices.size(), lessThanOrEqualTo(MAX_SNAPSHOT_THREADS));
+            countDownLatch.countDown();
+            // ensure that we do use all the threads
+            safeAwait(countDownLatch);
+        }
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -77,7 +110,7 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
         ) {
             return Collections.singletonMap(
                 TEST_REPO_TYPE,
-                (projectId, metadata) -> new FsRepository(
+                (projectId, metadata) -> new IndexActiveRepository(
                     projectId,
                     metadata,
                     env,
@@ -97,8 +130,6 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
 
     private static class ConcurrencyLimitingBlobStore implements BlobStore {
         private final BlobStore delegate;
-        private final Set<String> activeIndices = ConcurrentCollections.newConcurrentSet();
-        private final CountDownLatch countDownLatch = new CountDownLatch(MAX_SNAPSHOT_THREADS);
 
         private ConcurrencyLimitingBlobStore(BlobStore delegate) {
             this.delegate = delegate;
@@ -128,19 +159,6 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
         @Override
         protected BlobContainer wrapChild(BlobContainer child) {
             return new ConcurrencyLimitingBlobContainer(child, activeIndices, countDownLatch);
-        }
-
-        @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-            final var pathParts = path().parts();
-            if (pathParts.size() == 2 && pathParts.get(0).equals("indices") && blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
-                // reading index metadata, so mark index as active
-                assertTrue(activeIndices.add(pathParts.get(1)));
-                assertThat(activeIndices.size(), lessThanOrEqualTo(MAX_SNAPSHOT_THREADS));
-                countDownLatch.countDown();
-                safeAwait(countDownLatch); // ensure that we do use all the threads
-            }
-            return super.readBlob(purpose, blobName);
         }
 
         @Override

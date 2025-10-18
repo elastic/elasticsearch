@@ -189,6 +189,7 @@ public class IndexVersions {
     public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_1 = def(9_039_0_01, Version.LUCENE_10_3_1);
     public static final IndexVersion KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = def(9_040_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_1 = def(9_041_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion INDEX_SHARD_COUNTS_IN_REPOSITORY_DATA = def(9_042_0_00, Version.LUCENE_10_3_1);
 
     public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_042_0_00, Version.LUCENE_10_3_1);
 

@@ -161,7 +161,8 @@ public class RepositoryDataTests extends ESTestCase {
             Collections.emptyMap(),
             ShardGenerations.EMPTY,
             IndexMetaDataGenerations.EMPTY,
-            MISSING_UUID
+            MISSING_UUID,
+            Collections.emptyMap()
         );
         // test that initializing indices works
         Map<IndexId, List<SnapshotId>> indices = randomIndices(snapshotIds);
@@ -173,7 +174,8 @@ public class RepositoryDataTests extends ESTestCase {
             indices,
             ShardGenerations.EMPTY,
             IndexMetaDataGenerations.EMPTY,
-            UUIDs.randomBase64UUID(random())
+            UUIDs.randomBase64UUID(random()),
+            Collections.emptyMap()
         );
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
@@ -281,7 +283,8 @@ public class RepositoryDataTests extends ESTestCase {
             indexSnapshots,
             shardGenBuilder.build(),
             IndexMetaDataGenerations.EMPTY,
-            UUIDs.randomBase64UUID(random())
+            UUIDs.randomBase64UUID(random()),
+            parsedRepositoryData.getIndexShardCounts()
         );
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
@@ -453,6 +456,46 @@ public class RepositoryDataTests extends ESTestCase {
         );
     }
 
+    public void testAddShardsForIndexId() {
+        RepositoryData repoData = RepositoryData.EMPTY;
+
+        // Generate random index ids
+        Set<String> indexIds = new HashSet<>();
+        for (int i = 0; i < randomIntBetween(1, 100); i++) {
+            indexIds.add(randomAlphaOfLength(randomIntBetween(5, 10)));
+        }
+
+        // Track the index id to shard count map
+        Map<String, Integer> indexIdToShardCountMap = new HashMap<>();
+
+        // For each index id, we add a random shard count
+        for (String indexId : indexIds) {
+            int shardCount = randomIntBetween(1, 5);
+            repoData = repoData.addShardsForIndexId(indexId, shardCount);
+            indexIdToShardCountMap.put(indexId, shardCount);
+        }
+
+        // Verify they were all added correctly to RepositoryData
+        assertEquals(indexIds.size(), repoData.getIndexShardCounts().size());
+        for (String indexId : indexIds) {
+            assertEquals(indexIdToShardCountMap.get(indexId), repoData.getShardsForIndexId(indexId));
+        }
+
+        // Now add a second shard count for each index id. In all cases, we expect the max of the two values to be saved
+        for (String indexId : indexIds) {
+            int currentShardCount = indexIdToShardCountMap.get(indexId);
+            int newShardCount = randomIntBetween(0, currentShardCount * 2);
+            repoData = repoData.addShardsForIndexId(indexId, newShardCount);
+            indexIdToShardCountMap.put(indexId, Math.max(currentShardCount, newShardCount));
+        }
+
+        // Verify they were all added correctly to RepositoryData
+        assertEquals(indexIds.size(), repoData.getIndexShardCounts().size());
+        for (String indexId : indexIds) {
+            assertEquals(indexIdToShardCountMap.get(indexId), repoData.getShardsForIndexId(indexId));
+        }
+    }
+
     public static RepositoryData generateRandomRepoData() {
         final int numIndices = randomIntBetween(1, 30);
         final List<IndexId> indices = new ArrayList<>(numIndices);
@@ -471,6 +514,7 @@ public class RepositoryDataTests extends ESTestCase {
                     final ShardGeneration shardGeneration = randomBoolean() ? null : ShardGeneration.newGeneration(random());
                     builder.put(someIndex, j, shardGeneration);
                 }
+                repositoryData = repositoryData.addShardsForIndexId(someIndex.getId(), shardCount);
             }
             final Map<IndexId, String> indexLookup = someIndices.stream()
                 .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));

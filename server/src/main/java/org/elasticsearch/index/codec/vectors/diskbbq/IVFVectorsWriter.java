@@ -28,14 +28,13 @@ import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.cluster.OffHeapFloatVectorValues;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -143,6 +142,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
         throws IOException;
+
+    public abstract CentroidAssignments calculateCentroids(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        FloatVectorValues floatVectorValues,
+        float[] globalCentroid
+    ) throws IOException;
 
     public record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
 
@@ -386,6 +392,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 centroidTempName = centroidTemp.getName();
                 CentroidAssignments centroidAssignments = calculateCentroids(
                     fieldInfo,
+                    mergeState,
                     getFloatVectorValues(fieldInfo, docs, vectors, numVectors),
                     calculatedGlobalCentroid
                 );
@@ -472,44 +479,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         if (numVectors == 0) {
             return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
         }
-        final long vectorLength = (long) Float.BYTES * fieldInfo.getVectorDimension();
-        final float[] vector = new float[fieldInfo.getVectorDimension()];
-        final RandomAccessInput randomDocs = docs == null ? null : docs.randomAccessSlice(0, docs.length());
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) throws IOException {
-                vectors.seek(ord * vectorLength);
-                vectors.readFloats(vector, 0, vector.length);
-                return vector;
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return numVectors;
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                if (randomDocs == null) {
-                    return ord;
-                }
-                try {
-                    return randomDocs.readInt((long) ord * Integer.BYTES);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
+        return new OffHeapFloatVectorValues(vectors, numVectors, fieldInfo.getVectorDimension(), docs);
     }
 
     private static int writeFloatVectorValues(

@@ -16,20 +16,22 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
-public final class StdDevStates {
+public final class VarianceStates {
 
-    private StdDevStates() {}
+    private VarianceStates() {}
 
     static final class SingleState implements AggregatorState {
 
         private final WelfordAlgorithm welfordAlgorithm;
+        private final boolean stdDev;
 
-        SingleState() {
-            this(0, 0, 0);
+        SingleState(boolean stdDev) {
+            this(0, 0, 0, stdDev);
         }
 
-        SingleState(double mean, double m2, long count) {
+        SingleState(double mean, double m2, long count, boolean stdDev) {
             this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
+            this.stdDev = stdDev;
         }
 
         public void add(long value) {
@@ -73,7 +75,7 @@ public final class StdDevStates {
         }
 
         public double evaluateFinal() {
-            return welfordAlgorithm.evaluate();
+            return welfordAlgorithm.evaluate(stdDev);
         }
 
         public Block evaluateFinal(DriverContext driverContext) {
@@ -90,10 +92,12 @@ public final class StdDevStates {
 
         private ObjectArray<WelfordAlgorithm> states;
         private final BigArrays bigArrays;
+        private final boolean stdDev;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, boolean stdDev) {
             this.states = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
+            this.stdDev = stdDev;
         }
 
         WelfordAlgorithm getOrNull(int position) {
@@ -189,7 +193,7 @@ public final class StdDevStates {
                         if (count == 0 || Double.isFinite(m2) == false) {
                             builder.appendNull();
                         } else {
-                            builder.appendDouble(st.evaluate());
+                            builder.appendDouble(st.evaluate(stdDev));
                         }
                     } else {
                         builder.appendNull();

@@ -26,8 +26,8 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StdDevTests extends AbstractAggregationTestCase {
-    public StdDevTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class VarianceTests extends AbstractAggregationTestCase {
+    public VarianceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -39,14 +39,14 @@ public class StdDevTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
-        ).flatMap(List::stream).map(StdDevTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
+        ).flatMap(List::stream).map(VarianceTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StdDev(source, args.get(0));
+        return new Variance(source, args.get(0));
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -60,10 +60,11 @@ public class StdDevTests extends AbstractAggregationTestCase {
                 var value = ((Number) fieldValue).doubleValue();
                 welfordAlgorithm.add(value);
             }
-            var result = welfordAlgorithm.evaluate(true);
+            var result = welfordAlgorithm.evaluate(false);
             var expected = Double.isFinite(result) ? result : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
+                // Note that this stddev because it's the operator that implements both of these
                 standardAggregatorName("StdDev", fieldSupplier.type()),
                 DataType.DOUBLE,
                 equalTo(expected)

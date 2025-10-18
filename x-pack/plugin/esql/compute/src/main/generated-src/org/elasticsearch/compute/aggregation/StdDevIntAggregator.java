@@ -28,35 +28,35 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 public class StdDevIntAggregator {
 
-    public static StdDevStates.SingleState initSingle() {
-        return new StdDevStates.SingleState();
+    public static VarianceStates.SingleState initSingle(boolean stdDev) {
+        return new VarianceStates.SingleState(stdDev);
     }
 
-    public static void combine(StdDevStates.SingleState state, int value) {
+    public static void combine(VarianceStates.SingleState state, int value) {
         state.add(value);
     }
 
-    public static void combineIntermediate(StdDevStates.SingleState state, double mean, double m2, long count) {
+    public static void combineIntermediate(VarianceStates.SingleState state, double mean, double m2, long count) {
         state.combine(mean, m2, count);
     }
 
-    public static Block evaluateFinal(StdDevStates.SingleState state, DriverContext driverContext) {
+    public static Block evaluateFinal(VarianceStates.SingleState state, DriverContext driverContext) {
         return state.evaluateFinal(driverContext);
     }
 
-    public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new StdDevStates.GroupingState(bigArrays);
+    public static VarianceStates.GroupingState initGrouping(BigArrays bigArrays, boolean stdDev) {
+        return new VarianceStates.GroupingState(bigArrays, stdDev);
     }
 
-    public static void combine(StdDevStates.GroupingState current, int groupId, int value) {
+    public static void combine(VarianceStates.GroupingState current, int groupId, int value) {
         current.add(groupId, value);
     }
 
-    public static void combineIntermediate(StdDevStates.GroupingState state, int groupId, double mean, double m2, long count) {
+    public static void combineIntermediate(VarianceStates.GroupingState state, int groupId, double mean, double m2, long count) {
         state.combine(groupId, mean, m2, count);
     }
 
-    public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    public static Block evaluateFinal(VarianceStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
         return state.evaluateFinal(selected, ctx.driverContext());
     }
 }

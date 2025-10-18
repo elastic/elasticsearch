@@ -9,24 +9,29 @@
 
 package org.elasticsearch.gradle.testclusters;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.stream.Streams;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.StringWriter;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.regex.Pattern;
@@ -107,6 +112,127 @@ public class MockApmServer {
     }
 
     class RootHandler implements HttpHandler {
+        private static final String ANSI_RESET = "\u001B[0m";
+        private static final String ANSI_BLUE = "\u001B[34m";
+        private static final String ANSI_GREEN = "\u001B[32m";
+        private static final String ANSI_YELLOW = "\u001B[33m";
+        private static final String ANSI_PURPLE = "\u001B[35m";
+        private static final String ANSI_CYAN = "\u001B[36m";
+
+        private final ObjectMapper mapper = new ObjectMapper();
+        private final ObjectWriter prettyWriter = mapper.writerWithDefaultPrettyPrinter();
+        private final JsonFactory jsonFactory = mapper.getFactory();
+
+        /**
+         * A custom JsonGenerator that delegates all calls to a base generator
+         * but wraps the output of value-writing methods in ANSI color codes.
+         */
+        private static class HighlightingJsonGenerator extends JsonGeneratorDelegate {
+
+            HighlightingJsonGenerator(JsonGenerator d) {
+                // Pass 'false' to prevent base generator from being auto-closed by this delegate
+                super(d, false);
+            }
+
+            @Override
+            public void writeFieldName(String name) throws IOException {
+                delegate.writeRaw(ANSI_BLUE);
+                delegate.writeFieldName(name);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeString(String text) throws IOException {
+                delegate.writeRaw(ANSI_GREEN);
+                delegate.writeString(text);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(int v) throws IOException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(v);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(long v) throws IOException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(v);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(BigInteger v) throws IOException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(v);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(double v) throws IOException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(v);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(float v) throws IOException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(v);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(BigDecimal v) throws IOException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(v);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNumber(String encodedValue) throws IOException, UnsupportedOperationException {
+                delegate.writeRaw(ANSI_YELLOW);
+                delegate.writeNumber(encodedValue);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeBoolean(boolean state) throws IOException {
+                delegate.writeRaw(ANSI_PURPLE);
+                delegate.writeBoolean(state);
+                delegate.writeRaw(ANSI_RESET);
+            }
+
+            @Override
+            public void writeNull() throws IOException {
+                delegate.writeRaw(ANSI_CYAN);
+                delegate.writeNull();
+                delegate.writeRaw(ANSI_RESET);
+            }
+        }
+
+        /**
+         * Serializes a JsonNode to a string using Jackson's DefaultPrettyPrinter
+         * and our custom HighlightingJsonGenerator for syntax highlighting.
+         */
+        private String colorize(JsonNode node) {
+            try (StringWriter stringWriter = new StringWriter()) {
+                try (JsonGenerator baseGen = jsonFactory.createGenerator(stringWriter)) {
+                    HighlightingJsonGenerator highlightingGen = new HighlightingJsonGenerator(baseGen);
+                    prettyWriter.writeValue(highlightingGen, node);
+                }
+                return stringWriter.toString();
+            } catch (IOException e) {
+                log.warn("Failed to colorize JSON, falling back to basic pretty print", e);
+                try {
+                    return prettyWriter.writeValueAsString(node);
+                } catch (IOException ex) {
+                    return node.toString();
+                }
+            }
+        }
+
         public void handle(HttpExchange t) {
             try {
                 InputStream body = t.getRequestBody();
@@ -127,19 +253,27 @@ public class MockApmServer {
         }
 
         private void logRequestBody(InputStream body) throws IOException {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            IOUtils.copy(body, bytes);
-            logger.lifecycle(("MockApmServer reading JSON objects: " + bytes.toString()));
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(body))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty()) {
+                        continue;
+                    }
+                    // Use the class's 'mapper' field
+                    var jsonNode = mapper.readTree(line);
+                    logger.lifecycle("MockApmServer reading JSON object:\n{}", colorize(jsonNode));
+                }
+            }
         }
 
         private void logFiltered(InputStream body) throws IOException {
-            ObjectMapper mapper = new ObjectMapper();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(body))) {
                 String line;
                 String tier = null;
                 String node = null;
 
                 while ((line = reader.readLine()) != null) {
+                    // Use the class's 'mapper' field
                     var jsonNode = mapper.readTree(line);
 
                     if (jsonNode.has("metadata")) {
@@ -150,18 +284,20 @@ public class MockApmServer {
                         var name = transaction.get("name").asText();
                         if (transactionFilter.matcher(name).matches()
                             && (transactionExcludesFilter == null || transactionExcludesFilter.matcher(name).matches() == false)) {
-                            logger.lifecycle("Transaction [{}/{}]: {}", node, tier, transaction);
+                            logger.lifecycle("Transaction [{}/{}]:\n{}", node, tier, colorize(transaction));
                         }
                     } else if (metricFilter != null && jsonNode.has("metricset")) {
                         var metricset = jsonNode.get("metricset");
                         var samples = (ObjectNode) metricset.get("samples");
-                        for (var name : Streams.of(samples.fieldNames()).toList()) {
+                        java.util.List<String> fieldNames = new java.util.ArrayList<>();
+                        samples.fieldNames().forEachRemaining(fieldNames::add);
+                        for (String name : fieldNames) {
                             if (metricFilter.matcher(name).matches() == false) {
                                 samples.remove(name);
                             }
                         }
                         if (samples.isEmpty() == false) {
-                            logger.lifecycle("Metricset [{}/{}]", node, tier, metricset);
+                            logger.lifecycle("Metricset [{}/{}]:\n{}", node, tier, colorize(metricset));
                         }
                     }
                 }

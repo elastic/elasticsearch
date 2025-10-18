@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -78,9 +77,9 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             .collect(Collectors.toSet());
 
         assert availableDataNodes.isEmpty() == false;
-        assert allocation.getClusterState().routingTable(ProjectId.DEFAULT).hasIndex(index);
+        assert allocation.getClusterState().routingTable().hasIndex(index);
 
-        final int totalShards = allocation.getClusterState().metadata().getProject(ProjectId.DEFAULT).index(index).getTotalNumberOfShards();
+        final int totalShards = allocation.getClusterState().metadata().getProject().index(index).getTotalNumberOfShards();
         final double idealAllocation = Math.ceil((double) totalShards / availableDataNodes.size());
         final int threshold = (int) Math.ceil(idealAllocation * indexBalanceConstraintSettings.getLoadSkewTolerance());
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);

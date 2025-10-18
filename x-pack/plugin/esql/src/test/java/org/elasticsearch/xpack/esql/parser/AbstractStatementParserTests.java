@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutio
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-abstract class AbstractStatementParserTests extends ESTestCase {
+public abstract class AbstractStatementParserTests extends ESTestCase {
 
     EsqlParser parser = new EsqlParser();
 
@@ -52,7 +52,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
         return statement(LoggerMessageFormat.format(null, query, arg), new QueryParams());
     }
 
-    LogicalPlan statement(String e) {
+    protected LogicalPlan statement(String e) {
         return statement(e, new QueryParams());
     }
 

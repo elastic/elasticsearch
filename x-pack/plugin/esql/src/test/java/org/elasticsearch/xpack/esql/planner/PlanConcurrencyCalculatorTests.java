@@ -36,32 +36,32 @@ import static org.hamcrest.Matchers.equalTo;
 public class PlanConcurrencyCalculatorTests extends ESTestCase {
     public void testSimpleLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             """, 9);
     }
 
     public void testLimitZero() {
-        assertConcurrency("FROM x | LIMIT 0", null);
+        assertConcurrency("FROM test | LIMIT 0", null);
     }
 
     public void testBiggestPragmaOverride() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             """, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
     public void testSmallestPragmaOverride() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             """, 1, 1);
     }
 
     public void testPragmaOverrideWithUnsupportedCommands() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | WHERE salary * 2 > 5
             | LIMIT 512
             """, 1, 1);
@@ -69,20 +69,20 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testImplicitLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             """, 9);
     }
 
     public void testStats() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | STATS COUNT(salary)
             """, null);
     }
 
     public void testStatsWithLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             | STATS COUNT(salary)
             """, 9);
@@ -90,14 +90,14 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testSortBeforeLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | SORT salary
             """, null);
     }
 
     public void testSortAfterLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             | SORT salary
             """, 9);
@@ -105,7 +105,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testStatsWithSortBeforeLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | SORT salary
             | LIMIT 512
             | STATS COUNT(salary)
@@ -114,7 +114,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testStatsWithSortAfterLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | SORT salary
             | LIMIT 512
             | STATS COUNT(salary)
@@ -123,7 +123,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testWhereBeforeLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | WHERE salary * 2 > 5
             | LIMIT 512
             """, null);
@@ -131,7 +131,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testWhereAfterLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             | WHERE salary * 2 > 5
             """, 9);
@@ -139,7 +139,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testWherePushedToLuceneQueryBeforeLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | WHERE first_name LIKE "A%"
             | LIMIT 512
             """, null);
@@ -147,7 +147,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testWherePushedToLuceneQueryAfterLimit() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 512
             | WHERE first_name LIKE "A%"
             """, 9);
@@ -155,7 +155,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testExpand() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | LIMIT 2048
             | MV_EXPAND salary
             | LIMIT 512
@@ -164,7 +164,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testEval() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | EVAL x=salary*2
             | LIMIT 512
             """, 9);
@@ -172,7 +172,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testRename() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | RENAME salary as x
             | LIMIT 512
             """, 9);
@@ -180,7 +180,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testKeep() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | KEEP salary
             | LIMIT 512
             """, 9);
@@ -188,7 +188,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testDrop() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | DROP salary
             | LIMIT 512
             """, 9);
@@ -196,7 +196,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testDissect() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | DISSECT first_name "%{a} %{b}"
             | LIMIT 512
             """, 9);
@@ -204,7 +204,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testGrok() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | GROK first_name "%{EMAILADDRESS:email}"
             | LIMIT 512
             """, 9);
@@ -212,7 +212,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testEnrich() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | ENRICH languages ON first_name
             | LIMIT 512
             """, 9);
@@ -220,7 +220,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testLookup() {
         assertConcurrency("""
-            FROM x
+            FROM test
             | RENAME salary as language_code
             | LOOKUP JOIN languages_lookup on language_code
             | LIMIT 512

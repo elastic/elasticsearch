@@ -14,7 +14,6 @@ import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -38,6 +37,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.http.netty4.Netty4TestUtils.randomClusterSettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -84,7 +84,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                randomClusterSettings(),
                 new SharedGroupFactory(Settings.EMPTY),
                 TelemetryProvider.NOOP,
                 TLSConfig.noTLS(),

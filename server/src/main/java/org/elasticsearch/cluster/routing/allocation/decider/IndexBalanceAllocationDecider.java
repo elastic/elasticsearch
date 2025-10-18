@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -45,71 +46,74 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (indexBalanceConstraintSettings.isDeciderEnabled()) {
-            Index index = shardRouting.index();
-            if (node.hasIndex(index)) {
-                var dataNodes = allocation.nodes()
-                    .stream()
-                    .filter(DiscoveryNode::canContainData)
-                    .map(DiscoveryNode::getId)
-                    .collect(Collectors.toSet());
-                var nodesShuttingDown = allocation.metadata()
-                    .nodeShutdowns()
-                    .getAll()
-                    .values()
-                    .stream()
-                    .map(SingleNodeShutdownMetadata::getNodeId)
-                    .collect(Collectors.toSet());
-                var availableDataNodes = dataNodes.stream().filter(Predicate.not(nodesShuttingDown::contains)).collect(Collectors.toSet());
-
-                assert availableDataNodes.isEmpty() == false;
-                assert allocation.getClusterState().routingTable(ProjectId.DEFAULT).hasIndex(index);
-
-                var totalShards = allocation.getClusterState().routingTable(ProjectId.DEFAULT).index(index).size();
-                var idealAllocation = Math.ceil((double) totalShards / availableDataNodes.size());
-                var threshold = (int) Math.ceil(idealAllocation * indexBalanceConstraintSettings.getLoadSkewTolerance());
-                var currentAllocation = node.numberOfOwningShardsForIndex(index);
-
-                if (currentAllocation >= threshold) {
-
-                    String rationale =
-                        """
-                            For index [%s] with [%d] shards, Node [%s] is expected to hold [%.0f] shards for index [%s], based on the total of [%d]
-                            nodes available. The configured load skew tolerance is [%.2f], which yields an allocation threshold of
-                            Math.ceil([%.0f] × [%.2f]) = [%d] shards. Currently, node [%s] is assigned [%d] shards of index [%s]. Therefore,
-                            assigning additional shards is not preferred.
-                            """;
-
-                    String explanation = Strings.format(
-                        rationale,
-                        index,
-                        totalShards,
-                        node.nodeId(),
-                        idealAllocation,
-                        index,
-                        availableDataNodes.size(),
-                        indexBalanceConstraintSettings.getLoadSkewTolerance(),
-                        idealAllocation,
-                        indexBalanceConstraintSettings.getLoadSkewTolerance(),
-                        threshold,
-                        node.nodeId(),
-                        currentAllocation,
-                        index
-                    );
-
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(explanation);
-                    }
-
-                    return allocation.decision(Decision.NOT_PREFERRED, NAME, explanation);
-                }
-            }
-
-            return Decision.YES;
-        } else {
-            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled");
+        if (indexBalanceConstraintSettings.isDeciderEnabled() == false) {
+            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
+        // Never reject allocation of an unassigned shard
+        if (shardRouting.assignedToNode() == false) {
+            return Decision.single(Decision.Type.YES, NAME, "Shard is unassigned. Decider takes no action.");
+        }
+
+        Index index = shardRouting.index();
+
+        if (node.hasIndex(index) == false) {
+            return Decision.single(Decision.Type.YES, NAME, "Node does not currently host this index.");
+        }
+
+        final Set<String> dataNodes = allocation.nodes()
+            .stream()
+            .filter(DiscoveryNode::canContainData)
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
+        final Set<String> nodesShuttingDown = allocation.metadata()
+            .nodeShutdowns()
+            .getAll()
+            .values()
+            .stream()
+            .map(SingleNodeShutdownMetadata::getNodeId)
+            .collect(Collectors.toSet());
+        final Set<String> availableDataNodes = dataNodes.stream()
+            .filter(Predicate.not(nodesShuttingDown::contains))
+            .collect(Collectors.toSet());
+
+        assert availableDataNodes.isEmpty() == false;
+        assert allocation.getClusterState().routingTable(ProjectId.DEFAULT).hasIndex(index);
+
+        final int totalShards = allocation.getClusterState().metadata().getProject(ProjectId.DEFAULT).index(index).getTotalNumberOfShards();
+        final double idealAllocation = Math.ceil((double) totalShards / availableDataNodes.size());
+        final int threshold = (int) Math.ceil(idealAllocation * indexBalanceConstraintSettings.getLoadSkewTolerance());
+        final int currentAllocation = node.numberOfOwningShardsForIndex(index);
+
+        if (currentAllocation >= threshold) {
+            String explanation = Strings.format(
+                """
+                    For index [%s] with [%d] shards, Node [%s] is expected to hold [%.0f] shards for index [%s], based on the total of [%d]
+                    nodes available. The configured load skew tolerance is [%.2f], which yields an allocation threshold of
+                    Math.ceil([%.0f] × [%.2f]) = [%d] shards. Currently, node [%s] is assigned [%d] shards of index [%s]. Therefore,
+                    assigning additional shards is not preferred.
+                    """,
+                index,
+                totalShards,
+                node.nodeId(),
+                idealAllocation,
+                index,
+                availableDataNodes.size(),
+                indexBalanceConstraintSettings.getLoadSkewTolerance(),
+                idealAllocation,
+                indexBalanceConstraintSettings.getLoadSkewTolerance(),
+                threshold,
+                node.nodeId(),
+                currentAllocation,
+                index
+            );
+
+            logger.trace(explanation);
+
+            return allocation.decision(Decision.NOT_PREFERRED, NAME, explanation);
+        }
+
+        return Decision.YES;
     }
 
 }

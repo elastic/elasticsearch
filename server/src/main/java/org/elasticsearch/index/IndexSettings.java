@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -954,6 +955,7 @@ public final class IndexSettings {
 
     private final IndexRouting indexRouting;
     private final SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions;
+    private volatile int phraseQueryMaxTerms;
 
     /**
      * The default mode for storing source, for all mappers not overriding this setting.
@@ -1123,6 +1125,7 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+        phraseQueryMaxTerms = scopedSettings.get(TextFieldMapper.PHRASE_QUERY_MAX_TERMS_SETTING);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1236,6 +1239,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(TextFieldMapper.PHRASE_QUERY_MAX_TERMS_SETTING, this::setPhraseQueryMaxTerms);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1893,5 +1897,13 @@ public final class IndexSettings {
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {
         return seqNoIndexOptions;
+    }
+
+    public long getPhraseQueryMaxTerms() {
+        return phraseQueryMaxTerms;
+    }
+
+    public void setPhraseQueryMaxTerms(int value) {
+        this.phraseQueryMaxTerms = value;
     }
 }

@@ -53,6 +53,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -93,6 +94,12 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
 public final class TextFieldMapper extends FieldMapper {
+    public static final Setting<Integer> PHRASE_QUERY_MAX_TERMS_SETTING = Setting.intSetting(
+        "index.phrase_query.max_terms",
+        Integer.MAX_VALUE,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -953,6 +960,7 @@ public final class TextFieldMapper extends FieldMapper {
             int position = -1;
 
             stream.reset();
+            int phraseQueryTermsCount = 0;
             while (stream.incrementToken()) {
                 if (termAtt.getBytesRef() == null) {
                     throw new IllegalStateException("Null term while building phrase query");
@@ -963,8 +971,17 @@ public final class TextFieldMapper extends FieldMapper {
                     position += 1;
                 }
                 builder.add(new Term(field, termAtt.getBytesRef()), position);
+                phraseQueryTermsCount++;
             }
-
+            // We can adjust the value of index.phrase_query.max_term to limit the maximum number of terms and excessive memory usage.
+            // In addition, if this IllegalArgumentException is triggered,
+            // use phraseQueryTermCount to know how large index.phrase_query.max_term needs to be set to pass this validation.
+            long phraseQueryMaxTerm = context.getIndexSettings().getPhraseQueryMaxTerms();
+            if (phraseQueryTermsCount >= phraseQueryMaxTerm) {
+                throw new IllegalArgumentException(
+                    "The phrase query max terms is " + phraseQueryMaxTerm + ", but the current terms number is " + phraseQueryTermsCount
+                );
+            }
             return builder.build();
         }
 

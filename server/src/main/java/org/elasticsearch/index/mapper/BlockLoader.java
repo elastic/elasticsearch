@@ -398,6 +398,8 @@ public interface BlockLoader {
          */
         BytesRefBuilder bytesRefs(int expectedCount);
 
+        SingletonBytesRefBuilder singletonBytesRefs(int expectedCount);
+
         /**
          * Build a builder to load doubles as loaded from doc values.
          * Doc values load doubles in sorted order.
@@ -544,6 +546,12 @@ public interface BlockLoader {
          * Appends a BytesRef to the current entry.
          */
         BytesRefBuilder appendBytesRef(BytesRef value);
+    }
+
+    interface SingletonBytesRefBuilder extends Builder {
+
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+
     }
 
     interface FloatBuilder extends Builder {

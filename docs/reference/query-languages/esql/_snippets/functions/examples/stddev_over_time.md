@@ -7,13 +7,12 @@ TS k8s
 | STATS max_stddev_cost=MAX(STDDEV_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 ```
 
-| max_stddev_cost:double | cluster:keyword | time_bucket:datetime |
+| cluster:keyword | time_bucket:datetime | max_stddev_cost:double |
 | --- | --- | --- |
-| 5.4375 | staging | 2024-05-10T00:03:00.000Z |
-| 5.1875 | staging | 2024-05-10T00:09:00.000Z |
-| 4.097763617714749 | qa | 2024-05-10T00:18:00.000Z |
-| 4.0 | qa | 2024-05-10T00:21:00.000Z |
-| 3.9375 | staging | 2024-05-10T00:20:00.000Z |
-| 3.9335297443898907 | prod | 2024-05-10T00:18:00.000Z |
+| staging | 2024-05-10T00:03:00.000Z | 5.4375 |
+| staging | 2024-05-10T00:09:00.000Z | 5.1875 |
+| qa | 2024-05-10T00:18:00.000Z | 4.097764 |
+| qa | 2024-05-10T00:21:00.000Z | 4.0 |
+| staging | 2024-05-10T00:20:00.000Z | 3.9375 |
 
 

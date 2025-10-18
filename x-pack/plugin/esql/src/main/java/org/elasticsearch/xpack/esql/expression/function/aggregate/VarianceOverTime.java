@@ -27,13 +27,13 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 /**
- * Similar to {@link StdVar}, but it is used to calculate the standard deviation over a time series of values from the given field.
+ * Similar to {@link Variance}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
-public class StdVarOverTime extends TimeSeriesAggregateFunction {
+public class VarianceOverTime extends TimeSeriesAggregateFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "StdVarOverTime",
-        StdVarOverTime::new
+        "VarianceOverTime",
+        VarianceOverTime::new
     );
 
     @FunctionInfo(
@@ -44,7 +44,7 @@ public class StdVarOverTime extends TimeSeriesAggregateFunction {
         preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "stdvar_over_time") }
     )
-    public StdVarOverTime(
+    public VarianceOverTime(
         Source source,
         @Param(
             name = "number",
@@ -55,11 +55,11 @@ public class StdVarOverTime extends TimeSeriesAggregateFunction {
         this(source, field, Literal.TRUE);
     }
 
-    public StdVarOverTime(Source source, Expression field, Expression filter) {
+    public VarianceOverTime(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 
-    private StdVarOverTime(StreamInput in) throws IOException {
+    private VarianceOverTime(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -79,22 +79,22 @@ public class StdVarOverTime extends TimeSeriesAggregateFunction {
     }
 
     @Override
-    protected NodeInfo<StdVarOverTime> info() {
-        return NodeInfo.create(this, StdVarOverTime::new, field(), filter());
+    protected NodeInfo<VarianceOverTime> info() {
+        return NodeInfo.create(this, VarianceOverTime::new, field(), filter());
     }
 
     @Override
-    public StdVarOverTime replaceChildren(List<Expression> newChildren) {
-        return new StdVarOverTime(source(), newChildren.get(0), newChildren.get(1));
+    public VarianceOverTime replaceChildren(List<Expression> newChildren) {
+        return new VarianceOverTime(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
-    public StdVarOverTime withFilter(Expression filter) {
-        return new StdVarOverTime(source(), field(), filter);
+    public VarianceOverTime withFilter(Expression filter) {
+        return new VarianceOverTime(source(), field(), filter);
     }
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new StdVar(source(), field(), filter());
+        return new Variance(source(), field(), filter());
     }
 }

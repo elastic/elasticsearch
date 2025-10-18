@@ -24,11 +24,11 @@ public class StdvarOverTimeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return StdVarTests.parameters();
+        return VarianceTests.parameters();
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StdVarOverTime(source, args.get(0));
+        return new VarianceOverTime(source, args.get(0));
     }
 }

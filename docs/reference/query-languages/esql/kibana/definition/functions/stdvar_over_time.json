@@ -42,7 +42,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS avg_stdvar_cost=AVG(STDVAR_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
+    "TS k8s\n| STATS avg_var_cost=AVG(VARIANCE_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

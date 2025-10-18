@@ -610,8 +610,8 @@ staging         | 2024-05-10T00:03:00.000Z | 5.4375
 staging         | 2024-05-10T00:09:00.000Z | 5.1875
 qa              | 2024-05-10T00:18:00.000Z | 4.097764
 qa              | 2024-05-10T00:21:00.000Z | 4.0
-// end::stddev_over_time-result[]
 staging         | 2024-05-10T00:20:00.000Z | 3.9375
+// end::stddev_over_time-result[]
 prod            | 2024-05-10T00:18:00.000Z | 3.93353
 qa              | 2024-05-10T00:08:00.000Z | 3.89444
 qa              | 2024-05-10T00:17:00.000Z | 3.882385
@@ -625,13 +625,13 @@ required_capability: ts_command_v0
 required_capability: variance_stddev_over_time
 // tag::stdvar_over_time[]
 TS k8s
-| STATS avg_stdvar_cost=AVG(STDVAR_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+| STATS avg_var_cost=AVG(VARIANCE_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 // end::stdvar_over_time[]
-| EVAL avg_stdvar_cost = ROUND(avg_stdvar_cost, 6)
-| SORT avg_stdvar_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+| EVAL avg_var_cost = ROUND(avg_var_cost, 6)
+| SORT avg_var_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
 // tag::stdvar_over_time-result[]
-cluster:keyword | time_bucket:datetime     | avg_stdvar_cost:double
+cluster:keyword | time_bucket:datetime     | avg_var_cost:double
 staging         | 2024-05-10T00:03:00.000Z | 20.478516
 qa              | 2024-05-10T00:21:00.000Z | 16.0
 qa              | 2024-05-10T00:18:00.000Z | 11.192274

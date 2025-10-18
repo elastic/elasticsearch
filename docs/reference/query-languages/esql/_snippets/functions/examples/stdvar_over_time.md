@@ -4,10 +4,10 @@
 
 ```esql
 TS k8s
-| STATS avg_stdvar_cost=AVG(STDVAR_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+| STATS avg_var_cost=AVG(VARIANCE_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 ```
 
-| cluster:keyword | time_bucket:datetime | avg_stdvar_cost:double |
+| cluster:keyword | time_bucket:datetime | avg_var_cost:double |
 | --- | --- | --- |
 | staging | 2024-05-10T00:03:00.000Z | 20.478516 |
 | qa | 2024-05-10T00:21:00.000Z | 16.0 |

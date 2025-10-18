@@ -3027,11 +3027,11 @@ std_dev:double
 stdVarianceWithLongs
 required_capability: variance_stddev_over_time
 FROM employees
-| STATS std_var = STD_VAR(avg_worked_seconds)
-| EVAL std_var = ROUND(std_var, 7)
+| STATS var = variance(avg_worked_seconds)
+| EVAL var = ROUND(var, 7)
 ;
 
-std_var:double
+var:double
 3.317880108280233E15
 ;
 

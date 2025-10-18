@@ -5,5 +5,5 @@ Calculates the population standard variance over time of a numeric field.
 
 ```esql
 TS k8s
-| STATS avg_stdvar_cost=AVG(STDVAR_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+| STATS avg_var_cost=AVG(VARIANCE_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 ```

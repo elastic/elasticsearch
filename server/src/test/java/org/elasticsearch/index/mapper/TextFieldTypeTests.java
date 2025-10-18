@@ -358,7 +358,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         TextFieldType ft = new TextFieldType(
@@ -409,7 +410,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             mock(NamedAnalyzer.class),
             mock(NamedAnalyzer.class),
             builder,
-            true
+            true,
+            false
         );
 
         TextFieldType ft = new TextFieldType(

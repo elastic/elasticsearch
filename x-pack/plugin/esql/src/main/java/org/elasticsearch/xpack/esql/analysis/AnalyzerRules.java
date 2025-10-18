@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -118,5 +118,6 @@ public final class AnalyzerRules {
             return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
         }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
         throw new VerificationException("Found ambiguous reference to [" + ua.name() + "]; " + "matches any of " + refs);
+
     }
 }

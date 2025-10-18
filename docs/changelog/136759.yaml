@@ -1,0 +1,5 @@
+pr: 136759
+summary: Avoid counting snapshot failures twice in SLM
+area: ILM+SLM
+type: bug
+issues: []

@@ -1,0 +1,35 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+// Note: we cannot use Java modules for this library.
+//
+// For performance reasons Arrow accesses some private fields of ByteBuffer, and this requires "opens"
+// permission on the java.base/java.nio package. See https://arrow.apache.org/docs/java/install.html
+//
+// - if this module is loaded from a plugin, the JVM will not know it at startup, and will not honor
+//   --add-opens=java.base/java.nio=org.apache.arrow.memory.core.
+//   The startup logs will contain: "Unknown module: org.apache.arrow.memory.core specified to --add-opens"
+//
+// - if loaded from the server or core modules, it reveals versions conflicts:
+//   - because of xcontent:impl com.fasterxml.jackson.core:jackson-core between versions 2.17.2 and 2.15.0
+//   - because of ?? commons-codec:commons-codec between versions 1.16.1 and 1.15
+//   Fixing them isn't a trivial task (also impacts serverless).
+//
+// So we have to disable Java modules for this Gradle module and use -add-opens=java.base/ALL-UNNAMED
+// in distribution/src/config/jvm.options until the version conflict issue is solved and we can load it from
+// the server or core modules.
+
+module org.elasticsearch.libs.arrow {
+    exports org.elasticsearch.libs.arrow;
+
+    requires transitive org.apache.arrow.memory.core;
+    requires transitive org.apache.arrow.vector;
+    requires transitive org.apache.arrow.format;
+    requires org.apache.arrow.memory.unsafe;
+}

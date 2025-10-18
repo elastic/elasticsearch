@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 publishing {
   publications {

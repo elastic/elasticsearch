@@ -1,0 +1,96 @@
+// Note: load_result is a dev-only command for testing purposes
+// These tests verify the command syntax and basic functionality
+// Full end-to-end testing requires async query setup which is beyond csv-spec scope
+
+// Basic syntax test with quoted ID
+simpleLoadResultQuoted
+load_result "test-id-123";
+ignoreOrder:true
+
+// Note: In a real scenario, this would load results from an async query
+// For CSV spec testing, we just verify parsing succeeds
+// actual:0
+
+;
+
+// Basic syntax test with unquoted ID
+simpleLoadResultUnquoted
+load_result test_id_123;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with special characters in unquoted ID
+loadResultWithSpecialChars
+load_result test-id_123~456.xyz;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with pipe to keep
+loadResultWithKeep
+load_result "test-id" | keep field1;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with pipe to where
+loadResultWithWhere
+load_result "test-id" | where field1 > 10;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with pipe to stats
+loadResultWithStats
+load_result "test-id" | stats c = count(*);
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with multiple pipes
+loadResultWithMultiplePipes
+load_result "test-id" | where status == "active" | stats total = count(*) by category | sort total desc;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with limit
+loadResultWithLimit
+load_result "test-id" | limit 10;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with sort
+loadResultWithSort
+load_result "test-id" | sort field1 asc;
+ignoreOrder:true
+
+// actual:0
+
+;
+
+// load_result with eval
+loadResultWithEval
+load_result "test-id" | eval doubled = field1 * 2;
+ignoreOrder:true
+
+// actual:0
+
+;
+

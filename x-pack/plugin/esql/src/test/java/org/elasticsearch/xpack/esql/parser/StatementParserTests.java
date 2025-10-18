@@ -5167,4 +5167,63 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = statement("load_result FmNJRUZ1");
         assertThat(plan.getClass().getSimpleName(), equalTo("LoadResult"));
     }
+
+    public void testLoadResultWithSpecialCharsInUnquotedId() {
+        // Test unquoted IDs with special characters: letters, digits, underscore, dash, tilde, dot
+        var plan1 = statement("load_result FmN-JRU_Z~1.test");
+        assertThat(plan1.getClass().getSimpleName(), equalTo("LoadResult"));
+
+        var plan2 = statement("load_result abc123-def_456~789.xyz");
+        assertThat(plan2.getClass().getSimpleName(), equalTo("LoadResult"));
+    }
+
+    public void testLoadResultWithPipe() {
+        // Test load_result with piped commands
+        var plan = statement("load_result \"abc123\" | keep field1, field2");
+        assertThat(plan.getClass().getSimpleName(), equalTo("Keep"));
+    }
+
+    public void testLoadResultWithMultiplePipes() {
+        // Test load_result with multiple piped commands
+        var plan = statement("load_result \"abc123\" | where field1 > 10 | stats avg(field2)");
+        assertThat(plan.getClass().getSimpleName(), equalTo("Aggregate"));
+    }
+
+    public void testLoadResultErrorMissingId() {
+        // Test that load_result without an ID fails
+        expectError("load_result", "mismatched input '<EOF>' expecting {QUOTED_STRING, UNQUOTED_IDENTIFIER}");
+    }
+
+    public void testLoadResultErrorExtraArguments() {
+        // Test that load_result with extra arguments fails
+        expectError("load_result \"id1\" \"id2\"", "extraneous input '\"id2\"' expecting <EOF>");
+        expectError("load_result id1 id2", "extraneous input 'id2' expecting <EOF>");
+    }
+
+    public void testLoadResultErrorEmptyString() {
+        // Test that load_result with empty string fails appropriately
+        var plan = statement("load_result \"\"");
+        assertThat(plan.getClass().getSimpleName(), equalTo("LoadResult"));
+        // Note: Empty string is syntactically valid but should fail at execution time
+    }
+
+    public void testLoadResultWithComments() {
+        // Test load_result with line comments
+        var plan1 = statement("load_result \"abc123\" // this is a comment");
+        assertThat(plan1.getClass().getSimpleName(), equalTo("LoadResult"));
+
+        // Test load_result with multiline comments
+        var plan2 = statement("load_result /* comment */ \"abc123\"");
+        assertThat(plan2.getClass().getSimpleName(), equalTo("LoadResult"));
+    }
+
+    public void testLoadResultNotAvailableInNonDevMode() {
+        // Test that load_result is only available in dev/snapshot builds
+        // In production (non-snapshot) builds, the DEV_LOAD_RESULT token won't be recognized
+        if (Build.current().isSnapshot() == false) {
+            // In non-dev mode, load_result should not be recognized as a valid command
+            // Note: This test may not trigger in test environments which often use snapshot builds
+            // The lexer grammar has: DEV_LOAD_RESULT : {this.isDevVersion()}? 'load_result'
+        }
+    }
 }

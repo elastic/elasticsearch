@@ -4554,8 +4554,56 @@ public class AnalyzerTests extends ESTestCase {
         return new Literal(EMPTY, value, DataType.INTEGER);
     }
 
-    public void testLoadResultPreMapperProducesEmptyWhenRunning() {
-        // This test would require wiring mocks for client and transport; leaving as a placeholder
-        // to be implemented with proper test scaffolding in a follow-up.
+    public void testLoadResultPlanStructure() {
+        // Test that LoadResult parses correctly and has expected properties
+        String query = "load_result \"async-id-123\"";
+        LogicalPlan plan = new org.elasticsearch.xpack.esql.parser.EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG);
+        
+        assertThat(plan.getClass().getSimpleName(), equalTo("LoadResult"));
+        
+        // Verify LoadResult has placeholder output until PreMapper runs
+        List<Attribute> output = plan.output();
+        assertThat(output.size(), equalTo(1));
+        assertThat(output.get(0).name(), equalTo("_placeholder"));
+        assertThat(output.get(0).dataType(), equalTo(DataType.KEYWORD));
     }
+    
+    public void testLoadResultEquals() {
+        // Test equals and hashCode for LoadResult
+        String query1 = "load_result \"async-id-123\"";
+        String query2 = "load_result \"async-id-123\"";
+        String query3 = "load_result \"different-id\"";
+        
+        LogicalPlan plan1 = new org.elasticsearch.xpack.esql.parser.EsqlParser().createStatement(query1, EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan2 = new org.elasticsearch.xpack.esql.parser.EsqlParser().createStatement(query2, EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan3 = new org.elasticsearch.xpack.esql.parser.EsqlParser().createStatement(query3, EsqlTestUtils.TEST_CFG);
+        
+        assertThat(plan1, equalTo(plan2));
+        assertThat(plan1.hashCode(), equalTo(plan2.hashCode()));
+        assertThat(plan1, not(equalTo(plan3)));
+    }
+    
+    public void testLoadResultWithPipedCommands() {
+        // Test that LoadResult can be used as source for piped commands
+        String query = "load_result \"async-id\" | where status == \"active\" | stats count = count(*)";
+        LogicalPlan plan = new org.elasticsearch.xpack.esql.parser.EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG);
+        
+        // The top-level plan should be an Aggregate (from stats)
+        assertThat(plan.getClass().getSimpleName(), equalTo("Aggregate"));
+        
+        // Drill down to verify LoadResult is at the source
+        LogicalPlan current = plan;
+        while (current.children().isEmpty() == false) {
+            current = current.children().get(0);
+        }
+        assertThat(current.getClass().getSimpleName(), equalTo("LoadResult"));
+    }
+    
+    // Note: Full PreMapper integration tests (testing async result loading with mock client)
+    // would require significant test infrastructure setup (ThreadPool, TransportService, mock Client).
+    // Such tests are better suited for a dedicated PreMapperTests class or integration tests.
+    // The PreMapper.preMapper() method transforms LoadResult into LocalRelation by:
+    // 1. Fetching async query results via EsqlAsyncGetResultAction
+    // 2. If running: returns empty LocalRelation
+    // 3. If completed: returns LocalRelation with actual data and schema
 }

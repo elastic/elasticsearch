@@ -182,6 +182,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
                         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                             remoteClusterAuthenticationService.authenticateHeaders(
                                 header.getRequestHeaders(),
+                                channel,
+                                header,
                                 ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
                                     // Header#toString does not print credentials (which are stored in request headers)

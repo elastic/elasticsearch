@@ -7,6 +7,7 @@ module org.elasticsearch.internal.security {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.security;
     requires org.elasticsearch.sslconfig;
+    requires io.netty.transport;
 
     provides RemoteClusterSecurityExtension.Provider with TestRemoteClusterSecurityExtension.Provider;
 }

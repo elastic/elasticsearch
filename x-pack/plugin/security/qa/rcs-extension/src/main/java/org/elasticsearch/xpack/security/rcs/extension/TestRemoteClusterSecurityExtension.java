@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.security.rcs.extension;
 
+import io.netty.channel.Channel;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.transport.Header;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -78,7 +81,7 @@ public class TestRemoteClusterSecurityExtension implements RemoteClusterSecurity
             }
 
             @Override
-            public void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener) {
+            public void authenticateHeaders(Map<String, String> headers, Channel channel, Header header, ActionListener<Void> listener) {
                 listener.onResponse(null);
             }
         };

@@ -40,7 +40,7 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        context = spy(new Context(null, null, null, null, null, null, null, null, null, null));
+        context = spy(new Context(null, null, null, null, null, false, null, null, null, null, null));
         doReturn(TransportVersions.V_8_10_X).when(context).getRemoteClusterVersion("cluster-A");
         doReturn(TransportVersions.V_8_11_X).when(context).getRemoteClusterVersion("cluster-B");
         doReturn(TransportVersions.V_8_12_0).when(context).getRemoteClusterVersion("cluster-C");

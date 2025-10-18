@@ -191,7 +191,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   // this path is produced by the extractLibs task above
   String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
   def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
-  def delegateToGradle = providers.gradleProperty("org.elasticsearch.idea-delegate-to-gradle").getOrElse("false").toBoolean()
+  def delegateToGradle = providers.gradleProperty("org.elasticsearch.idea-delegate-to-gradle").getOrElse("true").toBoolean()
   idea {
     project {
       vcs = 'Git'

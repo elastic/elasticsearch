@@ -208,7 +208,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
-        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
+        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar-000001";
         Map<String, Object> mappingProperties = getIndexMappingProperties(customIndex);
 
         // Assert mappings have a few fields from the template

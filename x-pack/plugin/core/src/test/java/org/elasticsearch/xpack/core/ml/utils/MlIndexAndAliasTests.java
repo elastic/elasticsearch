@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
@@ -355,6 +356,18 @@ public class MlIndexAndAliasTests extends ESTestCase {
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
         assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS).isHidden(true))));
+    }
+
+    public void testIsAnomaliesWriteAlias() {
+        assertTrue(MlIndexAndAlias.isAnomaliesWriteAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesWriteAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesWriteAlias("some-index"));
+    }
+
+    public void testIsAnomaliesAlias() {
+        assertTrue(MlIndexAndAlias.isAnomaliesReadAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesReadAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
+        assertFalse(MlIndexAndAlias.isAnomaliesReadAlias("some-index"));
     }
 
     public void testIndexNameComparator() {

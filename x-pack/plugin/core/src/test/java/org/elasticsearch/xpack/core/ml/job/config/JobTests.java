@@ -500,7 +500,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getInitialResultsIndexName());
+        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol-000001", job.getInitialResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows() {

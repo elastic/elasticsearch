@@ -51,18 +51,6 @@ import static org.mockito.Mockito.when;
 
 public class MlAnomaliesIndexUpdateTests extends ESTestCase {
 
-    public void testIsAnomaliesWriteAlias() {
-        assertTrue(MlAnomaliesIndexUpdate.isAnomaliesWriteAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesWriteAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesWriteAlias("some-index"));
-    }
-
-    public void testIsAnomaliesAlias() {
-        assertTrue(MlAnomaliesIndexUpdate.isAnomaliesReadAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesReadAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesReadAlias("some-index"));
-    }
-
     public void testIsAbleToRun_IndicesDoNotExist() {
         RoutingTable.Builder routingTable = RoutingTable.builder();
         var updater = new MlAnomaliesIndexUpdate(TestIndexNameExpressionResolver.newInstance(), mock(Client.class));
@@ -73,7 +61,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     }
 
     public void testIsAbleToRun_IndicesHaveNoRouting() {
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(".ml-anomalies-shared");
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(".ml-anomalies-shared-000001");
         indexMetadata.settings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -114,7 +102,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         );
 
         var newIndex = anomaliesIndex + "-000001";
-        var request = updater.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
+        var request = MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
         var actions = request.request().getAliasActions();
         assertThat(actions, hasSize(6));
 
@@ -145,7 +133,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     }
 
     public void testRunUpdate_UpToDateIndices() {
-        String indexName = ".ml-anomalies-sharedindex";
+        String indexName = ".ml-anomalies-sharedindex-000001";
         var jobs = List.of("job1", "job2");
         IndexMetadata.Builder indexMetadata = createSharedResultsIndex(indexName, IndexVersion.current(), jobs);
 
@@ -194,7 +182,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metadata(metadata);
 
-        var latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
             csBuilder.build()
@@ -217,14 +205,14 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
 
         assertTrue(MlIndexAndAlias.has6DigitSuffix(".ml-anomalies-custom-foo-000002"));
 
-        var latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
             state
         );
         assertEquals(".ml-anomalies-custom-foo-000002", latest);
 
-        latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
+        latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-baz-000001",
             TestIndexNameExpressionResolver.newInstance(),
             state
@@ -243,14 +231,14 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         csBuilder.metadata(metadata);
         var state = csBuilder.build();
 
-        var latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
             state
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
 
-        latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
+        latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo-notthisone-000001",
             TestIndexNameExpressionResolver.newInstance(),
             state

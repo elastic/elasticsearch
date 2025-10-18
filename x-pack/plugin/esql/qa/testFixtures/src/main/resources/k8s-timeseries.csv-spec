@@ -629,12 +629,14 @@ TS k8s
 // end::stdvar_over_time[]
 | EVAL avg_stdvar_cost = ROUND(avg_stdvar_cost, 6)
 | SORT avg_stdvar_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+
 // tag::stdvar_over_time-result[]
 cluster:keyword | time_bucket:datetime     | avg_stdvar_cost:double
 staging         | 2024-05-10T00:03:00.000Z | 20.478516
 qa              | 2024-05-10T00:21:00.000Z | 16.0
 qa              | 2024-05-10T00:18:00.000Z | 11.192274
 staging         | 2024-05-10T00:09:00.000Z | 10.446904
+// end::stdvar_over_time-result[]
 qa              | 2024-05-10T00:17:00.000Z | 10.398003
 qa              | 2024-05-10T00:08:00.000Z | 10.114583
 staging         | 2024-05-10T00:20:00.000Z | 7.910156

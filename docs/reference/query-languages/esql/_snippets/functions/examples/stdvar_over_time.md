@@ -7,12 +7,11 @@ TS k8s
 | STATS avg_stdvar_cost=AVG(STDVAR_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 ```
 
-| avg_stdvar_cost:double | cluster:keyword | time_bucket:datetime |
+| cluster:keyword | time_bucket:datetime | avg_stdvar_cost:double |
 | --- | --- | --- |
-| 20.478515625 | staging | 2024-05-10T00:03:00.000Z |
-| 16.0 | qa | 2024-05-10T00:21:00.000Z |
-| 11.192274305555557 | qa | 2024-05-10T00:18:00.000Z |
-| 10.446903935185185 | staging | 2024-05-10T00:09:00.000Z |
-| 10.398003472222221 | qa | 2024-05-10T00:17:00.000Z |
+| staging | 2024-05-10T00:03:00.000Z | 20.478516 |
+| qa | 2024-05-10T00:21:00.000Z | 16.0 |
+| qa | 2024-05-10T00:18:00.000Z | 11.192274 |
+| staging | 2024-05-10T00:09:00.000Z | 10.446904 |
 
 

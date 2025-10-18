@@ -47,7 +47,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
@@ -55,7 +54,6 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -65,9 +63,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class HistogramFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "histogram";
-
-    public static final ParseField COUNTS_FIELD = new ParseField("counts");
-    public static final ParseField VALUES_FIELD = new ParseField("values");
 
     private static HistogramFieldMapper toType(FieldMapper in) {
         return (HistogramFieldMapper) in;
@@ -295,8 +290,6 @@ public class HistogramFieldMapper extends FieldMapper {
                 context.path().remove();
                 return;
             }
-            ArrayList<Double> values = null;
-            ArrayList<Long> counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             if (shouldStoreMalformedDataForSyntheticSource) {
@@ -306,106 +299,21 @@ public class HistogramFieldMapper extends FieldMapper {
             } else {
                 subParser = new XContentSubParser(context.parser());
             }
-            token = subParser.nextToken();
-            while (token != XContentParser.Token.END_OBJECT) {
-                // should be a field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
-                String fieldName = subParser.currentName();
-                if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-                    // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    values = new ArrayList<>();
-                    token = subParser.nextToken();
-                    double previousVal = -Double.MAX_VALUE;
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                        double val = subParser.doubleValue();
-                        if (val < previousVal) {
-                            // values must be in increasing order
-                            throw new DocumentParsingException(
-                                subParser.getTokenLocation(),
-                                "error parsing field ["
-                                    + fullPath()
-                                    + "], ["
-                                    + VALUES_FIELD
-                                    + "] values must be in increasing order, got ["
-                                    + val
-                                    + "] but previous value was ["
-                                    + previousVal
-                                    + "]"
-                            );
-                        }
-                        values.add(val);
-                        previousVal = val;
-                        token = subParser.nextToken();
-                    }
-                } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-                    // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    counts = new ArrayList<>();
-                    token = subParser.nextToken();
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                        counts.add(subParser.longValue());
-                        token = subParser.nextToken();
-                    }
-                } else {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
-                    );
-                }
-                token = subParser.nextToken();
-            }
-            if (values == null) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
-                );
-            }
-            if (counts == null) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
-                );
-            }
-            if (values.size() != counts.size()) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field ["
-                        + fullPath()
-                        + "], expected same length from ["
-                        + VALUES_FIELD.getPreferredName()
-                        + "] and "
-                        + "["
-                        + COUNTS_FIELD.getPreferredName()
-                        + "] but got ["
-                        + values.size()
-                        + " != "
-                        + counts.size()
-                        + "]"
-                );
-            }
+            subParser.nextToken();
+            HistogramParser.ParsedHistogram parsedHistogram = HistogramParser.parse(fullPath(), subParser);
+
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            for (int i = 0; i < values.size(); i++) {
-                long count = counts.get(i);
-                if (count < 0) {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
-                    );
-                } else if (count > 0) {
-                    // we do not add elements with count == 0
+            for (int i = 0; i < parsedHistogram.values().size(); i++) {
+                long count = parsedHistogram.counts().get(i);
+                assert count >= 0;
+                // we do not add elements with count == 0
+                if (count > 0) {
                     if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                         streamOutput.writeVLong(count);
                     } else {
                         streamOutput.writeVInt(Math.toIntExact(count));
                     }
-                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                    streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.values().get(i)));
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();

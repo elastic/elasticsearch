@@ -20,9 +20,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
-public abstract class StringFieldScript extends AbstractFieldScript {
+public abstract class BinaryFieldScript extends AbstractFieldScript {
     /**
      * The maximum number of chars a script should be allowed to emit.
      */
@@ -30,10 +29,10 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
 
-    public static final StringFieldScript.Factory PARSE_FROM_SOURCE = new Factory() {
+    public static final BinaryFieldScript.Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
-            return ctx -> new StringFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
+            return ctx -> new BinaryFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -57,7 +56,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new StringFieldScript(leafFieldName, params, searchLookup, onScriptError, ctx) {
+                return new BinaryFieldScript(leafFieldName, params, searchLookup, onScriptError, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -80,13 +79,13 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     public interface LeafFactory {
-        StringFieldScript newInstance(LeafReaderContext ctx);
+        BinaryFieldScript newInstance(LeafReaderContext ctx);
     }
 
     private final List<BytesRef> results = new ArrayList<>();
     private long chars;
 
-    public StringFieldScript(
+    public BinaryFieldScript(
         String fieldName,
         Map<String, Object> params,
         SearchLookup searchLookup,
@@ -102,19 +101,15 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         chars = 0;
     }
 
-    public final void runForDoc(int docId, Consumer<String> consumer) {
+    public final void runForDoc(int docId, Consumer<BytesRef> consumer) {
         runForDoc(docId);
-        results.stream().map(BytesRef::utf8ToString).forEach(consumer);
+        results.forEach(consumer);
     }
 
     /**
      * Values from the last time runForDoc(int) was called. This list is mutable and will change with the next call of runForDoc(int).
      */
-    public List<String> getValues() {
-        return results.stream().map(BytesRef::utf8ToString).collect(Collectors.toList());
-    }
-
-    public List<BytesRef> getValuesRaw() {
+    public List<BytesRef> getValues() {
         return results;
     }
 
@@ -123,23 +118,19 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         if (value != null) {
             String string = value.toString();
             checkMaxChars(string);
-            emit(string);
+            emit(new BytesRef(value.toString()));
         }
     }
 
     @Override
     protected void emitFromObject(Object v) {
         if (v != null) {
-            emit(v.toString());
+            emit(new BytesRef(v.toString()));
         }
     }
 
-    public final void emit(String v) {
-        results.add(new BytesRef(v));
-    }
-
     public final void emit(BytesRef v) {
-        results.add(BytesRef.deepCopyOf(v));
+        results.add(v);
     }
 
     private void checkMaxChars(String v) {
@@ -158,16 +149,16 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     public static class Emit {
-        private final StringFieldScript script;
+        private final BinaryFieldScript script;
 
-        public Emit(StringFieldScript script) {
+        public Emit(BinaryFieldScript script) {
             this.script = script;
         }
 
         public void emit(String v) {
             script.checkMaxSize(script.results.size());
             script.checkMaxChars(v);
-            script.emit(v);
+            script.emit(new BytesRef(v));
         }
     }
 }

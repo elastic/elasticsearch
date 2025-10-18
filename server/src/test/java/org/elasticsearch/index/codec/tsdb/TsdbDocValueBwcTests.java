@@ -42,6 +42,7 @@ import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -291,7 +292,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         new ES819TSDBDocValuesFormat(
                             random().nextInt(16, 128),
                             nextOrdinalRangeThreshold.getAsInt(),
-                            random().nextBoolean()
+                            random().nextBoolean(),
+                            ES819TSDBDocValuesFormatTests.randomCompressionMode()
                         )
                     )
                 );

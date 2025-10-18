@@ -441,12 +441,59 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
     }
 
     private String createUsageJson(int completionTokens, int promptTokens, int totalTokens) {
+        return createUsageJson(completionTokens, promptTokens, totalTokens, null);
+    }
+
+    private String createUsageJson(int completionTokens, int promptTokens, int totalTokens, Integer cachedTokens) {
         return Strings.format("""
             {
                 "completion_tokens": %d,
                 "prompt_tokens": %d,
-                "total_tokens": %d
+                "total_tokens": %d%s
             }
-            """, completionTokens, promptTokens, totalTokens);
+            """, completionTokens, promptTokens, totalTokens, cachedTokens != null ? Strings.format("""
+            ,
+            "prompt_tokens_details": {
+                "cached_tokens": %d
+            }""", cachedTokens) : "");
+    }
+
+    public void testUsageParsing() throws IOException {
+        testUsageParsingWithCachedTokens(true);
+    }
+
+    public void testUsageParsing_withoutCachedTokens() throws IOException {
+        testUsageParsingWithCachedTokens(false);
+    }
+
+    private void testUsageParsingWithCachedTokens(boolean includeCachedTokens) throws IOException {
+        int completionTokens = randomIntBetween(1, 100);
+        int promptTokens = randomIntBetween(1, 100);
+        int totalTokens = randomIntBetween(1, 200);
+        Integer cachedTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+
+        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens);
+
+        String chatCompletionChunkJson = createChatCompletionChunkJson(
+            randomAlphaOfLength(10),
+            createChoiceJson(null, null, null, "", null, 0),
+            randomAlphaOfLength(5),
+            "chat.completion.chunk",
+            usageJson
+        );
+
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
+            StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = OpenAiUnifiedStreamingProcessor.ChatCompletionChunkParser
+                .parse(parser);
+
+            assertNotNull(chunk.usage());
+            assertEquals(completionTokens, chunk.usage().completionTokens());
+            assertEquals(promptTokens, chunk.usage().promptTokens());
+            assertEquals(totalTokens, chunk.usage().totalTokens());
+            assertEquals(cachedTokens, chunk.usage().cachedTokens());
+        }
     }
 }

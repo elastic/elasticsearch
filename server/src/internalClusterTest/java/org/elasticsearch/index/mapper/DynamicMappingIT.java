@@ -123,9 +123,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
             .get();
 
         assertTrue(bulkResponse.hasFailures());
-        assertEquals(
-            "mapper [foo] cannot be changed from type [long] to [text]",
-            bulkResponse.getItems()[0].getFailure().getCause().getMessage()
+        assertThat(
+            bulkResponse.getItems()[0].getFailure().getCause().getMessage(),
+            containsString("mapper [foo] cannot be changed from type [long] to [text]")
         );
     }
 

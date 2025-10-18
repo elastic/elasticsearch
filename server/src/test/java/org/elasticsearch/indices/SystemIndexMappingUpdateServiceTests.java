@@ -9,7 +9,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.client.internal.Client;
@@ -433,7 +433,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings() {
-        return getMappings(Version.CURRENT.toString(), 6);
+        return getMappings(Build.current().version(), 6);
     }
 
     private static XContentBuilder getMappings(String nodeVersion, Integer mappingsVersion) {

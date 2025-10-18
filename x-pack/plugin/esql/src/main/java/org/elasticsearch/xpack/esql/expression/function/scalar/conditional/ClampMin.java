@@ -105,7 +105,7 @@ public class ClampMin extends EsqlScalarFunction {
         }
         resolution = TypeResolutions.isType(
             min,
-            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType,
+            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
             fieldDataType.typeName()
@@ -133,11 +133,10 @@ public class ClampMin extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        // force datatype initialization
         var outputType = dataType();
 
         var min = children().get(1);
-        var minF = outputType != min.dataType()
+        var minF = PlannerUtils.toElementType(outputType) != PlannerUtils.toElementType(min.dataType())
             ? Cast.cast(source(), min.dataType(), outputType, toEvaluator.apply(min))
             : toEvaluator.apply(min);
 

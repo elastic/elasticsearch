@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -38,6 +39,7 @@ import java.util.Set;
  * serializing its content in {@link #toXContentChunked(ToXContent.Params)}.
  */
 public class ProjectSecrets extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+    public static final ProjectSecrets EMPTY = new ProjectSecrets(new SecureClusterStateSettings(Map.of()));
 
     public static final String TYPE = "project_state_secrets";
     private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");

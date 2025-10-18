@@ -17,12 +17,14 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
+import java.util.Objects;
 
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
+import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
 
 /**
@@ -63,6 +65,46 @@ public interface Argument {
         }
         return new StandardArgument(type, name);
     }
+
+    default String blockName() {
+        return paramName(true);
+    }
+
+    default String vectorName() {
+        return paramName(false);
+    }
+
+    default String valueName() {
+        return name() + "Value";
+    }
+
+    default String startName() {
+        return name() + "Start";
+    }
+
+    default String endName() {
+        return name() + "End";
+    }
+
+    default String offsetName() {
+        return name() + "Offset";
+    }
+
+    default String scratchName() {
+        if (isBytesRef() == false) {
+            throw new IllegalStateException("can't build scratch for non-BytesRef");
+        }
+
+        return name() + "Scratch";
+    }
+
+    default boolean isBytesRef() {
+        return Objects.equals(type(), BYTES_REF);
+    }
+
+    String name();
+
+    TypeName type();
 
     /**
      * Type containing the actual data for a page of values for this field. Usually a
@@ -121,7 +163,7 @@ public interface Argument {
      * call the block flavored evaluator if this is a block. Noop if the
      * parameter is {@link Fixed}.
      */
-    void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval);
+    void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval);
 
     /**
      * Create any scratch structures needed by {@code eval}.
@@ -143,6 +185,8 @@ public interface Argument {
      * unpacks the values into an array, otherwise it just reads to a local.
      */
     void read(MethodSpec.Builder builder, boolean blockStyle);
+
+    void read(MethodSpec.Builder builder, String accessor, String firstParam);
 
     /**
      * Build the invocation of the process method for this parameter.

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
@@ -30,8 +32,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -40,6 +44,8 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,11 +100,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
+    private final TransportVersion mintransportVersion;
     protected final SearchResponseMetrics searchResponseMetrics;
     protected long phaseStartTimeInNanos;
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
+    private final DiscoveryNodes discoveryNodes;
 
     AbstractSearchAsyncAction(
         String name,
@@ -153,6 +161,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
+        this.mintransportVersion = clusterState.getMinTransportVersion();
+        this.discoveryNodes = clusterState.nodes();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         // register the release of the query consumer to free up the circuit breaker memory
@@ -422,6 +432,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onShardGroupFailure(shardIndex, shard, e);
         }
         if (lastShard == false) {
+            logger.debug("Retrying shard [{}] with target [{}]", shard.getShardId(), nextShard);
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             // count down outstanding shards, we're done with this shard as there's no more copies to try
@@ -613,10 +624,95 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
-        var source = request.source();
-        return source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false
-            ? source.pointInTimeBuilder().getEncodedId()
-            : null;
+        SearchSourceBuilder source = request.source();
+        // only (re-)build a search context id if we have a point in time
+        if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
+            if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+                // we want to change node ids in the PIT id if any shards and its PIT context have moved
+                return maybeReEncodeNodeIds(
+                    source.pointInTimeBuilder(),
+                    results.getAtomicArray().asList(),
+                    namedWriteableRegistry,
+                    mintransportVersion,
+                    searchTransportService,
+                    discoveryNodes,
+                    logger
+                );
+            } else {
+                logger.info("---> feature flag disabled");
+                return source.pointInTimeBuilder().getEncodedId();
+            }
+        } else {
+            return null;
+        }
+    }
+
+    static <Result extends SearchPhaseResult> BytesReference maybeReEncodeNodeIds(
+        PointInTimeBuilder originalPit,
+        List<Result> results,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportVersion mintransportVersion,
+        SearchTransportService searchTransportService,
+        DiscoveryNodes nodes,
+        Logger logger
+    ) {
+        SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
+        boolean idChanged = false;
+        Map<ShardId, SearchContextIdForNode> updatedShardMap = null;  // only create this if we detect a change
+        for (Result result : results) {
+            SearchShardTarget searchShardTarget = result.getSearchShardTarget();
+            ShardId shardId = searchShardTarget.getShardId();
+            SearchContextIdForNode originalShard = original.shards().get(shardId);
+            if (originalShard != null && originalShard.getSearchContextId() != null && originalShard.getSearchContextId().isRetryable()) {
+                // check if the node is different, if so we need to re-encode the PIT
+                String originalNode = originalShard.getNode();
+                if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
+                    // the target node for this shard entry in the PIT has changed, we need to update it
+                    idChanged = true;
+                    if (updatedShardMap == null) {
+                        updatedShardMap = new HashMap<>(original.shards().size());
+                    }
+                    updatedShardMap.put(
+                        shardId,
+                        new SearchContextIdForNode(
+                            searchShardTarget.getClusterAlias(),
+                            searchShardTarget.getNodeId(),
+                            result.getContextId()
+                        )
+                    );
+                }
+            }
+        }
+        logger.info("re-encoding PIT [{}]", idChanged);
+        if (idChanged) {
+            // we free all old contexts that have moved, just in case we have re-tried them elsewhere but they still exist in the old
+            // location
+            Collection<SearchContextIdForNode> contextsToClose = updatedShardMap.keySet()
+                .stream()
+                .map(shardId -> original.shards().get(shardId))
+                .collect(Collectors.toCollection(ArrayList::new));
+            TransportClosePointInTimeAction.closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<>() {
+                @Override
+                public void onResponse(Integer integer) {
+                    // ignore
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("Failure while freeing old point in time contexts", e);
+                }
+            }, logger);
+            // we also need to add shard that are not in the results for some reason (e.g. query rewrote to match none) but that
+            // were part of the original PIT
+            for (ShardId shardId : original.shards().keySet()) {
+                if (updatedShardMap.containsKey(shardId) == false) {
+                    updatedShardMap.put(shardId, original.shards().get(shardId));
+                }
+            }
+            return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
+        } else {
+            return originalPit.getEncodedId();
+        }
     }
 
     /**

@@ -8,25 +8,20 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
@@ -38,6 +33,7 @@ public final class ClearScrollController implements Runnable {
     private final AtomicBoolean hasFailed = new AtomicBoolean(false);
     private final AtomicInteger freedSearchContexts = new AtomicInteger(0);
     private final Logger logger;
+    private static final Logger staticLogger = LogManager.getLogger(ClearScrollController.class);
     private final Runnable runner;
 
     ClearScrollController(
@@ -142,54 +138,5 @@ public final class ClearScrollController implements Runnable {
 
     private void finish() {
         listener.onResponse(new ClearScrollResponse(hasFailed.get() == false, freedSearchContexts.get()));
-    }
-
-    /**
-     * Closes the given context id and reports the number of freed contexts via the listener
-     */
-    public static void closeContexts(
-        DiscoveryNodes nodes,
-        SearchTransportService searchTransportService,
-        Collection<SearchContextIdForNode> contextIds,
-        ActionListener<Integer> listener
-    ) {
-        final Set<String> clusters = contextIds.stream()
-            .map(SearchContextIdForNode::getClusterAlias)
-            .filter(clusterAlias -> Strings.isEmpty(clusterAlias) == false)
-            .collect(Collectors.toSet());
-        final ListenableFuture<BiFunction<String, String, DiscoveryNode>> lookupListener = new ListenableFuture<>();
-        if (clusters.isEmpty()) {
-            lookupListener.onResponse((cluster, nodeId) -> nodes.get(nodeId));
-        } else {
-            searchTransportService.getRemoteClusterService().collectNodes(clusters, lookupListener);
-        }
-        lookupListener.addListener(listener.delegateFailure((l, nodeLookup) -> {
-            final var successes = new AtomicInteger();
-            try (RefCountingRunnable refs = new RefCountingRunnable(() -> l.onResponse(successes.get()))) {
-                for (SearchContextIdForNode contextId : contextIds) {
-                    if (contextId.getNode() == null) {
-                        // the shard was missing when creating the PIT, ignore.
-                        continue;
-                    }
-                    final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());
-                    if (node != null) {
-                        try {
-                            searchTransportService.sendFreeContext(
-                                searchTransportService.getConnection(contextId.getClusterAlias(), node),
-                                contextId.getSearchContextId(),
-                                refs.acquireListener().map(r -> {
-                                    if (r.isFreed()) {
-                                        successes.incrementAndGet();
-                                    }
-                                    return null;
-                                })
-                            );
-                        } catch (Exception e) {
-                            // ignored
-                        }
-                    }
-                }
-            }
-        }));
     }
 }

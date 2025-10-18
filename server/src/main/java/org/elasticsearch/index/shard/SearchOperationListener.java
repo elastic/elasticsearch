@@ -88,6 +88,14 @@ public interface SearchOperationListener {
     default void onFailedDfsPhase(SearchContext searchContext) {}
 
     /**
+     * Executed after the can-match phase successfully finished.
+     * Note: this is not invoked if the can match phase execution failed.
+     *
+     * @param tookInNanos the number of nanoseconds the can-match execution took
+     */
+    default void onCanMatchPhase(long tookInNanos) {}
+
+    /**
      * Executed when a new reader context was created
      * @param readerContext the created context
      */
@@ -233,6 +241,17 @@ public interface SearchOperationListener {
                     listener.onDfsPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onCanMatchPhase(long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onCanMatchPhase(tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onCanMatchPhase listener [" + listener + "] failed", e);
                 }
             }
         }

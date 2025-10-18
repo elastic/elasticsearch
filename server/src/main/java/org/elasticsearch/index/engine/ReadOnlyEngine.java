@@ -479,6 +479,13 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public boolean isForceMergeOptimisticallyNoOp(int maxNumSegments, boolean onlyExpungeDeletes) {
+        // If the number of segments we have is less than or equal to maxNumSegments, the force-merge request will be a no-op.
+        // Otherwise, we'll let the forceMerge method take care of throwing an exception.
+        return maxNumSegments >= lastCommittedSegmentInfos.size();
+    }
+
+    @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
         store.incRef();
         return new IndexCommitRef(indexCommit, store::decRef);

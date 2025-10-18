@@ -400,6 +400,11 @@ setup:
                         0.224,  0.203,  0.439,  0.064,  0.246, 0.396,  0.297,  0.242,
                         0.224,  0.203,  0.439,  0.064,  0.246, 0.396,  0.297,  0.242,
                         0.028,  0.321, 0.022, 0.009, 0.001 ,   0.031, -0.533,   0.45]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_flat_nested
+
   - do:
       index:
         index: bbq_flat_nested
@@ -433,6 +438,10 @@ setup:
                         -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
                         0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
                         -0.489,  0.901,  0.208,  0.011, 0.209, -0.153, -0.27, -0.013 ]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_flat_nested
 
   - do:
       index:
@@ -449,7 +458,7 @@ setup:
                         -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
                         0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
                         -0.657,  1.285,  0.2  , -0.062,  0.038,  0.089, -0.068, -0.058 ]
-
+  # Flush in order to provoke a merge later
   - do:
       indices.flush:
         index: bbq_flat_nested

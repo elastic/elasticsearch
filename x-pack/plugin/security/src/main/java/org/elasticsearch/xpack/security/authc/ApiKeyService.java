@@ -141,6 +141,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
@@ -207,6 +208,16 @@ public class ApiKeyService implements Closeable {
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.ttl",
+        TimeValue.timeValueHours(48L),
+        Property.NodeScope
+    );
+    public static final Setting<Integer> CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING = Setting.intSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.max_keys",
+        100,
+        Property.NodeScope
+    );
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
@@ -218,6 +229,7 @@ public class ApiKeyService implements Closeable {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
+    private final Cache<String, Pattern> certificateIdentityPatternCache;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
@@ -268,8 +280,15 @@ public class ApiKeyService implements Closeable {
                 .setMaximumWeight(maximumWeight)
                 .removalListener(getAuthCacheRemovalListener(maximumWeight))
                 .build();
-            final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
-            this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
+            final TimeValue docTtl = DOC_CACHE_TTL_SETTING.get(settings);
+            this.apiKeyDocCache = docTtl.getNanos() == 0 ? null : new ApiKeyDocCache(docTtl, maximumWeight);
+
+            final TimeValue patternTtl = CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING.get(settings);
+            final int maximumPatternWeight = CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING.get(settings);
+            this.certificateIdentityPatternCache = patternTtl.getNanos() == 0
+                ? null
+                : CacheBuilder.<String, Pattern>builder().setExpireAfterAccess(patternTtl).setMaximumWeight(maximumPatternWeight).build();
+
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
@@ -309,6 +328,7 @@ public class ApiKeyService implements Closeable {
         } else {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
+            this.certificateIdentityPatternCache = null;
         }
 
         if (enabled) {
@@ -1396,7 +1416,7 @@ public class ApiKeyService implements Closeable {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
-                                validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                                completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                             } else {
                                 listener.onResponse(
                                     AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1416,7 +1436,7 @@ public class ApiKeyService implements Closeable {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
-                            validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                            completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                         } else {
                             listener.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1439,7 +1459,7 @@ public class ApiKeyService implements Closeable {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                     if (verified) {
                         // move on
-                        validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                        completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                     } else {
                         listener.onResponse(
                             AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1471,7 +1491,7 @@ public class ApiKeyService implements Closeable {
     }
 
     // package-private for testing
-    static void validateApiKeyTypeAndExpiration(
+    void completeApiKeyAuthentication(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -1489,6 +1509,34 @@ public class ApiKeyService implements Closeable {
                 )
             );
             return;
+        }
+
+        if (apiKeyDoc.certificateIdentity != null) {
+            if (credentials.getCertificateIdentity() == null) {
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        Strings.format(
+                            "API key (type:[%s], id:[%s]) requires certificate identity matching [%s], but no certificate was provided",
+                            apiKeyDoc.type.value(),
+                            credentials.getId(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
+                );
+                return;
+            }
+            if (validateCertificateIdentity(credentials.getCertificateIdentity(), apiKeyDoc.certificateIdentity) == false) {
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        Strings.format(
+                            "DN from provided certificate [%s] does not match API Key certificate identity pattern [%s]",
+                            credentials.getCertificateIdentity(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
+                );
+                return;
+            }
         }
 
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
@@ -1515,22 +1563,49 @@ public class ApiKeyService implements Closeable {
         }
     }
 
+    private boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
+        logger.trace("Validating certificate identity [{}] against [{}]", certificateIdentity, certificateIdentityPattern);
+        return getCertificateIdentityPattern(certificateIdentityPattern).matcher(certificateIdentity).matches();
+    }
+
+    // Visible for testing
+    Pattern getCertificateIdentityPattern(String certificateIdentityPattern) {
+        if (certificateIdentityPatternCache != null) {
+            try {
+                return certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
+            } catch (ExecutionException e) {
+                logger.error(
+                    Strings.format(
+                        "Failed to validate certificate identity against pattern [%s] using cache. Falling back to regular matching",
+                        certificateIdentityPattern
+                    ),
+                    e
+                );
+            }
+        }
+        return Pattern.compile(certificateIdentityPattern);
+    }
+
     ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
         if (false == isEnabled()) {
             return null;
         }
-        return parseApiKey(apiKeyString, ApiKey.Type.REST);
+        return parseApiKey(apiKeyString, null, ApiKey.Type.REST);
     }
 
-    static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
-        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), expectedType);
+    static ApiKeyCredentials getCredentialsFromHeader(final String header, @Nullable String certificateIdentity, ApiKey.Type expectedType) {
+        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), certificateIdentity, expectedType);
     }
 
     public static String withApiKeyPrefix(final String encodedApiKey) {
         return "ApiKey " + encodedApiKey;
     }
 
-    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString, ApiKey.Type expectedType) {
+    private static ApiKeyCredentials parseApiKey(
+        SecureString apiKeyString,
+        @Nullable String certificateIdentity,
+        ApiKey.Type expectedType
+    ) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
@@ -1554,7 +1629,8 @@ public class ApiKeyService implements Closeable {
                 return new ApiKeyCredentials(
                     new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
                     new SecureString(Arrays.copyOfRange(apiKeyCredChars, secretStartPos, apiKeyCredChars.length)),
-                    expectedType
+                    expectedType,
+                    certificateIdentity
                 );
             } finally {
                 if (apiKeyCredChars != null) {
@@ -1671,11 +1747,17 @@ public class ApiKeyService implements Closeable {
         private final String id;
         private final SecureString key;
         private final ApiKey.Type expectedType;
+        private final String certificateIdentity;
 
         public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType) {
+            this(id, key, expectedType, null);
+        }
+
+        public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType, @Nullable String certificateIdentity) {
             this.id = id;
             this.key = key;
             this.expectedType = expectedType;
+            this.certificateIdentity = certificateIdentity;
         }
 
         String getId() {
@@ -1708,6 +1790,15 @@ public class ApiKeyService implements Closeable {
 
         public ApiKey.Type getExpectedType() {
             return expectedType;
+        }
+
+        /**
+         * The identity (Subject DistinguishedName) of the X.509 certificate that was provided by the client
+         * alongside the API during authenticate.
+         * <em>At the time of writing, the only place where this is used is for cross cluster request signing</em>
+         */
+        public String getCertificateIdentity() {
+            return certificateIdentity;
         }
     }
 

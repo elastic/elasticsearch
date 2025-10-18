@@ -12,7 +12,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.allocation.IndexShardCountConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -25,7 +25,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
+public class IndexBalanceAllocationDeciderIT extends ESIntegTestCase {
 
     public void testIndexShardCountExceedsAverageAllocation() {
         var testHarness = setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed();
@@ -91,11 +91,8 @@ public class IndexShardCountAllocationDeciderIT extends ESIntegTestCase {
 
     private TestHarness setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed() {
         Settings settings = Settings.builder()
-            .put(
-                IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_ENABLED_SETTING.getKey(),
-                IndexShardCountConstraintSettings.IndexShardCountDeciderStatus.ENABLED
-            )
-            .put(IndexShardCountConstraintSettings.INDEX_SHARD_COUNT_DECIDER_LOAD_SKEW_TOLERANCE.getKey(), 1.0d)
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_LOAD_SKEW_TOLERANCE.getKey(), 1.0d)
             .build();
         internalCluster().startMasterOnlyNode(settings);
 

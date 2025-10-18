@@ -514,7 +514,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             String indexName = index.getName();
             String downsamplingSourceIndex = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndexMeta.getSettings());
 
-            // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
+            // if the current index is not downsampled we want to mark the index as read-only before proceeding with downsampling
             if (org.elasticsearch.common.Strings.hasText(downsamplingSourceIndex) == false
                 && projectState.blocks().indexBlocked(project.id(), ClusterBlockLevel.WRITE, indexName) == false) {
                 affectedIndices.add(index);
@@ -569,7 +569,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     round,
                     lastRound,
                     index,
-                    targetDownsampleIndexMeta.getIndex()
+                    targetDownsampleIndexMeta
                 );
                 if (downsamplingNotComplete.isEmpty() == false) {
                     affectedIndices.addAll(downsamplingNotComplete);
@@ -580,7 +580,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
                     // to kick off downsampling
                     affectedIndices.add(index);
-                    downsampleIndexOnce(round, project.id(), indexName, downsampleIndexName);
+                    // If the source index is downsampled, we might need to fall back to its sampling method
+                    DownsampleConfig.SamplingMethod preciouslyAppliedSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(
+                        backingIndex
+                    );
+                    downsampleIndexOnce(round, project.id(), indexName, downsampleIndexName, preciouslyAppliedSamplingMethod);
                 }
             }
         }
@@ -594,14 +598,25 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycle.DownsamplingRound round,
         ProjectId projectId,
         String sourceIndex,
-        String downsampleIndexName
+        String downsampleIndexName,
+        DownsampleConfig.SamplingMethod compatibleSamplingMethod
     ) {
+        DownsampleConfig config = round.config();
+        if (compatibleSamplingMethod != null && config.getEffectiveSamplingMethod() != compatibleSamplingMethod) {
+            logger.info(
+                "Downsampling [{}] with previously applied sampling method [{}] for round [{}]",
+                sourceIndex,
+                compatibleSamplingMethod,
+                config.getFixedInterval().toString()
+            );
+            config = new DownsampleConfig(config.getFixedInterval(), compatibleSamplingMethod);
+        }
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
             sourceIndex,
             downsampleIndexName,
             null,
-            round.config()
+            config
         );
         transportActionsDeduplicator.executeOnce(
             Tuple.tuple(projectId, request),
@@ -633,10 +648,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycle.DownsamplingRound currentRound,
         DataStreamLifecycle.DownsamplingRound lastRound,
         Index backingIndex,
-        Index downsampleIndex
+        IndexMetadata downsampleIndexMetadata
     ) {
         Set<Index> affectedIndices = new HashSet<>();
         String indexName = backingIndex.getName();
+        Index downsampleIndex = downsampleIndexMetadata.getIndex();
         String downsampleIndexName = downsampleIndex.getName();
         return switch (downsampleStatus) {
             case UNKNOWN -> {
@@ -683,7 +699,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // NOTE that the downsample request is made through the deduplicator so it will only really be executed if
                 // there isn't one already in-flight. This can happen if a previous request timed-out, failed, or there was a
                 // master failover and data stream lifecycle needed to restart
-                downsampleIndexOnce(currentRound, projectId, indexName, downsampleIndexName);
+                DownsampleConfig.SamplingMethod appliedSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(
+                    downsampleIndexMetadata
+                );
+                downsampleIndexOnce(currentRound, projectId, indexName, downsampleIndexName, appliedSamplingMethod);
                 affectedIndices.add(backingIndex);
                 yield affectedIndices;
             }

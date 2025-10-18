@@ -1,0 +1,5 @@
+pr: 136633
+summary: Add new sampling method in downsampling
+area: Downsampling
+type: enhancement
+issues: []

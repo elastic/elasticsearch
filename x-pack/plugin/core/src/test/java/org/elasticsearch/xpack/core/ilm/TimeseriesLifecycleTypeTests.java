@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -76,7 +77,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
     public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
-    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(DateHistogramInterval.DAY, TIMEOUT, true);
+    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(
+        DateHistogramInterval.DAY,
+        TIMEOUT,
+        true,
+        DownsampleConfig.SamplingMethod.LAST_VALUE
+    );
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -356,16 +362,23 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidateDownsamplingAction() {
         {
+            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION));
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
 
             IllegalArgumentException e = expectThrows(
@@ -379,15 +392,22 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
+            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.minutes(30), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
 
             IllegalArgumentException e = expectThrows(
@@ -401,15 +421,22 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
+            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(130), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.minutes(130), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
 
             IllegalArgumentException e = expectThrows(
@@ -423,6 +450,45 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
+            var samplingMethod1 = randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE;
+            var samplingMethod2 = DownsampleConfig.SamplingMethod.LAST_VALUE;
+            var startWithAggregate = randomBoolean();
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(
+                        DateHistogramInterval.hours(1),
+                        TIMEOUT,
+                        randomBoolean(),
+                        startWithAggregate ? samplingMethod1 : samplingMethod2
+                    )
+                )
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(
+                        DateHistogramInterval.hours(12),
+                        TIMEOUT,
+                        randomBoolean(),
+                        startWithAggregate ? samplingMethod2 : samplingMethod1
+                    )
+                )
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(e.getMessage(), containsString("for phase [cold] must be compatible with the method ["));
+        }
+
+        {
+            var samplingMethod = DownsampleActionTests.randomSamplingMethod();
             Phase hotPhase = new Phase(
                 "hot",
                 TimeValue.ZERO,
@@ -430,18 +496,24 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     RolloverAction.NAME,
                     TEST_ROLLOVER_ACTION,
                     DownsampleAction.NAME,
-                    new DownsampleAction(DateHistogramInterval.minutes(10), TIMEOUT, randomBoolean())
+                    new DownsampleAction(DateHistogramInterval.minutes(10), TIMEOUT, randomBoolean(), samplingMethod)
                 )
             );
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.minutes(30), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(2), TIMEOUT, randomBoolean()))
+                Map.of(
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.hours(2), TIMEOUT, randomBoolean(), samplingMethod)
+                )
             );
 
             // This is a valid interval combination

@@ -340,7 +340,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
 
             // Validate downsampling interval
-            validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
+            validateDownsamplingConfiguration(mapperService, sourceIndexMetadata, request.getDownsampleConfig());
 
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
@@ -722,7 +722,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.startObject("properties");
 
         addTimestampField(config, sourceIndexMappings, builder);
-        addMetricFields(helper, sourceIndexMappings, builder);
+        addMetricFieldOverwrites(config, helper, sourceIndexMappings, builder);
 
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
@@ -736,11 +736,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .utf8ToString();
     }
 
-    private static void addMetricFields(
+    /**
+     * Adds metric mapping overwrites. When downsampling certain metrics change their mapping type. For example,
+     * when we are using the aggregate sampling method, the mapping of a gauge metric becomes an aggregate_metric_double.
+     */
+    private static void addMetricFieldOverwrites(
+        final DownsampleConfig config,
         final TimeseriesFieldTypeHelper helper,
         final Map<String, Object> sourceIndexMappings,
         final XContentBuilder builder
     ) {
+        // The last value sampling method preserves the source mapping so there are no overwrites.
+        if (config.getEffectiveSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+            return;
+        }
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
             if (helper.isTimeSeriesMetric(field, mapping)) {
                 try {
@@ -843,7 +852,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.endObject();
     }
 
-    private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
+    private static void validateDownsamplingConfiguration(
+        MapperService mapperService,
+        IndexMetadata sourceIndexMetadata,
+        DownsampleConfig config
+    ) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
         ActionRequestValidationException e = new ActionRequestValidationException();
@@ -853,8 +866,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             String interval = meta.get(config.getIntervalType());
             if (interval != null) {
                 try {
-                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval));
-                    DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
+                    DownsampleConfig.SamplingMethod samplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
+                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), samplingMethod);
+                    DownsampleConfig.validateSourceAndTargetConfiguration(sourceConfig, config);
                 } catch (IllegalArgumentException exception) {
                     e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
@@ -975,6 +989,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
             );
+        // We explicitly store the sampling method used when downsampling.
+        builder.put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getEffectiveSamplingMethod().toString());
         if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
             builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
         }

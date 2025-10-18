@@ -45,6 +45,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds the data stream lifecycle configuration that defines how the data stream indices of a data stream are managed. The lifecycle also
@@ -166,7 +167,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     /**
      * This factory method creates a lifecycle applicable for the data index component of a data stream. This
-     * means it supports all configuration applicable for backing indices.
+     * means it supports all configurations applicable for backing indices.
      */
     public static DataStreamLifecycle createDataLifecycle(
         @Nullable Boolean enabled,
@@ -528,12 +529,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         public static final ParseField AFTER_FIELD = new ParseField("after");
         public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
+        public static final ParseField SAMPLING_METHOD = new ParseField("sampling_method");
         public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
 
         private static final ConstructingObjectParser<DownsamplingRound, Void> PARSER = new ConstructingObjectParser<>(
             "downsampling_round",
             false,
-            (args, unused) -> new DownsamplingRound((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
+            (args, unused) -> new DownsamplingRound(
+                (TimeValue) args[0],
+                new DownsampleConfig((DateHistogramInterval) args[1], (DownsampleConfig.SamplingMethod) args[2])
+            )
         );
 
         static {
@@ -545,7 +550,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             PARSER.declareField(
                 constructorArg(),
                 p -> new DateHistogramInterval(p.text()),
-                new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
+                FIXED_INTERVAL_FIELD,
+                ObjectParser.ValueType.STRING
+            );
+            PARSER.declareField(
+                optionalConstructorArg(),
+                p -> DownsampleConfig.SamplingMethod.fromString(p.text()),
+                SAMPLING_METHOD,
                 ObjectParser.ValueType.STRING
             );
         }
@@ -576,7 +587,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                                 + "."
                         );
                     }
-                    DownsampleConfig.validateSourceAndTargetIntervals(previous.config(), round.config());
+                    DownsampleConfig.validateSourceAndTargetConfiguration(previous.config(), round.config());
                 }
             }
         }

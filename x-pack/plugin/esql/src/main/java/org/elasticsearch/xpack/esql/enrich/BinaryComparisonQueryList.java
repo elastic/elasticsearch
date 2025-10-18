@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -55,13 +60,7 @@ public class BinaryComparisonQueryList extends QueryList {
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        super(
-            field,
-            searchExecutionContext,
-            aliasFilter,
-            leftHandSideBlock,
-            new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value")
-        );
+        super(field, searchExecutionContext, aliasFilter, leftHandSideBlock, null);
         // swap left and right if the field is on the right
         // We get a filter in the form left_expr >= right_expr
         // here we will swap it to right_expr <= left_expr
@@ -93,6 +92,12 @@ public class BinaryComparisonQueryList extends QueryList {
             );
         try {
             if (TranslationAware.Translatable.YES.equals(comparison.translatable(lucenePushdownPredicates))) {
+                // Check if this is a numeric/doc values field comparison (but not NEQ)
+                if (isNumericOrDateField(field)
+                    && comparison.left() instanceof FieldAttribute
+                    && comparison.getFunctionType() != EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
+                    return createNumericDocValuesQuery(comparison, value);
+                }
                 return comparison.asQuery(lucenePushdownPredicates, TranslatorHandler.TRANSLATOR_HANDLER)
                     .toQueryBuilder()
                     .toQuery(searchExecutionContext);
@@ -101,6 +106,42 @@ public class BinaryComparisonQueryList extends QueryList {
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Error while building query for join on filter:", e);
+        }
+    }
+
+    private boolean isNumericOrDateField(MappedFieldType field) {
+        if (field instanceof DateFieldMapper.DateFieldType) {
+            return true;
+        }
+        if (field instanceof NumberFieldMapper.NumberFieldType numberFieldType) {
+            // Exclude floating-point types to avoid precision loss in createNumericDocValuesQuery
+            return numberFieldType.numericType() != IndexNumericFieldData.NumericType.DOUBLE
+                && numberFieldType.numericType() != IndexNumericFieldData.NumericType.FLOAT
+                && numberFieldType.numericType() != IndexNumericFieldData.NumericType.HALF_FLOAT;
+        }
+        return false;
+    }
+
+    private Query createNumericDocValuesQuery(EsqlBinaryComparison comparison, Object value) {
+        String fieldName = field.name();
+        Number numericValue = (Number) value;
+        // Convert the value to long for NumericDocValuesField (works for both numeric and date fields)
+        long longValue = numericValue.longValue();
+
+        // Create range query based on comparison type
+        switch (comparison.getFunctionType()) {
+            case GT:
+                return NumericDocValuesField.newSlowRangeQuery(fieldName, longValue + 1, Long.MAX_VALUE);
+            case GTE:
+                return NumericDocValuesField.newSlowRangeQuery(fieldName, longValue, Long.MAX_VALUE);
+            case LT:
+                return NumericDocValuesField.newSlowRangeQuery(fieldName, Long.MIN_VALUE, longValue - 1);
+            case LTE:
+                return NumericDocValuesField.newSlowRangeQuery(fieldName, Long.MIN_VALUE, longValue);
+            case EQ:
+                return NumericDocValuesField.newSlowRangeQuery(fieldName, longValue, longValue);
+            default:
+                throw new IllegalArgumentException("Unsupported comparison type: " + comparison.getFunctionType());
         }
     }
 }

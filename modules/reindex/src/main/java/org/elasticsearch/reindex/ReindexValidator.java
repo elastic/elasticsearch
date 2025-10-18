@@ -63,7 +63,7 @@ public class ReindexValidator {
     }
 
     public void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        // checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(
             request.getSearchRequest(),

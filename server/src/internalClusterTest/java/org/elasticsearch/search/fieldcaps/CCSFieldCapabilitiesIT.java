@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 
 public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
@@ -265,5 +267,17 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
                 assertThat(response.get().keySet(), not(hasItems("@timestamp", "field1", "field2")));
             }
         }
+    }
+
+    public void testSummarizeFailures() {
+        var response = client().prepareFieldCaps("remote_cluster:no-such-index").setFields("*").setSummarizeFailures(true).get();
+
+        assertThat(response.getIndexResponses(), hasSize(0));
+        assertThat(response.getFailures(), hasSize(1));
+        var failure = response.getFailures().getFirst();
+        var cause = failure.getException().getCause();
+        assertThat(cause, isA(IndexNotFoundException.class));
+        assertThat(cause.getMessage(), equalTo("no such index [no-such-index]"));
+        assertThat(failure.getIndices(), arrayContaining("remote_cluster:no-such-index")); // this contains actual remote
     }
 }

@@ -92,21 +92,23 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
             DenseVectorFieldMapper.HnswIndexOptions hnswIndexOptions = (DenseVectorFieldMapper.HnswIndexOptions) indexOptions;
             int efConstruction = hnswIndexOptions.efConstruction();
-            int m = hnswIndexOptions.m();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                m = ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
-                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction
+                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
             }
-            return new ES92GpuHnswVectorsFormat(m, efConstruction);
+            return new ES92GpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             DenseVectorFieldMapper.Int8HnswIndexOptions int8HnswIndexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) indexOptions;
             int efConstruction = int8HnswIndexOptions.efConstruction();
-            int m = int8HnswIndexOptions.m();
             if (efConstruction == HnswGraphBuilder.DEFAULT_BEAM_WIDTH) {
-                m = ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
-                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction
+                efConstruction = ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH; // default value for GPU graph construction is 128
             }
-            return new ES92GpuHnswSQVectorsFormat(m, efConstruction, int8HnswIndexOptions.confidenceInterval(), 7, false);
+            return new ES92GpuHnswSQVectorsFormat(
+                int8HnswIndexOptions.m(),
+                efConstruction,
+                int8HnswIndexOptions.confidenceInterval(),
+                7,
+                false
+            );
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

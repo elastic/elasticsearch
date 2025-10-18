@@ -57,7 +57,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
 
-    protected static EnrichResolution enrichResolution;
+    public static EnrichResolution enrichResolution;
 
     public static class TestSubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         // A static instance of this would break the EsqlNodeSubclassTests because its initialization requires a Random instance.

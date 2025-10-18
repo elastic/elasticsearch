@@ -33,6 +33,10 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final String unresolvedMsg;
     private final Object resolutionMetadata;
+    /**
+     * Used to provide custom error text if this attribute cannot be resolved
+     */
+    private final String customMessageText;
 
     // TODO: Check usage of constructors without qualifiers, that's likely where qualifiers need to be plugged into resolution logic.
     public UnresolvedAttribute(Source source, String name) {
@@ -44,7 +48,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, @Nullable String unresolvedMessage) {
-        this(source, qualifier, name, null, unresolvedMessage, null);
+        this(source, qualifier, name, null, unresolvedMessage, null, null);
     }
 
     public UnresolvedAttribute(
@@ -54,7 +58,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         @Nullable String unresolvedMessage,
         Object resolutionMetadata
     ) {
-        this(source, null, name, id, unresolvedMessage, resolutionMetadata);
+        this(source, null, name, id, unresolvedMessage, resolutionMetadata, null);
     }
 
     @SuppressWarnings("this-escape")
@@ -64,7 +68,8 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         String name,
         @Nullable NameId id,
         @Nullable String unresolvedMessage,
-        Object resolutionMetadata
+        Object resolutionMetadata,
+        @Nullable String customMessageText
     ) {
         super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
@@ -72,6 +77,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
             ? errorMessage(qualifier() != null ? qualifiedName() : name(), null)
             : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
+        this.customMessageText = customMessageText;
     }
 
     @Override
@@ -86,7 +92,16 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(
+            this,
+            UnresolvedAttribute::new,
+            qualifier(),
+            name(),
+            id(),
+            unresolvedMsg,
+            resolutionMetadata,
+            customMessageText
+        );
     }
 
     public Object resolutionMetadata() {
@@ -117,7 +132,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata(), customMessageText);
+    }
+
+    public UnresolvedAttribute withCustomMessageText(String customMessageText) {
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage(), resolutionMetadata(), customMessageText);
     }
 
     @Override
@@ -159,6 +178,9 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String unresolvedMessage() {
+        if (customMessageText != null) {
+            return customMessageText;
+        }
         return unresolvedMsg;
     }
 

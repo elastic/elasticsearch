@@ -197,7 +197,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         final boolean configureSettingsFirst = randomBoolean();
         // it's valid to first configure remote cluster, then credentials
         if (configureSettingsFirst) {
-            putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
+            putQueryClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
         }
 
         configureRemoteClusterCredentials("my_remote_cluster", remoteClusterCredentials, keystoreSettings);

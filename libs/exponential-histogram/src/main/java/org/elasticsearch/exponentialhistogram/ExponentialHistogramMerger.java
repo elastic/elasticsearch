@@ -89,7 +89,11 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         downscaleStats = new DownscaleStats();
     }
 
-    static ExponentialHistogramMerger createForTesting(int bucketLimit, int maxScale, ExponentialHistogramCircuitBreaker circuitBreaker) {
+    public static ExponentialHistogramMerger createWithMaxScale(
+        int bucketLimit,
+        int maxScale,
+        ExponentialHistogramCircuitBreaker circuitBreaker
+    ) {
         circuitBreaker.adjustBreaker(BASE_SIZE);
         return new ExponentialHistogramMerger(bucketLimit, maxScale, circuitBreaker);
     }
@@ -135,6 +139,19 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         ReleasableExponentialHistogram retVal = (result == null) ? ReleasableExponentialHistogram.empty() : result;
         result = null;
         return retVal;
+    }
+
+    /**
+     * Gets the current merged histogram without clearing this merger.
+     * Note that the ownership of the returned histogram remains with this merger,
+     * so the caller must not close it.
+     * The returned histogram is only valid until the next call to {@link #add(ExponentialHistogram)}, or until the merger is closed.
+     *
+     * @return the current merged histogram
+     */
+    public ExponentialHistogram get() {
+        assert closed == false : "ExponentialHistogramMerger already closed";
+        return (result == null) ? ExponentialHistogram.empty() : result;
     }
 
     // This algorithm is very efficient if B has roughly as many buckets as A.

@@ -227,7 +227,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        includeSourceOnError = in.readBoolean();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
@@ -815,7 +817,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
         }
-        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeBoolean(includeSourceOnError);
+        }
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }
@@ -922,6 +926,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public int route(IndexRouting indexRouting) {
         return indexRouting.indexShard(this);
+    }
+
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteToTarget(this);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

@@ -1599,6 +1599,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
+    private static final TransportVersion SETTING_DIFF_VERSION = TransportVersions.V_8_5_0;
+
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
@@ -1694,8 +1696,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             settingsVersion = in.readVLong();
             aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
-            settings = null;
-            settingsDiff = Settings.readSettingsDiffFromStream(in);
+            if (in.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+                settings = null;
+                settingsDiff = Settings.readSettingsDiffFromStream(in);
+            } else {
+                settings = Settings.readSettingsFromStream(in);
+                settingsDiff = null;
+            }
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
@@ -1758,7 +1765,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeByte(state.id);
             assert settings != null
                 : "settings should always be non-null since this instance is not expected to have been read from another node";
-            settingsDiff.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+                settingsDiff.writeTo(out);
+            } else {
+                settings.writeTo(out);
+            }
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {

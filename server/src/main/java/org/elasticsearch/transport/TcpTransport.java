@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -111,7 +110,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected final Settings settings;
     protected final ThreadPool threadPool;
-    protected final Recycler<BytesRef> recycler;
+    protected final VariableRecycler recycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
@@ -357,7 +356,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return connectionProfile;
     }
 
-    protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
+    protected VariableRecycler createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
         return new BytesRefRecycler(pageCacheRecycler);
     }
 
@@ -989,6 +988,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     public RecyclerBytesStreamOutput newNetworkBytesStream() {
         return new RecyclerBytesStreamOutput(recycler);
+    }
+
+    @Override
+    public VariableRecycler variableRecycler() {
+        return recycler;
     }
 
     /**

@@ -59,6 +59,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -187,6 +188,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -243,6 +245,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
+    private final Supplier<VariableRecycler> bytesRecycler;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -320,6 +323,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indexScopedSettings = builder.indexScopedSettings;
         this.circuitBreakerService = builder.circuitBreakerService;
         this.bigArrays = builder.bigArrays;
+        this.bytesRecycler = builder.bytesRecycler;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
         this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
@@ -822,6 +826,7 @@ public class IndicesService extends AbstractLifecycleComponent
             this,
             circuitBreakerService,
             bigArrays,
+            bytesRecycler,
             threadPool,
             threadPoolMergeExecutorService,
             scriptService,

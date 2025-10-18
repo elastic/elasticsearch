@@ -58,6 +58,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -249,7 +250,7 @@ public class FollowingEngineTests extends ESTestCase {
             shardIdValue,
             translogPath,
             indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
         );
         final MapperService mapperService = EngineTestCase.createMapperService();
         return new EngineConfig(

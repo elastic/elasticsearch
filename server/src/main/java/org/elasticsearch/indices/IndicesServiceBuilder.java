@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class IndicesServiceBuilder {
@@ -65,6 +67,7 @@ public class IndicesServiceBuilder {
     IndexScopedSettings indexScopedSettings;
     CircuitBreakerService circuitBreakerService;
     BigArrays bigArrays;
+    Supplier<VariableRecycler> bytesRecycler;
     ScriptService scriptService;
     ClusterService clusterService;
     ProjectResolver projectResolver;
@@ -166,6 +169,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder bytesRecycler(Supplier<VariableRecycler> bytesRecycler) {
+        this.bytesRecycler = bytesRecycler;
+        return this;
+    }
+
     public IndicesServiceBuilder scriptService(ScriptService scriptService) {
         this.scriptService = scriptService;
         return this;
@@ -240,6 +248,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(indexScopedSettings);
         Objects.requireNonNull(circuitBreakerService);
         Objects.requireNonNull(bigArrays);
+        Objects.requireNonNull(bytesRecycler);
         Objects.requireNonNull(scriptService);
         Objects.requireNonNull(clusterService);
         Objects.requireNonNull(projectResolver);

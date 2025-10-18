@@ -190,7 +190,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 knnVectorsBytes = in.readVLong();
             }
         }
@@ -203,7 +203,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 out.writeVLong(knnVectorsBytes);
             }
         }

@@ -66,6 +66,6 @@ public class MinSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     boolean includedInVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_4_0);
+        return version.supports(TransportVersions.V_8_4_0);
     }
 }

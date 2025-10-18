@@ -55,7 +55,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
-        primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+        primaryTerm = in.getTransportVersion().supports(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
         // The timeout is only used by the request sender, therefore we don't write it over the wire
         timeout = null;
     }
@@ -75,7 +75,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(segmentGeneration);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeVLong(primaryTerm);
         }
     }

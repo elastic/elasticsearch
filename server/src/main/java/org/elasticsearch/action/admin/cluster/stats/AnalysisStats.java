@@ -289,7 +289,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
         usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
-        if (input.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
+        if (input.getTransportVersion().supports(SYNONYM_SETS_VERSION)) {
             usedSynonyms = input.readImmutableMap(SynonymsStats::new);
         } else {
             usedSynonyms = Collections.emptyMap();
@@ -306,7 +306,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenizers);
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
-        if (out.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
+        if (out.getTransportVersion().supports(SYNONYM_SETS_VERSION)) {
             out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
         }
     }

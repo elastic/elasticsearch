@@ -124,12 +124,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                 this.includeDefaults = in.readBoolean();
             } else {
                 this.includeDefaults = false;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 this.verbose = in.readBoolean();
             } else {
                 this.verbose = false;
@@ -345,14 +345,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
-                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
+                if (out.getTransportVersion().supports(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                     out.writeOptionalVLong(maximumTimestamp);
                 }
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
@@ -665,7 +665,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
             // A version 9.x cluster will never read this, so we only need to include the patch version here.
@@ -673,7 +673,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(dataGlobalRetention);
             }
         }

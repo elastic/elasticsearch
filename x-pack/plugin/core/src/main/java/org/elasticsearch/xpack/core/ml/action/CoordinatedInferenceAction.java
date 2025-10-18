@@ -136,7 +136,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             // The prefixType was added prior to TransportVersions.V_8_13_0 but we're serializing it now
             // as a safety measure. At the time of writing this it doesn't have to be serialized because this class is only used internally
             // and on a single node so it never actually gets serialized. But we'll do it just in case that changes in the future.
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
                 this.prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             }
         }
@@ -209,7 +209,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             out.writeOptionalBoolean(previouslyLicensed);
             out.writeOptionalTimeValue(inferenceTimeout);
             out.writeBoolean(highPriority);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
                 out.writeEnum(prefixType);
             }
         }

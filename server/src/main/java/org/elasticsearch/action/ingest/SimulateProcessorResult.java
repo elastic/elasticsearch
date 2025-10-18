@@ -173,7 +173,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
      * Read from a stream.
      */
     SimulateProcessorResult(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             this.processorTag = in.readOptionalString();
         } else {
             this.processorTag = in.readString();
@@ -192,7 +192,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             out.writeOptionalString(processorTag);
         } else {
             out.writeString(processorTag);

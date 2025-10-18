@@ -235,7 +235,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         } else {
             QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -277,7 +277,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
                 knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
@@ -285,10 +285,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_1)) {
             skipInnerHits = in.readBoolean();
         } else {
             skipInnerHits = false;
@@ -313,7 +313,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeCollection(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
             throw new IllegalArgumentException(
@@ -361,7 +361,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 if (knnSearch.size() > 1) {
                     throw new IllegalArgumentException(
@@ -377,12 +377,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeCollection(knnSearch);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_1)) {
             out.writeBoolean(skipInnerHits);
         }
     }

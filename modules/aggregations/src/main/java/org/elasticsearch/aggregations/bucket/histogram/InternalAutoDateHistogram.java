@@ -206,7 +206,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
         this.targetBuckets = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             bucketInnerInterval = in.readVLong();
         } else {
             bucketInnerInterval = 1; // Calculated on merge.
@@ -224,7 +224,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         out.writeNamedWriteable(format);
         out.writeCollection(buckets);
         out.writeVInt(targetBuckets);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
             out.writeVLong(bucketInnerInterval);
         }
     }

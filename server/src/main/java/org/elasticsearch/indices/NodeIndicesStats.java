@@ -90,7 +90,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
             statsByShard.put(index, indexShardStats);
         }
 
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
+        if (in.getTransportVersion().supports(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             statsByIndex = in.readMap(Index::new, CommonStats::new);
         } else {
             statsByIndex = new HashMap<>();
@@ -243,7 +243,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
         out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
+        if (out.getTransportVersion().supports(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             out.writeMap(statsByIndex);
         }
         if (out.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {

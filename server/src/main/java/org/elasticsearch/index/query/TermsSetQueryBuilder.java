@@ -79,7 +79,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);
-        if (in.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
+        if (in.getTransportVersion().supports(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
             this.minimumShouldMatch = in.readOptionalString();
         }
     }
@@ -90,7 +90,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeGenericValue(values);
         out.writeOptionalString(minimumShouldMatchField);
         out.writeOptionalWriteable(minimumShouldMatchScript);
-        if (out.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
+        if (out.getTransportVersion().supports(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
             out.writeOptionalString(minimumShouldMatch);
         }
     }

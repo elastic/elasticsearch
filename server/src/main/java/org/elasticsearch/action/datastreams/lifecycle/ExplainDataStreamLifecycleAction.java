@@ -177,7 +177,7 @@ public class ExplainDataStreamLifecycleAction {
                 var defaultFailuresRetention = in.readOptionalTimeValue();
                 dataGlobalRetention = DataStreamGlobalRetention.create(defaultRetention, maxRetention);
                 failureGlobalRetention = DataStreamGlobalRetention.create(defaultFailuresRetention, maxRetention);
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 dataGlobalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
                 failureGlobalRetention = dataGlobalRetention;
             } else {
@@ -217,7 +217,7 @@ public class ExplainDataStreamLifecycleAction {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(getDataGlobalRetention());
             }
         }

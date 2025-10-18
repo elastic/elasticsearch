@@ -167,7 +167,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+        if (in.getTransportVersion().supports(TYPE_FIELD_ADDED_VERSION)) {
             this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
         } else {
             this.type = DEFAULT_TYPE;
@@ -194,7 +194,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
+        if (out.getTransportVersion().supports(TYPE_FIELD_ADDED_VERSION)) {
             type.writeTo(out);
         }
     }

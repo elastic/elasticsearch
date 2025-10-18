@@ -424,7 +424,7 @@ public class TaskCancellationService {
      * Sends an action to cancel a child task, associated with the given request ID and parent task.
      */
     public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
-        if (childConnection.getTransportVersion().onOrAfter(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
+        if (childConnection.getTransportVersion().supports(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
             DiscoveryNode childNode = childConnection.getNode();
             logger.debug(
                 "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",

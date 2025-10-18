@@ -67,7 +67,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
                 waitTimeout = TimeValue.parseTimeValue(in.readString(), "timeout");
             } else {
                 waitTimeout = DEFAULT_WAIT_TIMEOUT;
@@ -95,7 +95,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_10_X)) {
                 out.writeString(waitTimeout.getStringRep());
             }
             downsampleConfig.writeTo(out);

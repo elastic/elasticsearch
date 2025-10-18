@@ -70,7 +70,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
-        vectorOperationsCount = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) ? in.readOptionalLong() : null;
+        vectorOperationsCount = (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) ? in.readOptionalLong() : null;
     }
 
     @Override
@@ -81,7 +81,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         }
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeOptionalLong(vectorOperationsCount);
         }
     }

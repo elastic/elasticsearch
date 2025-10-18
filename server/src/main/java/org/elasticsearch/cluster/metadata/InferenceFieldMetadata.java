@@ -69,7 +69,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public InferenceFieldMetadata(StreamInput input) throws IOException {
         this.name = input.readString();
         this.inferenceId = input.readString();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (input.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             this.searchInferenceId = input.readString();
         } else {
             this.searchInferenceId = this.inferenceId;
@@ -86,7 +86,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(inferenceId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             out.writeString(searchInferenceId);
         }
         out.writeStringArray(sourceFields);

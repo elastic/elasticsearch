@@ -173,7 +173,7 @@ public class TDigestState implements Releasable, Accountable {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeString(state.type.toString());
             out.writeVLong(state.tdigest.size());
         }
@@ -202,7 +202,7 @@ public class TDigestState implements Releasable, Accountable {
         try {
             breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
             try {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                     state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
                     size = in.readVLong();
                 } else {

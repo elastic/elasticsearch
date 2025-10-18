@@ -92,7 +92,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+        if (in.getTransportVersion().supports(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             quiet = in.readBoolean();
         } else {
             quiet = true;
@@ -116,7 +116,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+        if (out.getTransportVersion().supports(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             out.writeBoolean(quiet);
         }
         indexSettings.writeTo(out);

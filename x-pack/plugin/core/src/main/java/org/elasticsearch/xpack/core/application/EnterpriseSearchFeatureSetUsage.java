@@ -58,10 +58,10 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
         this.searchApplicationsUsage = in.readGenericMap();
         Map<String, Object> analyticsCollectionsUsage = new HashMap<>();
         Map<String, Object> queryRulesUsage = new HashMap<>();
-        if (in.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().supports(QUERY_RULES_TRANSPORT_VERSION)) {
             analyticsCollectionsUsage = in.readGenericMap();
             queryRulesUsage = in.readGenericMap();
-        } else if (in.getTransportVersion().onOrAfter(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
+        } else if (in.getTransportVersion().supports(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
             analyticsCollectionsUsage = in.readGenericMap();
         }
         this.analyticsCollectionsUsage = analyticsCollectionsUsage;
@@ -72,10 +72,10 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericMap(searchApplicationsUsage);
-        if (out.getTransportVersion().onOrAfter(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION)) {
             out.writeGenericMap(analyticsCollectionsUsage);
         }
-        if (out.getTransportVersion().onOrAfter(QUERY_RULES_TRANSPORT_VERSION)) {
+        if (out.getTransportVersion().supports(QUERY_RULES_TRANSPORT_VERSION)) {
             out.writeGenericMap(queryRulesUsage);
         }
     }

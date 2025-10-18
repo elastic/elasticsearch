@@ -41,12 +41,12 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             failureStoreStatus = IndexDocFailureStoreStatus.read(in);
         } else {
             failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
@@ -55,12 +55,12 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             failureStoreStatus = IndexDocFailureStoreStatus.read(in);
         } else {
             failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
@@ -123,10 +123,10 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             failureStoreStatus.writeTo(out);
         }
     }
@@ -134,10 +134,10 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeThin(StreamOutput out) throws IOException {
         super.writeThin(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             failureStoreStatus.writeTo(out);
         }
     }

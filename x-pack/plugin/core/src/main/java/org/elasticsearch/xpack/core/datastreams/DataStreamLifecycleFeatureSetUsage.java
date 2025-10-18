@@ -113,7 +113,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 return new LifecycleStats(
                     in.readVLong(),
                     in.readBoolean(),
@@ -121,7 +121,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                     RetentionStats.read(in),
                     in.readMap(GlobalRetentionStats::new)
                 );
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            } else if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                 var dataStreamsWithLifecyclesCount = in.readVLong();
                 var minDataRetention = in.readVLong();
                 var maxDataRetention = in.readVLong();
@@ -141,13 +141,13 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeBoolean(defaultRolloverUsed);
                 dataRetentionStats.writeTo(out);
                 effectiveRetentionStats.writeTo(out);
                 out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            } else if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeVLong(dataRetentionStats.minMillis() == null ? 0 : dataRetentionStats.minMillis());
                 out.writeVLong(dataRetentionStats.maxMillis() == null ? 0 : dataRetentionStats.maxMillis());

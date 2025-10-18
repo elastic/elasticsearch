@@ -174,25 +174,25 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 chunked = in.readBoolean();
             } else {
                 chunked = false;
@@ -267,19 +267,19 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_3_0)) {
                 out.writeTimeValue(inferenceTimeout);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
                 out.writeBoolean(chunked);
             }
         }

@@ -54,7 +54,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        if (in.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (in.getTransportVersion().supports(DEDUPLICATE_SHARD_PATH_VERSION)) {
             dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
         } else {
             dataPath = in.readString();
@@ -62,7 +62,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             isSearchIdle = in.readBoolean();
             searchIdleTime = in.readVLong();
         } else {
@@ -208,7 +208,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        if (out.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (out.getTransportVersion().supports(DEDUPLICATE_SHARD_PATH_VERSION)) {
             out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
         } else {
             out.writeString(dataPath);
@@ -216,7 +216,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_9_X)) {
             out.writeBoolean(isSearchIdle);
             out.writeVLong(searchIdleTime);
         }

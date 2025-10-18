@@ -179,7 +179,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         this.nodeSeen = in.readBoolean();
         this.allocationDelay = in.readOptionalTimeValue();
         this.targetNodeName = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
+        if (in.getTransportVersion().supports(GRACE_PERIOD_ADDED_VERSION)) {
             this.gracePeriod = in.readOptionalTimeValue();
         } else {
             this.gracePeriod = null;
@@ -275,7 +275,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         out.writeBoolean(nodeSeen);
         out.writeOptionalTimeValue(allocationDelay);
         out.writeOptionalString(targetNodeName);
-        if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
+        if (out.getTransportVersion().supports(GRACE_PERIOD_ADDED_VERSION)) {
             out.writeOptionalTimeValue(gracePeriod);
         }
     }

@@ -82,7 +82,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             this.isInternalDataStream = in.readBoolean();
         } else {
             this.isInternalDataStream = false;
@@ -92,7 +92,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            if (in.getTransportVersion().onOrAfter(V_8_12_0)) {
+            if (in.getTransportVersion().supports(V_8_12_0)) {
                 this.error = in.readOptionalWriteable(ErrorEntry::new);
             } else {
                 String bwcErrorMessage = in.readOptionalString();
@@ -165,7 +165,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeBoolean(isInternalDataStream);
         }
         if (managedByLifecycle) {
@@ -173,7 +173,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
+            if (out.getTransportVersion().supports(V_8_12_0)) {
                 out.writeOptionalWriteable(error);
             } else {
                 String errorMessage = error != null ? error.error() : null;

@@ -46,7 +46,7 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         super(in);
         shardIds = in.readCollectionAsList(ShardId::new);
         fields = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             filters = in.readStringArray();
             allowedTypes = in.readStringArray();
         } else {
@@ -57,7 +57,7 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         } else {
             includeEmptyFields = true;
@@ -137,7 +137,7 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         super.writeTo(out);
         out.writeCollection(shardIds);
         out.writeStringArray(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(allowedTypes);
         }
@@ -145,7 +145,7 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
     }

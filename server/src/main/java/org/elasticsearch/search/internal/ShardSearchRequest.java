@@ -283,7 +283,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         numberOfShards = in.readVInt();
         scroll = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to deserialize between the 8.8 and 8.500.020 version we need to translate
             // the rank queries into sub searches if we are ranking; if there are no rank queries
             // we deserialize the empty list and do nothing
@@ -329,7 +329,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             /*
@@ -358,7 +358,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
         out.writeOptionalTimeValue(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to serialize between the 8.8 and 8.500.020 version we need to translate
             // the sub searches into rank queries if we are ranking, otherwise, we
             // ignore this because linear combination will have multiple sub searches in
@@ -392,7 +392,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         TransportVersion.writeVersion(channelVersion, out);
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {

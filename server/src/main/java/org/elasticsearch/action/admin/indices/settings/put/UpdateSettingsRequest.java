@@ -57,7 +57,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             reopen = in.readBoolean();
         }
     }
@@ -204,7 +204,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings.writeTo(out);
         out.writeBoolean(preserveExisting);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
             out.writeBoolean(reopen);
         }
     }

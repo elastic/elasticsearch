@@ -52,7 +52,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             force = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 deleteUserAnnotations = in.readBoolean();
             } else {
                 deleteUserAnnotations = false;
@@ -105,7 +105,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(force);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
                 out.writeBoolean(deleteUserAnnotations);
             }
         }

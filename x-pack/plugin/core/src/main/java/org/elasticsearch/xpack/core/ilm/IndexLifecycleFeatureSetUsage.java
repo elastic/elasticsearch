@@ -427,12 +427,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureUsage {
             this.setPriorityPriority = in.readOptionalVInt();
             this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.shrinkNumberOfShards = in.readOptionalVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
                 this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
             } else {
                 this.rolloverMaxPrimaryShardDocs = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 this.rolloverMinAge = in.readOptionalTimeValue();
                 this.rolloverMinDocs = in.readOptionalVLong();
                 this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
@@ -458,10 +458,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureUsage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_2_0)) {
                 out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 out.writeOptionalTimeValue(rolloverMinAge);
                 out.writeOptionalVLong(rolloverMinDocs);
                 out.writeOptionalWriteable(rolloverMinPrimaryShardSize);

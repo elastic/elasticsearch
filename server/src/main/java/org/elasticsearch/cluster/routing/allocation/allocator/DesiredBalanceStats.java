@@ -53,9 +53,9 @@ public record DesiredBalanceStats(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1
+            in.getTransportVersion().supports(V_8_12_0) ? in.readVLong() : -1,
+            in.getTransportVersion().supports(V_8_12_0) ? in.readVLong() : -1,
+            in.getTransportVersion().supports(V_8_12_0) ? in.readVLong() : -1
         );
     }
 

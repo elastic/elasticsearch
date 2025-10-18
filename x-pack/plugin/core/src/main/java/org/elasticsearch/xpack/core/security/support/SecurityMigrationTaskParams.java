@@ -48,7 +48,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
 
     public SecurityMigrationTaskParams(StreamInput in) throws IOException {
         this.migrationVersion = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             this.migrationNeeded = in.readBoolean();
         } else {
             this.migrationNeeded = true;
@@ -58,7 +58,7 @@ public class SecurityMigrationTaskParams implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(migrationVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_15_0)) {
             out.writeBoolean(migrationNeeded);
         }
     }

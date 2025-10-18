@@ -40,7 +40,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
                 force = in.readBoolean();
             } else {
                 force = false;
@@ -83,7 +83,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_1_0)) {
                 out.writeBoolean(force);
             }
         }

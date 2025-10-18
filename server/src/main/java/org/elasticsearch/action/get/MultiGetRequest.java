@@ -260,7 +260,7 @@ public class MultiGetRequest extends LegacyActionRequest
         refresh = in.readBoolean();
         realtime = in.readBoolean();
         items = in.readCollectionAsList(Item::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -274,7 +274,7 @@ public class MultiGetRequest extends LegacyActionRequest
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
         out.writeCollection(items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {

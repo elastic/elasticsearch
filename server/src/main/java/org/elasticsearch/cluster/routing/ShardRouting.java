@@ -343,7 +343,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource = null;
         }
         unassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
-        if (in.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
+        if (in.getTransportVersion().supports(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         } else {
             relocationFailureInfo = RelocationFailureInfo.NO_FAILURES;
@@ -351,12 +351,12 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         allocationId = in.readOptionalWriteable(AllocationId::new);
         if (state == ShardRoutingState.RELOCATING
             || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && in.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+            || (state == ShardRoutingState.STARTED && in.getTransportVersion().supports(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             expectedShardSize = in.readLong();
         } else {
             expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             role = Role.readFrom(in);
         } else {
             role = Role.DEFAULT;
@@ -383,17 +383,17 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource.writeTo(out);
         }
         out.writeOptionalWriteable(unassignedInfo);
-        if (out.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
+        if (out.getTransportVersion().supports(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo.writeTo(out);
         }
         out.writeOptionalWriteable(allocationId);
         if (state == ShardRoutingState.RELOCATING
             || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && out.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+            || (state == ShardRoutingState.STARTED && out.getTransportVersion().supports(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             out.writeLong(expectedShardSize);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_7_0)) {
             role.writeTo(out);
         } else if (role != Role.DEFAULT) {
             throw new IllegalStateException(

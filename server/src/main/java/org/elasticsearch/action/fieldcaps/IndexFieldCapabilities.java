@@ -49,7 +49,7 @@ public record IndexFieldCapabilities(
         boolean isAggregatable = in.readBoolean();
         boolean isDimension;
         TimeSeriesParams.MetricType metricType;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_0_0)) {
             isDimension = in.readBoolean();
             metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         } else {
@@ -75,7 +75,7 @@ public record IndexFieldCapabilities(
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }

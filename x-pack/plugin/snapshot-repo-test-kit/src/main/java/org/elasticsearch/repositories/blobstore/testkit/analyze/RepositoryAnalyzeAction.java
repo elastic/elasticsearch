@@ -483,7 +483,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
-            if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_8_0)) {
+            if (minClusterTransportVersion.supports(TransportVersions.V_8_8_0)) {
                 final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
                 final AtomicBoolean contendedRegisterAnalysisComplete = new AtomicBoolean();
                 final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
@@ -511,7 +511,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     }
                 }
 
-                if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
+                if (minClusterTransportVersion.supports(TransportVersions.V_8_12_0)) {
                     new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
                 }
             }
@@ -972,7 +972,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 registerOperationCount = in.readVInt();
             } else {
                 registerOperationCount = concurrency;
@@ -1000,7 +1000,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_12_0)) {
                 out.writeVInt(registerOperationCount);
             } else if (registerOperationCount != concurrency) {
                 throw new IllegalArgumentException(

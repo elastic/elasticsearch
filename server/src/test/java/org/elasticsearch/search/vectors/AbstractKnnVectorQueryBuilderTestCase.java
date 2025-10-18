@@ -476,7 +476,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             TransportVersions.V_8_8_1,
             TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_18_0)
         );
-        VectorData vectorData = version.onOrAfter(TransportVersions.V_8_14_0)
+        VectorData vectorData = version.supports(TransportVersions.V_8_14_0)
             ? query.queryVector()
             : VectorData.fromFloats(query.queryVector().asFloatVector());
         Integer k = version.before(TransportVersions.V_8_15_0) ? null : query.k();

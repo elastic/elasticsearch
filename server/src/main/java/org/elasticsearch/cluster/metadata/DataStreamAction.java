@@ -89,7 +89,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         this.type = Type.fromValue(in.readByte());
         this.dataStream = in.readString();
         this.index = in.readString();
-        this.failureStore = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) && in.readBoolean();
+        this.failureStore = in.getTransportVersion().supports(TransportVersions.V_8_14_0) && in.readBoolean();
     }
 
     private DataStreamAction(Type type, String dataStream, String index, boolean failureStore) {
@@ -156,7 +156,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         out.writeByte(type.value());
         out.writeString(dataStream);
         out.writeString(index);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)) {
             out.writeBoolean(failureStore);
         }
     }

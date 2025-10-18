@@ -168,27 +168,27 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 numberOfAllocations = in.readOptionalVInt();
             } else {
                 numberOfAllocations = in.readVInt();
             }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
                 this.deploymentId = modelId;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
             } else {
                 this.adaptiveAllocationsSettings = null;
@@ -296,23 +296,23 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 out.writeOptionalVInt(numberOfAllocations);
             } else {
                 out.writeVInt(numberOfAllocations);
             }
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 out.writeOptionalWriteable(cacheSize);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
             }
         }
@@ -577,23 +577,23 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.threadsPerAllocation = in.readVInt();
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             } else {
                 this.cacheSize = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
                 this.deploymentId = modelId;
             }
 
-            if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
+            if (in.getTransportVersion().supports(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 // We store additional model usage per allocation in the task params.
                 this.perDeploymentMemoryBytes = in.readLong();
                 this.perAllocationMemoryBytes = in.readLong();
@@ -645,16 +645,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 out.writeOptionalWriteable(cacheSize);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
-            if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
+            if (out.getTransportVersion().supports(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
                 out.writeLong(perDeploymentMemoryBytes);
                 out.writeLong(perAllocationMemoryBytes);
             }

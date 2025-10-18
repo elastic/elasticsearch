@@ -121,7 +121,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         offset = in.readVInt();
         policies = in.readStringArray();
         fromSortValue = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+        if (in.getTransportVersion().supports(INDICES_FLAG_VERSION)) {
             includeIndexNames = in.readBoolean();
         }
         if (in.getTransportVersion().supports(STATE_FLAG_VERSION)) {
@@ -145,7 +145,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeVInt(offset);
         out.writeStringArray(policies);
         out.writeOptionalString(fromSortValue);
-        if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+        if (out.getTransportVersion().supports(INDICES_FLAG_VERSION)) {
             out.writeBoolean(includeIndexNames);
         }
         if (out.getTransportVersion().supports(STATE_FLAG_VERSION)) {

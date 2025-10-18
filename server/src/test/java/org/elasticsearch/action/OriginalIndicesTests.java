@@ -46,7 +46,7 @@ public class OriginalIndicesTests extends ESTestCase {
             // indices options are not equivalent when sent to an older version and re-read due
             // to the addition of selector settings. Allow selectors is always true when read
             // from a version prior to its addition, since true is the default value.
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) || originalIndices.indicesOptions().allowSelectors()) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_14_0) || originalIndices.indicesOptions().allowSelectors()) {
                 assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
             }
         }

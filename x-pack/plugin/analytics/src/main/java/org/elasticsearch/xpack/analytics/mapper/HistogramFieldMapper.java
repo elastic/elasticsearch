@@ -400,7 +400,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
-                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+                    if (streamOutput.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
                         streamOutput.writeVLong(count);
                     } else {
                         streamOutput.writeVInt(Math.toIntExact(count));
@@ -471,7 +471,7 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public boolean next() throws IOException {
             if (streamInput.available() > 0) {
-                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+                if (streamInput.getTransportVersion().supports(TransportVersions.V_8_11_X)) {
                     count = streamInput.readVLong();
                 } else {
                     count = streamInput.readVInt();

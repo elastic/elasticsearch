@@ -144,14 +144,14 @@ public class SimulateBulkRequest extends BulkRequest {
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
         this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
             this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
         } else {
             componentTemplateSubstitutions = Map.of();
             indexTemplateSubstitutions = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_17_0)) {
             this.mappingAddition = (Map<String, Object>) in.readGenericValue();
         } else {
             mappingAddition = Map.of();
@@ -167,11 +167,11 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             out.writeGenericValue(componentTemplateSubstitutions);
             out.writeGenericValue(indexTemplateSubstitutions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_17_0)) {
             out.writeGenericValue(mappingAddition);
         }
         if (out.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {

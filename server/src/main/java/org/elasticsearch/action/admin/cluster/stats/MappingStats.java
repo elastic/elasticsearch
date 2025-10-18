@@ -258,7 +258,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     MappingStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             totalFieldCount = in.readOptionalVLong();
             totalDeduplicatedFieldCount = in.readOptionalVLong();
             totalMappingSizeBytes = in.readOptionalVLong();
@@ -277,7 +277,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
             out.writeOptionalVLong(totalFieldCount);
             out.writeOptionalVLong(totalDeduplicatedFieldCount);
             out.writeOptionalVLong(totalMappingSizeBytes);

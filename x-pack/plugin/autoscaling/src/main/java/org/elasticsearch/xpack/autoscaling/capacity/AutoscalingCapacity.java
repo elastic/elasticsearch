@@ -46,7 +46,7 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
         public AutoscalingResources(StreamInput in) throws IOException {
             this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
@@ -88,7 +88,7 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_4_0)) {
                 out.writeOptionalWriteable(processors);
             }
         }

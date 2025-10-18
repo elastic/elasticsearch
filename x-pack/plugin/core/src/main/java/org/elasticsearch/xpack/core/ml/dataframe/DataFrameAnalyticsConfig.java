@@ -191,7 +191,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.version = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
         this.allowLazyStart = in.readBoolean();
         this.maxNumThreads = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             Map<String, Object> readMeta = in.readGenericMap();
             this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
         } else {
@@ -323,7 +323,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         out.writeBoolean(allowLazyStart);
         out.writeVInt(maxNumThreads);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeGenericMap(meta);
         }
     }

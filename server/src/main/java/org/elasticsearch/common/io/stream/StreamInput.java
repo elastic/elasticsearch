@@ -919,10 +919,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
+            case 9 -> getTransportVersion().supports(TransportVersions.V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
+            case 10 -> getTransportVersion().supports(TransportVersions.V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
@@ -972,7 +972,7 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         final Instant instant;
-        if (getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             instant = Instant.ofEpochSecond(readZLong(), readInt());
         } else {
             instant = Instant.ofEpochMilli(readLong());

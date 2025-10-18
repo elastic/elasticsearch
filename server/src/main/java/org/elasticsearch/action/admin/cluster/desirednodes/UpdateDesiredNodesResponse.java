@@ -37,13 +37,13 @@ public class UpdateDesiredNodesResponse extends ActionResponse implements ToXCon
 
     public UpdateDesiredNodesResponse(StreamInput in) throws IOException {
         this.replacedExistingHistoryId = in.readBoolean();
-        dryRun = in.getTransportVersion().onOrAfter(DRY_RUN_SUPPORTING_VERSION) ? in.readBoolean() : false;
+        dryRun = in.getTransportVersion().supports(DRY_RUN_SUPPORTING_VERSION) ? in.readBoolean() : false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(replacedExistingHistoryId);
-        if (out.getTransportVersion().onOrAfter(DRY_RUN_SUPPORTING_VERSION)) {
+        if (out.getTransportVersion().supports(DRY_RUN_SUPPORTING_VERSION)) {
             out.writeBoolean(dryRun);
         }
     }

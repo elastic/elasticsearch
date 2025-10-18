@@ -28,7 +28,7 @@ public class GetUsersRequest extends LegacyActionRequest implements UserRequest 
     public GetUsersRequest(StreamInput in) throws IOException {
         super(in);
         usernames = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             withProfileUid = in.readBoolean();
         } else {
             withProfileUid = false;
@@ -77,7 +77,7 @@ public class GetUsersRequest extends LegacyActionRequest implements UserRequest 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(usernames);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             out.writeBoolean(withProfileUid);
         }
     }

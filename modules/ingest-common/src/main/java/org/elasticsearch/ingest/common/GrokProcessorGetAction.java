@@ -60,7 +60,7 @@ public class GrokProcessorGetAction {
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+            this.ecsCompatibility = in.getTransportVersion().supports(TransportVersions.V_8_0_0)
                 ? in.readString()
                 : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
         }
@@ -74,7 +74,7 @@ public class GrokProcessorGetAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_0_0)) {
                 out.writeString(ecsCompatibility);
             }
         }

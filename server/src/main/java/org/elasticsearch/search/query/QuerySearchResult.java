@@ -453,7 +453,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             nodeQueueSize = in.readInt();
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
             setRescoreDocIds(new RescoreDocIds(in));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
                 if (versionSupportsBatchedExecution(in.getTransportVersion())) {
                     reduced = in.readBoolean();
@@ -524,7 +524,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankShardResult);
         } else if (rankShardResult != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");

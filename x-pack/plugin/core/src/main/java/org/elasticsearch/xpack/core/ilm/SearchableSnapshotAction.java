@@ -145,7 +145,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
-        this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
+        this.totalShardsPerNode = in.getTransportVersion().supports(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
         this.replicateFor = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readOptionalTimeValue() : null;
     }
 
@@ -591,7 +591,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
         out.writeBoolean(forceMergeIndex);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {

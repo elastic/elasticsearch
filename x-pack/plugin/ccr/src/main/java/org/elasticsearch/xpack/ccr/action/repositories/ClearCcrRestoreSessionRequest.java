@@ -30,7 +30,7 @@ public class ClearCcrRestoreSessionRequest extends LegacyActionRequest implement
     ClearCcrRestoreSessionRequest(StreamInput in) throws IOException {
         super(in);
         sessionUUID = in.readString();
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
+        if (in.getTransportVersion().supports(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
             shardId = new ShardId(in);
         } else {
             shardId = null;
@@ -52,7 +52,7 @@ public class ClearCcrRestoreSessionRequest extends LegacyActionRequest implement
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(sessionUUID);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
+        if (out.getTransportVersion().supports(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
             shardId.writeTo(out);
         }
     }

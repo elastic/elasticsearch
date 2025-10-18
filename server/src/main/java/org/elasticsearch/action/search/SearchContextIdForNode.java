@@ -37,7 +37,7 @@ public final class SearchContextIdForNode implements Writeable {
     }
 
     SearchContextIdForNode(StreamInput in) throws IOException {
-        boolean allowNull = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
+        boolean allowNull = in.getTransportVersion().supports(TransportVersions.V_8_16_0);
         this.node = allowNull ? in.readOptionalString() : in.readString();
         this.clusterAlias = in.readOptionalString();
         this.searchContextId = allowNull ? in.readOptionalWriteable(ShardSearchContextId::new) : new ShardSearchContextId(in);
@@ -45,7 +45,7 @@ public final class SearchContextIdForNode implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean allowNull = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
+        boolean allowNull = out.getTransportVersion().supports(TransportVersions.V_8_16_0);
         if (allowNull) {
             out.writeOptionalString(node);
         } else {

@@ -40,12 +40,12 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
         this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             searchUsageStats = new SearchUsageStats(in);
         } else {
             searchUsageStats = new SearchUsageStats();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             repositoryUsageStats = RepositoryUsageStats.readFrom(in);
             searchCcsMetrics = new CCSTelemetrySnapshot(in);
         } else {
@@ -124,10 +124,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_6_0)) {
             searchUsageStats.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)) {
             repositoryUsageStats.writeTo(out);
             searchCcsMetrics.writeTo(out);
         } // else just drop these stats, ok for bwc

@@ -1558,7 +1558,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(transportVersion1)) {
+            if (in.getTransportVersion().supports(transportVersion1)) {
                 value2 = in.readInt();
             }
         }
@@ -1566,7 +1566,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(transportVersion1)) {
+            if (out.getTransportVersion().supports(transportVersion1)) {
                 out.writeInt(value2);
             }
         }
@@ -1601,7 +1601,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version1Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(transportVersion1)) {
+            if (in.getTransportVersion().supports(transportVersion1)) {
                 value2 = in.readInt();
             } else {
                 value2 = 0;
@@ -1611,7 +1611,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(transportVersion1)) {
+            if (out.getTransportVersion().supports(transportVersion1)) {
                 out.writeInt(value2);
             }
         }

@@ -57,7 +57,7 @@ public class GetUsersResponse extends ActionResponse implements ToXContentObject
                 Authentication.AuthenticationSerializationHelper.writeUserTo(user, out);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_5_0)) {
             if (profileUidLookup != null) {
                 out.writeBoolean(true);
                 out.writeMap(profileUidLookup, StreamOutput::writeString);

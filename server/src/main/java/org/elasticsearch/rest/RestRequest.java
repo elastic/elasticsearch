@@ -12,6 +12,7 @@ package org.elasticsearch.rest;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.bulk.XContentLengthPrefixedStreamingType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -332,9 +333,14 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
-        } else if (xContentType.get() == null) {
+        } else if (xContentType.get() == null && hasLengthPrefixedStreamingContent() == false) {
             throwValidationException("unknown content type");
         }
+    }
+
+    public boolean hasLengthPrefixedStreamingContent() {
+        return parsedContentType != null
+            && XContentLengthPrefixedStreamingType.fromMediaType(parsedContentType.mediaTypeWithoutParameters()) != null;
     }
 
     /**

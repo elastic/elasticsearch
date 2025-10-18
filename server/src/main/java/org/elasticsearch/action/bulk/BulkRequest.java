@@ -36,6 +36,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -257,14 +258,19 @@ public class BulkRequest extends LegacyActionRequest
      * Adds a framed data in binary format
      */
     public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
-        return add(new BytesArray(data, from, length), defaultIndex, xContentType);
+        return add(new BytesArray(data, from, length), defaultIndex, xContentType, RestBulkAction.BulkFormat.MARKER_SUFFIX);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, null, null, null, true, xContentType, RestApiVersion.current());
+    public BulkRequest add(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        XContentType xContentType,
+        RestBulkAction.BulkFormat bulkFormat
+    ) throws IOException {
+        return add(data, defaultIndex, null, null, null, null, null, null, true, xContentType, bulkFormat, RestApiVersion.current());
     }
 
     /**
@@ -272,7 +278,20 @@ public class BulkRequest extends LegacyActionRequest
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex, XContentType xContentType)
         throws IOException {
-        return add(data, defaultIndex, null, null, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
+        return add(
+            data,
+            defaultIndex,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            allowExplicitIndex,
+            xContentType,
+            RestBulkAction.BulkFormat.MARKER_SUFFIX,
+            RestApiVersion.current()
+        );
 
     }
 
@@ -287,6 +306,7 @@ public class BulkRequest extends LegacyActionRequest
         @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
+        RestBulkAction.BulkFormat bulkFormat,
         RestApiVersion restApiVersion
     ) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
@@ -304,6 +324,7 @@ public class BulkRequest extends LegacyActionRequest
             defaultListExecutedPipelines,
             allowExplicitIndex,
             xContentType,
+            bulkFormat,
             (indexRequest, type) -> internalAdd(indexRequest),
             this::internalAdd,
             this::add

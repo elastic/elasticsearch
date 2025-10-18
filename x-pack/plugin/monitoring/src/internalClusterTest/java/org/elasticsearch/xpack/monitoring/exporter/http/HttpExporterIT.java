@@ -31,6 +31,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
@@ -882,7 +883,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest().add(
             new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)),
             null,
-            XContentType.JSON
+            XContentType.JSON,
+            RestBulkAction.BulkFormat.MARKER_SUFFIX
         );
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {

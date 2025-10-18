@@ -23,7 +23,7 @@ public interface MediaType {
     String VERSION_PATTERN = "\\d+";
 
     /**
-     * Returns a corresponding format path parameter for a MediaType.
+     * Returns a corresponding format path parameter for a MediaType or null if it is not supported.
      * i.e. ?format=txt for plain/text media type
      */
     String queryParameter();

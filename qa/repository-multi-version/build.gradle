@@ -10,8 +10,8 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 apply plugin: 'elasticsearch.bwc-test'
 
@@ -74,4 +74,8 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#Step4NewClusterTest")
   }
+}
+
+tasks.named('testTestingConventions').configure {
+  suffixes = ["IT"]
 }

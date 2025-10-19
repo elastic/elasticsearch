@@ -64,6 +64,10 @@ public class PutTrainedModelAliasActionRequestTests extends AbstractWireSerializ
                 )
             );
         }
+        { // model_id starts with .
+            ActionRequestValidationException ex = new Request("foo", ".foo", randomBoolean()).validate();
+            assertThat(ex, nullValue());
+        }
     }
 
 }

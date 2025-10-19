@@ -9,56 +9,101 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedView;
-import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
-public class ViewService {
-    /**
-     * Maximum number of views referencing views referencing views.
-     */
-    private static final int MAX_VIEW_DEPTH = 10;
-    private final ClusterService clusterService;
+public abstract class ViewService {
+    private final ViewServiceConfig config;
     private final EsqlFunctionRegistry functionRegistry;
 
-    public ViewService(ClusterService clusterService, EsqlFunctionRegistry functionRegistry) {
-        this.clusterService = clusterService;
-        this.functionRegistry = functionRegistry;
+    public record ViewServiceConfig(int maxViews, int maxViewSize, int maxViewDepth) {
+
+        public static final String MAX_VIEWS_COUNT_SETTING = "esql.views.max_count";
+        public static final String MAX_VIEWS_SIZE_SETTING = "esql.views.max_size";
+        public static final String MAX_VIEWS_DEPTH_SETTING = "esql.views.max_depth";
+        public static final ViewServiceConfig DEFAULT = new ViewServiceConfig(100, 10_000, 10);
+
+        public static ViewServiceConfig fromSettings(Settings settings) {
+            return new ViewServiceConfig(
+                settings.getAsInt(MAX_VIEWS_COUNT_SETTING, DEFAULT.maxViews),
+                settings.getAsInt(MAX_VIEWS_SIZE_SETTING, DEFAULT.maxViewSize),
+                settings.getAsInt(MAX_VIEWS_DEPTH_SETTING, DEFAULT.maxViewDepth)
+            );
+        }
     }
 
-    public LogicalPlan replaceViews(LogicalPlan plan, PlanTelemetry telemetry, Configuration configuration) {
-        ViewMetadata views = clusterService.state().metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+    public ViewService(EsqlFunctionRegistry functionRegistry, ViewServiceConfig config) {
+        this.functionRegistry = functionRegistry;
+        this.config = config;
+    }
+
+    protected abstract ViewMetadata getMetadata();
+
+    public LogicalPlan replaceViews(LogicalPlan plan, PlanTelemetry telemetry) {
+        ViewMetadata views = getMetadata();
 
         List<String> seen = new ArrayList<>();
         while (true) {
             LogicalPlan prev = plan;
-            plan = plan.transformUp(UnresolvedView.class, uv -> {
-                if (seen.size() > MAX_VIEW_DEPTH) {
-                    throw viewError("too many views referencing views ", seen);
+            plan = plan.transformUp(UnresolvedRelation.class, ur -> {
+                List<String> indexes = new ArrayList<>();
+                List<LogicalPlan> subqueries = new ArrayList<>();
+                for (String name : ur.indexPattern().indexPattern().split(",")) {
+                    name = name.trim();
+                    if (views.views().containsKey(name)) {
+                        boolean alreadySeen = seen.contains(name);
+                        seen.add(name);
+                        if (alreadySeen) {
+                            throw viewError("circular view reference ", seen);
+                        }
+                        if (seen.size() > config.maxViewDepth) {
+                            throw viewError("The maximum allowed view depth of " + config.maxViewDepth + " has been exceeded: ", seen);
+                        }
+                        View view = views.views().get(name);
+                        subqueries.add(resolve(view, telemetry));
+                    } else {
+                        indexes.add(name);
+                    }
                 }
-                boolean alreadySeen = seen.contains(uv.name());
-                seen.add(uv.name());
-                if (alreadySeen) {
-                    throw viewError("circular view reference ", seen);
+                if (subqueries.isEmpty()) {
+                    // No views defined, just return the original plan
+                    return ur;
                 }
-                return resolve(views, uv, telemetry, configuration);
+                if (indexes.isEmpty()) {
+                    if (subqueries.size() == 1) {
+                        // only one view, no need for union
+                        return subqueries.getFirst();
+                    }
+                } else {
+                    subqueries.add(
+                        0,
+                        new UnresolvedRelation(
+                            ur.source(),
+                            new IndexPattern(ur.indexPattern().source(), String.join(",", indexes)),
+                            ur.frozen(),
+                            ur.metadataFields(),
+                            ur.indexMode(),
+                            ur.unresolvedMessage()
+                        )
+                    );
+                }
+                return new UnionAll(ur.source(), subqueries, List.of());
             });
             if (plan.equals(prev)) {
                 return prev;
@@ -66,18 +111,14 @@ public class ViewService {
         }
     }
 
-    private static LogicalPlan resolve(ViewMetadata views, UnresolvedView uv, PlanTelemetry telemetry, Configuration configuration) {
-        View view = views.views().get(uv.name());
-        if (view == null) {
-            return uv;
-        }
+    private static LogicalPlan resolve(View view, PlanTelemetry telemetry) {
         // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
         // this will make super-wrong Source. the _source should be the view.
         // if there's a `filter` it applies "under" the view. that's weird. right?
         // security to create this
         // telemetry
         // don't allow circular references
-        return new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry, configuration);
+        return new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
     }
 
     private VerificationException viewError(String type, List<String> seen) {
@@ -96,32 +137,65 @@ public class ViewService {
     /**
      * Adds or modifies a view by name. This method can only be invoked on the master node.
      */
-    public void put(String name, View view, ActionListener<Void> callback, Configuration configuration) {
-        assert clusterService.localNode().isMasterNode();
-        new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry), configuration);
-        // TODO should we validate this in the transport action and make it async? like plan like a query
-        // TODO postgresql does.
-
-        updateClusterState(callback, current -> {
-            Map<String, View> original = current.metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views();
+    public void put(String name, View view, ActionListener<Void> callback) {
+        assertMasterNode();
+        validatePutView(name, view);
+        updateViewMetadata(callback, current -> {
+            Map<String, View> original = getMetadata().views();
             Map<String, View> updated = new HashMap<>(original);
             updated.put(name, view);
             return updated;
         });
     }
 
+    private void validatePutView(String name, View view) {
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+        if (view == null) {
+            throw new IllegalArgumentException("view is missing");
+        }
+        if (Strings.isNullOrEmpty(view.query())) {
+            throw new IllegalArgumentException("view query is missing or empty");
+        }
+        if (view.query().length() > config.maxViewSize) {
+            throw new IllegalArgumentException(
+                "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + config.maxViewSize
+            );
+        }
+        if (getMetadata().views().containsKey(name) == false && getMetadata().views().size() >= config.maxViews) {
+            throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
+        }
+        new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry));
+        // TODO should we validate this in the transport action and make it async? like plan like a query
+        // TODO postgresql does.
+    }
+
+    /**
+     * Gets the view by name.
+     */
+    public View get(String name) {
+        return getMetadata().views().get(name);
+    }
+
+    /**
+     * List current view names.
+     */
+    public Set<String> list() {
+        return getMetadata().views().keySet();
+    }
+
     /**
      * Removes a view from the cluster state. This method can only be invoked on the master node.
      */
     public void delete(String name, ActionListener<Void> callback) {
-        assert clusterService.localNode().isMasterNode();
-
+        assertMasterNode();
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
-        updateClusterState(callback, current -> {
-            Map<String, View> original = current.metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views();
+        updateViewMetadata(callback, current -> {
+            Map<String, View> original = current.views();
             if (original.containsKey(name) == false) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
             }
@@ -131,31 +205,7 @@ public class ViewService {
         });
     }
 
-    private void updateClusterState(ActionListener<Void> callback, Function<ClusterState, Map<String, View>> function) {
-        submitUnbatchedTask("update-esql-view-metadata", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Map<String, View> policies = function.apply(currentState);
-                Metadata metadata = Metadata.builder(currentState.metadata())
-                    .putCustom(ViewMetadata.TYPE, new ViewMetadata(policies))
-                    .build();
-                return ClusterState.builder(currentState).metadata(metadata).build();
-            }
+    protected abstract void assertMasterNode();
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                callback.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                callback.onFailure(e);
-            }
-        });
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
+    protected abstract void updateViewMetadata(ActionListener<Void> callback, Function<ViewMetadata, Map<String, View>> function);
 }

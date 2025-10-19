@@ -185,6 +185,7 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
+        EsqlStatement statement = parse(request.query(), request.params());
         Configuration configuration = new Configuration(
             request.timeZone() == null
                 ? statement.setting(QuerySettings.TIME_ZONE)
@@ -206,7 +207,7 @@ public class EsqlSession {
         );
         FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = viewService.replaceViews(parse(request.query(), request.params()).plan(), planTelemetry, configuration);
+        LogicalPlan plan = viewService.replaceViews(statement.plan(), planTelemetry);
         if (plan instanceof Explain explain) {
             explainMode = true;
             plan = explain.query();

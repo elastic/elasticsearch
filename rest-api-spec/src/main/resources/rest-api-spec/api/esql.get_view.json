@@ -1,21 +1,25 @@
 {
-  "esql.put_view":{
+  "esql.get_view":{
     "documentation":{
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-view-put",
-      "description":"Creates a VIEW for ESQL."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-view-get",
+      "description":"Get a VIEW for ESQL."
     },
     "stability": "experimental",
     "visibility": "public",
     "headers": {
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url":{
       "paths":[
         {
           "path":"/_query/view/{name}",
           "methods":[
-            "PUT"
+            "GET"
           ],
           "parts": {
             "name": {
@@ -25,10 +29,6 @@
           }
         }
       ]
-    },
-    "body":{
-      "description":"Use the `query` element to start a query.",
-      "required":true
     }
   }
 }

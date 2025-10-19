@@ -114,7 +114,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.NOT_PREFERRED, NAME, explanation);
         }
 
-        return Decision.YES;
+        return allocation.decision(Decision.YES, NAME, "Node index shard allocation is under the threshold.");
     }
 
 }

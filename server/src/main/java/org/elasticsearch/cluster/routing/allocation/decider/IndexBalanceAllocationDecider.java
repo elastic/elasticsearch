@@ -130,6 +130,5 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     private void setClusterExcludeFilters(Map<String, List<String>> filters) {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
-        logger.info(clusterExcludeFilters);
     }
 }

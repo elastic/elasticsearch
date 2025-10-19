@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
@@ -363,13 +362,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicLong idGenerator = new AtomicLong();
 
-    private final Map<ShardSearchContextId, ReaderContext> activeReaders = ConcurrentCollections
-        .newConcurrentMapWithAggressiveConcurrency();
+    private final ActiveReaders activeReaders;
 
     private final MultiBucketConsumerService multiBucketConsumerService;
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
-    private final String sessionId = UUIDs.randomBase64UUID();
+    private final String sessionId;
 
     private final Tracer tracer;
 
@@ -386,6 +384,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         OnlinePrewarmingService onlinePrewarmingService
     ) {
         Settings settings = clusterService.getSettings();
+        this.sessionId = UUIDs.randomBase64UUID();
+        this.activeReaders = new ActiveReaders(this.sessionId, this.idGenerator);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

@@ -15,6 +15,10 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
@@ -141,31 +145,6 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
                 dimensions,
                 tokenLimit,
                 false
-            ),
-            taskSettings,
-            null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    public static VoyageAIEmbeddingsModel createModel(
-        String url,
-        String apiKey,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
-        @Nullable Integer tokenLimit,
-        @Nullable Integer dimensions,
-        String model,
-        VoyageAIEmbeddingType embeddingType
-    ) {
-        return new VoyageAIEmbeddingsModel(
-            "id",
-            "service",
-            new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(url, model, null),
-                embeddingType,
-                SimilarityMeasure.DOT_PRODUCT,
-                dimensions,
-                tokenLimit
             ),
             taskSettings,
             null,

@@ -15,31 +15,24 @@ import java.util.Objects;
 
 abstract class VoyageAIRequestManager extends BaseRequestManager {
     private static final String DEFAULT_MODEL_FAMILY = "default_model_family";
-    private static final Map<String, String> MODEL_TO_MODEL_FAMILY = Map.of(
-        "voyage-multimodal-3",
-        "embed_multimodal",
-        "voyage-3-large",
-        "embed_large",
-        "voyage-code-3",
-        "embed_large",
-        "voyage-3",
-        "embed_medium",
-        "voyage-3-lite",
-        "embed_small",
-        "voyage-finance-2",
-        "embed_large",
-        "voyage-law-2",
-        "embed_large",
-        "voyage-code-2",
-        "embed_large",
-        "rerank-2",
-        "rerank_large",
-        "rerank-2-lite",
-        "rerank_small"
+    private static final Map<String, String> MODEL_TO_MODEL_FAMILY = Map.ofEntries(
+        Map.entry("voyage-3.5", "embed_medium"),
+        Map.entry("voyage-3.5-lite", "embed_small"),
+        Map.entry("voyage-context-3", "embed_context"),
+        Map.entry("voyage-multimodal-3", "embed_multimodal"),
+        Map.entry("voyage-3-large", "embed_large"),
+        Map.entry("voyage-code-3", "embed_large"),
+        Map.entry("voyage-3", "embed_medium"),
+        Map.entry("voyage-3-lite", "embed_small"),
+        Map.entry("voyage-finance-2", "embed_large"),
+        Map.entry("voyage-law-2", "embed_large"),
+        Map.entry("voyage-code-2", "embed_large"),
+        Map.entry("rerank-2", "rerank_large"),
+        Map.entry("rerank-2-lite", "rerank_small")
     );
 
     protected VoyageAIRequestManager(ThreadPool threadPool, VoyageAIModel model) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitSettings());
     }
 
     record RateLimitGrouping(int apiKeyHash) {

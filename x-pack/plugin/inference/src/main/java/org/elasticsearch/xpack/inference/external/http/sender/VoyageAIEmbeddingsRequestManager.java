@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIResponseHandler;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
 
 import java.util.List;
 import java.util.Objects;
@@ -49,8 +49,8 @@ public class VoyageAIEmbeddingsRequestManager extends VoyageAIRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(docsInput, model);
+        var embeddingsInput = inferenceInputs.castTo(EmbeddingsInput.class);
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(embeddingsInput.getInputs(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

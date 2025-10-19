@@ -17,21 +17,20 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType.toLowerCase;
+import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType.toLowerCase;
 
 public class VoyageAIEmbeddingsResponseEntity {
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
@@ -78,9 +77,13 @@ public class VoyageAIEmbeddingsResponseEntity {
             }
         }
 
-        public InferenceByteEmbedding toInferenceByteEmbedding() {
+        public DenseEmbeddingByteResults.Embedding toInferenceByteEmbedding() {
             embedding.forEach(EmbeddingInt8ResultEntry::checkByteBounds);
-            return InferenceByteEmbedding.of(embedding.stream().map(Integer::byteValue).toList());
+            byte[] embeddingArray = new byte[embedding.size()];
+            for (int i = 0; i < embedding.size(); i++) {
+                embeddingArray[i] = embedding.get(i).byteValue();
+            }
+            return new DenseEmbeddingByteResults.Embedding(embeddingArray, null, 0);
         }
     }
 
@@ -111,8 +114,12 @@ public class VoyageAIEmbeddingsResponseEntity {
             PARSER.declareFloatArray(constructorArg(), new ParseField("embedding"));
         }
 
-        public InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding toInferenceFloatEmbedding() {
-            return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embedding);
+        public DenseEmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
+            float[] embeddingArray = new float[embedding.size()];
+            for (int i = 0; i < embedding.size(); i++) {
+                embeddingArray[i] = embedding.get(i);
+            }
+            return new DenseEmbeddingFloatResults.Embedding(embeddingArray, 0);
         }
     }
 
@@ -169,22 +176,22 @@ public class VoyageAIEmbeddingsResponseEntity {
             if (embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {
                 var embeddingResult = EmbeddingFloatResult.PARSER.apply(jsonParser, null);
 
-                List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddingList = embeddingResult.entries.stream()
+                List<DenseEmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingFloatResultEntry::toInferenceFloatEmbedding)
                     .toList();
-                return new InferenceTextEmbeddingFloatResults(embeddingList);
+                return new DenseEmbeddingFloatResults(embeddingList);
             } else if (embeddingType == VoyageAIEmbeddingType.INT8) {
                 var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
-                List<InferenceByteEmbedding> embeddingList = embeddingResult.entries.stream()
+                List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
                     .toList();
-                return new InferenceTextEmbeddingByteResults(embeddingList);
+                return new DenseEmbeddingByteResults(embeddingList);
             } else if (embeddingType == VoyageAIEmbeddingType.BIT || embeddingType == VoyageAIEmbeddingType.BINARY) {
                 var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);
-                List<InferenceByteEmbedding> embeddingList = embeddingResult.entries.stream()
+                List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
                     .toList();
-                return new InferenceTextEmbeddingBitResults(embeddingList);
+                return new DenseEmbeddingBitResults(embeddingList);
             } else {
                 throw new IllegalArgumentException(
                     "Illegal embedding_type value: " + embeddingType + ". Supported types are: " + VALID_EMBEDDING_TYPES_STRING

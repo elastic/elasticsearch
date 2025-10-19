@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.text;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;

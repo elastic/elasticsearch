@@ -3976,6 +3976,7 @@ required_capability: inline_stats
 required_capability: fix_join_output_merging
 
 FROM languages_lookup_non_unique_key
+| EVAL country = MV_SORT(country)
 | KEEP country, language_name
 | EVAL language_code = null::integer
 | INLINE STATS MAX(language_code) BY language_code
@@ -3983,7 +3984,7 @@ FROM languages_lookup_non_unique_key
 | LIMIT 5
 ;
 
-country:text      |language_name:keyword |MAX(language_code):integer |language_code:integer
+country:keyword   |language_name:keyword |MAX(language_code):integer |language_code:integer
 Atlantis          |null                  |null                       |null
 [Austria, Germany]|German                |null                       |null
 Canada            |English               |null                       |null

@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
@@ -19,7 +20,7 @@ import java.util.Map;
 public record AnalyzerContext(
     Configuration configuration,
     EsqlFunctionRegistry functionRegistry,
-    IndexResolution indexResolution,
+    Map<IndexPattern, IndexResolution> indexResolution,
     Map<String, IndexResolution> lookupResolution,
     EnrichResolution enrichResolution,
     InferenceResolution inferenceResolution,
@@ -29,7 +30,7 @@ public record AnalyzerContext(
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
@@ -52,7 +53,7 @@ public record AnalyzerContext(
         this(
             configuration,
             functionRegistry,
-            result.indices(),
+            result.indexResolutions(),
             result.lookupIndices(),
             result.enrichResolution(),
             result.inferenceResolution(),

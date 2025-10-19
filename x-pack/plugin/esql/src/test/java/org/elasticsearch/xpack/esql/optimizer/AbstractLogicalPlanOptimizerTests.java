@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
@@ -35,6 +34,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
@@ -83,15 +83,15 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
-        // Most tests used data from the test index, so we load it here, and use it in the plan() function.
+        // Most tests use either "test" or "employees" as the index name, but for the same mapping
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex employees = new EsIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD));
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test, employees),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -99,15 +99,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
+        // Some tests use data from the airports index, so we load it here, and use it in the planAirports() function.
         mappingAirports = loadMapping("mapping-airports.json");
         EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
-        IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResultAirports,
+                indexResolutions(airports),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -118,12 +117,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         // Some tests need additional types, so we load that index here and use it in the plan_types() function.
         mappingTypes = loadMapping("mapping-all-types.json");
         EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
-        IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResultTypes,
+                indexResolutions(types),
                 enrichResolution,
                 defaultInferenceResolution()
             ),
@@ -133,12 +131,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
         mappingExtra = loadMapping("mapping-extra.json");
         EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
-        IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResultExtra,
+                indexResolutions(extra),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -146,12 +143,12 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
-        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
+        var metricsIndex = new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES));
         metricsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                metricsIndex,
+                indexResolutions(metricsIndex),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -163,19 +160,17 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             "partial_type_keyword",
             new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        var multiIndex = IndexResolution.valid(
-            new EsIndex(
-                "multi_index",
-                multiIndexMapping,
-                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Set.of("partial_type_keyword")
-            )
+        var multiIndex = new EsIndex(
+            "multi_index",
+            multiIndexMapping,
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Set.of("partial_type_keyword")
         );
         multiIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                multiIndex,
+                indexResolutions(multiIndex),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -183,14 +178,12 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var sampleDataMapping = loadMapping("mapping-sample_data.json");
-        var sampleDataIndex = IndexResolution.valid(
-            new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD))
-        );
+        var sampleDataIndex = new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD));
         sampleDataIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                sampleDataIndex,
+                indexResolutions(sampleDataIndex),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -208,25 +201,19 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
         var analyzed = analyzer.analyze(parser.createStatement(query));
-        // System.out.println(analyzed);
         var optimized = optimizer.optimize(analyzed);
-        // System.out.println(optimized);
         return optimized;
     }
 
     protected LogicalPlan planAirports(String query) {
         var analyzed = analyzerAirports.analyze(parser.createStatement(query));
-        // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
         return optimized;
     }
 
     protected LogicalPlan planExtra(String query) {
         var analyzed = analyzerExtra.analyze(parser.createStatement(query));
-        // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
         return optimized;
     }
 

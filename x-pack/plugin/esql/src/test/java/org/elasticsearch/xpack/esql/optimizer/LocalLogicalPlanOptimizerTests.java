@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -97,6 +96,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -124,14 +124,13 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -518,14 +517,13 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
 
         EsIndex index = new EsIndex("large", large, Map.of("large", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(index);
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(index),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -1114,13 +1112,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("integer_long_field", unionTypeField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
         );
-        IndexResolution getIndexResult = IndexResolution.valid(test);
 
         return new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),

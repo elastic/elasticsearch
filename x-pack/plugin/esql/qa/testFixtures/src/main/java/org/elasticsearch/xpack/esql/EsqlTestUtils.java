@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -441,11 +442,11 @@ public final class EsqlTestUtils {
     public static AnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolutions,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
     ) {
-        return testAnalyzerContext(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution, inferenceResolution);
+        return testAnalyzerContext(configuration, functionRegistry, indexResolutions, Map.of(), enrichResolution, inferenceResolution);
     }
 
     /**
@@ -454,7 +455,7 @@ public final class EsqlTestUtils {
     public static AnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
+        Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution
@@ -462,7 +463,7 @@ public final class EsqlTestUtils {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
-            indexResolution,
+            indexResolutions,
             lookupResolution,
             enrichResolution,
             inferenceResolution,

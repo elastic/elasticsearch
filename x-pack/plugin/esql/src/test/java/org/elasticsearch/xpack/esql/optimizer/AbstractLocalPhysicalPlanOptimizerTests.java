@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     protected final Configuration config;
@@ -101,7 +102,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                timeSeriesIndex,
+                indexResolutions(timeSeriesIndex),
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -123,7 +124,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
             testAnalyzerContext(
                 config,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -138,7 +139,13 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
 
     protected Analyzer makeAnalyzer(IndexResolution indexResolution) {
         return new Analyzer(
-            testAnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
+            testAnalyzerContext(
+                config,
+                new EsqlFunctionRegistry(),
+                indexResolutions(indexResolution),
+                new EnrichResolution(),
+                emptyInferenceResolution()
+            ),
             new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }

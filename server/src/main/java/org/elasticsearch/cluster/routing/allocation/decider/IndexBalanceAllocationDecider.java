@@ -14,17 +14,24 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 
 /**
  * For an index of n shards hosted by a cluster of m nodes, a node should not host
@@ -39,9 +46,12 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
     public static final String NAME = "index_balance";
 
     private final IndexBalanceConstraintSettings indexBalanceConstraintSettings;
+    private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
-    public IndexBalanceAllocationDecider(ClusterSettings clusterSettings) {
+    public IndexBalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.indexBalanceConstraintSettings = new IndexBalanceConstraintSettings(clusterSettings);
+        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -> {});
     }
 
     @Override
@@ -64,6 +74,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         final Set<String> dataNodes = allocation.nodes()
             .stream()
             .filter(DiscoveryNode::canContainData)
+            .filter(it -> clusterExcludeFilters == null || clusterExcludeFilters.match(it) == false)
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
         final Set<String> nodesShuttingDown = allocation.metadata()
@@ -117,4 +128,8 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "Node index shard allocation is under the threshold.");
     }
 
+    private void setClusterExcludeFilters(Map<String, List<String>> filters) {
+        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
+        logger.info(clusterExcludeFilters);
+    }
 }

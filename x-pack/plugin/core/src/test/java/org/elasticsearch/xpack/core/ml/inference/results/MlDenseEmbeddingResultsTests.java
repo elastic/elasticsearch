@@ -16,35 +16,35 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class MlTextEmbeddingResultsTests extends InferenceResultsTestCase<MlTextEmbeddingResults> {
+public class MlDenseEmbeddingResultsTests extends InferenceResultsTestCase<MlDenseEmbeddingResults> {
 
-    public static MlTextEmbeddingResults createRandomResults() {
+    public static MlDenseEmbeddingResults createRandomResults() {
         int columns = randomIntBetween(1, 10);
         double[] arr = new double[columns];
         for (int i = 0; i < columns; i++) {
             arr[i] = randomDouble();
         }
 
-        return new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
+        return new MlDenseEmbeddingResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
     }
 
     @Override
-    protected Writeable.Reader<MlTextEmbeddingResults> instanceReader() {
-        return MlTextEmbeddingResults::new;
+    protected Writeable.Reader<MlDenseEmbeddingResults> instanceReader() {
+        return MlDenseEmbeddingResults::new;
     }
 
     @Override
-    protected MlTextEmbeddingResults createTestInstance() {
+    protected MlDenseEmbeddingResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected MlTextEmbeddingResults mutateInstance(MlTextEmbeddingResults instance) {
+    protected MlDenseEmbeddingResults mutateInstance(MlDenseEmbeddingResults instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testAsMap() {
-        MlTextEmbeddingResults testInstance = createTestInstance();
+        MlDenseEmbeddingResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
         int size = testInstance.isTruncated ? 2 : 1;
         assertThat(asMap.keySet(), hasSize(size));
@@ -55,7 +55,7 @@ public class MlTextEmbeddingResultsTests extends InferenceResultsTestCase<MlText
     }
 
     @Override
-    void assertFieldValues(MlTextEmbeddingResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+    void assertFieldValues(MlDenseEmbeddingResults createdInstance, IngestDocument document, String parentField, String resultsField) {
         assertArrayEquals(document.getFieldValue(parentField + resultsField, double[].class), createdInstance.getInference(), 1e-10);
     }
 }

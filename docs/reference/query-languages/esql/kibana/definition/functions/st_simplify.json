@@ -57,24 +57,6 @@
       ],
       "variadic" : false,
       "returnType" : "geo_shape"
-    },
-    {
-      "params" : [
-        {
-          "name" : "geometry",
-          "type" : "geo_shape",
-          "optional" : false,
-          "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "tolerance",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Tolerance for the geometry simplification"
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "geo_shape"
     }
   ],
   "examples" : [

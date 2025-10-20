@@ -3144,3 +3144,15 @@ result:geo_shape
 POINT (97.11 75.53)
 POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
 ;
+
+stSimplifyWithIntegerTolerance
+required_capability: st_simplify
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
+| EVAL result = st_simplify(geo_shape, 2)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;

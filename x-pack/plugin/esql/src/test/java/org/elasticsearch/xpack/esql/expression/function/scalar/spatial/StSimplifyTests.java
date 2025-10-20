@@ -37,7 +37,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeNotNull;
 
 @FunctionName("st_simplify")
@@ -135,30 +134,6 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
             var result = ((BytesRefVectorBlock) block).asVector().getBytesRef(0, new BytesRef());
             return block.isNull(0) ? null : result;
         }
-    }
-
-    protected String processNonRandom(String wkt, double tolerance) {
-        BytesRef wkb = UNSPECIFIED.wktToWkb(wkt);
-        try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
-                build(Source.EMPTY, List.of(new Literal(Source.EMPTY, wkb, GEO_POINT), new Literal(Source.EMPTY, tolerance, DOUBLE)))
-            ).get(driverContext());
-            Block block = eval.eval(row(List.of(wkb, tolerance)))
-        ) {
-            var result = ((BytesRefVectorBlock) block).asVector().getBytesRef(0, new BytesRef());
-            return block.isNull(0) ? null : UNSPECIFIED.wkbToWkt(result);
-        }
-    }
-
-    public void testInvalidToleranceNonRandom() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(-1.0));
-        assertThat(ex.getMessage(), containsString("tolerance must not be negative"));
-    }
-
-    // This should succeed
-    public void testZeroToleranceNonRandom() {
-        var result = processNonRandom("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))", 2.0);
-        assertThat(result, equalTo("POLYGON EMPTY"));
     }
 
     public void testInvalidTolerance() {

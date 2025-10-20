@@ -165,7 +165,7 @@ public class ExponentialHistogramState implements Releasable, Accountable {
      * @return an array of the mean values of the populated histogram buckets with their counts
      */
     public Collection<Centroid> centroids() {
-        List<Centroid> centroids = new ArrayList<>();
+        List<Centroid> centroids = new ArrayList<>(centroidCount());
         addBucketCentersAsCentroids(centroids, histogram().negativeBuckets().iterator(), -1);
         // negative buckets are in decreasing order, we want increasing order, therefore reverse
         Collections.reverse(centroids);

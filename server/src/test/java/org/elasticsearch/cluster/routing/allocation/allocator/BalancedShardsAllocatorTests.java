@@ -1134,24 +1134,28 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         // No allocation when NO
-        assertAssignedTo(allocationService, null, shuffledList("no"));
+        assertUnassigned(allocationService, shuffledList("no"));
         // NOT_PREFERRED over NO
         assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred", "no"));
-        // THROTTLE over NOT_PREFERRED/NO
-        assertAssignedTo(allocationService, null, shuffledList("throttle", "not-preferred", "no"));
-        // THROTTLE over NOT_PREFERRED
-        assertAssignedTo(allocationService, null, shuffledList("throttle", "not-preferred"));
+        // THROTTLE (No allocation) over NOT_PREFERRED/NO
+        assertUnassigned(allocationService, shuffledList("throttle", "not-preferred", "no"));
+        // THROTTLE (No allocation) over NOT_PREFERRED
+        assertUnassigned(allocationService, shuffledList("throttle", "not-preferred"));
         // YES over THROTTLE/NO/NOT_PREFERRED
         assertAssignedTo(allocationService, "yes", shuffledList("not-preferred", "yes", "throttle", "no"));
         // prioritize YES/THROTTLE by weight
-        assertAssignedTo(allocationService, null, shuffledList("throttle-low", "yes-high", "yes"));
-        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle-high"));
+        assertUnassigned(allocationService, shuffledList("throttle-low", "yes-high", "yes"));
+        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle", "throttle-high"));
         // prioritize YES over THROTTLE when weights equal
         assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle-low"));
         // prioritize YES by weight
         assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "yes", "yes-high"));
         // prioritize NOT_PREFERRED by weight
         assertAssignedTo(allocationService, "not-preferred-low", shuffledList("not-preferred-low", "not-preferred", "not-preferred-high"));
+    }
+
+    private void assertUnassigned(AllocationService allocationService, List<String> allNodeIds) {
+        assertAssignedTo(allocationService, null, allNodeIds);
     }
 
     private void assertAssignedTo(AllocationService allocationService, @Nullable String expectedNodeId, List<String> allNodeIds) {

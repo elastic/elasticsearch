@@ -1006,7 +1006,12 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                ( WHERE content:"fox" )
             """;
         try (var resp = run(query)) {
-            assertNotNull(resp);
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "keyword"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "The quick brown fox jumps over the lazy dog", 6, "fork1" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
         }
     }
 

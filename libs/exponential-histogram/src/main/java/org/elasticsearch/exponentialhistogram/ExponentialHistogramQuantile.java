@@ -25,6 +25,8 @@ import java.util.OptionalLong;
 
 /**
  * Provides quantile estimation for {@link ExponentialHistogram} instances.
+ * All algorithms assume that the values of each histogram bucket have exactly the same value,
+ * which is defined by {@link ExponentialScaleUtils#getPointOfLeastRelativeError(long, int)}.
  */
 public class ExponentialHistogramQuantile {
 

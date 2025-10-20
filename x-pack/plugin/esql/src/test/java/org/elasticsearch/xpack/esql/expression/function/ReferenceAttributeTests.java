@@ -56,4 +56,9 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
     protected ReferenceAttribute mutateNameId(ReferenceAttribute instance) {
         return (ReferenceAttribute) instance.withId(new NameId());
     }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
+    }
 }

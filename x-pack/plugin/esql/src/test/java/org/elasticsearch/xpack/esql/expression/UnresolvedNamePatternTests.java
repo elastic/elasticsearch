@@ -38,6 +38,11 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
     }
 
     @Override
+    protected boolean equalityIgnoresId() {
+        return true;
+    }
+
+    @Override
     protected UnresolvedNamePattern copyInstance(UnresolvedNamePattern instance, TransportVersion version) throws IOException {
         // Doesn't escape the node
         return new UnresolvedNamePattern(instance.source(), null, instance.pattern(), instance.name());

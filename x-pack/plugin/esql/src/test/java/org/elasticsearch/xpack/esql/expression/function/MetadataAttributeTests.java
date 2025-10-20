@@ -54,4 +54,9 @@ public class MetadataAttributeTests extends AbstractNamedExpressionSerialization
     protected MetadataAttribute mutateNameId(MetadataAttribute instance) {
         return (MetadataAttribute) instance.withId(new NameId());
     }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
+    }
 }

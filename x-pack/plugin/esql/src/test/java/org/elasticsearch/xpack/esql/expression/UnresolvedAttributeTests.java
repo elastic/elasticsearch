@@ -76,6 +76,11 @@ public class UnresolvedAttributeTests extends AbstractNamedExpressionSerializati
         return instance.withId(new NameId());
     }
 
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
+    }
+
     public void testTransform() {
         UnresolvedAttribute a = randomUnresolvedAttribute();
 

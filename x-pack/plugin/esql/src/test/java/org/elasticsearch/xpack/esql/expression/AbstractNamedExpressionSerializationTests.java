@@ -24,10 +24,15 @@ public abstract class AbstractNamedExpressionSerializationTests<T extends NamedE
         T instance = createTestInstance();
         T withNewId = mutateNameId(instance);
 
-        if (instance.equals(withNewId)) {
+        if (equalityIgnoresId()) {
+            assertEquals(instance, withNewId);
             assertEquals(instance.hashCode(), withNewId.hashCode());
+        } else {
+            assertNotEquals(instance, withNewId);
         }
     }
 
     protected abstract T mutateNameId(T instance);
+
+    protected abstract boolean equalityIgnoresId();
 }

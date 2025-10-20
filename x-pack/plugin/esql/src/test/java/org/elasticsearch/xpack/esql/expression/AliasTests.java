@@ -54,4 +54,9 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
     protected Alias mutateNameId(Alias instance) {
         return instance.withId(new NameId());
     }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
+    }
 }

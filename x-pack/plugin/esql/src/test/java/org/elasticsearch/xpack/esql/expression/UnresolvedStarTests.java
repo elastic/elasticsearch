@@ -35,6 +35,11 @@ public class UnresolvedStarTests extends AbstractNamedExpressionSerializationTes
     }
 
     @Override
+    protected boolean equalityIgnoresId() {
+        return true;
+    }
+
+    @Override
     protected UnresolvedStar copyInstance(UnresolvedStar instance, TransportVersion version) throws IOException {
         // Doesn't escape the node
         return new UnresolvedStar(instance.source(), instance.qualifier());

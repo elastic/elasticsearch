@@ -66,4 +66,9 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
     protected FieldAttribute mutateNameId(FieldAttribute instance) {
         return (FieldAttribute) instance.withId(new NameId());
     }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
+    }
 }

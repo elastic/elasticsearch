@@ -50,4 +50,9 @@ public class UnsupportedAttributeTests extends AbstractNamedExpressionSerializat
     protected UnsupportedAttribute mutateNameId(UnsupportedAttribute instance) {
         return (UnsupportedAttribute) instance.withId(new NameId());
     }
+
+    @Override
+    protected boolean equalityIgnoresId() {
+        return false;
+    }
 }

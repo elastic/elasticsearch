@@ -12,8 +12,6 @@ package org.elasticsearch.http.netty4.internal;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -24,7 +22,6 @@ import java.util.Objects;
  * the HTTP headers have been authenticated successfully.
  */
 public final class HttpHeadersWithAuthenticationContext extends DefaultHttpHeaders {
-
 
     public final SetOnce<ThreadContext.StoredContext> authenticationContextSetOnce;
 

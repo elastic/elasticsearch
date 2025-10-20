@@ -27,12 +27,7 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
     }
 
     public void testFromMap_WithValidValues_ReturnsSettings() {
-        Map<String, Object> taskMap = Map.of(
-            OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS,
-            true,
-            OpenShiftAiRerankTaskSettings.TOP_N,
-            5
-        );
+        Map<String, Object> taskMap = Map.of(OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS, true, OpenShiftAiRerankTaskSettings.TOP_N, 5);
         var settings = OpenShiftAiRerankTaskSettings.fromMap(new HashMap<>(taskMap));
         assertTrue(settings.getReturnDocuments());
         assertEquals(5, settings.getTopN().intValue());

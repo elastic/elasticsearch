@@ -22,12 +22,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class ResetAuditorAction extends ActionType<ResetAuditorAction.Response> {
+public class ResetMlComponentsAction extends ActionType<ResetMlComponentsAction.Response> {
 
-    public static final ResetAuditorAction INSTANCE = new ResetAuditorAction();
+    public static final ResetMlComponentsAction INSTANCE = new ResetMlComponentsAction();
     public static final String NAME = "cluster:internal/xpack/ml/auditor/reset";
 
-    private ResetAuditorAction() {
+    private ResetMlComponentsAction() {
         super(NAME);
     }
 

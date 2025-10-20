@@ -1430,9 +1430,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return newWeight < existingWeight;
             } else {
                 // Decision types are different, take the lower weight unless it's NOT_PREFERRED
-                float adjustedCurrentWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
+                float adjustedNewWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
                 float adjustedExistingWeight = existingDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : existingWeight;
-                return adjustedCurrentWeight < adjustedExistingWeight;
+                return adjustedNewWeight < adjustedExistingWeight;
             }
         }
 

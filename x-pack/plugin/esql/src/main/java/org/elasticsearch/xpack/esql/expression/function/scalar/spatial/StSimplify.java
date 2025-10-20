@@ -43,7 +43,7 @@ public class StSimplify extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "geo_shape",
-        description = "Simplifies the input geometry with a given tolerance",
+        description = "Simplifies the input geometry with a given tolerance.",
         examples = @Example(file = "spatial", tag = "st_simplify")
     )
     public StSimplify(
@@ -92,7 +92,10 @@ public class StSimplify extends EsqlScalarFunction {
         out.writeNamedWriteable(tolerance);
     }
 
-    private static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, double inputTolerance) {
+    private static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, Double inputTolerance) {
+        if (inputGeometry == null || inputTolerance == null) {
+            return null;
+        }
         try {
             org.locationtech.jts.geom.Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
             org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
@@ -126,5 +129,10 @@ public class StSimplify extends EsqlScalarFunction {
     @Evaluator(extraName = "FoldableGeoAndConstantTolerance", warnExceptions = { IllegalArgumentException.class })
     static BytesRef processFoldableGeoAndConstantTolerance(@Fixed BytesRef inputGeometry, @Fixed double inputTolerance) {
         return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+    }
+
+    @Override
+    public boolean foldable() {
+        return geometry.foldable() && tolerance.foldable();
     }
 }

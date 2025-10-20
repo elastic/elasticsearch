@@ -129,8 +129,11 @@ public enum SpatialCoordinateTypes {
         return WellKnownBinary.fromWKB(validator(), false, wkb.bytes, wkb.offset, wkb.length);
     }
 
-    public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException {
+    public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
         String wkt = wkbToWkt(wkb);
+        if (wkt.startsWith("BBOX")) {
+            throw new IllegalArgumentException("Input geometry cannot be a BBOX");
+        }
         WKTReader reader = new WKTReader();
         return reader.read(wkt);
     }

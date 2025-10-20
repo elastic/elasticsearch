@@ -67,16 +67,16 @@ public final class StSimplifyNonFoldableGeoAndConstantToleranceEvaluator impleme
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef inputGeometryScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (inputGeometryBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (inputGeometryBlock.getValueCount(p) != 1) {
-          if (inputGeometryBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (inputGeometryBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef inputGeometry = inputGeometryBlock.getBytesRef(inputGeometryBlock.getFirstValueIndex(p), inputGeometryScratch);
         try {

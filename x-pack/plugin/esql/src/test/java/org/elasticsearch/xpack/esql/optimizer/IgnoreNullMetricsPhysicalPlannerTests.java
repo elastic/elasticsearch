@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
  * Tests for the {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics} planner rule, to
  * verify that the filters are being pushed to Lucene.
  */
-public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOptimizerTests {
+public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysicalPlanOptimizerTests {
     public IgnoreNullMetricsPhysicalPlannerTests(String name, Configuration config) {
         super(name, config);
     }

@@ -344,4 +344,18 @@ public class AttributeMapTests extends ESTestCase {
         it.remove();
         assertThat(it.hasNext(), is(false));
     }
+
+    public void testMappAll() {
+        var one = a("one");
+        var two = a("two");
+        var three = a("three");
+
+        Collection<Attribute> collection = asList(one, two, three);
+        var map = AttributeMap.mapAll(collection, NamedExpression::toAttribute);
+
+        var builder = AttributeMap.builder();
+        collection.forEach(e -> builder.put(e, e.toAttribute()));
+
+        assertThat(map, is(builder.build()));
+    }
 }

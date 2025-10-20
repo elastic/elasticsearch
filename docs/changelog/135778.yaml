@@ -1,0 +1,5 @@
+pr: 135778
+summary: "Add `on_disk_rescore: true` option to disk BBQ to rescore vectors on-disk without loading into memory"
+area: Vector Search
+type: feature
+issues: []

@@ -16,12 +16,16 @@ import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdCodec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -65,8 +69,16 @@ public class CodecService implements CodecProvider {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
+        final boolean useTsdbSyntheticId = mapperService != null && mapperService.getIndexSettings().useTsdbSyntheticId();
+        assert useTsdbSyntheticId == false
+            || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES
+                && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(TIME_SERIES_USE_SYNTHETIC_ID);
+
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             var codec = e.getValue();
+            if (useTsdbSyntheticId && codec instanceof TSDBSyntheticIdCodec == false) {
+                codec = new TSDBSyntheticIdCodec(codec.getName(), codec);
+            }
             if (codec instanceof DeduplicateFieldInfosCodec) {
                 return codec;
             }

@@ -104,7 +104,7 @@ public class Top extends AggregateFunction
         @Param(
             optional = true,
             name = "outputField",
-            type = { "double", "integer", "long" },
+            type = { "double", "integer", "long", "date" },
             description = "The extra field that, if present, will be the output of the TOP call instead of `field`."
         ) Expression outputField
     ) {

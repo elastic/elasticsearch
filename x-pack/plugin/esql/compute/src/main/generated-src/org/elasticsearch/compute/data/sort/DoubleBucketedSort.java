@@ -240,7 +240,8 @@ public class DoubleBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(double lhs, double rhs) {
-        return getOrder().reverseMul() * Double.compare(lhs, rhs) < 0;
+        int res = Double.compare(lhs, rhs);
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**

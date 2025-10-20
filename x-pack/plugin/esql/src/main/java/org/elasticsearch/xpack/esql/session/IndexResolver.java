@@ -47,6 +47,7 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -289,7 +290,7 @@ public class IndexResolver {
         type = switch (type) {
             case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.supportAggregateMetricDouble ? AGGREGATE_METRIC_DOUBLE : UNSUPPORTED;
             case DENSE_VECTOR -> fieldsInfo.supportDenseVector ? DENSE_VECTOR : UNSUPPORTED;
-            case DATE_RANGE -> fieldsInfo.supportDateRange ? DATETIME : UNSUPPORTED;
+            case DATE_RANGE -> fieldsInfo.supportDateRange ? DATE_RANGE : UNSUPPORTED;
             default -> type;
         };
         boolean aggregatable = first.isAggregatable();

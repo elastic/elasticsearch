@@ -1530,7 +1530,7 @@ public class EsqlCapabilities {
          * Fix double release in inline stats when LocalRelation is reused
          */
         INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
-      
+
         /**
          * Support for pushing down EVAL with SCORE
          * https://github.com/elastic/elasticsearch/issues/133462

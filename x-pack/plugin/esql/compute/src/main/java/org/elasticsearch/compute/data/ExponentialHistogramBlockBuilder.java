@@ -19,8 +19,6 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     private final BytesRef tempScratch;
 
-    private boolean closed = false;
-
     ExponentialHistogramBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         this.encodedHistogramsBuilder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
         this.tempScratch = new BytesRef(new byte[INITIAL_SCRATCH_SIZE], 0, INITIAL_SCRATCH_SIZE);
@@ -82,10 +80,7 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     @Override
     public void close() {
-        if (closed == false) {
-            closed = true;
-            Releasables.close(encodedHistogramsBuilder);
-        }
+        Releasables.close(encodedHistogramsBuilder);
     }
 
 }

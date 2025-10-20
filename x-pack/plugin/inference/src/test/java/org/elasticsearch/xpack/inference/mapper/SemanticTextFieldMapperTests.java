@@ -854,7 +854,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
         switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(SparseVectorFieldMapper.class)));
-            case TEXT_EMBEDDING ->  assertTextEmbeddingsFieldMapperMatchesModel(embeddingsFieldMapper, model);
+            case TEXT_EMBEDDING -> assertTextEmbeddingsFieldMapperMatchesModel(embeddingsFieldMapper, model);
             default -> throw new AssertionError("Unexpected task type [" + model.getTaskType() + "]");
         }
     }
@@ -862,8 +862,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void assertTextEmbeddingsFieldMapperMatchesModel(Mapper embeddingsFieldMapper, Model model) {
         Function<SimilarityMeasure, DenseVectorFieldMapper.VectorSimilarity> convertToVectorSimilarity = s -> switch (s) {
             case COSINE -> DenseVectorFieldMapper.VectorSimilarity.COSINE;
-            case DOT_PRODUCT ->  DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT;
-            case L2_NORM ->  DenseVectorFieldMapper.VectorSimilarity.L2_NORM;
+            case DOT_PRODUCT -> DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT;
+            case L2_NORM -> DenseVectorFieldMapper.VectorSimilarity.L2_NORM;
         };
         assertThat(embeddingsFieldMapper, is(instanceOf(DenseVectorFieldMapper.class)));
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsFieldMapper;

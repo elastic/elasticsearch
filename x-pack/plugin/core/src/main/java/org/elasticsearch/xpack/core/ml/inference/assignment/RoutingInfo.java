@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -74,8 +75,13 @@ public class RoutingInfo implements ToXContentObject, Writeable {
     }
 
     public RoutingInfo(StreamInput in) throws IOException {
-        this.currentAllocations = in.readVInt();
-        this.targetAllocations = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            this.currentAllocations = in.readVInt();
+            this.targetAllocations = in.readVInt();
+        } else {
+            this.currentAllocations = 0;
+            this.targetAllocations = 0;
+        }
         this.state = in.readEnum(RoutingState.class);
         this.reason = in.readOptionalString();
     }
@@ -114,8 +120,10 @@ public class RoutingInfo implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(currentAllocations);
-        out.writeVInt(targetAllocations);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeVInt(currentAllocations);
+            out.writeVInt(targetAllocations);
+        }
         out.writeEnum(state);
         out.writeOptionalString(reason);
     }

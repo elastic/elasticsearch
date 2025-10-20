@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public record AnalyzerContext(
@@ -21,19 +24,9 @@ public record AnalyzerContext(
     Map<String, IndexResolution> lookupResolution,
     EnrichResolution enrichResolution,
     InferenceResolution inferenceResolution,
+    TransportVersion minimumVersion,
     Map<String, IndexResolution> subqueryResolution
 ) {
-    // Currently for tests only, since most do not test lookups
-    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
-    public AnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        IndexResolution indexResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        this(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution, inferenceResolution, Map.of());
-    }
 
     public AnalyzerContext(
         Configuration configuration,
@@ -41,8 +34,35 @@ public record AnalyzerContext(
         IndexResolution indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
+        InferenceResolution inferenceResolution,
+        TransportVersion minimumVersion
     ) {
-        this(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution, Map.of());
+        this(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            new HashMap<>()
+        );
+
+        assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert minimumVersion.onOrBefore(TransportVersion.current())
+            : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
+    }
+
+    public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {
+        this(
+            configuration,
+            functionRegistry,
+            result.indices(),
+            result.lookupIndices(),
+            result.enrichResolution(),
+            result.inferenceResolution(),
+            result.minimumTransportVersion(),
+            result.subqueryIndices()
+        );
     }
 }

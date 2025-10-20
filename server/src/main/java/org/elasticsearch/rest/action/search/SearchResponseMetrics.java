@@ -15,7 +15,6 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -45,9 +44,7 @@ public class SearchResponseMetrics {
 
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
-
     private static final String SEARCH_PHASE_METRIC_FORMAT = "es.search_response.took_durations.%s.histogram";
-    private static final List<String> SEARCH_PHASE_NAMES = List.of("dfs", "open_pit", "query");
 
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
@@ -73,6 +70,18 @@ public class SearchResponseMetrics {
             meterRegistry.registerLongHistogram(
                 String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "dfs"),
                 "The search phase dfs duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            ),
+            "dfs_query",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "dfs_query"),
+                "The search phase dfs_query duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            ),
+            "fetch",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "fetch"),
+                "The search phase fetch duration in milliseconds at the coordinator, expressed as a histogram",
                 "millis"
             ),
             "open_pit",

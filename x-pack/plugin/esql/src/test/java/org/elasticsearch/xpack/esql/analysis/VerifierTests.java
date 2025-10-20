@@ -2696,17 +2696,17 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(host)]. "
-                    + "Dimension fields can only be used for grouping in a BY clause. "
-                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
+                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
             )
         );
         assertThat(
-            error("TS test | STATS count(count_over_time(host)) BY bucket(@timestamp, 1 minute)", tsdb),
+            error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: cannot use dimension field [host] in a time-series aggregation function [count(count_over_time(host))]. "
-                    + "Dimension fields can only be used for grouping in a BY clause. "
-                    + "To aggregate dimension fields, use the FROM command instead of the TS command."
+                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
+                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
+                    + "use the FROM command instead of the TS command"
             )
         );
     }
@@ -2765,6 +2765,52 @@ public class VerifierTests extends ESTestCase {
             error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]")
         );
+    }
+
+    public void testInlineStatsInTSNotAllowed() {
+        assertThat(error("TS test | INLINE STATS max(network.connections)", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("""
+            TS test |
+            INLINE STATS max(network.connections) |
+            STATS max(max_over_time(network.connections)) BY host, time_bucket = bucket(@timestamp,1minute)""", tsdb), equalTo("""
+            2:1: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("TS test | INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("TS test | INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(error("TS test METADATA _tsid | INLINE STATS cnt = count_distinct(_tsid) BY metricset, host", tsdb), equalTo("""
+            1:26: INLINE STATS [INLINE STATS cnt = count_distinct(_tsid) BY metricset, host] \
+            can only be used after STATS when used with TS command"""));
+
+        assertThat(
+            error("""
+                TS test |
+                INLINE STATS max_cost=max(last_over_time(network.connections)) BY host, time_bucket = bucket(@timestamp,1minute)""", tsdb),
+            equalTo("""
+                2:1: INLINE STATS [INLINE STATS max_cost=max(last_over_time(network.connections)) \
+                BY host, time_bucket = bucket(@timestamp,1minute)] \
+                can only be used after STATS when used with TS command""")
+        );
+
+        assertThat(
+            error("TS test | INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host | SORT max_bytes DESC | keep max*, host", tsdb),
+            equalTo("""
+                1:11: INLINE STATS [INLINE STATS max_bytes=max(to_long(network.bytes_in)) BY host] \
+                can only be used after STATS when used with TS command""")
+        );
+
+        assertThat(error("TS test | INLINE STATS max(network.connections) | STATS max(network.connections) by host", tsdb), equalTo("""
+            1:11: INLINE STATS [INLINE STATS max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
     }
 
     /**

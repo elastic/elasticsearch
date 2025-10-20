@@ -355,6 +355,10 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             };
         }
 
+        /**
+         * Parses the configured sampling method from string (case-insensitive).
+         * @return the used sampling method, or null when the label is null.
+         */
         @Nullable
         public static SamplingMethod fromString(@Nullable String label) {
             if (label == null) {
@@ -371,6 +375,22 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
                         + "."
                 );
             };
+        }
+
+        /**
+         * Retrieves the configured sampling method from the index metadata. In case that it is null
+         * it checks if the index is downsampled and returns the `aggregate` that was the only sampling
+         * method before we introduced last value.
+         * @return the used sampling method, or null if the index is not downsampled.
+         */
+        @Nullable
+        public static SamplingMethod fromIndexMetadata(IndexMetadata indexMetadata) {
+            SamplingMethod method = fromString(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD_KEY));
+            if (method != null) {
+                return method;
+            }
+            boolean isIndexDownsampled = indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY) != null;
+            return isIndexDownsampled ? AGGREGATE : null;
         }
 
         /**

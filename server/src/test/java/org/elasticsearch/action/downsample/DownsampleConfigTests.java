@@ -11,6 +11,7 @@ package org.elasticsearch.action.downsample;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -21,6 +22,9 @@ import java.io.IOException;
 import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<DownsampleConfig> {
 
@@ -75,6 +79,45 @@ public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<D
     public void testEmptyTimezone() {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         assertEquals("UTC", config.getTimeZone());
+    }
+
+    public void testSamplingMethodFromString() {
+        assertThat(DownsampleConfig.SamplingMethod.fromString(null), nullValue());
+        assertThat(DownsampleConfig.SamplingMethod.fromString("aggregate"), is(DownsampleConfig.SamplingMethod.AGGREGATE));
+        assertThat(DownsampleConfig.SamplingMethod.fromString("last_value"), is(DownsampleConfig.SamplingMethod.LAST_VALUE));
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> DownsampleConfig.SamplingMethod.fromString("foo")
+        );
+        assertThat(error.getMessage(), equalTo("Sampling method [foo] is not one of the accepted methods [aggregate, last_value]."));
+    }
+
+    public void testSamplingMethodFromIndexMetadata() {
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.getSettings()).thenReturn(Settings.EMPTY);
+        assertThat(DownsampleConfig.SamplingMethod.fromIndexMetadata(indexMetadata), nullValue());
+
+        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.downsample.interval", "5m").build());
+        assertThat(DownsampleConfig.SamplingMethod.fromIndexMetadata(indexMetadata), is(DownsampleConfig.SamplingMethod.AGGREGATE));
+
+        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.downsample.sampling_method", "aggregate").build());
+        assertThat(DownsampleConfig.SamplingMethod.fromIndexMetadata(indexMetadata), is(DownsampleConfig.SamplingMethod.AGGREGATE));
+
+        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.downsample.sampling_method", "last_value").build());
+        assertThat(DownsampleConfig.SamplingMethod.fromIndexMetadata(indexMetadata), is(DownsampleConfig.SamplingMethod.LAST_VALUE));
+    }
+
+    public void testEffectiveSamplingMethod() {
+        assertThat(DownsampleConfig.SamplingMethod.getEffective(null), is(DownsampleConfig.SamplingMethod.AGGREGATE));
+        assertThat(
+            DownsampleConfig.SamplingMethod.getEffective(DownsampleConfig.SamplingMethod.AGGREGATE),
+            is(DownsampleConfig.SamplingMethod.AGGREGATE)
+        );
+        assertThat(
+            DownsampleConfig.SamplingMethod.getEffective(DownsampleConfig.SamplingMethod.LAST_VALUE),
+            is(DownsampleConfig.SamplingMethod.LAST_VALUE)
+        );
+
     }
 
     public void testGenerateDownsampleIndexName() {

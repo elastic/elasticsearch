@@ -25,7 +25,9 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -87,6 +89,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private DummyUsernamePasswordRealm realm;
     private ThreadPool threadPool;
     private SecurityContext securityContext;
+    private TelemetryProvider telemetryProvider;
     private TokenService tokenService;
     private Client client;
 
@@ -132,6 +135,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         securityContext = new SecurityContext(settings, threadContext);
 
+        telemetryProvider = mock(TelemetryProvider.class);
+        when(telemetryProvider.getTracer()).thenReturn(Tracer.NOOP);
+
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
         final ApiKeyService apiKeyService = new ApiKeyService(
             settings,
@@ -163,7 +169,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             serviceAccountService,
             OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);
     }

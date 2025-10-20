@@ -806,7 +806,6 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
-    private final SetOnce<TrainedModelStatsService> trainedModelStatsService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
@@ -1165,14 +1164,12 @@ public class MachineLearning extends Plugin
         this.datafeedRunner.set(datafeedRunner);
 
         // Inference components
-        trainedModelStatsService.set(
-            new TrainedModelStatsService(
-                resultsPersisterService,
-                originSettingClient,
-                indexNameExpressionResolver,
-                clusterService,
-                threadPool
-            )
+        final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(
+            resultsPersisterService,
+            originSettingClient,
+            indexNameExpressionResolver,
+            clusterService,
+            threadPool
         );
         final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(
             clusterService,
@@ -1188,7 +1185,7 @@ public class MachineLearning extends Plugin
             inferenceAuditor,
             threadPool,
             clusterService,
-            trainedModelStatsService.get(),
+            trainedModelStatsService,
             settings,
             clusterService.getNodeName(),
             inferenceModelBreaker.get(),
@@ -1395,6 +1392,7 @@ public class MachineLearning extends Plugin
             trainedModelProvider,
             trainedModelAssignmentService,
             trainedModelAllocationClusterService.get(),
+            trainedModelStatsService,
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
@@ -2156,7 +2154,6 @@ public class MachineLearning extends Plugin
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
 
             client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
-                trainedModelStatsService.get().clearQueue();
                 finalListener.onResponse(success);
                 logger.info("Finished machine learning feature reset");
             }, resetFailure -> {

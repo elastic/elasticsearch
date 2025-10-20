@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.action.ResetMlComponentsAction;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +35,7 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
 
     private final AnomalyDetectionAuditor anomalyDetectionAuditor;
     private final DataFrameAnalyticsAuditor dfaAuditor;
+    private final InferenceAuditor inferenceAuditor;
     private final TrainedModelStatsService trainedModelStatsService;
 
     @Inject
@@ -44,6 +46,7 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
         ActionFilters actionFilters,
         AnomalyDetectionAuditor anomalyDetectionAuditor,
         DataFrameAnalyticsAuditor dfaAuditor,
+        InferenceAuditor inferenceAuditor,
         TrainedModelStatsService trainedModelStatsService
     ) {
         super(
@@ -56,6 +59,7 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
         );
         this.anomalyDetectionAuditor = anomalyDetectionAuditor;
         this.dfaAuditor = dfaAuditor;
+        this.inferenceAuditor = inferenceAuditor;
         this.trainedModelStatsService = trainedModelStatsService;
     }
 
@@ -82,6 +86,7 @@ public class TransportResetMlComponentsAction extends TransportNodesAction<
     protected ResetMlComponentsAction.Response.ResetResponse nodeOperation(ResetMlComponentsAction.NodeRequest request, Task task) {
         anomalyDetectionAuditor.reset();
         dfaAuditor.reset();
+        inferenceAuditor.reset();
         trainedModelStatsService.clearQueue();
         return new ResetMlComponentsAction.Response.ResetResponse(clusterService.localNode(), true);
     }

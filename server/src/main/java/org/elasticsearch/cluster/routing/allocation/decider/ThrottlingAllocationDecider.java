@@ -152,6 +152,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
             if (currentInRecoveries >= concurrentIncomingRecoveries) {
+                // See also https://github.com/elastic/elasticsearch/pull/134786
+                assert allocation.isSimulating() == false || concurrentIncomingRecoveries == 0
+                    : "allocation simulation should have returned earlier and not hitting throttling";
                 return allocation.decision(
                     THROTTLE,
                     NAME,
@@ -169,6 +172,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 }
                 int primaryNodeOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
                 if (primaryNodeOutRecoveries >= concurrentOutgoingRecoveries) {
+                    // See also https://github.com/elastic/elasticsearch/pull/134786
+                    assert allocation.isSimulating() == false || concurrentOutgoingRecoveries == 0
+                        : "allocation simulation should have returned earlier and not hitting throttling";
                     return allocation.decision(
                         THROTTLE,
                         NAME,

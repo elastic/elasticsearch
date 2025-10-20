@@ -704,12 +704,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             highIdx = relevantNodes - 1;
 
                             if (routingNodes.getRelocatingShardCount() > 0) {
-                                // ES-12955: Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
-                                // This should rarely happen since in most cases, we don't throttle unless there is an existing relocation.
-                                // But it can happen in production for frozen indices when the cache is still being prepared. It can also
-                                // happen in tests because we have decider like RandomAllocationDecider that can randomly return THROTTLE
-                                // when there is no existing relocation.
+                                // Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
                                 shardBalanced = true;
+                            } else {
+                                // A THROTTLE decision can happen when:
+                                // 1. Not simulating
+                                // 2. Or, a partial searchable snapshot index due to HasFrozenCacheAllocationDecider
+                                assert allocation.isSimulating() == false || indexMetadata.isPartialSearchableSnapshot()
+                                    : "unexpected THROTTLE decision (simulation="
+                                        + allocation.isSimulating()
+                                        + ") when balancing index ["
+                                        + index
+                                        + "]";
                             }
                             if (completeEarlyOnShardAssignmentChange && shardBalanced) {
                                 return true;
@@ -834,6 +840,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
+
+                // A THROTTLE allocation decision can happen when:
+                // 1. Not simulating
+                // 2. Or, there are prior shard movements
+                // 3. Or, a partial searchable snapshot index due to HasFrozenCacheAllocationDecider
+                assert moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
+                    || (allocation.isSimulating() == false || shardMoved || indexMetadata(index).isPartialSearchableSnapshot())
+                    : "unexpected allocation decision ["
+                        + moveDecision.getAllocationDecision()
+                        + "] (simulation="
+                        + allocation.isSimulating()
+                        + ") with no prior shard movements when moving shard ["
+                        + shardRouting
+                        + "]";
             }
 
             // If we get here, attempt to move one of the best not-preferred shards that we identified earlier
@@ -1267,7 +1287,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(projectIndex(shard), shard.initialize(minNode.getNodeId(), null, shardSize));
-                            // If we see a throttle decision in simulation, there must be other shards that got assigned before it.
+                            // If we see a THROTTLE decision, it's either:
+                            // 1. Not simulating
+                            // 2. Or, there is shard assigned before this one
+                            // 3. Or, a partial searchable snapshot index due to HasFrozenCacheAllocationDecider
+                            assert allocation.isSimulating() == false
+                                || shardAssignmentChanged
+                                || indexMetadata(index).isPartialSearchableSnapshot()
+                                : "unexpected THROTTLE decision (simulation="
+                                    + allocation.isSimulating()
+                                    + ") with no prior assignment when allocating unassigned shard ["
+                                    + shard
+                                    + "]";
                             assert allocation.isSimulating() == false || shardAssignmentChanged
                                 : "shard " + shard + " was throttled but no other shards were assigned";
                         } else {

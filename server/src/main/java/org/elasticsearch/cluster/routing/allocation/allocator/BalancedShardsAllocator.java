@@ -1290,17 +1290,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             // If we see a THROTTLE decision, it's either:
                             // 1. Not simulating
                             // 2. Or, there is shard assigned before this one
-                            // 3. Or, a partial searchable snapshot index due to HasFrozenCacheAllocationDecider
-                            assert allocation.isSimulating() == false
-                                || shardAssignmentChanged
-                                || indexMetadata(index).isPartialSearchableSnapshot()
+                            assert allocation.isSimulating() == false || shardAssignmentChanged
                                 : "unexpected THROTTLE decision (simulation="
                                     + allocation.isSimulating()
                                     + ") with no prior assignment when allocating unassigned shard ["
                                     + shard
                                     + "]";
-                            assert allocation.isSimulating() == false || shardAssignmentChanged
-                                : "shard " + shard + " was throttled but no other shards were assigned";
                         } else {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);

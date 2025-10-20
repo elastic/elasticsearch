@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface TextEmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends EmbeddingResults<E> {
+public interface DenseEmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends EmbeddingResults<E> {
 
     /**
-     * Returns the first text embedding entry in the result list's array size.
-     * @return the size of the text embedding
+     * Returns the first embedding entry in the result list's array size.
+     * @return the size of the embedding
      * @throws IllegalStateException if the list of embeddings is empty
      */
     int getFirstEmbeddingSize() throws IllegalStateException;

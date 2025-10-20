@@ -36,7 +36,7 @@ public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerial
         boolean refresh = instance.refresh();
         switch (between(0, 2)) {
             case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
-            case 1 -> synonymRules = randomValueOtherThan(synonymRules, () -> randomSynonymsSet());
+            case 1 -> synonymRules = randomArrayOtherThan(synonymRules, () -> randomSynonymsSet());
             case 2 -> refresh = refresh == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }

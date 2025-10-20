@@ -70,7 +70,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
-        "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
         "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
 
         // Awaiting fixes for correctness

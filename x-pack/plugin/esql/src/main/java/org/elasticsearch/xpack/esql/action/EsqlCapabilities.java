@@ -1529,7 +1529,13 @@ public class EsqlCapabilities {
         /**
          * Fix double release in inline stats when LocalRelation is reused
          */
-        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled),
+
+        /**
+         * Fix for lookup join filter pushdown using semantic equality instead of reference equality.
+         * This prevents duplicate filters from being pushed down when they are semantically equivalent.
+         */
+        LOOKUP_JOIN_SEMANTIC_FILTER_DEDUP,
 
         ;
 

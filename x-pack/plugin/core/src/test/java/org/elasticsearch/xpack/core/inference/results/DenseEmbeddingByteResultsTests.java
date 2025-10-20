@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,19 +20,19 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingByteResults> {
-    public static TextEmbeddingByteResults createRandomResults() {
+public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestCase<DenseEmbeddingByteResults> {
+    public static DenseEmbeddingByteResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
-        List<TextEmbeddingByteResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
+        List<DenseEmbeddingByteResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
 
         for (int i = 0; i < embeddings; i++) {
             embeddingResults.add(createRandomEmbedding());
         }
 
-        return new TextEmbeddingByteResults(embeddingResults);
+        return new DenseEmbeddingByteResults(embeddingResults);
     }
 
-    private static TextEmbeddingByteResults.Embedding createRandomEmbedding() {
+    private static DenseEmbeddingByteResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         byte[] bytes = new byte[columns];
 
@@ -40,11 +40,11 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
             bytes[i] = randomByte();
         }
 
-        return new TextEmbeddingByteResults.Embedding(bytes);
+        return new DenseEmbeddingByteResults.Embedding(bytes);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
+        var entity = new DenseEmbeddingByteResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -60,10 +60,10 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new TextEmbeddingByteResults(
+        var entity = new DenseEmbeddingByteResults(
             List.of(
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }),
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 24 })
+                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }),
+                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 24 })
             )
         );
 
@@ -86,10 +86,10 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
     }
 
     public void testTransformToCoordinationFormat() {
-        var results = new TextEmbeddingByteResults(
+        var results = new DenseEmbeddingByteResults(
             List.of(
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
             )
         ).transformToCoordinationFormat();
 
@@ -97,18 +97,18 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
             results,
             is(
                 List.of(
-                    new MlTextEmbeddingResults(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 23F, 24F }, false),
-                    new MlTextEmbeddingResults(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 25F, 26F }, false)
+                    new MlDenseEmbeddingResults(DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 23F, 24F }, false),
+                    new MlDenseEmbeddingResults(DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 25F, 26F }, false)
                 )
             )
         );
     }
 
     public void testGetFirstEmbeddingSize() {
-        var firstEmbeddingSize = new TextEmbeddingByteResults(
+        var firstEmbeddingSize = new DenseEmbeddingByteResults(
             List.of(
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
             )
         ).getFirstEmbeddingSize();
 
@@ -116,43 +116,43 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
     }
 
     public void testEmbeddingMerge() {
-        TextEmbeddingByteResults.Embedding embedding1 = new TextEmbeddingByteResults.Embedding(new byte[] { 1, 1, -128 });
-        TextEmbeddingByteResults.Embedding embedding2 = new TextEmbeddingByteResults.Embedding(new byte[] { 1, 0, 127 });
-        TextEmbeddingByteResults.Embedding embedding3 = new TextEmbeddingByteResults.Embedding(new byte[] { 0, 0, 100 });
-        TextEmbeddingByteResults.Embedding mergedEmbedding = embedding1.merge(embedding2);
-        assertThat(mergedEmbedding, equalTo(new TextEmbeddingByteResults.Embedding(new byte[] { 1, 1, 0 })));
+        DenseEmbeddingByteResults.Embedding embedding1 = new DenseEmbeddingByteResults.Embedding(new byte[] { 1, 1, -128 });
+        DenseEmbeddingByteResults.Embedding embedding2 = new DenseEmbeddingByteResults.Embedding(new byte[] { 1, 0, 127 });
+        DenseEmbeddingByteResults.Embedding embedding3 = new DenseEmbeddingByteResults.Embedding(new byte[] { 0, 0, 100 });
+        DenseEmbeddingByteResults.Embedding mergedEmbedding = embedding1.merge(embedding2);
+        assertThat(mergedEmbedding, equalTo(new DenseEmbeddingByteResults.Embedding(new byte[] { 1, 1, 0 })));
         mergedEmbedding = mergedEmbedding.merge(embedding3);
-        assertThat(mergedEmbedding, equalTo(new TextEmbeddingByteResults.Embedding(new byte[] { 1, 0, 33 })));
+        assertThat(mergedEmbedding, equalTo(new DenseEmbeddingByteResults.Embedding(new byte[] { 1, 0, 33 })));
     }
 
     @Override
-    protected Writeable.Reader<TextEmbeddingByteResults> instanceReader() {
-        return TextEmbeddingByteResults::new;
+    protected Writeable.Reader<DenseEmbeddingByteResults> instanceReader() {
+        return DenseEmbeddingByteResults::new;
     }
 
     @Override
-    protected TextEmbeddingByteResults createTestInstance() {
+    protected DenseEmbeddingByteResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected TextEmbeddingByteResults mutateInstance(TextEmbeddingByteResults instance) throws IOException {
+    protected DenseEmbeddingByteResults mutateInstance(DenseEmbeddingByteResults instance) throws IOException {
         // if true we reduce the embeddings list by a random amount, if false we add an embedding to the list
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.embeddings().size() - 1);
-            return new TextEmbeddingByteResults(instance.embeddings().subList(0, end));
+            return new DenseEmbeddingByteResults(instance.embeddings().subList(0, end));
         } else {
-            List<TextEmbeddingByteResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
+            List<DenseEmbeddingByteResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding());
-            return new TextEmbeddingByteResults(embeddings);
+            return new DenseEmbeddingByteResults(embeddings);
         }
     }
 
     public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
         return Map.of(
-            TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream().map(embedding -> Map.of(TextEmbeddingByteResults.Embedding.EMBEDDING, embedding)).toList()
+            DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
+            embeddings.stream().map(embedding -> Map.of(DenseEmbeddingByteResults.Embedding.EMBEDDING, embedding)).toList()
         );
     }
 }

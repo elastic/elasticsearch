@@ -79,7 +79,13 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
         for (int i = 0; i < readers.size(); i++) {
             contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers.get(i), i));
         }
-        return new TimeSeriesSourceOperator.Factory(contexts, c -> queryAndTags, randomIntBetween(1, 4), between(10, 100), between(1, 100));
+        return new TimeSeriesSourceOperator.Factory(
+            new IndexedByShardIdFromList<>(contexts),
+            c -> queryAndTags,
+            randomIntBetween(1, 4),
+            between(10, 100),
+            between(1, 100)
+        );
     }
 
     static IndexReader loadIndex(Directory directory, int numDocs) {

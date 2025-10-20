@@ -22,6 +22,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
@@ -59,6 +60,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -143,12 +145,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
     }
 
-    private final List<ShardContext> shardContexts;
+    private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final PlannerSettings plannerSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
-        List<ShardContext> shardContexts,
+        IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings
     ) {
@@ -161,20 +163,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
-        List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
-            .map(
-                s -> new ValuesSourceReaderOperator.ShardContext(
-                    s.searcher().getIndexReader(),
-                    s::newSourceLoader,
-                    s.storedFieldsSequentialProportion()
-                )
-            )
-            .toList();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
         }
         var fields = extractFields(fieldExtractExec);
+        IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.map(
+            s -> new ValuesSourceReaderOperator.ShardContext(
+                s.searcher().getIndexReader(),
+                s::newSourceLoader,
+                s.storedFieldsSequentialProportion()
+            )
+        );
         return source.with(
             new ValuesSourceReaderOperator.Factory(plannerSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
             layout.build()
@@ -414,6 +414,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     public static class DefaultShardContext extends ShardContext {
         private final int index;
+
         /**
          * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
          * dependency here.
@@ -453,8 +454,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public SourceLoader newSourceLoader() {
-            return ctx.newSourceLoader(null, false);
+        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+            var filter = sourcePaths != null ? new SourceFilter(sourcePaths.toArray(new String[0]), null) : null;
+            return ctx.newSourceLoader(filter, false);
         }
 
         @Override

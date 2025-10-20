@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 
 import java.io.IOException;
 
-public class AliasTests extends AbstractExpressionSerializationTests<Alias> {
+public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias> {
     public static Alias randomAlias() {
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
@@ -48,5 +48,10 @@ public class AliasTests extends AbstractExpressionSerializationTests<Alias> {
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    @Override
+    protected Alias mutateNameId(Alias instance) {
+        return instance.withId(new NameId());
     }
 }

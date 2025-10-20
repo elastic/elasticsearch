@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 
-public class MetadataAttributeTests extends AbstractExpressionSerializationTests<MetadataAttribute> {
+public class MetadataAttributeTests extends AbstractNamedExpressionSerializationTests<MetadataAttribute> {
     @Override
     protected MetadataAttribute createTestInstance() {
         return randomMetadataAttribute();
@@ -48,5 +48,10 @@ public class MetadataAttributeTests extends AbstractExpressionSerializationTests
             case 5 -> searchable = false == searchable;
         }
         return new MetadataAttribute(source, name, type, nullability, id, synthetic, searchable);
+    }
+
+    @Override
+    protected MetadataAttribute mutateNameId(MetadataAttribute instance) {
+        return (MetadataAttribute) instance.withId(new NameId());
     }
 }

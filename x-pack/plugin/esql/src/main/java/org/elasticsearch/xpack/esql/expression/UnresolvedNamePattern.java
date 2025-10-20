@@ -98,11 +98,6 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
-    protected boolean ignoreIdsInEqualsPerDefault() {
-        return true;
-    }
-
-    @Override
     protected int innerHashCode(boolean ignoreIds) {
         return Objects.hash(super.innerHashCode(true), pattern);
     }

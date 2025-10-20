@@ -61,7 +61,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
 
     @Override
     public final int hashCode() {
-        return hashCode(ignoreIdsInEqualsPerDefault());
+        return hashCode(false);
     }
 
     public final int hashCode(boolean ignoreIds) {
@@ -74,7 +74,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
 
     @Override
     public final boolean equals(Object o) {
-        return equals(o, ignoreIdsInEqualsPerDefault());
+        return equals(o, false);
     }
 
     /**
@@ -85,8 +85,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
      * <p>
      * We also provide the option to ignore NameIds in the equality check, which helps e.g. when creating named expressions
      * while avoiding duplicates, or when attaching failures to unresolved attributes (see Failure.equals).
-     * Some classes will always ignore ids, irrespective of the parameter passed here. Such classes should also override
-     * {@link #ignoreIdsInEqualsPerDefault()} to return {@code true}.
+     * Some classes will always ignore ids, irrespective of the parameter passed here.
      */
     public final boolean equals(Object o, boolean ignoreIds) {
         if (this == o) {
@@ -96,13 +95,6 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
             return false;
         }
         return innerEquals(o, ignoreIds);
-    }
-
-    /**
-     * Whether this class should ignore {@link NameId}s in its {@link #equals(Object)} method.
-     */
-    protected boolean ignoreIdsInEqualsPerDefault() {
-        return false;
     }
 
     /**

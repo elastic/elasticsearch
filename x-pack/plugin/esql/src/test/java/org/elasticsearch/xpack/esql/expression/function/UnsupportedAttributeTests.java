@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 
-public class UnsupportedAttributeTests extends AbstractExpressionSerializationTests<UnsupportedAttribute> {
+public class UnsupportedAttributeTests extends AbstractNamedExpressionSerializationTests<UnsupportedAttribute> {
     @Override
     protected UnsupportedAttribute createTestInstance() {
         return randomUnsupportedAttribute();
@@ -44,5 +44,10 @@ public class UnsupportedAttributeTests extends AbstractExpressionSerializationTe
             case 4 -> id = new NameId();
         }
         return new UnsupportedAttribute(source, qualifier, name, field, customMessage, id);
+    }
+
+    @Override
+    protected UnsupportedAttribute mutateNameId(UnsupportedAttribute instance) {
+        return (UnsupportedAttribute) instance.withId(new NameId());
     }
 }

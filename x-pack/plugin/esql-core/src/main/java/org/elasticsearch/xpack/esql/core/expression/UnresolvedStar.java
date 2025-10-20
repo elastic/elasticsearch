@@ -19,7 +19,7 @@ import static java.util.Collections.emptyList;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
-    // TODO: Currently unused, but likely will be again when we support qualified star resolution
+    // TODO: Currently unused, can be removed. (Qualifiers will likely remain just strings.)
     private final UnresolvedAttribute qualifier;
 
     public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
@@ -54,11 +54,6 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
 
     public UnresolvedAttribute qualifier() {
         return qualifier;
-    }
-
-    @Override
-    protected boolean ignoreIdsInEqualsPerDefault() {
-        return true;
     }
 
     @Override

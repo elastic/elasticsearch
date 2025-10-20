@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,7 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a text embedding result in the follow json format
+ * Writes a dense embedding result in the follow json format
+ * <pre>
  * {
  *     "text_embedding_bytes": [
  *         {
@@ -46,13 +47,15 @@ import java.util.Objects;
  *         }
  *     ]
  * }
+ * </pre>
  */
-public record TextEmbeddingByteResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
+public record DenseEmbeddingByteResults(List<Embedding> embeddings) implements DenseEmbeddingResults<DenseEmbeddingByteResults.Embedding> {
+    // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
-    public TextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(TextEmbeddingByteResults.Embedding::new));
+    public DenseEmbeddingByteResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(DenseEmbeddingByteResults.Embedding::new));
     }
 
     @Override
@@ -81,7 +84,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
+            .map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
             .toList();
     }
 
@@ -96,7 +99,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingByteResults that = (TextEmbeddingByteResults) o;
+        DenseEmbeddingByteResults that = (DenseEmbeddingByteResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

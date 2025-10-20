@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -40,7 +40,7 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @After
     public void cleanup() {
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
     }
 
     protected <T> void assertAsync(

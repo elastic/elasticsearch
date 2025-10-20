@@ -7,16 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.cluster.snapshots.features;
+package org.elasticsearch.action.admin.indices.delete;
 
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.test.ESTestCase;
 
-public class SnapshottableFeaturesAction extends ActionType<GetSnapshottableFeaturesResponse> {
-
-    public static final SnapshottableFeaturesAction INSTANCE = new SnapshottableFeaturesAction();
-    public static final String NAME = "cluster:admin/features/get";
-
-    private SnapshottableFeaturesAction() {
-        super(NAME);
+public class DeleteIndexRequestTests extends ESTestCase {
+    public void testGetDescription() {
+        DeleteIndexRequest request = new DeleteIndexRequest("index0");
+        assertEquals("indices[index0]", request.getDescription());
+        request = request.indices("index1", "index2");
+        assertEquals("indices[index1,index2]", request.getDescription());
     }
 }

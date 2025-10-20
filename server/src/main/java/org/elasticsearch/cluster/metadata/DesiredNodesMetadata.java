@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -28,6 +29,7 @@ import java.util.Iterator;
 import java.util.Objects;
 
 public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
+    private static final TransportVersion MIN_SUPPORTED_VERSION = TransportVersions.V_8_1_0;
     public static final String TYPE = "desired_nodes";
 
     public static final DesiredNodesMetadata EMPTY = new DesiredNodesMetadata((DesiredNodes) null);
@@ -94,7 +96,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Cluster
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return MIN_SUPPORTED_VERSION;
     }
 
     @Override

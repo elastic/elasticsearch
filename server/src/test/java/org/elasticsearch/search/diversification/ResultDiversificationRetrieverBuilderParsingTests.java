@@ -18,10 +18,9 @@ import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,15 +29,15 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractXContentTestCase<ResultDiversificationRetrieverBuilder> {
-    private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
+    private List<NamedXContentRegistry.Entry> xContentRegistryEntries;
 
-    @BeforeClass
-    public static void init() {
+    @Before
+    public void beforeTest() {
         xContentRegistryEntries = new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents();
     }
 
-    @AfterClass
-    public static void afterClass() throws Exception {
+    @After
+    public void afterTest() throws Exception {
         xContentRegistryEntries = null;
     }
 
@@ -76,13 +75,6 @@ public class ResultDiversificationRetrieverBuilderParsingTests extends AbstractX
                 TestRetrieverBuilder.TEST_SPEC.getName(),
                 (p, c) -> TestRetrieverBuilder.TEST_SPEC.getParser().fromXContent(p, (RetrieverParserContext) c),
                 TestRetrieverBuilder.TEST_SPEC.getName().getForRestApiVersion()
-            )
-        );
-        entries.add(
-            new NamedXContentRegistry.Entry(
-                RetrieverBuilder.class,
-                new ParseField(ResultDiversificationRetrieverBuilder.NAME),
-                (p, c) -> ResultDiversificationRetrieverBuilder.PARSER.apply(p, (RetrieverParserContext) c)
             )
         );
         return new NamedXContentRegistry(entries);

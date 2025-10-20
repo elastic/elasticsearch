@@ -178,7 +178,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
         var newSettings = MinimalServiceSettingsTests.randomInstance();
         var newMetadata = metadata.withAddedModel(newInferenceId, newSettings);
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,
@@ -251,6 +251,34 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
                     ImmutableOpenMap.builder(Map.of(inferenceId, settings, inferenceId2, settings2, inferenceId3, settings3)).build()
                 )
             )
+        );
+    }
+
+    public void testWithAddedModels_ReturnsNewMetadataInstance_UsesOverridingSettings() {
+        var inferenceId = "id";
+        var settings = MinimalServiceSettingsTests.randomInstance();
+
+        var models = new HashMap<>(Map.of(inferenceId, settings));
+        var metadata = new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build());
+
+        var inferenceId2 = "new_id";
+        var settings2 = MinimalServiceSettingsTests.randomInstance();
+        var settings3 = MinimalServiceSettingsTests.randomInstance();
+        var newMetadata = metadata.withAddedModels(
+            List.of(
+                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                // This should be ignored since it's a duplicate inference id
+                new ModelRegistry.ModelAndSettings(inferenceId2, settings2),
+                // This should replace the existing settings for inferenceId2
+                new ModelRegistry.ModelAndSettings(inferenceId2, settings3)
+            )
+        );
+        // ensure metadata hasn't changed
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(newMetadata, not(is(metadata)));
+        assertThat(
+            newMetadata,
+            is(new ModelRegistryMetadata(ImmutableOpenMap.builder(Map.of(inferenceId, settings, inferenceId2, settings3)).build()))
         );
     }
 

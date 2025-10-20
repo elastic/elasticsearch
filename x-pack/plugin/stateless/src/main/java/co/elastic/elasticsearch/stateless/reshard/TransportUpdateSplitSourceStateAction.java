@@ -89,7 +89,7 @@ public class TransportUpdateSplitSourceStateAction extends TransportMasterNodeAc
         private final IndexReshardingState.Split.SourceShardState state;
 
         public Request(ShardId shardId, IndexReshardingState.Split.SourceShardState state) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+            super(INFINITE_MASTER_NODE_TIMEOUT);
             this.shardId = shardId;
             this.state = state;
         }

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
+
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
@@ -39,8 +42,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 @SuppressWarnings("checkstyle:LineLength")
 class AmazonBedrockUnifiedStreamingChatProcessor
-    implements
-        Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
+    implements Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingChatProcessor.class);
 
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
@@ -85,29 +87,16 @@ class AmazonBedrockUnifiedStreamingChatProcessor
 
         var eventType = item.sdkEventType();
         switch (eventType) {
-            case ConverseStreamOutput.EventType.MESSAGE_START -> {
-                demand.set(0); // reset demand before we fork to another thread
+            case ConverseStreamOutput.EventType.MESSAGE_START ->
                 item.accept(
                     ConverseStreamResponseHandler.Visitor.builder().onMessageStart(event -> handleMessageStart(event, chunks)).build()
                 );
-                return;
-            }
-            case ConverseStreamOutput.EventType.MESSAGE_STOP -> {
-                demand.set(0); // reset demand before we fork to another thread
-                item.accept(
-                    ConverseStreamResponseHandler.Visitor.builder().onMessageStop(event -> handleMessageStop(event, chunks)).build()
-                );
-                return;
-            }
-            case ConverseStreamOutput.EventType.CONTENT_BLOCK_START -> {
-                demand.set(0); // reset demand before we fork to another thread
+            case ConverseStreamOutput.EventType.CONTENT_BLOCK_START ->
                 item.accept(
                     ConverseStreamResponseHandler.Visitor.builder()
                         .onContentBlockStart(event -> handleContentBlockStart(event, chunks))
                         .build()
                 );
-                return;
-            }
             case ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA -> {
                 demand.set(0); // reset demand before we fork to another thread
                 item.accept(
@@ -115,30 +104,21 @@ class AmazonBedrockUnifiedStreamingChatProcessor
                         .onContentBlockDelta(event -> handleContentBlockDelta(event, chunks))
                         .build()
                 );
-                return;
             }
-            case ConverseStreamOutput.EventType.METADATA -> {
-                demand.set(0); // reset demand before we fork to another thread
+            case ConverseStreamOutput.EventType.CONTENT_BLOCK_STOP ->
+                item.accept(ConverseStreamResponseHandler.Visitor.builder().onContentBlockStop(event -> handleContentBlockStop(event, chunks)).build());
+            case ConverseStreamOutput.EventType.MESSAGE_STOP ->
+                item.accept(
+                    ConverseStreamResponseHandler.Visitor.builder().onMessageStop(event -> handleMessageStop(event, chunks)).build()
+                );
+            case ConverseStreamOutput.EventType.METADATA ->
                 item.accept(ConverseStreamResponseHandler.Visitor.builder().onMetadata(event -> handleMetadata(event, chunks)).build());
-                return;
-            }
-            case ConverseStreamOutput.EventType.CONTENT_BLOCK_STOP -> {
-                demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder().onContentBlockStop(event -> Stream.empty()).build());
-                return;
-            }
-            default -> {
-                logger.debug("Unknown event type [{}] for line [{}].", eventType, item);
-            }
-        }
 
-        if (item.sdkEventType() == ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA) {
-
-        } else {
-            upstream.request(1);
+            default -> logger.debug("Unknown event type [{}] for line [{}].", eventType, item);
         }
     }
 
+    @SuppressWarnings("checkstyle:DescendantToken")
     private void handleMessageStart(MessageStartEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
         runOnUtilityThreadPool(() -> {
             try {
@@ -147,30 +127,13 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             } catch (Exception e) {
                 logger.warn("Failed to parse message start event from Amazon Bedrock provider: {}", event);
             }
-            if (chunks.isEmpty()) {
-                upstream.request(1);
-            } else {
+            if (!chunks.isEmpty() && downstream != null) {
                 downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
             }
         });
     }
 
-    private void handleMessageStop(MessageStopEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
-        runOnUtilityThreadPool(() -> {
-            try {
-                var messageStop = handleMessageStop(event);
-                messageStop.forEach(chunks::offer);
-            } catch (Exception e) {
-                logger.warn("Failed to parse message stop event from Amazon Bedrock provider: {}", event);
-            }
-            if (chunks.isEmpty()) {
-                upstream.request(1);
-            } else {
-                downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
-            }
-        });
-    }
-
+    @SuppressWarnings("checkstyle:DescendantToken")
     private void handleContentBlockStart(
         ContentBlockStartEvent event,
         ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
@@ -181,10 +144,12 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         } catch (Exception e) {
             logger.warn("Failed to parse block start event from Amazon Bedrock provider: {}", event);
         }
-        var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
-        downstream.onNext(results);
+        if (!chunks.isEmpty() && downstream != null) {
+            downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
+        }
     }
 
+    @SuppressWarnings("checkstyle:DescendantToken")
     private void handleContentBlockDelta(
         ContentBlockDeltaEvent event,
         ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
@@ -196,11 +161,58 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             } catch (Exception e) {
                 logger.warn("Failed to parse content block delta event from Amazon Bedrock provider: {}", event);
             }
-            var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
-            downstream.onNext(results);
+            if (!chunks.isEmpty() && downstream != null) {
+                downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
+            }
         });
     }
 
+    @SuppressWarnings("checkstyle:DescendantToken")
+    private void handleContentBlockStop(
+        ContentBlockStopEvent event,
+        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
+    ) {
+        runOnUtilityThreadPool(() -> {
+            try {
+                var messageDelta = handleContentBlockStop(event);
+                messageDelta.forEach(chunks::offer);
+            } catch (Exception e) {
+                logger.warn("Failed to parse metadata event from Amazon Bedrock provider: {}", event);
+            }
+            if (upstream != null) {
+                upstream.request(1);
+            }
+        });
+    }
+
+    @SuppressWarnings("checkstyle:DescendantToken")
+    private void handleMessageStop(MessageStopEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
+        runOnUtilityThreadPool(() -> {
+            try {
+                var messageStop = handleMessageStop(event);
+                messageStop.forEach(chunks::offer);
+            } catch (Exception e) {
+
+                if (downstream != null && onCompleteCalled.compareAndSet(false, true)) {
+                    downstream.onError(e);
+                }
+                if (upstream != null) {
+                    upstream.cancel();
+                }
+                isDone.set(true);
+
+                logger.warn("Failed to parse message stop event from Amazon Bedrock provider: {}", event);
+            }
+
+            if (upstream != null) {
+                upstream.request(1);
+            } else {
+                isDone.set(true);
+            }
+        });
+    }
+
+    @SuppressWarnings("checkstyle:DescendantToken")
     private void handleMetadata(
         ConverseStreamMetadataEvent event,
         ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
@@ -211,9 +223,26 @@ class AmazonBedrockUnifiedStreamingChatProcessor
                 messageDelta.forEach(chunks::offer);
             } catch (Exception e) {
                 logger.warn("Failed to parse metadata event from Amazon Bedrock provider: {}", event);
+
+                if (downstream != null && onCompleteCalled.compareAndSet(false, true)) {
+                    downstream.onError(e);
+                }
+                if (upstream != null) {
+                    upstream.cancel();
+                }
+                isDone.set(true);
             }
-            var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
-            downstream.onNext(results);
+            if (!chunks.isEmpty() && downstream != null) {
+                downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
+            }
+
+            if (downstream != null && onCompleteCalled.compareAndSet(false, true)) {
+                downstream.onComplete();
+            }
+            if (upstream != null) {
+                upstream.cancel();
+            }
+            isDone.set(true);
         });
     }
 
@@ -464,6 +493,20 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             0
         );
         var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, usage);
+        return Stream.of(chunk);
+    }
+
+
+    /**
+     * processes usage statistics
+     * Parse a ContentBlockStopEvent into a ChatCompletionChunk stream
+     * @param event the event data
+     * @return a stream of ChatCompletionChunk
+     */
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleContentBlockStop(
+        ContentBlockStopEvent event) {
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(null, null, event.contentBlockIndex());
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
         return Stream.of(chunk);
     }
 }

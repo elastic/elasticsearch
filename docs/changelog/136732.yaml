@@ -2,5 +2,4 @@ pr: 136732
 summary: Address `CompoundRetrieverBuilder` Failure Handling
 area: Search
 type: bug
-issues: 
- - 136529
+issues: []

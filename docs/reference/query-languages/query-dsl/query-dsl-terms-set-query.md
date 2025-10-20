@@ -95,28 +95,6 @@ The following search returns documents where the `programming_languages` field c
 
 The `minimum_should_match_field` is `required_matches`. This means the number of matching terms required is `2`, the value of the `required_matches` field.
 
-<!--
-```console
-PUT /job-candidates
-{
-  "mappings": {
-    "properties": {
-      "name": {
-        "type": "keyword"
-      },
-      "programming_languages": {
-        "type": "keyword"
-      },
-      "required_matches": {
-        "type": "long"
-      }
-    }
-  }
-}
-```
-% TESTSETUP
--->
-
 ```console
 GET /job-candidates/_search
 {

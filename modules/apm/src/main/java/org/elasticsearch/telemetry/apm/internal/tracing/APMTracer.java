@@ -160,7 +160,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         Context context = traceContext.getTransient(Task.APM_TRACE_CONTEXT);
         Span s = Span.fromContext(context);
         String esSpanId = spanIdXref.get(s.getSpanContext().getSpanId());
-        return spans.containsKey(esSpanId);
+        return esSpanId != null && spans.containsKey(esSpanId);
     }
 
     @Override

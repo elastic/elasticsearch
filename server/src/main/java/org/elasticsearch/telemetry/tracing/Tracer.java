@@ -64,6 +64,9 @@ public interface Tracer {
      */
     void stopTrace(Traceable traceable);
 
+    /**
+     * Ends a span and also clears the tracing state present within traceContext
+     */
     void stopTrace(TraceContext traceContext, Traceable traceable);
 
     /**

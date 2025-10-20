@@ -168,7 +168,10 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 "---> Update the filter to exclude " + harness.firstDataNodeName + " so shards will be reassigned away to the other nodes"
             );
             // Updating the cluster settings will trigger a reroute request, no need to explicitly request one in the test.
-            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName));
+            updateClusterSettings(
+                Settings.builder()
+                    .put("cluster.routing.allocation.exclude._name", harness.firstDataNodeName)
+                    .put("cluster.routing.allocation.index_balance_decider.enabled", false));
 
             safeAwait(temporaryClusterStateListener);
         } catch (AssertionError error) {

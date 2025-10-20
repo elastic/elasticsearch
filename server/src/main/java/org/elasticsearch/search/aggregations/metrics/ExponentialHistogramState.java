@@ -152,7 +152,7 @@ public class ExponentialHistogramState implements Releasable, Accountable {
 
     /**
      * Returns an estimate of a cutoff such that a specified fraction of the data
-     * added to this TDigest would be less than or equal to the cutoff.
+     * added to this histogram would be less than or equal to the cutoff.
      *
      * @param q The desired fraction
      * @return The smallest value x such that cdf(x) &ge; q

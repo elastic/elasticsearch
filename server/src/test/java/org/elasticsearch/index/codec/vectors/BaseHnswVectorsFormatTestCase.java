@@ -37,7 +37,6 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.function.ToDoubleFunction;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -81,10 +80,6 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
     }
 
     public void testSingleVectorCase() throws Exception {
-        testSingleVectorCase(f -> 0.00001);
-    }
-
-    protected void testSingleVectorCase(ToDoubleFunction<float[]> calculateVectorDelta) throws Exception {
         float[] vector = randomVector(random().nextInt(12, 500));
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
             try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
@@ -101,11 +96,7 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
                     KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
                     assertThat(vectorValues.size(), equalTo(1));
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
-                        assertArrayEquals(
-                            vector,
-                            vectorValues.vectorValue(docIndexIterator.index()),
-                            (float) calculateVectorDelta.applyAsDouble(vector)
-                        );
+                        assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
                     float[] randomVector = randomVector(vector.length);
                     if (similarityFunction == VectorSimilarityFunction.COSINE) {

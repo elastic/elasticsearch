@@ -1,22 +1,13 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * Modifications copyright (C) 2025 Elasticsearch B.V.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.index.codec.vectors.es93;
+
+package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
@@ -41,7 +32,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
@@ -54,15 +44,14 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,20 +59,48 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
-import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
-import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector8;
 
-/**
- * Tests largely copied from BaseKnnVectorsFormatTestCase and modified to account for BFloat16
- */
-public class LuceneBFloat16Tests extends LuceneTestCase {
+public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
+
+    @Override
+    protected VectorEncoding randomVectorEncoding() {
+        return VectorEncoding.FLOAT32;
+    }
+
+    @Override
+    public void testEmptyByteVectorData() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testMergingWithDifferentByteKnnFields() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testByteVectorScorerIteration() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testSortedIndexBytes() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testMismatchedFields() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
+
+    @Override
+    public void testRandomBytes() throws Exception {
+        throw new AssumptionViolatedException("No bytes");
+    }
 
     @SuppressWarnings("unchecked")
-    public static void testWriterRamEstimate() throws Exception {
+    public void testWriterRamEstimate() throws Exception {
         final FieldInfos fieldInfos = new FieldInfos(new FieldInfo[0]);
         final Directory dir = newDirectory();
         Codec codec = Codec.getDefault();
@@ -142,9 +159,9 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
         dir.close();
     }
 
-    public static void testRandom(Supplier<VectorSimilarityFunction> randomSimilarity) throws Exception {
+    public void testRandom() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        VectorSimilarityFunction similarityFunction = randomSimilarity.get();
+        VectorSimilarityFunction similarityFunction = randomSimilarity();
         if (random().nextBoolean()) {
             iwc.setIndexSort(new Sort(new SortField("sortkey", SortField.Type.INT)));
         }
@@ -198,7 +215,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                     int docId;
                     KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                     while (true) {
-                        if (!((docId = iterator.nextDoc()) != NO_MORE_DOCS)) break;
+                        if (((docId = iterator.nextDoc()) != NO_MORE_DOCS) == false) break;
                         float[] v = vectorValues.vectorValue(iterator.index());
                         assertEquals(dimension, v.length);
                         String idString = storedFields.document(docId).getField("id").stringValue();
@@ -218,8 +235,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
         }
     }
 
-    public static void testRandomWithUpdatesAndGraph(CheckedBiConsumer<LeafReader, String, IOException> assertOffHeapByteSize)
-        throws Exception {
+    public void testRandomWithUpdatesAndGraph() throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         String fieldName = "field";
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
@@ -253,7 +269,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                     int numLiveDocsWithVectors = 0;
                     KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                     while (true) {
-                        if (!((docId = iterator.nextDoc()) != NO_MORE_DOCS)) break;
+                        if (((docId = iterator.nextDoc()) != NO_MORE_DOCS) == false) break;
                         float[] v = vectorValues.vectorValue(iterator.index());
                         assertEquals(dimension, v.length);
                         String idString = storedFields.document(docId).getField("id").stringValue();
@@ -295,14 +311,13 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                     for (int i = 0; i < k - 1; i++) {
                         assertTrue(results.scoreDocs[i].score >= results.scoreDocs[i + 1].score);
                     }
-                    assertOffHeapByteSize.accept(ctx.reader(), fieldName);
+                    assertOffHeapByteSize(ctx.reader(), fieldName);
                 }
             }
         }
     }
 
-    public static void testSparseVectors(Supplier<VectorSimilarityFunction> randomSimilarity, Supplier<VectorEncoding> randomVectorEncoding)
-        throws Exception {
+    public void testSparseVectors() throws Exception {
         int numDocs = atLeast(1000);
         int numFields = TestUtil.nextInt(random(), 1, 10);
         int[] fieldDocCounts = new int[numFields];
@@ -315,8 +330,8 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
             if (fieldDims[i] % 2 != 0) {
                 fieldDims[i]++;
             }
-            fieldSimilarityFunctions[i] = randomSimilarity.get();
-            fieldVectorEncodings[i] = randomVectorEncoding.get();
+            fieldSimilarityFunctions[i] = randomSimilarity();
+            fieldVectorEncodings[i] = randomVectorEncoding();
         }
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
@@ -354,7 +369,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                                     docCount += byteVectorValues.size();
                                     KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
                                     while (true) {
-                                        if (!(iterator.nextDoc() != NO_MORE_DOCS)) break;
+                                        if ((iterator.nextDoc() != NO_MORE_DOCS) == false) break;
                                         checksum += byteVectorValues.vectorValue(iterator.index())[0];
                                     }
                                 }
@@ -367,7 +382,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                                     docCount += vectorValues.size();
                                     KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
                                     while (true) {
-                                        if (!(iterator.nextDoc() != NO_MORE_DOCS)) break;
+                                        if ((iterator.nextDoc() != NO_MORE_DOCS) == false) break;
                                         checksum += vectorValues.vectorValue(iterator.index())[0];
                                     }
                                 }
@@ -381,11 +396,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
         }
     }
 
-    public static void testVectorValuesReportCorrectDocs(
-        Supplier<VectorSimilarityFunction> randomSimilarity,
-        Supplier<VectorEncoding> randomVectorEncoding,
-        CheckedBiConsumer<LeafReader, String, IOException> assertOffHeapByteSize
-    ) throws Exception {
+    public void testVectorValuesReportCorrectDocs() throws Exception {
         final int numDocs = atLeast(1000);
         int dim = random().nextInt(20) + 1;
         if (dim % 2 != 0) {
@@ -395,8 +406,8 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
         int fieldDocCount = 0;
         long fieldSumDocIDs = 0;
 
-        VectorEncoding vectorEncoding = randomVectorEncoding.get();
-        VectorSimilarityFunction similarityFunction = randomSimilarity.get();
+        VectorEncoding vectorEncoding = randomVectorEncoding();
+        VectorSimilarityFunction similarityFunction = randomSimilarity();
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
@@ -449,7 +460,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                                     Document doc = storedFields.document(byteVectorValues.ordToDoc(ord), Set.of("id"));
                                     sumOrdToDocIds += Integer.parseInt(doc.get("id"));
                                 }
-                                assertOffHeapByteSize.accept(ctx.reader(), "knn_vector");
+                                assertOffHeapByteSize(ctx.reader(), "knn_vector");
                             }
                         }
                     }
@@ -470,7 +481,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
                                     Document doc = storedFields.document(vectorValues.ordToDoc(ord), Set.of("id"));
                                     sumOrdToDocIds += Integer.parseInt(doc.get("id"));
                                 }
-                                assertOffHeapByteSize.accept(ctx.reader(), "knn_vector");
+                                assertOffHeapByteSize(ctx.reader(), "knn_vector");
                             }
                         }
                     }
@@ -503,7 +514,7 @@ public class LuceneBFloat16Tests extends LuceneTestCase {
 
     /* BFloat16 values should be within 1% of expected value */
 
-    public static float calculateDelta(float[] values) {
+    protected static float calculateDelta(float[] values) {
         // use 1% of the max value for the delta
         float max = Float.MIN_VALUE;
         for (float v : values) {

@@ -88,7 +88,12 @@ public class PreAnalyzer {
                 supportsAggregateMetricDouble.set(true);
             }
         }));
-
+        // This is a temporary solution for the first phase of date_range: ATM we don't support any functions
+        // on date_range, but we do want to allow the simplest possible cases of loading and rendering those fields.
+        // Not the most useful idea but it is a (relatively) safe way to add it without breaking tests.
+        if (plan.expressions().isEmpty()) {
+            supportsDateRange.set(true);
+        }
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 

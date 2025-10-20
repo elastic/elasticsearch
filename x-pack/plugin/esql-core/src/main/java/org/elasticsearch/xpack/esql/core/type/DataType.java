@@ -271,6 +271,9 @@ public enum DataType implements Writeable {
      * Nanosecond precision date, stored as a 64-bit signed number.
      */
     DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
+    /**
+     * Represents a half-inclusive range between two dates.
+     */
     DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().supportedOn(ESQL_DATE_RANGE_CREATED_VERSION)),
     /**
      * IP addresses. IPv4 address are always

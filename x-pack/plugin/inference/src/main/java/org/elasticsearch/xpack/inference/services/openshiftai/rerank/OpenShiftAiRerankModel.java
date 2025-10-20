@@ -21,8 +21,8 @@ import java.util.Map;
 
 public class OpenShiftAiRerankModel extends OpenShiftAiModel {
     public static OpenShiftAiRerankModel of(OpenShiftAiRerankModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = OpenShiftAIRerankTaskSettings.fromMap(taskSettings);
-        return new OpenShiftAiRerankModel(model, OpenShiftAIRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        var requestTaskSettings = OpenShiftAiRerankTaskSettings.fromMap(taskSettings);
+        return new OpenShiftAiRerankModel(model, OpenShiftAiRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public OpenShiftAiRerankModel(
@@ -39,7 +39,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
             taskType,
             service,
             OpenShiftAiRerankServiceSettings.fromMap(serviceSettings, context),
-            OpenShiftAIRerankTaskSettings.fromMap(taskSettings),
+            OpenShiftAiRerankTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -50,7 +50,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         TaskType taskType,
         String service,
         OpenShiftAiRerankServiceSettings serviceSettings,
-        OpenShiftAIRerankTaskSettings taskSettings,
+        OpenShiftAiRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
@@ -59,7 +59,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         );
     }
 
-    private OpenShiftAiRerankModel(OpenShiftAiRerankModel model, OpenShiftAIRerankTaskSettings taskSettings) {
+    private OpenShiftAiRerankModel(OpenShiftAiRerankModel model, OpenShiftAiRerankTaskSettings taskSettings) {
         super(model, taskSettings);
     }
 
@@ -69,8 +69,8 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
     }
 
     @Override
-    public OpenShiftAIRerankTaskSettings getTaskSettings() {
-        return (OpenShiftAIRerankTaskSettings) super.getTaskSettings();
+    public OpenShiftAiRerankTaskSettings getTaskSettings() {
+        return (OpenShiftAiRerankTaskSettings) super.getTaskSettings();
     }
 
     /**

@@ -28,21 +28,21 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 /**
  * Defines the task settings for the OpenShift AI rerank service.
  */
-public class OpenShiftAIRerankTaskSettings implements TaskSettings {
+public class OpenShiftAiRerankTaskSettings implements TaskSettings {
 
     public static final String NAME = "openshift_ai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N = "top_n";
 
-    private static final OpenShiftAIRerankTaskSettings EMPTY_SETTINGS = new OpenShiftAIRerankTaskSettings(null, null);
+    private static final OpenShiftAiRerankTaskSettings EMPTY_SETTINGS = new OpenShiftAiRerankTaskSettings(null, null);
 
     /**
-     * Creates a new {@link OpenShiftAIRerankTaskSettings} from a map of settings.
+     * Creates a new {@link OpenShiftAiRerankTaskSettings} from a map of settings.
      * @param map the map of settings
-     * @return a constructed {@link OpenShiftAIRerankTaskSettings}
+     * @return a constructed {@link OpenShiftAiRerankTaskSettings}
      * @throws ValidationException if any of the settings are invalid
      */
-    public static OpenShiftAIRerankTaskSettings fromMap(Map<String, Object> map) {
+    public static OpenShiftAiRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         if (map == null || map.isEmpty()) {
@@ -60,17 +60,17 @@ public class OpenShiftAIRerankTaskSettings implements TaskSettings {
     }
 
     /**
-     * Creates a new {@link OpenShiftAIRerankTaskSettings} by using non-null fields from the request settings over the original settings.
+     * Creates a new {@link OpenShiftAiRerankTaskSettings} by using non-null fields from the request settings over the original settings.
      *
      * @param originalSettings    the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @return a constructed {@link OpenShiftAIRerankTaskSettings}
+     * @return a constructed {@link OpenShiftAiRerankTaskSettings}
      */
-    public static OpenShiftAIRerankTaskSettings of(
-        OpenShiftAIRerankTaskSettings originalSettings,
-        OpenShiftAIRerankTaskSettings requestTaskSettings
+    public static OpenShiftAiRerankTaskSettings of(
+        OpenShiftAiRerankTaskSettings originalSettings,
+        OpenShiftAiRerankTaskSettings requestTaskSettings
     ) {
-        return new OpenShiftAIRerankTaskSettings(
+        return new OpenShiftAiRerankTaskSettings(
             requestTaskSettings.getTopN() != null ? requestTaskSettings.getTopN() : originalSettings.getTopN(),
             requestTaskSettings.getReturnDocuments() != null
                 ? requestTaskSettings.getReturnDocuments()
@@ -79,36 +79,36 @@ public class OpenShiftAIRerankTaskSettings implements TaskSettings {
     }
 
     /**
-     * Creates a new {@link OpenShiftAIRerankTaskSettings} with the specified settings.
+     * Creates a new {@link OpenShiftAiRerankTaskSettings} with the specified settings.
      *
      * @param topN            the number of top documents to return
      * @param returnDocuments whether to return the documents
-     * @return a constructed {@link OpenShiftAIRerankTaskSettings}
+     * @return a constructed {@link OpenShiftAiRerankTaskSettings}
      */
-    public static OpenShiftAIRerankTaskSettings of(@Nullable Integer topN, @Nullable Boolean returnDocuments) {
-        return new OpenShiftAIRerankTaskSettings(topN, returnDocuments);
+    public static OpenShiftAiRerankTaskSettings of(@Nullable Integer topN, @Nullable Boolean returnDocuments) {
+        return new OpenShiftAiRerankTaskSettings(topN, returnDocuments);
     }
 
     private final Integer topN;
     private final Boolean returnDocuments;
 
     /**
-     * Constructs a new {@link OpenShiftAIRerankTaskSettings} by reading from a {@link StreamInput}.
+     * Constructs a new {@link OpenShiftAiRerankTaskSettings} by reading from a {@link StreamInput}.
      *
      * @param in the stream input to read from
      * @throws IOException if an I/O error occurs
      */
-    public OpenShiftAIRerankTaskSettings(StreamInput in) throws IOException {
+    public OpenShiftAiRerankTaskSettings(StreamInput in) throws IOException {
         this(in.readOptionalInt(), in.readOptionalBoolean());
     }
 
     /**
-     * Constructs a new {@link OpenShiftAIRerankTaskSettings} with the specified settings.
+     * Constructs a new {@link OpenShiftAiRerankTaskSettings} with the specified settings.
      *
      * @param topN            the number of top documents to return
      * @param doReturnDocuments whether to return the documents
      */
-    public OpenShiftAIRerankTaskSettings(@Nullable Integer topN, @Nullable Boolean doReturnDocuments) {
+    public OpenShiftAiRerankTaskSettings(@Nullable Integer topN, @Nullable Boolean doReturnDocuments) {
         this.topN = topN;
         this.returnDocuments = doReturnDocuments;
     }
@@ -157,7 +157,7 @@ public class OpenShiftAIRerankTaskSettings implements TaskSettings {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        OpenShiftAIRerankTaskSettings that = (OpenShiftAIRerankTaskSettings) o;
+        OpenShiftAiRerankTaskSettings that = (OpenShiftAiRerankTaskSettings) o;
         return Objects.equals(returnDocuments, that.returnDocuments) && Objects.equals(topN, that.topN);
     }
 
@@ -176,7 +176,7 @@ public class OpenShiftAIRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        OpenShiftAIRerankTaskSettings updatedSettings = OpenShiftAIRerankTaskSettings.fromMap(new HashMap<>(newSettings));
-        return OpenShiftAIRerankTaskSettings.of(this, updatedSettings);
+        OpenShiftAiRerankTaskSettings updatedSettings = OpenShiftAiRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        return OpenShiftAiRerankTaskSettings.of(this, updatedSettings);
     }
 }

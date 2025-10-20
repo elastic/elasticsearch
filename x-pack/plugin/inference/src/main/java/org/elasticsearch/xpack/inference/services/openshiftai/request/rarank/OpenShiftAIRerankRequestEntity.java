@@ -10,12 +10,20 @@ package org.elasticsearch.xpack.inference.services.openshiftai.request.rarank;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAIRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Entity representing the request body for OpenShift AI rerank requests.
+ * @param modelId the model identifier (optional)
+ * @param query the query string
+ * @param documents the list of documents to be reranked
+ * @param returnDocuments whether to return the documents in the response (optional)
+ * @param topN the number of top results to return (optional)
+ */
 public record OpenShiftAIRerankRequestEntity(
     @Nullable String modelId,
     String query,
@@ -44,14 +52,12 @@ public record OpenShiftAIRerankRequestEntity(
         builder.field(QUERY_FIELD, query);
         builder.field(DOCUMENTS_FIELD, documents);
 
-        // prefer the root level top_n over task settings
         if (topN != null) {
-            builder.field(OpenShiftAIRerankTaskSettings.TOP_N, topN);
+            builder.field(OpenShiftAiRerankTaskSettings.TOP_N, topN);
         }
 
-        // prefer the root level return_documents over task settings
         if (returnDocuments != null) {
-            builder.field(OpenShiftAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
+            builder.field(OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
         }
 
         builder.endObject();

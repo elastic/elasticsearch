@@ -115,8 +115,8 @@ import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbedd
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAIRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -472,7 +472,7 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenShiftAIRerankTaskSettings.NAME, OpenShiftAIRerankTaskSettings::new)
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenShiftAiRerankTaskSettings.NAME, OpenShiftAiRerankTaskSettings::new)
         );
     }
 

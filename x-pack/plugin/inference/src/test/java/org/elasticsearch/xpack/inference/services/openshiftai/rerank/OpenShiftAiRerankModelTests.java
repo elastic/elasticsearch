@@ -16,12 +16,22 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 public class OpenShiftAiRerankModelTests extends ESTestCase {
 
     public static OpenShiftAiRerankModel createModel(String url, String apiKey, @Nullable String modelId) {
+        return createModel(url, apiKey, modelId, 2, true);
+    }
+
+    public static OpenShiftAiRerankModel createModel(
+        String url,
+        String apiKey,
+        @Nullable String modelId,
+        @Nullable Integer topN,
+        @Nullable Boolean doReturnDocuments
+    ) {
         return new OpenShiftAiRerankModel(
             "inferenceEntityId",
             TaskType.RERANK,
             "service",
             new OpenShiftAiRerankServiceSettings(modelId, url, null),
-            new OpenShiftAIRerankTaskSettings(2, true),
+            new OpenShiftAiRerankTaskSettings(topN, doReturnDocuments),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

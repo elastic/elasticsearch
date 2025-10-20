@@ -27,6 +27,11 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 /**
  * Represents a request to the OpenShift AI rerank service.
  * This class constructs the HTTP request with the necessary headers and body content.
+ * @param query the query string to rerank against
+ * @param input the list of input documents to be reranked
+ * @param returnDocuments whether to return the documents in the response (optional)
+ * @param topN the number of top results to return (optional)
+ * @param model the OpenShift AI rerank model configuration
  */
 public record OpenShiftAiRerankRequest(
     String query,
@@ -39,7 +44,6 @@ public record OpenShiftAiRerankRequest(
     public OpenShiftAiRerankRequest {
         Objects.requireNonNull(input);
         Objects.requireNonNull(query);
-        Objects.requireNonNull(model);
     }
 
     @Override

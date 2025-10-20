@@ -16,7 +16,6 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -48,6 +47,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -413,9 +413,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         ActionListener<?> listener
     ) {
         return new GroupedActionListener<>(inferenceRequestCount, listener.delegateFailureAndWrap((l, responses) -> {
-            ImmutableOpenMap.Builder<FullyQualifiedInferenceId, InferenceResults> mapBuilder = ImmutableOpenMap.builder();
-            responses.forEach(r -> mapBuilder.put(r.v1(), r.v2()));
-            inferenceResultsMapSupplier.set(mapBuilder.build());
+            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
+            responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
+            inferenceResultsMapSupplier.set(inferenceResultsMap);
             l.onResponse(null);
         }));
     }

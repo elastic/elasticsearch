@@ -866,6 +866,9 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 "time_compiling_condition",
                 TimeValue.timeValueNanos(timeCompilingConditionInNanos.longValue())
             );
+            if (lastException != null) {
+                builder.field("last_exception", lastException.getMessage());
+            }
             builder.endObject();
             return builder;
         }

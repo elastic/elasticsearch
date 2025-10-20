@@ -1465,6 +1465,11 @@ public class EsqlCapabilities {
         FIX_ALIAS_ID_WHEN_DROP_ALL_AGGREGATES,
 
         /**
+         * Percentile over time and other ts-aggregations
+         */
+        PERCENTILE_OVER_TIME,
+
+        /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
          */
@@ -1515,6 +1520,16 @@ public class EsqlCapabilities {
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
+
+        /**
+         * Allow multiple patterns for GROK command
+         */
+        GROK_MULTI_PATTERN,
+
+        /**
+         * Fix double release in inline stats when LocalRelation is reused
+         */
+        INLINE_STATS_DOUBLE_RELEASE_FIX(INLINESTATS_V11.enabled)
 
         ;
 

@@ -510,9 +510,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchDenseVector {pref=null mode=time_series}
   issue: https://github.com/elastic/elasticsearch/issues/135762
-- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/135820
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/124055
@@ -522,9 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testAliasFields
   issue: https://github.com/elastic/elasticsearch/issues/135996
-- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
-  method: testHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/136002
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testConcurrentAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/135777
@@ -585,21 +579,24 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136493
-- class: org.elasticsearch.xpack.core.HealthApiFeatureSetUsageTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/136648
-- class: org.elasticsearch.ingest.common.AppendProcessorTests
-  method: testAppendingToNonExistingListEmptyStringAndEmptyValuesDisallowed
-  issue: https://github.com/elastic/elasticsearch/issues/136657
-- class: org.elasticsearch.ingest.common.AppendProcessorTests
-  method: testAppendValuesToNonExistingList
-  issue: https://github.com/elastic/elasticsearch/issues/136662
-- class: org.elasticsearch.ingest.common.AppendProcessorTests
-  method: testConvertScalarToList
-  issue: https://github.com/elastic/elasticsearch/issues/136667
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/136585
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testManyConcat
+  issue: https://github.com/elastic/elasticsearch/issues/136728
+- class: org.elasticsearch.compute.data.BasicPageTests
+  method: testEqualityAndHashCode
+  issue: https://github.com/elastic/elasticsearch/issues/136753
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
+  method: testRandomWithUpdatesAndGraph
+  issue: https://github.com/elastic/elasticsearch/issues/136767
+- class: org.elasticsearch.xpack.ml.integration.BasicDistributedJobsIT
+  method: testFailOverBasics
+  issue: https://github.com/elastic/elasticsearch/issues/136778
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testLookupExplosionManyMatchesManyFields
+  issue: https://github.com/elastic/elasticsearch/issues/136791
 
 # Examples:
 #

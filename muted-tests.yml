@@ -597,9 +597,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettings
   issue: https://github.com/elastic/elasticsearch/issues/135972
-- class: org.elasticsearch.xpack.ml.integration.RegressionIT
-  method: testAliasFields
-  issue: https://github.com/elastic/elasticsearch/issues/137377
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/137687

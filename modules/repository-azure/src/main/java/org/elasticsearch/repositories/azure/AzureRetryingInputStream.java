@@ -9,11 +9,17 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.azure.core.exception.HttpResponseException;
+
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
@@ -37,9 +43,26 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public InputStreamAtVersion<String> getInputStreamAtVersion(@Nullable String version, long start, long end) throws IOException {
-            Long length = end < Long.MAX_VALUE - 1 ? end - start : null;
-            AzureBlobStore.AzureInputStream inputStream = blobStore.getInputStream(purpose, blob, start, length, version);
-            return new InputStreamAtVersion<>(inputStream, inputStream.getETag());
+            try {
+                final Long length = end < Long.MAX_VALUE - 1 ? end - start : null;
+                final AzureBlobStore.AzureInputStream inputStream = blobStore.getInputStream(purpose, blob, start, length, version);
+                return new InputStreamAtVersion<>(inputStream, inputStream.getETag());
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrap(e, HttpResponseException.class) instanceof HttpResponseException httpResponseException) {
+                    final var httpStatusCode = httpResponseException.getResponse().getStatusCode();
+                    if (httpStatusCode == RestStatus.NOT_FOUND.getStatus()) {
+                        throw new NoSuchFileException("Blob [" + blob + "] not found");
+                    }
+                    if (httpStatusCode == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                        throw new RequestedRangeNotSatisfiedException(blob, start, end == Long.MAX_VALUE - 1 ? -1 : end - start, e);
+                    }
+                }
+                switch (e) {
+                    case RuntimeException runtimeException -> throw runtimeException;
+                    case IOException ioException -> throw ioException;
+                    default -> throw new IOException("Unable to get input stream for blob [" + blob + "]", e);
+                }
+            }
         }
 
         @Override

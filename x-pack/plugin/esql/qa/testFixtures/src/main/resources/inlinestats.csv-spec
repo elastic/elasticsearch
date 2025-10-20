@@ -1636,7 +1636,7 @@ emp_no:integer
 ;
 
 inlineStatsWithShadowedOutput1
-required_capability: inline_stats
+required_capability: inline_stats_prune_column_fix
 
 ROW a = null, b = 0, c = "x"
 | INLINE STATS a = MAX(c) BY b
@@ -1648,7 +1648,7 @@ x              |0              |x
 ;
 
 inlineStatsWithShadowedOutput2
-required_capability: inline_stats
+required_capability: inline_stats_prune_column_fix
 
 ROW a = null, b = 0, c = "x", d = 1
 | INLINE STATS a = MAX(c), d = MIN(c) by b
@@ -1660,7 +1660,7 @@ x              |0              |x         |2
 ;
 
 inlineStatsWithShadowedOutput3
-required_capability: inline_stats
+required_capability: inline_stats_prune_column_fix
 
 FROM employees
 | KEEP emp_no, salary, birth_date

@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,6 +60,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -77,10 +79,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private static final int TEST_TEMPLATE_VERSION = 12345678;
 
-    private ThreadPool threadPool;
     private IndicesAdminClient indicesAdminClient;
-    private ClusterAdminClient clusterAdminClient;
-    private AdminClient adminClient;
     private Client client;
     private ActionListener<Boolean> listener;
 
@@ -90,7 +89,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setUpMocks() {
-        threadPool = mock(ThreadPool.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         indicesAdminClient = mock(IndicesAdminClient.class);
@@ -104,7 +103,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         doAnswer(withResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS)).when(indicesAdminClient).aliases(any(), any());
         doAnswer(withResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS)).when(indicesAdminClient).putTemplate(any(), any());
 
-        clusterAdminClient = mock(ClusterAdminClient.class);
+        final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
             ActionListener<ClusterHealthResponse> actionListener = (ActionListener<ClusterHealthResponse>) invocationOnMock
                 .getArguments()[1];
@@ -112,7 +111,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             return null;
         }).when(clusterAdminClient).health(any(ClusterHealthRequest.class), any(ActionListener.class));
 
-        adminClient = mock(AdminClient.class);
+        final AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(adminClient.cluster()).thenReturn(clusterAdminClient);
 
@@ -328,7 +327,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {
-        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(Arrays.asList(FIRST_CONCRETE_INDEX), FIRST_CONCRETE_INDEX);
+        assertMlStateWriteAliasAddedToMostRecentMlStateIndex(List.of(FIRST_CONCRETE_INDEX), FIRST_CONCRETE_INDEX);
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButSubsequentStateIndicesExist() {
@@ -403,6 +402,152 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertFalse(MlIndexAndAlias.has6DigitSuffix("index1"));
         assertFalse(MlIndexAndAlias.has6DigitSuffix("index-foo"));
         assertFalse(MlIndexAndAlias.has6DigitSuffix("index000001"));
+    }
+
+    public void testLatestIndexMatchingBaseName_isLatest() {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bar", IndexVersion.current(), List.of("job2")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bax", IndexVersion.current(), List.of("job3")));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-foo",
+            TestIndexNameExpressionResolver.newInstance(),
+            csBuilder.build()
+        );
+        assertEquals(".ml-anomalies-custom-foo", latest);
+    }
+
+    public void testLatestIndexMatchingBaseName_hasLater() {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bar", IndexVersion.current(), List.of("job2")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-000001", IndexVersion.current(), List.of("job3")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-000002", IndexVersion.current(), List.of("job4")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-baz-000001", IndexVersion.current(), List.of("job5")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-baz-000002", IndexVersion.current(), List.of("job6")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-baz-000003", IndexVersion.current(), List.of("job7")));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+        var state = csBuilder.build();
+
+        assertTrue(MlIndexAndAlias.has6DigitSuffix(".ml-anomalies-custom-foo-000002"));
+
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-foo",
+            TestIndexNameExpressionResolver.newInstance(),
+            state
+        );
+        assertEquals(".ml-anomalies-custom-foo-000002", latest);
+
+        latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-baz-000001",
+            TestIndexNameExpressionResolver.newInstance(),
+            state
+        );
+        assertEquals(".ml-anomalies-custom-baz-000003", latest);
+    }
+
+    public void testLatestIndexMatchingBaseName_CollidingIndexNames() {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bar", IndexVersion.current(), List.of("job2")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foodifferent000001", IndexVersion.current(), List.of("job3")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-notthisone-000001", IndexVersion.current(), List.of("job4")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-notthisone-000002", IndexVersion.current(), List.of("job5")));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+        var state = csBuilder.build();
+
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-foo",
+            TestIndexNameExpressionResolver.newInstance(),
+            state
+        );
+        assertEquals(".ml-anomalies-custom-foo", latest);
+
+        latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-foo-notthisone-000001",
+            TestIndexNameExpressionResolver.newInstance(),
+            state
+        );
+        assertEquals(".ml-anomalies-custom-foo-notthisone-000002", latest);
+    }
+
+    public void testBuildIndexAliasesRequest() {
+        var anomaliesIndex = ".ml-anomalies-sharedindex";
+        var jobs = List.of("job1", "job2");
+        IndexMetadata.Builder indexMetadata = createSharedResultsIndex(anomaliesIndex, IndexVersion.current(), jobs);
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(indexMetadata);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+
+        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(
+            mock(ElasticsearchClient.class),
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
+
+        var newIndex = anomaliesIndex + "-000001";
+        var request = MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
+        var actions = request.request().getAliasActions();
+        assertThat(actions, hasSize(6));
+
+        // The order in which the alias actions are created
+        // is not preserved so look for the item in the list
+        for (var job : jobs) {
+            var expected = new AliasActionMatcher(
+                AnomalyDetectorsIndex.resultsWriteAlias(job),
+                newIndex,
+                IndicesAliasesRequest.AliasActions.Type.ADD
+            );
+            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
+
+            expected = new AliasActionMatcher(
+                AnomalyDetectorsIndex.resultsWriteAlias(job),
+                anomaliesIndex,
+                IndicesAliasesRequest.AliasActions.Type.REMOVE
+            );
+            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
+
+            expected = new AliasActionMatcher(
+                AnomalyDetectorsIndex.jobResultsAliasedName(job),
+                newIndex,
+                IndicesAliasesRequest.AliasActions.Type.ADD
+            );
+            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
+        }
+    }
+
+    private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {
+        boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
+            return aliasAction.actionType() == actionType
+                && aliasAction.aliases()[0].equals(aliasName)
+                && aliasAction.indices()[0].equals(index);
+        }
+    }
+
+    private IndexMetadata.Builder createSharedResultsIndex(String indexName, IndexVersion indexVersion, List<String> jobs) {
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+        indexMetadata.settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
+        );
+
+        for (var jobId : jobs) {
+            indexMetadata.putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).isHidden(true).build());
+            indexMetadata.putAlias(
+                AliasMetadata.builder(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).writeIndex(true).isHidden(true).build()
+            );
+        }
+
+        return indexMetadata;
     }
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {

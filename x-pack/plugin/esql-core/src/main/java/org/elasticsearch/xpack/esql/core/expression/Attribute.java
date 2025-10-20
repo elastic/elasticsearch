@@ -34,6 +34,9 @@ import static java.util.Collections.emptyList;
  * Note on equality: Because the name alone is not sufficient to identify an attribute
  * (two different relations can have the same attribute name), attributes get a unique {@link #id()}
  * assigned at creation which is respected in equality checks and hashing.
+ * <p>
+ * Caution! {@link #semanticEquals(Expression)} and {@link #semanticHash()} rely solely on the id.
+ * But this doesn't extend to expressions containing attributes as children.
  */
 public abstract class Attribute extends NamedExpression {
     /**

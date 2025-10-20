@@ -78,12 +78,13 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
             )
         ) {
             for (final var feature : features) {
-                feature.getCleanUpFunction().apply(clusterService, projectResolver, client, listeners.acquire(e -> {
-                    assert e != null : feature.getName();
-                    synchronized (responses) {
-                        responses.add(e);
-                    }
-                }));
+                feature.getCleanUpFunction()
+                    .apply(clusterService, projectResolver, client, request.masterNodeTimeout(), listeners.acquire(e -> {
+                        assert e != null : feature.getName();
+                        synchronized (responses) {
+                            responses.add(e);
+                        }
+                    }));
             }
         }
     }

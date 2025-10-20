@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -220,6 +221,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             ClusterService clusterService,
             ProjectResolver projectResolver,
             Client client,
+            TimeValue masterNodeTimeout,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
         ) {
             if (isEvil()) {

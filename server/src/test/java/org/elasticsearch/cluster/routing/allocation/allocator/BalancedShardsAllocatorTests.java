@@ -1154,13 +1154,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertAssignedTo(allocationService, "not-preferred-low", shuffledList("not-preferred-low", "not-preferred", "not-preferred-high"));
     }
 
-    private List<String> shuffledList(String... strings) {
-        final List<String> list = new ArrayList<>();
-        Collections.addAll(list, strings);
-        Collections.shuffle(list, random());
-        return list;
-    }
-
     private void assertAssignedTo(AllocationService allocationService, @Nullable String expectedNodeId, List<String> allNodeIds) {
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (String nodeName : allNodeIds) {

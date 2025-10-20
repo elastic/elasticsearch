@@ -80,7 +80,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
@@ -967,13 +967,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         );
                     }
                     case TEXT_EMBEDDING -> {
-                        if (inferenceResults instanceof MlTextEmbeddingResults == false) {
+                        if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
                             throw new IllegalArgumentException(
-                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlTextEmbeddingResults.NAME)
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
                             );
                         }
 
-                        MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
+                        MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
                             ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value

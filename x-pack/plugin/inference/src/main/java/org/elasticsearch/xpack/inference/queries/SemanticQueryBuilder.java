@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -53,7 +54,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -100,7 +100,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String fieldName;
     private final String query;
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
-    private final Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
+    private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
     private final Boolean lenient;
 
     // ccsRequest is only used on the local cluster coordinator node to detect when:
@@ -236,7 +236,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private SemanticQueryBuilder(
         SemanticQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
         this.fieldName = other.fieldName;
@@ -287,7 +287,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param query The query to generate inference results for
      * @return An inference results map supplier
      */
-    static Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
+    static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
@@ -313,9 +313,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
         }
 
-        InferenceResultsMapSupplier inferenceResultsMapSupplier = null;
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier = null;
         if (inferenceIds.isEmpty() == false) {
-            inferenceResultsMapSupplier = new InferenceResultsMapSupplier();
+            inferenceResultsMapSupplier = new SetOnce<>();
             registerInferenceAsyncActions(queryRewriteContext, inferenceResultsMapSupplier, query, inferenceIds);
         }
 
@@ -339,7 +339,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     static void registerInferenceAsyncActions(
         QueryRewriteContext queryRewriteContext,
-        InferenceResultsMapSupplier inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         String query,
         List<String> inferenceIds
     ) {
@@ -389,7 +389,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
-        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
         T currentQueryBuilder,
         Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap,
         Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
@@ -408,7 +408,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
-        InferenceResultsMapSupplier inferenceResultsMapSupplier,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         int inferenceRequestCount,
         ActionListener<?> listener
     ) {
@@ -548,7 +548,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             queryRewriteContext.getLocalClusterAlias(),
             fieldName
         );
-        Supplier<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
             queryRewriteContext,
             fullyQualifiedInferenceIds,
             inferenceResultsMap,

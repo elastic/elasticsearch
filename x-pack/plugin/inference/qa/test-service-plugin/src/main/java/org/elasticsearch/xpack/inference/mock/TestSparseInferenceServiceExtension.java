@@ -191,7 +191,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         private static float generateEmbedding(String input, int position) {
             // Ensure non-negative and non-zero values for features
-            return Math.abs(input.hashCode()) + 1 + position;
+            return Integer.toUnsignedLong(input.hashCode()) + 1 + position;
         }
 
         public static class Configuration {

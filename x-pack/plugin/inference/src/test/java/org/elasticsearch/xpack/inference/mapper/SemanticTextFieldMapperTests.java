@@ -65,6 +65,7 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -96,6 +97,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
@@ -852,9 +854,26 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
         switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(SparseVectorFieldMapper.class)));
-            case TEXT_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(DenseVectorFieldMapper.class)));
+            case TEXT_EMBEDDING ->  assertTextEmbeddingsFieldMapperMatchesModel(embeddingsFieldMapper, model);
             default -> throw new AssertionError("Unexpected task type [" + model.getTaskType() + "]");
         }
+    }
+
+    private static void assertTextEmbeddingsFieldMapperMatchesModel(Mapper embeddingsFieldMapper, Model model) {
+        Function<SimilarityMeasure, DenseVectorFieldMapper.VectorSimilarity> convertToVectorSimilarity = s -> switch (s) {
+            case COSINE -> DenseVectorFieldMapper.VectorSimilarity.COSINE;
+            case DOT_PRODUCT ->  DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT;
+            case L2_NORM ->  DenseVectorFieldMapper.VectorSimilarity.L2_NORM;
+        };
+        assertThat(embeddingsFieldMapper, is(instanceOf(DenseVectorFieldMapper.class)));
+        DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsFieldMapper;
+        ServiceSettings modelServiceSettings = model.getConfigurations().getServiceSettings();
+        assertThat(denseVectorFieldMapper.fieldType().getVectorDimensions(), equalTo(modelServiceSettings.dimensions()));
+        assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(modelServiceSettings.elementType()));
+        assertThat(
+            denseVectorFieldMapper.fieldType().getSimilarity(),
+            equalTo(convertToVectorSimilarity.apply(modelServiceSettings.similarity()))
+        );
     }
 
     private void testUpdateInferenceId_GivenDenseModelsWithDifferentSettings(

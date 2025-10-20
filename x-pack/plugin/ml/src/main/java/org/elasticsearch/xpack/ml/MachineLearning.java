@@ -2136,12 +2136,13 @@ public class MachineLearning extends Plugin
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client unwrappedClient,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         if (this.enabled == false) {
             // if ML is disabled, the custom cleanup can fail, but we can still clean up indices
             // by calling the superclass cleanup method
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, unwrappedClient, finalListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, unwrappedClient, masterNodeTimeout, finalListener);
             return;
         }
         logger.info("Starting machine learning feature reset");
@@ -2204,6 +2205,7 @@ public class MachineLearning extends Plugin
                                         clusterService,
                                         projectResolver,
                                         client,
+                                        masterNodeTimeout,
                                         delegate
                                     ),
                                     clearFailed -> {
@@ -2211,14 +2213,20 @@ public class MachineLearning extends Plugin
                                             "failed to clear memory tracker cache via machine learning reset feature API",
                                             clearFailed
                                         );
-                                        SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, delegate);
+                                        SystemIndexPlugin.super.cleanUpFeature(
+                                            clusterService,
+                                            projectResolver,
+                                            client,
+                                            masterNodeTimeout,
+                                            delegate
+                                        );
                                     }
                                 )
                             );
                         return;
                     }
                     // Call into the original listener to clean up the indices and then clear ml memory cache
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, delegate);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, delegate);
                 } else {
                     final List<String> failedComponents = results.entrySet()
                         .stream()

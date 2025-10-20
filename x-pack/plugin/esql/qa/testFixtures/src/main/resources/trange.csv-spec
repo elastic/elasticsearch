@@ -11,7 +11,6 @@ FROM k8s
 
 // tag::docsTRangeAbsoluteTimeString-result[]
 @timestamp:datetime
-2024-05-10T00:17:14.000Z
 2024-05-10T00:17:16.000Z
 2024-05-10T00:17:20.000Z
 2024-05-10T00:17:30.000Z
@@ -19,6 +18,7 @@ FROM k8s
 2024-05-10T00:17:39.000Z
 2024-05-10T00:17:39.000Z
 2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 // end::docsTRangeAbsoluteTimeString-result[]
@@ -37,7 +37,6 @@ FROM k8s
 
 // tag::docsTRangeFromExplicitTimeString-result[]
 @timestamp:datetime
-2024-05-10T00:17:14.000Z
 2024-05-10T00:17:16.000Z
 2024-05-10T00:17:20.000Z
 2024-05-10T00:17:30.000Z
@@ -45,6 +44,7 @@ FROM k8s
 2024-05-10T00:17:39.000Z
 2024-05-10T00:17:39.000Z
 2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 // end::docsTRangeFromExplicitTimeString-result[]
@@ -63,7 +63,6 @@ FROM k8s
 
 // tag::docsTRangeAbsoluteTimeEpochMillis-result[]
 @timestamp:datetime
-2024-05-10T00:17:16.000Z
 2024-05-10T00:17:20.000Z
 2024-05-10T00:17:30.000Z
 2024-05-10T00:17:30.000Z
@@ -89,7 +88,6 @@ FROM k8s
 
 // tag::docsTRangeFromExplicitTimeEpochMillis-result[]
 @timestamp:datetime
-2024-05-10T00:17:16.000Z
 2024-05-10T00:17:20.000Z
 2024-05-10T00:17:30.000Z
 2024-05-10T00:17:30.000Z
@@ -99,6 +97,7 @@ FROM k8s
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
+2024-05-10T00:18:07.000Z
 // end::docsTRangeFromExplicitTimeEpochMillis-result[]
 ;
 

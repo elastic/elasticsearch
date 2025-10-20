@@ -433,7 +433,8 @@ public class EsqlFunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(DayName.class, DayName::new, "day_name"),
                 def(MonthName.class, MonthName::new, "month_name"),
-                def(Now.class, Now::new, "now") },
+                def(Now.class, Now::new, "now"),
+                def(TRange.class, bic(TRange::new), "trange") },
             // spatial
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
@@ -535,8 +536,7 @@ public class EsqlFunctionRegistry {
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 // dense vector function
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
-                def(TRange.class, bic(TRange::new), "trange") } };
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {

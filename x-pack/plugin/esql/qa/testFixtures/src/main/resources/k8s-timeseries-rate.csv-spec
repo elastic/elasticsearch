@@ -249,7 +249,7 @@ required_capability: fn_trange
 
 TS k8s
 | WHERE TRANGE("2024-05-10T00:15:00.000Z", "2024-05-10T00:25:00.000Z") 
-| STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = tbucket(2minute)
+| STATS rate_bytes_in=AVG(RATE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(2minute)
 | SORT rate_bytes_in NULLS FIRST, time_bucket, cluster
 | LIMIT 10;
 

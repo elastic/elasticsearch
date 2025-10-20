@@ -130,7 +130,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
@@ -518,22 +517,6 @@ public final class EsqlTestUtils {
     private EsqlTestUtils() {}
 
     public static Configuration configuration(QueryPragmas pragmas, String query) {
-        return configuration(pragmas, query, null);
-    }
-
-    public static Configuration configuration(QueryPragmas pragmas) {
-        return configuration(pragmas, StringUtils.EMPTY);
-    }
-
-    public static Configuration configuration(String query) {
-        return configuration(new QueryPragmas(Settings.EMPTY), query);
-    }
-
-    public static Configuration configuration(Clock clock) {
-        return configuration(new QueryPragmas(Settings.EMPTY), StringUtils.EMPTY, clock);
-    }
-
-    public static Configuration configuration(QueryPragmas pragmas, String query, Clock clock) {
         return new Configuration(
             DateUtils.UTC,
             Locale.US,
@@ -548,9 +531,16 @@ public final class EsqlTestUtils {
             System.nanoTime(),
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            clock
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
+    }
+
+    public static Configuration configuration(QueryPragmas pragmas) {
+        return configuration(pragmas, StringUtils.EMPTY);
+    }
+
+    public static Configuration configuration(String query) {
+        return configuration(new QueryPragmas(Settings.EMPTY), query);
     }
 
     public static AnalyzerSettings queryClusterSettings() {

@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -224,11 +224,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             endLiteral = new Literal(source(), range[1], DataType.DATETIME);
         }
 
-        return new And(
-            source(),
-            new GreaterThanOrEqual(source(), timestamp, startLiteral),
-            new LessThanOrEqual(source(), timestamp, endLiteral)
-        );
+        return new And(source(), new GreaterThan(source(), timestamp, startLiteral), new LessThanOrEqual(source(), timestamp, endLiteral));
     }
 
     @Override
@@ -238,7 +234,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
 
     @Override
     public Nullability nullable() {
-        return Nullability.FALSE;
+        return timestamp.nullable();
     }
 
     private long[] getRange(FoldContext foldContext) {

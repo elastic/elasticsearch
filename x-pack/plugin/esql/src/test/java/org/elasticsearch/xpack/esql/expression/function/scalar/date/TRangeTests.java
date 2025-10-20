@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigura
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
+import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -141,7 +141,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         ),
                         Matchers.equalTo(
                             "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
+                                + "leftEval=GreaterThanLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
                                 + testCase.expectedStartTime
                                 + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
                                 + testCase.expectedEndTime
@@ -299,7 +299,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         ),
                         Matchers.equalTo(
                             "BooleanLogicExpressionEvaluator[bl=source, "
-                                + "leftEval=GreaterThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
+                                + "leftEval=GreaterThanLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
                                 + testCase.expectedStartTime
                                 + "]], rightEval=LessThanOrEqualLongsEvaluator[lhs=Attribute[channel=0], rhs=LiteralsEvaluator[lit="
                                 + testCase.expectedEndTime
@@ -360,11 +360,16 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
-        Configuration fixedClockConfig = EsqlTestUtils.configuration(Clock.fixed(fixedNow.toInstant(), fixedNow.getZone()));
+        Clock fixedClock = Clock.fixed(fixedNow.toInstant(), fixedNow.getZone().normalized());
+        ZonedDateTime fixedNow = ZonedDateTime.now(Clock.tick(fixedClock, Duration.ofNanos(1)));
+
+        Configuration spyConfig = Mockito.spy(configuration);
+        Mockito.doReturn(fixedNow).when(spyConfig).now();
+
         if (args.size() == 2) {
-            return new TRange(source, args.get(0), args.get(1), null, fixedClockConfig);
+            return new TRange(source, args.get(0), args.get(1), null, spyConfig);
         } else if (args.size() == 3) {
-            return new TRange(source, args.get(0), args.get(1), args.get(2), fixedClockConfig);
+            return new TRange(source, args.get(0), args.get(1), args.get(2), spyConfig);
         } else {
             throw new IllegalArgumentException("Unexpected number of arguments: " + args.size());
         }

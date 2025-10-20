@@ -389,11 +389,9 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The absolute URL of the external service to send requests to."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
-                        .setRequired(false)
+                        .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

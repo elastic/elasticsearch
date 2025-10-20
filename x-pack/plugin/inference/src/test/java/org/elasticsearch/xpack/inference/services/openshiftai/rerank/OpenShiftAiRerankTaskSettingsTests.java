@@ -61,7 +61,7 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
         assertThat(thrownException.getMessage(), containsString("field [top_n] is not of the expected type"));
     }
 
-    public void UpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
+    public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new OpenShiftAiRerankTaskSettings(5, true);
         OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
         assertEquals(initialSettings, updatedSettings);

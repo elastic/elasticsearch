@@ -6503,7 +6503,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var localRelation = as(limit.child(), LocalRelation.class);
     }
 
-
     /**
      * Expects
      *

@@ -161,7 +161,9 @@ public interface Tracer {
     Tracer NOOP = new Tracer() {
 
         @Override
-        public boolean hasActiveTrace(TraceContext traceContext) {return false;}
+        public boolean hasActiveTrace(TraceContext traceContext) {
+            return false;
+        }
 
         @Override
         public void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {}

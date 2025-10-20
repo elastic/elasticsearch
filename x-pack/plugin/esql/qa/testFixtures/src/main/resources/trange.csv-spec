@@ -24,18 +24,18 @@ FROM k8s
 // end::docsTRangeAbsoluteTimeString-result[]
 ;
 
-trangeFromExplicitTimeString
+trangeAbsoluteTimeDateTime
 required_capability: fn_trange
-// tag::docsTRangeFromExplicitTimeString[]
+// tag::docsTRangeAbsoluteTimeDateTime[]
 FROM k8s 
-| WHERE TRANGE("2024-05-10T00:17:14.000Z")
+| WHERE TRANGE(to_datetime("2024-05-10T00:17:14Z"), to_datetime("2024-05-10T00:18:33Z"))
 | SORT @timestamp
 | KEEP @timestamp
 | LIMIT 10
-// end::docsTRangeFromExplicitTimeString[]
+// end::docsTRangeAbsoluteTimeDateTime[]
 ;
 
-// tag::docsTRangeFromExplicitTimeString-result[]
+// tag::docsTRangeAbsoluteTimeDateTime-result[]
 @timestamp:datetime
 2024-05-10T00:17:16.000Z
 2024-05-10T00:17:20.000Z
@@ -47,7 +47,33 @@ FROM k8s
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
-// end::docsTRangeFromExplicitTimeString-result[]
+// end::docsTRangeAbsoluteTimeDateTime-result[]
+;
+
+trangeAbsoluteTimeDateTimeNanos
+required_capability: fn_trange
+// tag::docsTRangeAbsoluteTimeDateTimeNanos[]
+FROM k8s 
+| WHERE TRANGE(to_datetime("2024-05-10T00:17:14.000Z"), to_datetime("2024-05-10T00:18:33.000Z"))
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeAbsoluteTimeDateTimeNanos[]
+;
+
+// tag::docsTRangeAbsoluteTimeDateTimeNanos-result[]
+@timestamp:datetime
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeAbsoluteTimeDateTimeNanos-result[]
 ;
 
 trangeAbsoluteTimeEpochMillis
@@ -73,32 +99,6 @@ FROM k8s
 2024-05-10T00:18:02.000Z
 2024-05-10T00:18:02.000Z
 // end::docsTRangeAbsoluteTimeEpochMillis-result[]
-;
-
-trangeFromExplicitTimeEpochMillis
-required_capability: fn_trange
-// tag::docsTRangeFromExplicitTimeEpochMillis[]
-FROM k8s 
-| WHERE TRANGE(1715300236000) 
-| SORT @timestamp
-| KEEP @timestamp
-| LIMIT 10
-// end::docsTRangeFromExplicitTimeEpochMillis[]
-;
-
-// tag::docsTRangeFromExplicitTimeEpochMillis-result[]
-@timestamp:datetime
-2024-05-10T00:17:20.000Z
-2024-05-10T00:17:30.000Z
-2024-05-10T00:17:30.000Z
-2024-05-10T00:17:39.000Z
-2024-05-10T00:17:39.000Z
-2024-05-10T00:17:55.000Z
-2024-05-10T00:18:02.000Z
-2024-05-10T00:18:02.000Z
-2024-05-10T00:18:02.000Z
-2024-05-10T00:18:07.000Z
-// end::docsTRangeFromExplicitTimeEpochMillis-result[]
 ;
 
 trangeOffsetFromNow

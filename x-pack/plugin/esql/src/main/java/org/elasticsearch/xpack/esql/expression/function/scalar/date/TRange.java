@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
@@ -60,24 +60,18 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * Supported single parameter mode formats:
  * <ul>
  *     <li>TRANGE(1h) - [now - 1h; now] - supports time_duration (1h, 1min, etc) and period (1day, 1month, etc.)</li>
- *     <li>TRANGE(2024-05-12T12:00:00) - [explicit start; now]</li>
- *     <li>TRANGE(1715504400000) - [explicit start in millis; now]</li>
  * </ul>
  * Supported two parameter mode formats:
  * <ul>
  *     <li>TRANGE(2024-05-12T12:00:00, 2024-05-12T15:30:00) - [explicit start; explicit end]</li>
  *     <li>TRANGE(1715504400000, 1715517000000) - [explicit start in millis; explicit end in millis]</li>
- *     <li>TRANGE(2024-05-12T12:00:00, 1h) - [explicit start; start + 1h] - supports time_duration and period</li>
- *     <li>TRANGE(2024-05-12T12:00:00, -1h) - [explicit start; start - 1h] - supports time_duration and period</li>
- *     <li>TRANGE(1715504400000, 1h) - [explicit start in millis; start + 1h] - supports time_duration and period</li>
- *     <li>TRANGE(1715504400000, -1h) - [explicit start in millis; start - 1h] - supports time_duration and period</li>
  * </ul>
  */
 public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression, PostAnalysisVerificationAware {
     public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_OFFSET_PARAMETER = "start_time_or_offset";
-    public static final String END_TIME_OR_OFFSET_PARAMETER = "end_time_or_offset";
+    public static final String END_TIME_OR_OFFSET_PARAMETER = "end_time";
 
     private final Expression first;
     private final Expression second;
@@ -88,20 +82,23 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         description = "Filters time-series data for the given time range.",
         examples = {
             @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),
-            @Example(file = "trange", tag = "docsTRangeFromExplicitTimeString"),
-            @Example(file = "trange", tag = "docsTRangeFromExplicitTimeEpochMillis"),
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeString"),
+            @Example(file = "trange", tag = "docsTRangeAbsoluteTimeDateTime"),
+            @Example(file = "trange", tag = "docsTRangeAbsoluteTimeDateTimeNanos"),
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeEpochMillis") }
     )
     public TRange(
         Source source,
-        @Param(name = START_TIME_OR_OFFSET_PARAMETER, type = { "time_duration", "date_period", "keyword", "long" }, description = """
-             Time interval or start time value for single parameter mode. Start time for two parameter mode.
-             In two parameter mode, the start time value can be a date string or epoch milliseconds.
-            """) Expression first,
-        @Param(name = END_TIME_OR_OFFSET_PARAMETER, type = { "time_duration", "date_period", "keyword", "long" }, description = """
-            Explicit end time that can be a date string or epoch milliseconds, or a modifier for the first parameter (offset).
-            The offset can be a time duration or date period and can be either positive or negative.""", optional = true) Expression second,
+        @Param(
+            name = START_TIME_OR_OFFSET_PARAMETER,
+            type = { "time_duration", "date_period", "date", "date_nanos", "keyword", "long" },
+            description = """
+                 Offset from NOW for the single parameter mode. Start time for two parameter mode.
+                 In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds.
+                """
+        ) Expression first,
+        @Param(name = END_TIME_OR_OFFSET_PARAMETER, type = { "keyword", "long", "date", "date_nanos" }, description = """
+            Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.""", optional = true) Expression second,
         Configuration configuration
     ) {
         this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), first, second, configuration);
@@ -146,7 +143,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         }
 
         String operationName = sourceText();
-        TypeResolution resolution = isType(timestamp, DataType::isMillisOrNanos, operationName, DEFAULT, true, "date_nanos", "datetime");
+        TypeResolution resolution = isType(timestamp, DataType::isMillisOrNanos, operationName, DEFAULT, true, "date_nanos", "date");
 
         if (resolution.unresolved()) {
             return resolution;
@@ -155,18 +152,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         // Single parameter mode
         if (second == null) {
             return isNotNull(first, operationName, FIRST).and(isFoldable(first, operationName, FIRST))
-                .and(
-                    isType(
-                        first,
-                        dt -> isTemporalAmount(dt) || dt == KEYWORD || dt == LONG,
-                        operationName,
-                        FIRST,
-                        "time_duration",
-                        "date_period",
-                        "string",
-                        "long"
-                    )
-                );
+                .and(isType(first, DataType::isTemporalAmount, operationName, FIRST, "time_duration", "date_period"));
         }
 
         // Two parameter mode
@@ -178,24 +164,20 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             return resolution;
         }
 
-        // the 2nd parameter is an absolute time in string or long format: (<string>, <string>) or (<long>, <long>)
-        if (isTemporalAmount(second.dataType()) == false) {
-            resolution = isType(first, dt -> dt == KEYWORD || dt == LONG, operationName, FIRST, "string", "long").and(
-                isType(second, dt -> dt == first.dataType(), operationName, SECOND, first.dataType().esType())
-            );
+        // the 2nd parameter has the same type as the 1st, which can be string (datetime), long (epoch millis), date or date_nanos
+        resolution = isType(
+            first,
+            dt -> isMillisOrNanos(dt) || dt == KEYWORD || dt == LONG,
+            operationName,
+            FIRST,
+            "string",
+            "long",
+            "date",
+            "date_nanos"
+        ).and(isType(second, dt -> dt == first.dataType(), operationName, SECOND, first.dataType().esType()));
 
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        } else {
-            // the 2nd parameter is a temporal amount (offset): (<string|long>, <time_duration|date_period>)
-            resolution = isType(first, dt -> dt == KEYWORD || dt == LONG, operationName, FIRST, "string", "long").and(
-                isType(second, DataType::isTemporalAmount, operationName, SECOND, "time_duration", "date_period")
-            );
-
-            if (resolution.unresolved()) {
-                return resolution;
-            }
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         return TypeResolution.TYPE_RESOLVED;
@@ -245,30 +227,11 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             Object foldFirst = first.fold(foldContext);
             if (second == null) {
                 rangeEnd = configuration().now().toInstant();
-                if (DataType.isTemporalAmount(first.dataType())) {
-                    rangeStart = timeWithOffset(foldFirst, rangeEnd);
-                } else {
-                    rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
-                }
+                rangeStart = timeWithOffset(foldFirst, rangeEnd);
             } else {
                 Object foldSecond = second.fold(foldContext);
-                if (DataType.isTemporalAmount(second.dataType())) {
-                    // offset for base time
-                    Instant base = parseToInstant(first, START_TIME_OR_OFFSET_PARAMETER);
-                    Instant withOffset = timeWithOffset(foldSecond, base);
-
-                    if (base.isBefore(withOffset)) {
-                        rangeStart = base;
-                        rangeEnd = withOffset;
-                    } else {
-                        rangeStart = withOffset;
-                        rangeEnd = base;
-                    }
-                } else {
-                    // absolute time
-                    rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
-                    rangeEnd = parseToInstant(foldSecond, END_TIME_OR_OFFSET_PARAMETER);
-                }
+                rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
+                rangeEnd = parseToInstant(foldSecond, END_TIME_OR_OFFSET_PARAMETER);
             }
         } catch (InvalidArgumentException e) {
             throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
@@ -278,10 +241,14 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
             throw new InvalidArgumentException("TRANGE rangeStart time [{}] must be before rangeEnd time [{}]", rangeStart, rangeEnd);
         }
 
-        boolean nanos = timestamp.dataType() == DataType.DATE_NANOS;
+        if (timestamp.dataType() == DataType.DATE_NANOS && first.dataType() == DataType.DATE_NANOS) {
+            return new long[] { DateUtils.toLong(rangeStart), DateUtils.toLong(rangeEnd) };
+        }
+
+        boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return new long[] {
-            nanos == false ? rangeStart.toEpochMilli() : DateUtils.toNanoSeconds(rangeStart.toEpochMilli()),
-            nanos == false ? rangeEnd.toEpochMilli() : DateUtils.toNanoSeconds(rangeEnd.toEpochMilli()) };
+            convertToNanos == false ? rangeStart.toEpochMilli() : DateUtils.toNanoSeconds(rangeStart.toEpochMilli()),
+            convertToNanos == false ? rangeEnd.toEpochMilli() : DateUtils.toNanoSeconds(rangeEnd.toEpochMilli()) };
     }
 
     private Instant timeWithOffset(Object offset, Instant base) {
@@ -294,6 +261,10 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     private Instant parseToInstant(Object value, String paramName) {
         if (value instanceof Literal literal) {
             value = literal.fold(FoldContext.small());
+        }
+
+        if (value instanceof Instant instantValue) {
+            return instantValue;
         }
 
         if (value instanceof BytesRef bytesRef) {
@@ -323,13 +294,10 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
         }
 
         // single parameter mode
-        if (second == null && DataType.isTemporalAmount(first.dataType())) {
+        if (second == null) {
             Object rangeStartValue = first.fold(FoldContext.small());
-            if (rangeStartValue instanceof Duration duration && duration.isNegative()) {
-                failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));
-            }
-
-            if (rangeStartValue instanceof Period period && period.isNegative()) {
+            if (rangeStartValue instanceof Duration duration && duration.isNegative()
+                || rangeStartValue instanceof Period period && period.isNegative()) {
                 failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));
             }
         }

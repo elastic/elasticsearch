@@ -1273,7 +1273,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rangeQuery.fieldName(), equalTo("@timestamp"));
         assertThat(rangeQuery.from(), equalTo(startRange));
         assertThat(rangeQuery.to(), equalTo(endRange));
-        assertTrue(rangeQuery.includeLower());
+        assertFalse(rangeQuery.includeLower());
         assertTrue(rangeQuery.includeUpper());
     }
 

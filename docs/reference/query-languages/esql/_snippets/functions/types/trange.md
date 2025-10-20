@@ -2,16 +2,12 @@
 
 **Supported types**
 
-| start_time_or_offset | end_time_or_offset | result |
+| start_time_or_offset | end_time | result |
 | --- | --- | --- |
+| date | date | boolean |
+| date_nanos | date_nanos | boolean |
 | date_period | | boolean |
-| keyword | date_period | boolean |
 | keyword | keyword | boolean |
-| keyword | time_duration | boolean |
-| keyword | | boolean |
-| long | date_period | boolean |
 | long | long | boolean |
-| long | time_duration | boolean |
-| long | | boolean |
 | time_duration | | boolean |
 

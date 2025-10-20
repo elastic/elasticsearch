@@ -10,7 +10,7 @@ FROM k8s
 
 ```esql
 FROM k8s
-| WHERE TRANGE("2024-05-10T00:17:14.000Z")
+| WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
 | SORT @timestamp
 | KEEP @timestamp
 | LIMIT 10
@@ -31,7 +31,7 @@ FROM k8s
 
 ```esql
 FROM k8s
-| WHERE TRANGE(1715300236000)
+| WHERE TRANGE(to_datetime("2024-05-10T00:17:14Z"), to_datetime("2024-05-10T00:18:33Z"))
 | SORT @timestamp
 | KEEP @timestamp
 | LIMIT 10
@@ -39,6 +39,7 @@ FROM k8s
 
 | @timestamp:datetime |
 | --- |
+| 2024-05-10T00:17:16.000Z |
 | 2024-05-10T00:17:20.000Z |
 | 2024-05-10T00:17:30.000Z |
 | 2024-05-10T00:17:30.000Z |
@@ -48,11 +49,10 @@ FROM k8s
 | 2024-05-10T00:18:02.000Z |
 | 2024-05-10T00:18:02.000Z |
 | 2024-05-10T00:18:02.000Z |
-| 2024-05-10T00:18:07.000Z |
 
 ```esql
 FROM k8s
-| WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+| WHERE TRANGE(to_datetime("2024-05-10T00:17:14.000Z"), to_datetime("2024-05-10T00:18:33.000Z"))
 | SORT @timestamp
 | KEEP @timestamp
 | LIMIT 10

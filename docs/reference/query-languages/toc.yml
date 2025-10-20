@@ -161,7 +161,7 @@ toc:
       - file: esql/esql-examples.md
         children:
           - file: esql/esql-search-tutorial.md
-          - title: "ES|QL for threat hunting tutorial"
+          - title: "ES|QL for threat hunting"
             crosslink: docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md
       - file: esql/esql-troubleshooting.md
         children:

@@ -1022,8 +1022,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
     }
 
-
-
     private void assertInferenceIndexExists() {
         var indexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".inference").get();
         assertNotNull(indexResponse.getSettings());

@@ -3862,6 +3862,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidFork() {
         expectError("""
+            FROM foo* | FORK
+            """, "line 2:1: mismatched input '<EOF>' expecting '('");
+        expectError("""
+            FROM foo* | FORK ()
+            """, "line 1:19: mismatched input ')'");
+
+        expectError("""
             FROM foo*
             | FORK (where true) (where true) (where true) (where true)
                    (where true) (where true) (where true) (where true)

@@ -59,6 +59,12 @@ public class ES93HnswBFloat16VectorsFormatTests extends ES93HnswVectorsFormatTes
     }
 
     @Override
+    public void testSingleVectorCase() throws Exception {
+        AssertionError err = expectThrows(AssertionError.class, super::testSingleVectorCase);
+        assertFloatsWithinBounds(err);
+    }
+
+    @Override
     public void testRandom() throws Exception {
         AssertionError err = expectThrows(AssertionError.class, super::testRandom);
         assertFloatsWithinBounds(err);

@@ -301,7 +301,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
             )
         );
         // ensure metadata hasn't changed
-        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build())));
+        assertThat(metadata, is(new ModelRegistryMetadata(ImmutableOpenMap.builder(models).build(), Set.of(newInferenceId))));
         assertThat(newMetadata, not(is(metadata)));
         assertThat(
             newMetadata,

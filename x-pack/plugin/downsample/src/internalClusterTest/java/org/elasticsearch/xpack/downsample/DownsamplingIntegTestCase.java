@@ -293,7 +293,13 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
                 TimeSeriesParams.MetricType metricType = metricFields.get(field);
                 switch (metricType) {
                     case COUNTER -> assertThat(fieldMapping.get("type"), equalTo("double"));
-                    case GAUGE -> assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
+                    case GAUGE -> {
+                        if (config.getSamplingMethod() == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                            assertThat(fieldMapping.get("type"), equalTo("double"));
+                        } else {
+                            assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
+                        }
+                    }
                     default -> fail("Unsupported field type");
                 }
                 assertThat(fieldMapping.get("time_series_metric"), equalTo(metricType.toString()));

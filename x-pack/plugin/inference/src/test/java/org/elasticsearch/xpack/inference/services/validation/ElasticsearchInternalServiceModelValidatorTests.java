@@ -17,7 +17,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandEmbeddingModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
 import org.junit.Before;
@@ -118,7 +118,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
 
     public void testValidate_ElandTextEmbeddingModelValidationSucceedsAndDimensionsSetByUserValid() {
         var dimensions = randomIntBetween(1, 10);
-        var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
+        var mockInferenceServiceResults = mock(DenseEmbeddingResults.class);
         var mockUpdatedModel = mock(CustomElandEmbeddingModel.class);
         when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenReturn(dimensions);
         CustomElandEmbeddingModel customElandEmbeddingModel = createCustomElandEmbeddingModel(true, dimensions);
@@ -151,7 +151,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
 
     public void testValidate_ElandTextEmbeddingModelValidationSucceedsAndDimensionsSetByUserInvalid() {
         var dimensions = randomIntBetween(1, 10);
-        var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
+        var mockInferenceServiceResults = mock(DenseEmbeddingResults.class);
         when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenReturn(
             randomValueOtherThan(dimensions, () -> randomIntBetween(1, 10))
         );
@@ -207,7 +207,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
 
     public void testValidate_ElandTextEmbeddingModelDimensionsNotSetByUser() {
         var dimensions = randomIntBetween(1, 10);
-        var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
+        var mockInferenceServiceResults = mock(DenseEmbeddingResults.class);
         when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenReturn(dimensions);
         CustomElandEmbeddingModel customElandEmbeddingModel = createCustomElandEmbeddingModel(false, null);
 
@@ -239,7 +239,7 @@ public class ElasticsearchInternalServiceModelValidatorTests extends ESTestCase 
     }
 
     public void testValidate_ElandTextEmbeddingModelAndEmbeddingSizeRetrievalThrowsException() {
-        var mockInferenceServiceResults = mock(TextEmbeddingResults.class);
+        var mockInferenceServiceResults = mock(DenseEmbeddingResults.class);
         when(mockInferenceServiceResults.getFirstEmbeddingSize()).thenThrow(ElasticsearchStatusException.class);
         CustomElandEmbeddingModel customElandEmbeddingModel = createCustomElandEmbeddingModel(false, null);
 

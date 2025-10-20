@@ -181,7 +181,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 phase1 = in.readBoolean();
             } else {
                 phase1 = true; // does not matter, not verified anyway
@@ -204,7 +204,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeBoolean(phase1);
             }
         }

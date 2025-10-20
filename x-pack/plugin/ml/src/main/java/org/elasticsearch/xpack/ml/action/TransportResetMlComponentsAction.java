@@ -17,72 +17,72 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.ResetAuditorAction;
+import org.elasticsearch.xpack.core.ml.action.ResetMlComponentsAction;
+import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
-import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.io.IOException;
 import java.util.List;
 
-public class TransportResetAuditorAction extends TransportNodesAction<
-    ResetAuditorAction.Request,
-    ResetAuditorAction.Response,
-    ResetAuditorAction.NodeRequest,
-    ResetAuditorAction.Response.ResetResponse,
+public class TransportResetMlComponentsAction extends TransportNodesAction<
+    ResetMlComponentsAction.Request,
+    ResetMlComponentsAction.Response,
+    ResetMlComponentsAction.NodeRequest,
+    ResetMlComponentsAction.Response.ResetResponse,
     Void> {
 
     private final AnomalyDetectionAuditor anomalyDetectionAuditor;
     private final DataFrameAnalyticsAuditor dfaAuditor;
-    private final InferenceAuditor inferenceAuditor;
+    private final TrainedModelStatsService trainedModelStatsService;
 
     @Inject
-    public TransportResetAuditorAction(
+    public TransportResetMlComponentsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
         AnomalyDetectionAuditor anomalyDetectionAuditor,
         DataFrameAnalyticsAuditor dfaAuditor,
-        InferenceAuditor inferenceAuditor
+        TrainedModelStatsService trainedModelStatsService
     ) {
         super(
-            ResetAuditorAction.NAME,
+            ResetMlComponentsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
-            ResetAuditorAction.NodeRequest::new,
+            ResetMlComponentsAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.anomalyDetectionAuditor = anomalyDetectionAuditor;
         this.dfaAuditor = dfaAuditor;
-        this.inferenceAuditor = inferenceAuditor;
+        this.trainedModelStatsService = trainedModelStatsService;
     }
 
     @Override
-    protected ResetAuditorAction.Response newResponse(
-        ResetAuditorAction.Request request,
-        List<ResetAuditorAction.Response.ResetResponse> resetResponses,
+    protected ResetMlComponentsAction.Response newResponse(
+        ResetMlComponentsAction.Request request,
+        List<ResetMlComponentsAction.Response.ResetResponse> resetResponses,
         List<FailedNodeException> failures
     ) {
-        return new ResetAuditorAction.Response(clusterService.getClusterName(), resetResponses, failures);
+        return new ResetMlComponentsAction.Response(clusterService.getClusterName(), resetResponses, failures);
     }
 
     @Override
-    protected ResetAuditorAction.NodeRequest newNodeRequest(ResetAuditorAction.Request request) {
-        return new ResetAuditorAction.NodeRequest();
+    protected ResetMlComponentsAction.NodeRequest newNodeRequest(ResetMlComponentsAction.Request request) {
+        return new ResetMlComponentsAction.NodeRequest();
     }
 
     @Override
-    protected ResetAuditorAction.Response.ResetResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-        return new ResetAuditorAction.Response.ResetResponse(in);
+    protected ResetMlComponentsAction.Response.ResetResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new ResetMlComponentsAction.Response.ResetResponse(in);
     }
 
     @Override
-    protected ResetAuditorAction.Response.ResetResponse nodeOperation(ResetAuditorAction.NodeRequest request, Task task) {
+    protected ResetMlComponentsAction.Response.ResetResponse nodeOperation(ResetMlComponentsAction.NodeRequest request, Task task) {
         anomalyDetectionAuditor.reset();
         dfaAuditor.reset();
-        inferenceAuditor.reset();
-        return new ResetAuditorAction.Response.ResetResponse(clusterService.localNode(), true);
+        trainedModelStatsService.clearQueue();
+        return new ResetMlComponentsAction.Response.ResetResponse(clusterService.localNode(), true);
     }
 }

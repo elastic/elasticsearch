@@ -596,7 +596,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (docValues != null) {
                 return new BytesRefsFromLong(docValues, (geoPointLong) -> {
                     GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
-                    byte[] wkb =  WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
+                    byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
                     return new BytesRef(wkb);
                 });
             }

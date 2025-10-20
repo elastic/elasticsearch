@@ -573,7 +573,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
             case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
         }
-
         tracer.startTrace(threadContext, channel.request(), name, attributes);
     }
 

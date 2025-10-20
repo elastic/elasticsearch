@@ -194,9 +194,8 @@ class AuthenticatorChain {
 
             ActionListener<AuthenticationResult<Authentication>> afterAuthResultListener = ActionListener.runAfter(
                 authResultListener,
-                () -> tracer.stopTrace(context)
+                () -> tracer.stopTrace(context.getThreadContext(), context)
             );
-
             tracer.startTrace(context.getThreadContext(), context, "authenticate", addUsefulMetadata(authenticator));
             authenticator.authenticate(context, afterAuthResultListener);
         };

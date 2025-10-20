@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 
@@ -95,7 +94,7 @@ public record StoredFieldsSpec(
         } else if (other.ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
             mergedFormat = this.ignoredSourceFormat;
         } else if (this.ignoredSourceFormat != other.ignoredSourceFormat) {
-            throw new ElasticsearchException(
+            throw new IllegalStateException(
                 "failed to merge IgnoredFieldsSpec with differing formats ["
                     + this.ignoredSourceFormat.name()
                     + ","

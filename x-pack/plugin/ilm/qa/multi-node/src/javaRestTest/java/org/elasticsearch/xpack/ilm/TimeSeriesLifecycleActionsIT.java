@@ -26,7 +26,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -107,7 +106,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -227,7 +226,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
+        String allocateNodeName = "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3";
         AllocateAction allocateAction = new AllocateAction(null, null, Map.of("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
@@ -452,7 +451,7 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("location", repoDir.getRoot().getAbsolutePath())
                     .field("max_snapshot_bytes_per_sec", "256b")
                     .endObject()
                     .endObject()

@@ -13,18 +13,24 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 
 public abstract class IlmESRestTestCase extends ESRestTestCase {
     static final String USER = "user";
     static final String PASSWORD = "x-pack-test-password";
 
-    @ClassRule
+    public static TemporaryFolder repoDir = new TemporaryFolder();
+
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-ilm")
+        .module("x-pack-slm")
+        .module("x-pack-ccr")
+        .module("x-pack-downsample")
         .module("searchable-snapshots")
         .module("data-streams")
         .nodes(4)
-        .setting("path.repo", () -> createTempDir("repo").toAbsolutePath().toString())
+        .setting("path.repo", () -> repoDir.getRoot().getAbsolutePath())
         .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .setting("xpack.security.enabled", "false")
@@ -50,6 +56,9 @@ public abstract class IlmESRestTestCase extends ESRestTestCase {
         .setting("cluster.routing.rebalance.enable", "none")
         .user(USER, PASSWORD)
         .build();
+
+    @ClassRule
+    public static RuleChain ruleChain = RuleChain.outerRule(repoDir).around(cluster);
 
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

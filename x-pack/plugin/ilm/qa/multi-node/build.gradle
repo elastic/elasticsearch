@@ -12,6 +12,9 @@ dependencies {
   javaRestTestImplementation project(xpackModule('ilm'))
 
   clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('slm'))
+  clusterModules project(xpackModule('ccr'))
+  clusterModules project(xpackModule('downsample'))
   clusterModules project(xpackModule('searchable-snapshots'))
   clusterModules project(':modules:data-streams')
 }

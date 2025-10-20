@@ -1293,7 +1293,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:17: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:17: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
+        );
+
+        expectError(
+            "row a = \"foo bar\" | GROK a \"%{NUMBER:foo}\", \"%{WORD:foo}\"",
+            "line 1:21: Invalid GROK patterns [%{NUMBER:foo}, %{WORD:foo}]:"
+                + " the attribute [foo] is defined multiple times with different types"
+        );
+
+        expectError(
+            "row a = \"foo\" | GROK a \"%{WORD:foo}\", \"(?P<justification>.+)\"",
+            "line 1:17: Invalid GROK patterns [%{WORD:foo}, (?P<justification>.+)]: [undefined group option]"
         );
     }
 

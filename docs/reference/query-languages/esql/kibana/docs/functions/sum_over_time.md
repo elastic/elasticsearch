@@ -5,5 +5,5 @@ Calculates the sum over time value of a field.
 
 ```esql
 TS k8s
-| STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
+| STATS sum_cost=SUM(SUM_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 ```

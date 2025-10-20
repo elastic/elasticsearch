@@ -33,7 +33,7 @@ import java.util.Map;
  * which it may be necessary to use the test utility {@code MasterNodeRequestHelper#unwrapTermOverride} to remove the wrapper and access the
  * inner request.
  */
-class TermOverridingMasterNodeRequest extends AbstractTransportRequest {
+public class TermOverridingMasterNodeRequest extends AbstractTransportRequest {
 
     private static final Logger logger = LogManager.getLogger(TermOverridingMasterNodeRequest.class);
 

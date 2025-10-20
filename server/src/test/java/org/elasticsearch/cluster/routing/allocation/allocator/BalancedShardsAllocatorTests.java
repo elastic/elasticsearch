@@ -1133,7 +1133,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
-        // Nothing over NO
+        // No allocation when NO
         assertAssignedTo(allocationService, null, shuffledList("no"));
         // NOT_PREFERRED over NO
         assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred", "no"));

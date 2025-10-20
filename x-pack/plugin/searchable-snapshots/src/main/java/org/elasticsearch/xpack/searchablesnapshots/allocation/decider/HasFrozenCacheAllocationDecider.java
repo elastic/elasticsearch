@@ -29,6 +29,12 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         "value of [" + SHARED_CACHE_SIZE_SETTING.getKey() + "] on this node is not known yet"
     );
 
+    private static final Decision NO_STILL_FETCHING = Decision.single(
+        Decision.Type.NO,
+        NAME,
+        "shard movement is not allowed when value of [" + SHARED_CACHE_SIZE_SETTING.getKey() + "] on this node is not known yet"
+    );
+
     private static final Decision HAS_FROZEN_CACHE = Decision.single(
         Decision.Type.YES,
         NAME,
@@ -57,25 +63,30 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), shardRouting, node.node());
+        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), shardRouting, node.node(), allocation);
     }
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, shardRouting, node.node());
+        return canAllocateToNode(indexMetadata, shardRouting, node.node(), allocation);
     }
 
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, null, node.node());
+        return canAllocateToNode(indexMetadata, null, node.node(), allocation);
     }
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, null, node);
+        return canAllocateToNode(indexMetadata, null, node, allocation);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, @Nullable ShardRouting shardRouting, DiscoveryNode discoveryNode) {
+    private Decision canAllocateToNode(
+        IndexMetadata indexMetadata,
+        @Nullable ShardRouting shardRouting,
+        DiscoveryNode discoveryNode,
+        RoutingAllocation allocation
+    ) {
         if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }
@@ -86,11 +97,19 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             case FAILED -> UNKNOWN_FROZEN_CACHE;
             // THROTTLE is an odd choice here. In all other places, it means YES but not right now. But here it can eventually
             // turn into a NO if the node responds that it has no frozen cache. Since BalancedShardAllocator effectively handles
-            // THROTTLE as a rejection, it is desirable that we simply return a NO here for shard level decisions. For BWC,
-            // we keep the THROTTLE decision for unassigned shards.
-            // For index level decisions (shardRouting == null), we still need THROTTLE so that the node is not excluded from
-            // the candidates too early.
-            default -> shardRouting != null && shardRouting.unassigned() ? STILL_FETCHING : Decision.NO;
+            // THROTTLE as a rejection, it is simpler that we just return a NO here for shard level decisions. For BWC, we keep
+            // THROTTLE for unassigned shards (throttle can happen in other ways) and index level decisions (to not exclude nodes
+            // too early in the computation process).
+            // TODO: We can consider dropping them for all simulation cases in a future change.
+            default -> {
+                if (allocation.isSimulating() == false) { // not simulating, i.e. legacy allocator
+                    yield STILL_FETCHING;
+                }
+                if (shardRouting == null || shardRouting.unassigned()) { // either index level decision or unassigned shard
+                    yield STILL_FETCHING;
+                }
+                yield NO_STILL_FETCHING; // simply reject moving and balancing shards in simulation
+            }
         };
     }
 

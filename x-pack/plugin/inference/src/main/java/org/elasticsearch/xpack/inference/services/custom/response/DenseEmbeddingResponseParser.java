@@ -14,9 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.MapPathExtractor;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 
@@ -31,8 +31,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
-
+public class DenseEmbeddingResponseParser extends BaseCustomResponseParser {
+    // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_response_parser";
     public static final String TEXT_EMBEDDING_PARSER_EMBEDDINGS = "text_embeddings";
     public static final String EMBEDDING_TYPE = "embedding_type";
@@ -41,7 +41,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
         "ml_inference_custom_service_embedding_type"
     );
 
-    public static TextEmbeddingResponseParser fromMap(
+    public static DenseEmbeddingResponseParser fromMap(
         Map<String, Object> responseParserMap,
         String scope,
         ValidationException validationException
@@ -70,18 +70,18 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
             throw validationException;
         }
 
-        return new TextEmbeddingResponseParser(path, embeddingType);
+        return new DenseEmbeddingResponseParser(path, embeddingType);
     }
 
     private final String textEmbeddingsPath;
     private final CustomServiceEmbeddingType embeddingType;
 
-    public TextEmbeddingResponseParser(String textEmbeddingsPath, CustomServiceEmbeddingType embeddingType) {
+    public DenseEmbeddingResponseParser(String textEmbeddingsPath, CustomServiceEmbeddingType embeddingType) {
         this.textEmbeddingsPath = Objects.requireNonNull(textEmbeddingsPath);
         this.embeddingType = Objects.requireNonNull(embeddingType);
     }
 
-    public TextEmbeddingResponseParser(StreamInput in) throws IOException {
+    public DenseEmbeddingResponseParser(StreamInput in) throws IOException {
         this.textEmbeddingsPath = in.readString();
         if (in.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
             this.embeddingType = in.readEnum(CustomServiceEmbeddingType.class);
@@ -122,7 +122,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingResponseParser that = (TextEmbeddingResponseParser) o;
+        DenseEmbeddingResponseParser that = (DenseEmbeddingResponseParser) o;
         return Objects.equals(textEmbeddingsPath, that.textEmbeddingsPath) && Objects.equals(embeddingType, that.embeddingType);
     }
 
@@ -174,7 +174,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
     private static class FloatEmbeddings implements EmbeddingConverter {
 
-        private final List<TextEmbeddingFloatResults.Embedding> embeddings;
+        private final List<DenseEmbeddingFloatResults.Embedding> embeddings;
 
         FloatEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -182,17 +182,17 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var embeddingsAsListFloats = convertToListOfFloats(entry, fieldName);
-            embeddings.add(TextEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
+            embeddings.add(DenseEmbeddingFloatResults.Embedding.of(embeddingsAsListFloats));
         }
 
-        public TextEmbeddingFloatResults getResults() {
-            return new TextEmbeddingFloatResults(embeddings);
+        public DenseEmbeddingFloatResults getResults() {
+            return new DenseEmbeddingFloatResults(embeddings);
         }
     }
 
     private static class ByteEmbeddings implements EmbeddingConverter {
 
-        private final List<TextEmbeddingByteResults.Embedding> embeddings;
+        private final List<DenseEmbeddingByteResults.Embedding> embeddings;
 
         ByteEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -200,17 +200,17 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var convertedEmbeddings = convertToListOfBytes(entry, fieldName);
-            this.embeddings.add(TextEmbeddingByteResults.Embedding.of(convertedEmbeddings));
+            this.embeddings.add(DenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
         }
 
-        public TextEmbeddingByteResults getResults() {
-            return new TextEmbeddingByteResults(embeddings);
+        public DenseEmbeddingByteResults getResults() {
+            return new DenseEmbeddingByteResults(embeddings);
         }
     }
 
     private static class BitEmbeddings implements EmbeddingConverter {
 
-        private final List<TextEmbeddingByteResults.Embedding> embeddings;
+        private final List<DenseEmbeddingByteResults.Embedding> embeddings;
 
         BitEmbeddings() {
             this.embeddings = new ArrayList<>();
@@ -218,11 +218,11 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
         public void toEmbedding(Object entry, String fieldName) {
             var convertedEmbeddings = convertToListOfBits(entry, fieldName);
-            this.embeddings.add(TextEmbeddingByteResults.Embedding.of(convertedEmbeddings));
+            this.embeddings.add(DenseEmbeddingByteResults.Embedding.of(convertedEmbeddings));
         }
 
-        public TextEmbeddingBitResults getResults() {
-            return new TextEmbeddingBitResults(embeddings);
+        public DenseEmbeddingBitResults getResults() {
+            return new DenseEmbeddingBitResults(embeddings);
         }
     }
 }

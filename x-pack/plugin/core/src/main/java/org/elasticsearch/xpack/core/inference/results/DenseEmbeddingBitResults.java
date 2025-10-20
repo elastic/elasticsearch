@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -24,9 +24,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Writes a text embedding result in the follow json format
+ * Writes a dense embedding result in the follow json format.
+ * <pre>
  * {
- *     "text_embedding_bytes": [
+ *     "text_embedding_bits": [
  *         {
  *             "embedding": [
  *                 23
@@ -39,17 +40,19 @@ import java.util.Objects;
  *         }
  *     ]
  * }
+ * </pre>
  */
-// Note: inheriting from TextEmbeddingByteResults gives a bad implementation of the
+// Note: inheriting from DenseEmbeddingByteResults gives a bad implementation of the
 // Embedding.merge method for bits. TODO: implement a proper merge method
-public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
+public record DenseEmbeddingBitResults(List<DenseEmbeddingByteResults.Embedding> embeddings)
     implements
-        TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
+        DenseEmbeddingResults<DenseEmbeddingByteResults.Embedding> {
+    // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_service_bit_results";
     public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 
-    public TextEmbeddingBitResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(TextEmbeddingByteResults.Embedding::new));
+    public DenseEmbeddingBitResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(DenseEmbeddingByteResults.Embedding::new));
     }
 
     @Override
@@ -79,7 +82,7 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BITS, embedding.toDoubleArray(), false))
+            .map(embedding -> new MlDenseEmbeddingResults(TEXT_EMBEDDING_BITS, embedding.toDoubleArray(), false))
             .toList();
     }
 
@@ -94,7 +97,7 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingBitResults that = (TextEmbeddingBitResults) o;
+        DenseEmbeddingBitResults that = (DenseEmbeddingBitResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

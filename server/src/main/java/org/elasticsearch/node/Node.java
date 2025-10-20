@@ -219,7 +219,7 @@ public class Node implements Closeable {
                     "\\" + File.separator,
                     ".*modules",
                     "apm",
-                    "elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"
+                    "elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar"
                 );
                 if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {

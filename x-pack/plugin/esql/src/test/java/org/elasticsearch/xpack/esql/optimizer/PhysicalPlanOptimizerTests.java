@@ -825,6 +825,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Expects
+     * TopNExec[[Order[last_name{f}#12,ASC,LAST]],2[INTEGER],2284]
+     * \_TopNExec[[Order[s{r}#4,ASC,LAST]],42[INTEGER],2284]
+     *   \_ExchangeExec[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, s{r}#4],false]
+     *     \_ProjectExec[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, s{r}#4]]
+     *       \_FieldExtractExec[_meta_field{f}#14, emp_no{f}#8, gender{f}#10, hire_..]
+     *         \_TopNExec[[Order[s{r}#4,ASC,LAST]],42[INTEGER],2304]
+     *           \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
+     *             \_FieldExtractExec[first_name{f}#9]
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[{
+     *   "exists" : {
+     *     "field" : "last_name",
+     *     "boost" : 0.0
+     *   }
+     * }], tags=[]}]]
+     */
+    public void testEvalWithScoreForTopN() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = SCORE(MATCH(first_name, "foo"))
+            | WHERE last_name IS NOT NULL
+            | SORT s
+            | LIMIT 42
+            | SORT last_name
+            | LIMIT 2
+            """);
+        var optimized = optimizedPlan(plan);
+        var topN = as(optimized, TopNExec.class);
+        assertThat(topN.limit(), is(l(2)));
+        var topN2 = as(topN.child(), TopNExec.class);
+        assertThat(topN2.limit(), is(l(42)));
+        var exchange = asRemoteExchange(topN2.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeTopN = as(fieldExtract.child(), TopNExec.class);
+        assertThat(dataNodeTopN.limit(), is(l(42)));
+        var eval = as(dataNodeTopN.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().getFirst().child(), isA(Score.class));
+        var extract = as(eval.child(), FieldExtractExec.class);
+        var query = source(extract.child());
+        assertNull(query.limit());
+        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+    }
+
+    /**
      *LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[SUM(salary{f}#13460,true[BOOLEAN]) AS x#13454],SINGLE,[$$x$sum{r}#13466, $$x$seen{r}#13467],8]
      *     \_FilterExec[ROUND(emp_no{f}#13455) > 10[INTEGER]]

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +51,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof RegexExtract
                 || unary instanceof Enrich
                 || unary instanceof InferencePlan<?>) {
-                if (false == local && unary instanceof Eval && ((Eval) unary).fields().stream().anyMatch(this::evalAliasNeedsData)) {
+                if (false == local && unary instanceof Eval && evalAliasNeedsData((Eval) unary)) {
                     // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
                     return limit;
                 } else {
@@ -93,17 +92,14 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
      * Returns {@code true} if any child expression requires access to document-specific values, such as the {@link Score} function.
      * This is used to prevent pushing down limits past operations that need to evaluate expressions using document data.
      */
-    private boolean evalAliasNeedsData(Alias alias) {
-        ArrayDeque<Expression> exprStack = new ArrayDeque<>();
-        exprStack.add(alias.child());
-        while (false == exprStack.isEmpty()) {
-            var expr = exprStack.removeFirst();
+    private boolean evalAliasNeedsData(Eval eval) {
+        Holder<Boolean> hasScore = new Holder<>(false);
+        eval.forEachExpression(expr -> {
             if (expr instanceof Score) {
-                return true;
+                hasScore.set(true);
             }
-            exprStack.addAll(expr.children());
-        }
-        return false;
+        });
+        return hasScore.get();
     }
 
     /**

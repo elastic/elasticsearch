@@ -53,7 +53,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
     public void testPushingDownEvalWithNestedScore() {
         var query = """
             FROM test
-            | EVAL first_score = to_integer(0.2 + score(match(content, "dog")))
+            | EVAL first_score = TO_INTEGER(0.2 + SCORE(MATCH(content, "dog")))
             | LIMIT 2
             """;
 

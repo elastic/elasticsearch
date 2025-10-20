@@ -132,7 +132,7 @@ required_capability: match_function
 required_capability: pushing_down_eval_with_score
 
 FROM books
-| EVAL title_match = SCORE(MATCH(title, "rings"))
+| EVAL title_match = SCORE(MATCH(title, "aardvark"))
 | LIMIT 2
 | KEEP title_match
 ;

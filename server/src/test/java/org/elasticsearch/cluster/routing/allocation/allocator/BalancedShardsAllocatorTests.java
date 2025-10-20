@@ -1135,6 +1135,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         // No allocation when NO
         assertUnassigned(allocationService, shuffledList("no"));
+        // No allocation when THROTTLE
+        assertUnassigned(allocationService, shuffledList("throttle"));
+        // NOT_PREFERRED when no other choice
+        assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred"));
         // NOT_PREFERRED over NO
         assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred", "no"));
         // THROTTLE (No allocation) over NOT_PREFERRED/NO

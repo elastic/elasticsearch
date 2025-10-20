@@ -805,7 +805,8 @@ public class MachineLearning extends Plugin
     private final SetOnce<LearningToRankService> learningToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
-    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
+    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
+    private final SetOnce<TrainedModelStatsService> trainedModelStatsService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
@@ -1164,12 +1165,14 @@ public class MachineLearning extends Plugin
         this.datafeedRunner.set(datafeedRunner);
 
         // Inference components
-        final TrainedModelStatsService trainedModelStatsService = new TrainedModelStatsService(
-            resultsPersisterService,
-            originSettingClient,
-            indexNameExpressionResolver,
-            clusterService,
-            threadPool
+        trainedModelStatsService.set(
+            new TrainedModelStatsService(
+                resultsPersisterService,
+                originSettingClient,
+                indexNameExpressionResolver,
+                clusterService,
+                threadPool
+            )
         );
         final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(
             clusterService,
@@ -1185,7 +1188,7 @@ public class MachineLearning extends Plugin
             inferenceAuditor,
             threadPool,
             clusterService,
-            trainedModelStatsService,
+            trainedModelStatsService.get(),
             settings,
             clusterService.getNodeName(),
             inferenceModelBreaker.get(),
@@ -1315,7 +1318,7 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool
         );
-        trainedModelAllocationClusterServiceSetOnce.set(
+        trainedModelAllocationClusterService.set(
             new TrainedModelAssignmentClusterService(
                 settings,
                 clusterService,
@@ -1391,7 +1394,7 @@ public class MachineLearning extends Plugin
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
-            trainedModelAllocationClusterServiceSetOnce.get(),
+            trainedModelAllocationClusterService.get(),
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
@@ -2153,6 +2156,7 @@ public class MachineLearning extends Plugin
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
 
             client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
+                trainedModelStatsService.get().clearQueue();
                 finalListener.onResponse(success);
                 logger.info("Finished machine learning feature reset");
             }, resetFailure -> {
@@ -2329,11 +2333,11 @@ public class MachineLearning extends Plugin
             );
             client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, delegate);
         }).delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
-            if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
+            if (trainedModelAllocationClusterService.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
                 delegate.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(delegate);
+            trainedModelAllocationClusterService.get().removeAllModelAssignments(delegate);
         });
 
         // validate no pipelines are using machine learning models

@@ -20,11 +20,11 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.util.Arrays;
@@ -58,8 +58,8 @@ public class MockInferenceClient extends NoOpClient {
                 InferenceResults inferenceResults = generateInferenceResults(inferenceId, input);
                 if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
                     inferenceServiceResults = SparseEmbeddingResults.of(List.of(textExpansionResults));
-                } else if (inferenceResults instanceof MlTextEmbeddingResults mlTextEmbeddingResults) {
-                    inferenceServiceResults = TextEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));
+                } else if (inferenceResults instanceof MlDenseEmbeddingResults mlDenseEmbeddingResults) {
+                    inferenceServiceResults = DenseEmbeddingFloatResults.of(List.of(mlDenseEmbeddingResults));
                 } else {
                     throw new IllegalStateException("Unexpected inference results type [" + inferenceResults.getWriteableName() + "]");
                 }
@@ -126,6 +126,6 @@ public class MockInferenceClient extends NoOpClient {
         double[] embedding = new double[embeddingSize];
         Arrays.fill(embedding, Byte.MIN_VALUE);  // Always use a byte value so that the embedding is valid regardless of the element type
 
-        return new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, embedding, false);
+        return new MlDenseEmbeddingResults(DEFAULT_RESULTS_FIELD, embedding, false);
     }
 }

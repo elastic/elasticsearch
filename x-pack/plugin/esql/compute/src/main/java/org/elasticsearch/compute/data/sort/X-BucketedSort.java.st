@@ -104,7 +104,7 @@ $endif$
     public void collect($type$ value, $if(hasExtra)$$Extratype$ extraValue, $endif$int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex))) {
+            if (betterThan(value, values.get(rootIndex)$if(hasExtra)$, extraValue, extraValues.get(rootIndex)$endif$)) {
                 values.set(rootIndex, value);
 $if(hasExtra)$
                 extraValues.set(rootIndex, extraValue);
@@ -320,8 +320,15 @@ $endif$
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan($type$ lhs, $type$ rhs) {
-        return getOrder().reverseMul() * $Wrapper$.compare(lhs, rhs) < 0;
+    private boolean betterThan($type$ lhs, $type$ rhs$if(hasExtra)$, $Extratype$ lhsExtra, $Extratype$ rhsExtra$endif$) {
+        int res = $Wrapper$.compare(lhs, rhs);
+$if(hasExtra)$
+        if (res != 0) {
+            return getOrder().reverseMul() * res < 0;
+        }
+        res = $ExtraWrapper$.compare(lhsExtra, rhsExtra);
+$endif$
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**
@@ -352,10 +359,8 @@ $endif$
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
 $if(hasExtra)$
-        long newExtraSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.$ExtraTYPE$_PAGE_SIZE, $ExtraBYTES$);
         // Round up to the next full bucket.
-        newExtraSize = (newExtraSize + bucketSize - 1) / bucketSize;
-        extraValues = bigArrays.resize(extraValues, newExtraSize * bucketSize);
+        extraValues = bigArrays.resize(extraValues, newSize * bucketSize);
 $endif$
         // Set the next gather offsets for all newly allocated buckets.
         fillGatherOffsets(oldMax);
@@ -438,13 +443,23 @@ $endif$
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
+                if (betterThan(values.get(worstIndex), values.get(leftIndex)$if(hasExtra)$, extraValues.get(worstIndex), extraValues.get(leftIndex)$endif$)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
+$if(hasExtra)$
+                if (rightChild < heapSize
+                    && betterThan(
+                        values.get(worstIndex),
+                        values.get(rightIndex),
+                        extraValues.get(worstIndex),
+                        extraValues.get(rightIndex)
+                    )) {
+$else$
                 if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+$endif$
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

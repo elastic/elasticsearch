@@ -95,7 +95,7 @@ public class FloatFloatBucketedSort implements Releasable {
     public void collect(float value, float extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex))) {
+            if (betterThan(value, values.get(rootIndex), extraValue, extraValues.get(rootIndex))) {
                 values.set(rootIndex, value);
                 extraValues.set(rootIndex, extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -257,8 +257,13 @@ public class FloatFloatBucketedSort implements Releasable {
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan(float lhs, float rhs) {
-        return getOrder().reverseMul() * Float.compare(lhs, rhs) < 0;
+    private boolean betterThan(float lhs, float rhs, float lhsExtra, float rhsExtra) {
+        int res = Float.compare(lhs, rhs);
+        if (res != 0) {
+            return getOrder().reverseMul() * res < 0;
+        }
+        res = Float.compare(lhsExtra, rhsExtra);
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**
@@ -286,10 +291,8 @@ public class FloatFloatBucketedSort implements Releasable {
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
-        long newExtraSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
         // Round up to the next full bucket.
-        newExtraSize = (newExtraSize + bucketSize - 1) / bucketSize;
-        extraValues = bigArrays.resize(extraValues, newExtraSize * bucketSize);
+        extraValues = bigArrays.resize(extraValues, newSize * bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
         fillGatherOffsets(oldMax);
     }
@@ -371,13 +374,19 @@ public class FloatFloatBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
+                if (betterThan(values.get(worstIndex), values.get(leftIndex), extraValues.get(worstIndex), extraValues.get(leftIndex))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+                if (rightChild < heapSize
+                    && betterThan(
+                        values.get(worstIndex),
+                        values.get(rightIndex),
+                        extraValues.get(worstIndex),
+                        extraValues.get(rightIndex)
+                    )) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

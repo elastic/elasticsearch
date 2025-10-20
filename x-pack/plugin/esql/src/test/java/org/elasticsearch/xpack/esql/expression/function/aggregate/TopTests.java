@@ -24,11 +24,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isA;
 
 public class TopTests extends AbstractAggregationTestCase {
     public TopTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -52,8 +56,38 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
                 )
                     .flatMap(List::stream)
-                    .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order))
+                    .map(fieldCaseSupplier -> TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order, null))
                     .collect(Collectors.toCollection(() -> suppliers));
+            }
+        }
+
+        for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 1000, false)) {
+            for (String order : Arrays.asList("asc", "desc")) {
+                int rows = 100;
+                List<TestCaseSupplier.TypedDataSupplier> fieldCaseSuppliers = Stream.of(
+                    MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+                    MultiRowTestCaseSupplier.dateCases(rows, rows)
+                )
+                    .flatMap(List::stream)
+                    .toList();
+                for (var fieldCaseSupplier : fieldCaseSuppliers) {
+                    List<TestCaseSupplier.TypedDataSupplier> outputFieldCaseSuppliers = Stream.of(
+                        MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                        MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
+                        MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+                        MultiRowTestCaseSupplier.dateCases(rows, rows)
+                    )
+                        .flatMap(List::stream)
+                        .toList();
+                    for (var outputFieldCaseSupplier : outputFieldCaseSuppliers) {
+                        if (fieldCaseSupplier.name().equals(outputFieldCaseSupplier.name())) {
+                            continue;
+                        }
+                        suppliers.add(TopTests.makeSupplier(fieldCaseSupplier, limitCaseSupplier, order, outputFieldCaseSupplier));
+                    }
+                }
             }
         }
 
@@ -292,25 +326,59 @@ public class TopTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier fieldSupplier,
         TestCaseSupplier.TypedDataSupplier limitCaseSupplier,
-        String order
+        String order,
+        TestCaseSupplier.TypedDataSupplier outputFieldSupplier
     ) {
         boolean isAscending = order == null || order.equalsIgnoreCase("asc");
-        boolean noOrderSupplied = order == null;
+        boolean orderSupplied = order != null;
+        boolean outputFieldSupplied = outputFieldSupplier != null;
 
-        List<DataType> dataTypes = noOrderSupplied
-            ? List.of(fieldSupplier.type(), DataType.INTEGER)
-            : List.of(fieldSupplier.type(), DataType.INTEGER, DataType.KEYWORD);
+        List<DataType> dataTypes = new ArrayList<>();
+        dataTypes.add(fieldSupplier.type());
+        dataTypes.add(DataType.INTEGER);
+        if (orderSupplied) {
+            dataTypes.add(DataType.KEYWORD);
+        }
+        if (outputFieldSupplied) {
+            dataTypes.add(outputFieldSupplier.type());
+        }
+
+        DataType expectedType = outputFieldSupplied ? outputFieldSupplier.type() : fieldSupplier.type();
 
         return new TestCaseSupplier(fieldSupplier.name(), dataTypes, () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
-            var expected = fieldTypedData.multiRowData()
-                .stream()
-                .map(v -> (Comparable<? super Comparable<?>>) v)
-                .sorted(isAscending ? Comparator.naturalOrder() : Comparator.reverseOrder())
-                .limit(limit)
-                .toList();
+            TestCaseSupplier.TypedData outputFieldTypedData;
+            List<?> expected;
+            if (outputFieldSupplied) {
+                outputFieldTypedData = outputFieldSupplier.get();
+                assertThat(outputFieldTypedData.multiRowData(), hasSize(equalTo(fieldTypedData.multiRowData().size())));
+                Comparator<Map.Entry<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>> comparator =
+                    Map.Entry
+                        .<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>comparingByKey()
+                        .thenComparing(Map.Entry::getValue);
+                if (isAscending == false) {
+                    comparator = comparator.reversed();
+                }
+                expected = IntStream.range(0, fieldTypedData.multiRowData().size())
+                    .mapToObj(i -> Map.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>entry(
+                        (Comparable<? super Comparable<?>>) fieldTypedData.multiRowData().get(i),
+                        (Comparable<? super Comparable<?>>) outputFieldTypedData.multiRowData().get(i))
+                    )
+                    .sorted(comparator)
+                    .map(Map.Entry::getValue)
+                    .limit(limit)
+                    .toList();
+            } else {
+                outputFieldTypedData = null;
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(v -> (Comparable<? super Comparable<?>>) v)
+                    .sorted(isAscending ? Comparator.naturalOrder() : Comparator.reverseOrder())
+                    .limit(limit)
+                    .toList();
+            }
 
             String baseName;
             if (limit != 1) {
@@ -324,18 +392,22 @@ public class TopTests extends AbstractAggregationTestCase {
                 }
             }
 
-            List<TestCaseSupplier.TypedData> typedData = noOrderSupplied
-                ? List.of(fieldTypedData, limitTypedData)
-                : List.of(
-                    fieldTypedData,
-                    limitTypedData,
-                    new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral()
-                );
+            List<TestCaseSupplier.TypedData> typedData = new ArrayList<>();
+            typedData.add(fieldTypedData);
+            typedData.add(limitTypedData);
+            if (orderSupplied) {
+                typedData.add(new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral());
+            }
+            if (outputFieldSupplied) {
+                typedData.add(outputFieldTypedData);
+            }
 
             return new TestCaseSupplier.TestCase(
                 typedData,
-                standardAggregatorName(baseName, fieldTypedData.type()),
-                fieldSupplier.type(),
+                outputFieldSupplied && (fieldTypedData.name().equals(outputFieldTypedData.name()) == false)
+                    ? standardAggregatorName(standardAggregatorName(baseName, fieldTypedData.type()), outputFieldTypedData.type())
+                    : standardAggregatorName(baseName, fieldTypedData.type()),
+                expectedType,
                 equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );
         });

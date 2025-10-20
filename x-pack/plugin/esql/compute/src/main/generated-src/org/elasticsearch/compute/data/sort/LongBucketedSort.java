@@ -240,7 +240,8 @@ public class LongBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(long lhs, long rhs) {
-        return getOrder().reverseMul() * Long.compare(lhs, rhs) < 0;
+        int res = Long.compare(lhs, rhs);
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**

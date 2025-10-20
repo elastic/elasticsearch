@@ -65,4 +65,12 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
     public TransportVersion minTransportVersion() {
         return minTransportVersion;
     }
+
+    /**
+     * The minimum transport version was added to the field caps response in 9.2.1; in clusters with older nodes,
+     * we don't have that information and need to assume the oldest supported version.
+     */
+    public TransportVersion requireMinTransportVersion() {
+        return minTransportVersion != null ? minTransportVersion : TransportVersion.minimumCompatible();
+    }
 }

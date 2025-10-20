@@ -531,10 +531,8 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
-
-        // The main index pattern dictates on which nodes the query can be executed, so we use the minimum transport version from this field
-        // caps request.
+        // The main index pattern dictates on which nodes the query can be executed,
+        // so we use the minimum transport version from this field caps request.
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndicesAndRetrieveMinTransportVersion(preAnalysis, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -588,14 +586,9 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        indexResolver.resolveAsMergedMapping(
+        indexResolver.resolveMapping(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
-            null,
-            false,
-            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
-            false,
-            false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -798,7 +791,7 @@ public class EsqlSession {
                         .withMinimumTransportVersion(TransportVersion.current())
                 );
             } else {
-                indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
+                indexResolver.resolve(
                     preAnalysis.indexPattern().indexPattern(),
                     result.fieldNames,
                     // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
@@ -815,9 +808,14 @@ public class EsqlSession {
                     preAnalysis.supportsAggregateMetricDouble(),
                     preAnalysis.supportsDenseVector(),
                     listener.delegateFailureAndWrap((l, indexResolution) -> {
-                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                        EsqlCCSUtils.initCrossClusterState(indexResolution.groupedIndices(), executionInfo, verifier.licenseState());
+                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(
+                            executionInfo,
+                            indexResolution.indexResolution().failures()
+                        );
                         l.onResponse(
-                            result.withIndices(indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                            result.withIndices(indexResolution.indexResolution())
+                                .withMinimumTransportVersion(indexResolution.minimumVersion())
                         );
                     })
                 );

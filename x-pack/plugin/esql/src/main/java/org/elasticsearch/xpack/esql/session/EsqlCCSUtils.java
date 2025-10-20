@@ -351,6 +351,31 @@ public class EsqlCCSUtils {
         }
     }
 
+    public static void initCrossClusterState(
+        Map<String, String> groupedIndices,
+        EsqlExecutionInfo executionInfo,
+        XPackLicenseState licenseState
+    ) {
+        executionInfo.clusterInfoInitializing(true);
+        // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+        // so that the CCS telemetry handler can recognize that this error is CCS-related
+        try {
+            for (var entry : groupedIndices.entrySet()) {
+                final String clusterAlias = entry.getKey();
+                executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                    return new EsqlExecutionInfo.Cluster(clusterAlias, entry.getValue(), executionInfo.shouldSkipOnFailure(clusterAlias));
+                });
+            }
+        } finally {
+            executionInfo.clusterInfoInitializing(false);
+        }
+
+        if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+            throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+        }
+    }
+
     /**
      * Mark cluster with a final status (success or failure).
      * Most metrics are set to 0 if not set yet, except for "took" which is set to the total time taken so far.

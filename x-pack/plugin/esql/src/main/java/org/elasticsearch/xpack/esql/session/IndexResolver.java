@@ -19,9 +19,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,7 +43,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.mapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -54,7 +57,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
-    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
@@ -82,65 +84,62 @@ public class IndexResolver {
     }
 
     /**
-     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
-     */
-    public void resolveAsMergedMapping(
-        String indexWildcard,
-        Set<String> fieldNames,
-        QueryBuilder requestFilter,
-        boolean includeAllDimensions,
-        boolean supportsAggregateMetricDouble,
-        boolean supportsDenseVector,
-        ActionListener<IndexResolution> listener
-    ) {
-        ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
-            (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
-        );
-
-        resolveAsMergedMappingAndRetrieveMinimumVersion(
-            indexWildcard,
-            fieldNames,
-            requestFilter,
-            includeAllDimensions,
-            supportsAggregateMetricDouble,
-            supportsDenseVector,
-            ignoreVersion
-        );
-    }
-
-    /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping. Also retrieves the minimum transport
      * version available in the cluster (and remotes).
      */
-    public void resolveAsMergedMappingAndRetrieveMinimumVersion(
-        String indexWildcard,
+    public void resolve(
+        String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
         boolean supportsAggregateMetricDouble,
         boolean supportsDenseVector,
-        ActionListener<Versioned<IndexResolution>> listener
+        ActionListener<IndexPatternResolution> listener
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
+            createFieldCapsRequest(indexPattern, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
-                TransportVersion minimumVersion = response.minTransportVersion();
-
-                LOGGER.debug("minimum transport version {}", minimumVersion);
                 l.onResponse(
-                    new Versioned<>(
-                        mergedMappings(indexWildcard, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector)),
-                        // The minimum transport version was added to the field caps response in 9.2.1; in clusters with older nodes,
-                        // we don't have that information and need to assume the oldest supported version.
-                        minimumVersion == null ? TransportVersion.minimumCompatible() : minimumVersion
+                    new IndexPatternResolution(
+                        indexPattern,
+                        groupedIndices(response.caps()),
+                        mergedMappings(indexPattern, new FieldsInfo(response.caps(), supportsAggregateMetricDouble, supportsDenseVector)),
+                        response.requireMinTransportVersion()
                     )
                 );
             })
         );
     }
 
+    public record IndexPatternResolution(
+        String indexPattern,
+        Map<String, String> groupedIndices,
+        IndexResolution indexResolution,
+        TransportVersion minimumVersion
+    ) {}
+
+    public void resolveMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+        resolve(indexWildcard, fieldNames, null, false, false, false, listener.map(IndexPatternResolution::indexResolution));
+    }
+
     public record FieldsInfo(FieldCapabilitiesResponse caps, boolean supportAggregateMetricDouble, boolean supportDenseVector) {}
+
+    // public for testing only
+    public static Map<String, String> groupedIndices(FieldCapabilitiesResponse response) {
+        return Stream.concat(
+            Stream.of(Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response.getResolvedLocally())),
+            response.getResolvedRemotely().entrySet().stream()
+        )
+            .flatMap(
+                entry -> entry.getValue()
+                    .expressions()
+                    .stream()
+                    .filter(e -> e.localExpressions().expressions().isEmpty() == false)
+                    .map(e -> Map.entry(entry.getKey(), e.original()))
+            )
+            .collect(groupingBy(Map.Entry::getKey, mapping(Map.Entry::getValue, joining(","))));
+    }
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -376,6 +375,7 @@ public class IndexResolver {
             req.filters("-nested");
         }
         req.setMergeResults(false);
+        req.includeResolvedTo(true);
         return req;
     }
 }

@@ -82,6 +82,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
 
+    private final TransportFieldCapabilitiesAction fieldCapsAction;
+
     @Inject
     public EsqlResolveFieldsAction(
         TransportService transportService,
@@ -90,7 +92,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ActionFilters actionFilters,
         IndicesService indicesService,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransportFieldCapabilitiesAction fieldCapsAction
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -103,11 +106,16 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
+        this.fieldCapsAction = fieldCapsAction;
     }
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        executeRequest(task, request, listener);
+        fieldCapsAction.executeRequest(
+            task,
+            request,
+            listener.map(resp -> new EsqlResolveFieldsResponse(resp, TransportVersion.current()))
+        );
     }
 
     public void executeRequest(Task task, FieldCapabilitiesRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {

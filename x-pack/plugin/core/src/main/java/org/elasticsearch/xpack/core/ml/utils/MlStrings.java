@@ -30,7 +30,7 @@ public final class MlStrings {
      * Note that '.' is allowed but not documented.
      */
     private static final Pattern VALID_ID_CHAR_PATTERN =
-        Pattern.compile("^[a-z0-9.](?:[a-z0-9_\\-.]*[a-z0-9.])?$");
+        Pattern.compile("^(?:[a-z0-9]|(?:\\.|[a-z0-9])[a-z0-9_\\-.]*[a-z0-9])$");
 
     public static final int ID_LENGTH_LIMIT = 64;
 

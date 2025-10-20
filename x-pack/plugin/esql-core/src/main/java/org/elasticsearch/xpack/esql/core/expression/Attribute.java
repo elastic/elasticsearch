@@ -32,14 +32,19 @@ import static java.util.Collections.emptyList;
  * The rest are not as they are not part of the projection and thus are not part of the derived table.
  * <p>
  * Note on equality: Because the name alone is not sufficient to identify an attribute
- * (two different relations can have the same attribute name), we respect the {@link #id()} in equality checks and hashing.
+ * (two different relations can have the same attribute name), attributes get a unique {@link #id()}
+ * assigned at creation which is respected in equality checks and hashing.
  */
 public abstract class Attribute extends NamedExpression {
     /**
      * A wrapper class where equality of the contained attribute ignores the {@link Attribute#id()}. Useful when we want to create new
-     * attributes and want to avoid duplicates - we can create a set of {@link NonSemanticAttribute}s.
+     * attributes and want to avoid duplicates. Because we assign unique ids on creation, a normal equality check would always fail when
+     * we create the "same" attribute again.
+     * <p>
+     * C.f. {@link AttributeMap} (and its contained wrapper class) which does the exact opposite: ignores everything but the id by
+     * using {@link Attribute#semanticEquals(Expression)}.
      */
-    public record NonSemanticAttribute(Attribute inner) {
+    public record IdIgnoringWrapper(Attribute inner) {
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -49,7 +54,7 @@ public abstract class Attribute extends NamedExpression {
                 return false;
             }
 
-            Attribute otherAttribute = ((NonSemanticAttribute) o).inner();
+            Attribute otherAttribute = ((IdIgnoringWrapper) o).inner();
             return inner().equals(otherAttribute, true);
         }
 
@@ -59,8 +64,8 @@ public abstract class Attribute extends NamedExpression {
         }
     }
 
-    public NonSemanticAttribute ignoreId() {
-        return new NonSemanticAttribute(this);
+    public IdIgnoringWrapper ignoreId() {
+        return new IdIgnoringWrapper(this);
     }
 
     /**

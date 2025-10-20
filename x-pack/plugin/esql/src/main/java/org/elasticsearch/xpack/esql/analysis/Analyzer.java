@@ -1847,11 +1847,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            List<Attribute.NonSemanticAttribute> unionFieldAttributes = new ArrayList<>();
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
             return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.NonSemanticAttribute> unionFieldAttributes) {
+        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
             Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
@@ -1907,7 +1907,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.NonSemanticAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -1978,7 +1978,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
             MultiTypeEsField resolvedField,
-            List<Attribute.NonSemanticAttribute> unionFieldAttributes
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as

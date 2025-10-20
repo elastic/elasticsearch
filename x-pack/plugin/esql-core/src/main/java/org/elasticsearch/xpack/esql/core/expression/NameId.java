@@ -35,6 +35,7 @@ public class NameId implements Writeable {
      * Absolutely only intended for tests, esp. to deal with serialization. Never use in production as it breaks the
      * uniqueness guarantee.
      */
+    @Deprecated
     public NameId(long id) {
         this.id = id;
     }

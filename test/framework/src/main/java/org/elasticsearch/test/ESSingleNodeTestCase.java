@@ -403,6 +403,18 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return instanceFromNode.indexServiceSafe(resolveIndex(index));
     }
 
+    /**
+     * Deletes the given index from the singleton node.
+     * Waits for the operation to complete and asserts it was acknowledged.
+     *
+     * @param index The name of the index to delete
+     */
+    protected void deleteIndex(String index) {
+        assertAcked(indicesAdmin().prepareDelete(index).get());
+        // Optionally, wait for the cluster to be green after deletion
+        ensureGreen();
+    }
+
     public Index resolveIndex(String index) {
         GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));

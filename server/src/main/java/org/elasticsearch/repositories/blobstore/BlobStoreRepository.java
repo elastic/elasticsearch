@@ -184,7 +184,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.elasticsearch.repositories.IndexMetaDataGenerations.parseUUIDFromUniqueIdentifier;
 import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 
 /**
@@ -1291,18 +1290,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             private void determineShardCount(ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    for (SnapshotId snapshotId : snapshotIds.stream().filter(snapshotsWithIndex::contains).collect(Collectors.toSet())) {
+                    for (final var blobId : snapshotIds.stream()
+                        .filter(snapshotsWithIndex::contains)
+                        .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
+                        .collect(Collectors.toSet())) {
                         snapshotExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                            String blobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId);
-                            // The unique IndexMetadata ID prefixed by Index UUID
-                            String indexMetadataId = originalRepositoryData.indexMetaDataGenerations()
-                                .snapshotIndexMetadataIdentifier(snapshotId, indexId);
-
-                            // Guarantees that the indexUUID will not be "" since this would map multiple indexMetaData objects to the
-                            // same shard count
-                            assert indexMetadataId != null;
-                            String indexUUID = parseUUIDFromUniqueIdentifier(indexMetadataId);
-
+                            // NB since 7.9.0 we deduplicate index metadata blobs, and one of the components of the deduplication key is the
+                            // index UUID; the shard count is going to be the same for all metadata with the same index UUID, so it is
+                            // unnecessary to read multiple metadata blobs corresponding to the same index UUID.
+                            String indexUUID = originalRepositoryData.indexMetaDataGenerations().convertBlobIdToIndexUUID(blobId);
                             if (indexUUIDToShardCountMap.containsKey(indexUUID) == false) {
                                 try {
                                     IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
@@ -1327,8 +1323,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 }
                             } else {
                                 // indexUUIDToShardCountMap is shared across all threads. Therefore, while there may be an entry for this
-                                // UUID, there is no guarantee that we've encountered it in this thread, so we update using the precomputed
-                                // value, thus removing the unnecessary INDEX_METADATA_FORMAT.read call.
+                                // UUID in the map, there is no guarantee that we've encountered it in this thread.
                                 updateShardCount(indexUUIDToShardCountMap.get(indexUUID));
                             }
                         }));

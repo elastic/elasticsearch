@@ -32,6 +32,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
@@ -51,6 +52,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -59,6 +61,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -99,8 +102,13 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
         throw new AssumptionViolatedException("No bytes");
     }
 
-    @SuppressWarnings("unchecked")
+    @Override
     public void testWriterRamEstimate() throws Exception {
+        testWriterRamEstimateImpl();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void testWriterRamEstimateImpl() throws Exception {
         final FieldInfos fieldInfos = new FieldInfos(new FieldInfo[0]);
         final Directory dir = newDirectory();
         Codec codec = Codec.getDefault();
@@ -159,9 +167,13 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
         dir.close();
     }
 
+    @Override
     public void testRandom() throws Exception {
+        testRandomImpl(randomSimilarity());
+    }
+
+    public static void testRandomImpl(VectorSimilarityFunction similarityFunction) throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        VectorSimilarityFunction similarityFunction = randomSimilarity();
         if (random().nextBoolean()) {
             iwc.setIndexSort(new Sort(new SortField("sortkey", SortField.Type.INT)));
         }
@@ -235,7 +247,13 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
         }
     }
 
+    @Override
     public void testRandomWithUpdatesAndGraph() throws Exception {
+        testRandomWithUpdatesAndGraphImpl(this::assertOffHeapByteSize);
+    }
+
+    public static void testRandomWithUpdatesAndGraphImpl(CheckedBiConsumer<LeafReader, String, IOException> assertOffHeapByteSize)
+        throws Exception {
         IndexWriterConfig iwc = newIndexWriterConfig();
         String fieldName = "field";
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
@@ -311,13 +329,21 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
                     for (int i = 0; i < k - 1; i++) {
                         assertTrue(results.scoreDocs[i].score >= results.scoreDocs[i + 1].score);
                     }
-                    assertOffHeapByteSize(ctx.reader(), fieldName);
+                    assertOffHeapByteSize.accept(ctx.reader(), fieldName);
                 }
             }
         }
     }
 
+    @Override
     public void testSparseVectors() throws Exception {
+        testSparseVectorsImpl(this::randomSimilarity, this::randomVectorEncoding);
+    }
+
+    public static void testSparseVectorsImpl(
+        Supplier<VectorSimilarityFunction> randomSimilarity,
+        Supplier<VectorEncoding> randomVectorEncoding
+    ) throws Exception {
         int numDocs = atLeast(1000);
         int numFields = TestUtil.nextInt(random(), 1, 10);
         int[] fieldDocCounts = new int[numFields];
@@ -330,8 +356,8 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
             if (fieldDims[i] % 2 != 0) {
                 fieldDims[i]++;
             }
-            fieldSimilarityFunctions[i] = randomSimilarity();
-            fieldVectorEncodings[i] = randomVectorEncoding();
+            fieldSimilarityFunctions[i] = randomSimilarity.get();
+            fieldVectorEncodings[i] = randomVectorEncoding.get();
         }
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
@@ -396,7 +422,16 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
         }
     }
 
+    @Override
     public void testVectorValuesReportCorrectDocs() throws Exception {
+        testVectorValuesReportCorrectDocsImpl(randomVectorEncoding(), randomSimilarity(), this::assertOffHeapByteSize);
+    }
+
+    public static void testVectorValuesReportCorrectDocsImpl(
+        VectorEncoding vectorEncoding,
+        VectorSimilarityFunction similarityFunction,
+        CheckedBiConsumer<LeafReader, String, IOException> assertOffHeapByteSize
+    ) throws Exception {
         final int numDocs = atLeast(1000);
         int dim = random().nextInt(20) + 1;
         if (dim % 2 != 0) {
@@ -405,9 +440,6 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
         double fieldValuesCheckSum = 0;
         int fieldDocCount = 0;
         long fieldSumDocIDs = 0;
-
-        VectorEncoding vectorEncoding = randomVectorEncoding();
-        VectorSimilarityFunction similarityFunction = randomSimilarity();
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
@@ -460,7 +492,7 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
                                     Document doc = storedFields.document(byteVectorValues.ordToDoc(ord), Set.of("id"));
                                     sumOrdToDocIds += Integer.parseInt(doc.get("id"));
                                 }
-                                assertOffHeapByteSize(ctx.reader(), "knn_vector");
+                                assertOffHeapByteSize.accept(ctx.reader(), "knn_vector");
                             }
                         }
                     }
@@ -481,7 +513,7 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
                                     Document doc = storedFields.document(vectorValues.ordToDoc(ord), Set.of("id"));
                                     sumOrdToDocIds += Integer.parseInt(doc.get("id"));
                                 }
-                                assertOffHeapByteSize(ctx.reader(), "knn_vector");
+                                assertOffHeapByteSize.accept(ctx.reader(), "knn_vector");
                             }
                         }
                     }

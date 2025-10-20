@@ -97,7 +97,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.plan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration).readNamedWriteable(PhysicalPlan.class);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.runNodeLevelReduction = in.readBoolean();
         } else {
             this.runNodeLevelReduction = false;
@@ -120,7 +120,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(runNodeLevelReduction);
         }
         if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {

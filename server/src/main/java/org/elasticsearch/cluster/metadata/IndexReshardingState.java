@@ -217,6 +217,20 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         }
 
         @Override
+        public String toString() {
+            return "Split{"
+                + "oldShardCount="
+                + oldShardCount
+                + ", newShardCount="
+                + newShardCount
+                + ", sourceShards="
+                + Arrays.toString(sourceShards)
+                + ", targetShards="
+                + Arrays.toString(targetShards)
+                + '}';
+        }
+
+        @Override
         public boolean equals(Object other) {
             if (this == other) {
                 return true;

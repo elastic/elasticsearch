@@ -39,6 +39,7 @@ dependencies {
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
   api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 

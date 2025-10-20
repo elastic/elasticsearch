@@ -550,21 +550,18 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            boolean noPreference = blContext.fieldExtractPreference() == NONE;
-
             // load from doc values
-            boolean preferToLoadFromDocValues = blContext.fieldExtractPreference() == DOC_VALUES;
             if (hasDocValues()) {
-                if (preferToLoadFromDocValues) {
+                if (blContext.fieldExtractPreference() == DOC_VALUES) {
                     return new BlockDocValuesReader.LongsBlockLoader(name());
-                } else if (noPreference && isSyntheticSource) {
+                } else if (blContext.fieldExtractPreference() == NONE && isSyntheticSource) {
                     // when the preference is not explicitly set to DOC_VALUES, we expect a BytesRef -> see PlannerUtils.toElementType()
                     return new BytesRefFromLongsBlockLoader(name());
                 }
                 // if we got here, then either synthetic source is not enabled or the preference prohibits us from using doc_values
             }
 
-            // fallback to ignored_source, except for multi fields since then don't have fallback synthetic source
+            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source
             if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
@@ -583,14 +580,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     static final class BytesRefFromLongsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
         private final String fieldName;
-        private final Function<GeoPoint, BytesRef> geoPointToBytesRef;  // converts GeoPoint -> BytesRef
 
         BytesRefFromLongsBlockLoader(String fieldName) {
             this.fieldName = fieldName;
-            this.geoPointToBytesRef = (gp) -> {
-                byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
-                return new BytesRef(wkb);
-            };
         }
 
         @Override
@@ -604,7 +596,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (docValues != null) {
                 return new BytesRefsFromLong(docValues, (geoPointLong) -> {
                     GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
-                    return geoPointToBytesRef.apply(gp);
+                    byte[] wkb =  WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
+                    return new BytesRef(wkb);
                 });
             }
             return new ConstantNullsReader();

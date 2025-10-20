@@ -157,7 +157,7 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
 
     // This should succeed
     public void testZeroToleranceNonRandom() {
-        var result = processNonRandom( "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))", 2.0);
+        var result = processNonRandom("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))", 2.0);
         assertThat(result, equalTo("POLYGON EMPTY"));
     }
 

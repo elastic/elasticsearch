@@ -12,7 +12,9 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -52,12 +55,15 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -88,6 +94,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -101,7 +108,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -260,7 +266,11 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD);
+        return relation(IndexMode.STANDARD);
+    }
+
+    public static EsRelation relation(IndexMode mode) {
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
     }
 
     /**
@@ -423,8 +433,45 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
+    public static TransportVersion randomMinimumVersion() {
+        return TransportVersionUtils.randomCompatibleVersion(ESTestCase.random());
+    }
+
+    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
+    public static AnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        IndexResolution indexResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution
+    ) {
+        return testAnalyzerContext(configuration, functionRegistry, indexResolution, Map.of(), enrichResolution, inferenceResolution);
+    }
+
+    /**
+     * Analyzer context for a random (but compatible) minimum transport version.
+     */
+    public static AnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        IndexResolution indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution
+    ) {
+        return new AnalyzerContext(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            randomMinimumVersion()
+        );
+    }
+
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
-        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small());
+        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
@@ -440,7 +487,7 @@ public final class EsqlTestUtils {
         createMockTransportService(),
         mock(SearchService.class),
         null,
-        mock(ClusterService.class),
+        createMockClusterService(),
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
@@ -448,6 +495,12 @@ public final class EsqlTestUtils {
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS
     );
+
+    private static ClusterService createMockClusterService() {
+        var service = mock(ClusterService.class);
+        doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        return service;
+    }
 
     private static TransportService createMockTransportService() {
         var service = mock(TransportService.class);
@@ -470,15 +523,15 @@ public final class EsqlTestUtils {
             null,
             null,
             pragmas,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             query,
             false,
             TABLES,
             System.nanoTime(),
             false,
-            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
         );
     }
 
@@ -488,6 +541,15 @@ public final class EsqlTestUtils {
 
     public static Configuration configuration(String query) {
         return configuration(new QueryPragmas(Settings.EMPTY), query);
+    }
+
+    public static AnalyzerSettings queryClusterSettings() {
+        return new AnalyzerSettings(
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+        );
     }
 
     public static Literal L(Object value) {
@@ -570,23 +632,19 @@ public final class EsqlTestUtils {
     }
 
     public static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(Iterators.map(values, EsqlTestUtils::toList));
     }
 
     public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.iterator().forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.iterator().forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
+        return toList(Iterators.map(values.iterator(), row -> toList(row.iterator())));
+    }
+
+    private static <T> List<T> toList(Iterator<T> iterator) {
+        var list = new ArrayList<T>();
+        while (iterator.hasNext()) {
+            list.add(iterator.next());
+        }
+        return list;
     }
 
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
@@ -975,7 +1033,11 @@ public final class EsqlTestUtils {
     }
 
     public static <T> T singleValue(Collection<T> collection) {
-        assertThat(collection, hasSize(1));
+        return singleValue("", collection);
+    }
+
+    public static <T> T singleValue(String reason, Collection<T> collection) {
+        assertThat(reason, collection, hasSize(1));
         return collection.iterator().next();
     }
 

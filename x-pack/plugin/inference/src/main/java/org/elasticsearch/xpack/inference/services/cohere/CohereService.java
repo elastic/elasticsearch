@@ -31,7 +31,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -378,7 +378,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
-                        .setRequired(false)
+                        .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

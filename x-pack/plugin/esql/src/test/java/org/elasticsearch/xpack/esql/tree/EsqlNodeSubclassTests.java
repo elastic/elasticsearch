@@ -44,11 +44,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -99,7 +97,6 @@ import java.util.jar.JarInputStream;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
@@ -747,24 +744,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     static EsQueryExec.QueryBuilderAndTags randomQueryBuildAndTags() {
         return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
-    }
-
-    static EsRelation randomEsRelationInUnionAll() {
-        return new EsRelation(
-            SourceTests.randomSource(),
-            randomIdentifier(),
-            randomFrom(IndexMode.STANDARD, IndexMode.LOOKUP),
-            randomIndexNameWithModes(),
-            randomFieldAttributes(0, 10, false)
-        );
-    }
-
-    static Filter randomFilterInUnionAll() {
-        return new Filter(
-            Source.EMPTY,
-            randomEsRelationInUnionAll(),
-            new Equals(Source.EMPTY, field(randomAlphaOfLength(16), INTEGER), new Literal(Source.EMPTY, randomInt(), INTEGER))
-        );
     }
 
     static FieldAttribute field(String name, DataType type) {

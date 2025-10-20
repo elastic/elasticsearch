@@ -241,18 +241,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSubqueryProcessingCommand(EsqlBaseParser.SubqueryProcessingCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSubqueryProcessingCommand(EsqlBaseParser.SubqueryProcessingCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterIndexPattern(EsqlBaseParser.IndexPatternContext ctx) { }
   /**
    * {@inheritDoc}

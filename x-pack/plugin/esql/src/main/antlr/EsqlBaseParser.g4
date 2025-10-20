@@ -118,11 +118,7 @@ indexPatternOrSubquery
     ;
 
 subquery
-    : LP fromCommand (PIPE subqueryProcessingCommand)* RP
-    ;
-
-subqueryProcessingCommand
-    : processingCommand
+    : LP fromCommand (PIPE processingCommand)* RP
     ;
 
 indexPattern

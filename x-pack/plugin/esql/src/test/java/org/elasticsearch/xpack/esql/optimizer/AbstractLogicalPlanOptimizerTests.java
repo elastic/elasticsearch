@@ -197,6 +197,9 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         var mappingLanguages = loadMapping("mapping-languages.json");
         EsIndex languages = new EsIndex("languages", mappingLanguages, Map.of("languages", IndexMode.STANDARD));
         IndexResolution subqueryIndex2 = IndexResolution.valid(languages);
+        var mappingMixedTypes = loadMapping("mapping-basic-incompatible.json");
+        EsIndex mixedTypes = new EsIndex("test_mixed_types", mappingMixedTypes, Map.of("test_mixed_types", IndexMode.STANDARD));
+        IndexResolution subqueryIndex3 = IndexResolution.valid(mixedTypes);
 
         subqueryAnalyzer = new Analyzer(
             new AnalyzerContext(
@@ -206,7 +209,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                Map.of("test1", subqueryIndex1, "languages", subqueryIndex2)
+                Map.of("test1", subqueryIndex1, "languages", subqueryIndex2, "test_mixed_types", subqueryIndex3)
             ),
             TEST_VERIFIER
         );

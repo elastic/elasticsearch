@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -40,6 +41,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  */
 public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, LogicalPlan> {
 
+    private static final String UNIONALL = "unionall";
+
+    private static final String prefix = Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + UNIONALL + SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
+
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         // push down filter below UnionAll if possible
@@ -55,11 +60,11 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
     }
 
     /* Push down filters that can be evaluated by the UnionAll branch to each branch,
-     * so that the filters can be pushed down further to the data source when possible.
+     so that the filters can be pushed down further to the data source when possible.
      * Filters that cannot be pushed down remain above the UnionAll.
      *
-     * The children of a UnionAll/Fork plan has a similar pattern, as Fork adds EsqlProject,
-     * an optional Eval and Limit on top of its actual children.
+     * The children of a UnionAll/Fork plan has a similar pattern, as Fork adds EsqlProject, an optional Eval and Limit on top of its
+      * actual children. If the pattern of a UnionAll branch does not match the following patterns, predicate push down is not applied.
      * UnionAll
      *   EsqlProject
      *     Eval (optional) - added by Fork when the output of each UnionAll child are not exactly the same
@@ -75,15 +80,15 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
      * Push down the filter below limit when possible
      */
     private static LogicalPlan maybePushDownPastUnionAll(Filter filter, UnionAll unionAll) {
-        List<Expression> pushable = new ArrayList<>();
-        List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : Predicates.splitAnd(filter.condition())) {
-            if (exp.references().subsetOf(unionAll.outputSet())) {
-                pushable.add(exp);
-            } else {
-                nonPushable.add(exp);
-            }
-        }
+        AttributeSet unionAllOutputSet = unionAll.outputSet();
+        // check ReferenceAttribute name and id to make sure it is from the UnionAll output
+        Tuple<List<Expression>, List<Expression>> pushablesAndNonPushables = splitPushableAndNonPushablePredicates(
+            Predicates.splitAnd(filter.condition()),
+            exp -> isSubset(exp.references(), unionAllOutputSet) == false
+        );
+        List<Expression> pushable = pushablesAndNonPushables.v1();
+        List<Expression> nonPushable = pushablesAndNonPushables.v2();
+
         if (pushable.isEmpty()) {
             return filter; // nothing to push down
         }
@@ -133,13 +138,36 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             return project;
         }
         LogicalPlan child = project.child();
-        if (child instanceof Eval eval) {
-            return pushDownFilterPastEvalForUnionAllChild(resolvedPushable, project, eval);
-        } else if (child instanceof Limit limit) {
-            LogicalPlan newLimit = pushDownFilterPastLimitForUnionAllChild(resolvedPushable, limit);
-            return project.replaceChild(newLimit);
+        // check if the pushables attributes' name and id are in the child's output, if so push down
+        Tuple<List<Expression>, List<Expression>> pushablesAndNonPushables = splitPushableAndNonPushablePredicates(
+            resolvedPushable,
+            exp -> isSubset(exp.references(), child.outputSet()) == false
+        );
+        List<Expression> newResolvedPushable = pushablesAndNonPushables.v1();
+        List<Expression> newResolvedNonPushable = pushablesAndNonPushables.v2();
+
+        // nothing to push down
+        if (newResolvedPushable.isEmpty()) {
+            return newResolvedNonPushable.isEmpty() ? project : filterWithPlanAsChild(project, newResolvedNonPushable);
         }
-        return project;
+
+        LogicalPlan planWithNewResolvedPushablePushedDown = project;
+        if (child instanceof Eval eval) {
+            planWithNewResolvedPushablePushedDown = pushDownFilterPastEvalForUnionAllChild(newResolvedPushable, project, eval);
+        } else if (child instanceof Limit limit) {
+            LogicalPlan newLimit = pushDownFilterPastLimitForUnionAllChild(newResolvedPushable, limit);
+            planWithNewResolvedPushablePushedDown = project.replaceChild(newLimit);
+        }
+
+        if (planWithNewResolvedPushablePushedDown == project) {
+            // There are pushable predicates, but they cannot be pushed down because unexpected pattern is found below project,
+            // predicates cannot be push down, otherwise it may cause wrong results.
+            return project;
+        }
+
+        return newResolvedNonPushable.isEmpty()
+            ? planWithNewResolvedPushablePushedDown
+            : filterWithPlanAsChild(planWithNewResolvedPushablePushedDown, newResolvedNonPushable); // create a filter above the new plan
     }
 
     private static LogicalPlan maybePushDownFilterPastLimitForUnionAllChild(List<Expression> pushable, Limit limit) {
@@ -148,27 +176,6 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             return limit;
         }
         return pushDownFilterPastLimitForUnionAllChild(resolvedPushable, limit);
-    }
-
-    /**
-     * Attempts to resolve all pushable expressions against the given output attributes.
-     * Returns a fully resolved list if successful, or null if any expression cannot be resolved.
-     */
-    private static List<Expression> resolvePushableAgainstOutput(List<Expression> pushable, List<? extends NamedExpression> output) {
-        List<Expression> resolved = new ArrayList<>();
-        for (Expression exp : pushable) {
-            Expression replaced = resolveUnionAllOutputByName(exp, output);
-            // Make sure the pushable predicates can find their corresponding attributes in the output
-            if (replaced == null || replaced == exp) {
-                // cannot find the attribute in the child project, cannot push down this filter
-                return null;
-            }
-            resolved.add(replaced);
-        }
-        // If some pushable predicates cannot be resolved against the output, cannot push filter down.
-        // This should not happen, however we need to be cautious here, if the predicate is removed from
-        // the main query, and it is not pushed down into the UnionAll child, the result will be incorrect.
-        return resolved.size() == pushable.size() ? resolved : null;
     }
 
     private static LogicalPlan pushDownFilterPastEvalForUnionAllChild(List<Expression> pushable, Project project, Eval eval) {
@@ -187,7 +194,7 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         if (pushables.isEmpty()) {
             return nonPushables.isEmpty()
                 ? project // nothing at all
-                : withFilter(project, eval, nonPushables); // Push down filter references eval created attributes below project, above eval
+                : projectWithFilterAsChild(project, eval, nonPushables);
         }
 
         // Push down all pushable predicates below eval and limit
@@ -195,15 +202,20 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             LogicalPlan newLimit = pushDownFilterPastLimitForUnionAllChild(pushables, limit);
             LogicalPlan newEval = eval.replaceChild(newLimit);
 
-            return nonPushables.isEmpty() ? project.replaceChild(newEval) : withFilter(project, newEval, nonPushables);
+            return nonPushables.isEmpty() ? project.replaceChild(newEval) : projectWithFilterAsChild(project, newEval, nonPushables);
         }
 
         return project;
     }
 
-    private static LogicalPlan withFilter(Project project, LogicalPlan child, List<Expression> predicates) {
+    private static LogicalPlan projectWithFilterAsChild(Project project, LogicalPlan child, List<Expression> predicates) {
         Expression combined = Predicates.combineAnd(predicates);
         return project.replaceChild(new Filter(project.source(), child, combined));
+    }
+
+    private static Filter filterWithPlanAsChild(LogicalPlan logicalPlan, List<Expression> predicates) {
+        Expression combined = Predicates.combineAnd(predicates);
+        return new Filter(logicalPlan.source(), logicalPlan, combined);
     }
 
     /**
@@ -217,6 +229,13 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         Expression combined = Predicates.combineAnd(pushable);
         Filter pushed = new Filter(limit.source(), limit.child(), combined);
         return limit.replaceChild(pushed);
+    }
+
+    private static boolean isSubset(AttributeSet subset, AttributeSet superset) {
+        return subset.stream()
+            .allMatch(
+                attr -> superset.stream().anyMatch(superAttr -> superAttr.name().equals(attr.name()) && superAttr.id().equals(attr.id()))
+            );
     }
 
     private static AttributeMap<Expression> buildEvaAliases(Eval eval) {
@@ -244,13 +263,33 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
     }
 
     /**
+     * Attempts to resolve all pushable expressions against the given output attributes.
+     * Returns a fully resolved list if successful, or null if any expression cannot be resolved.
+     */
+    private static List<Expression> resolvePushableAgainstOutput(List<Expression> pushable, List<? extends NamedExpression> output) {
+        List<Expression> resolved = new ArrayList<>();
+        for (Expression exp : pushable) {
+            Expression replaced = resolveUnionAllOutputByName(exp, output);
+            // Make sure the pushable predicates can find their corresponding attributes in the output
+            if (replaced == null || replaced == exp) {
+                // cannot find the attribute in the child project, cannot push down this filter
+                return null;
+            }
+            resolved.add(replaced);
+        }
+        // If some pushable predicates cannot be resolved against the output, cannot push filter down.
+        // This should not happen, however we need to be cautious here, if the predicate is removed from
+        // the main query, and it is not pushed down into the UnionAll child, the result will be incorrect.
+        return resolved.size() == pushable.size() ? resolved : null;
+    }
+
+    /**
      * The UnionAll/Fork outputs have the same names as it children's outputs, however they have different ids.
      * Convert the pushable predicates to use the child's attributes, so that they can be pushed down further.
      */
     private static Expression resolveUnionAllOutputByName(Expression expr, List<? extends NamedExpression> namedExpressions) {
         // A temporary expression is created with temporary attributes names, as sometimes transform expression does not transform
         // one ReferenceAttribute to another ReferenceAttribute with the same name, different id successfully.
-        String UNIONALL = "unionall";
         // rename the output of the UnionAll to a temporary name with a prefix
         Expression renamed = expr.transformUp(Attribute.class, attr -> {
             for (NamedExpression ne : namedExpressions) {
@@ -262,7 +301,6 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             return attr;
         });
 
-        String prefix = Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX + UNIONALL + SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
         return renamed.transformUp(Attribute.class, attr -> {
             String originalName = attr.name().startsWith(prefix) ? attr.name().substring(prefix.length()) : attr.name();
             for (NamedExpression ne : namedExpressions) {

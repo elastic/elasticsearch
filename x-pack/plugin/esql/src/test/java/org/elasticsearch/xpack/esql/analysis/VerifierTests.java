@@ -2768,7 +2768,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     /**
-     * If there is no common data type for a field in a subquery and the main query, {@code VerificationException} is thrown.
+     * If there is explicit casting on fields with mix data types between subquery and main index {@code VerificationException} is thrown.
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -2779,7 +2779,8 @@ public class VerifierTests extends ESTestCase {
                 | SORT is_rehired, still_hired
                 """),
             equalTo(
-                "1:1: Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]\n"
+                "1:1: Column [emp_no] has conflicting data types in subqueries: [integer, long]\n"
+                    + "line 1:1: Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]\n"
                     + "line 1:1: Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"
             )
         );

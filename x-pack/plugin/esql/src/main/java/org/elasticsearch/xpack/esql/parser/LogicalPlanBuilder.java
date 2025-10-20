@@ -319,7 +319,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<EsqlBaseParser.IndexPatternOrSubqueryContext> ctxs = ctx == null ? null : ctx.indexPatternOrSubquery();
         List<EsqlBaseParser.IndexPatternContext> indexPatternsCtx = new ArrayList<>();
         List<EsqlBaseParser.SubqueryContext> subqueriesCtx = new ArrayList<>();
-        int size = ctxs == null ? 0 : ctxs.size();
         if (ctxs != null) {
             ctxs.forEach(c -> {
                 if (c.indexPattern() != null) {
@@ -328,8 +327,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     subqueriesCtx.add(c.subquery());
                 }
             });
-        } else { // We should not reach here as the grammar does not allow it
-            throw new ParsingException("no index pattern or subquery provided");
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
@@ -370,7 +367,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return table.indexPattern().isEmpty() ? subqueries.get(0).plan() : unresolvedRelation;
             } else {
                 // the output of UnionAll is resolved by analyzer
-                return new UnionAll(source(ctxs.get(0), ctxs.get(size - 1)), mainQueryAndSubqueries, List.of());
+                return new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
             }
         }
     }
@@ -385,7 +382,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Subquery> subqueries = new ArrayList<>();
         for (EsqlBaseParser.SubqueryContext ctx : ctxs) {
             LogicalPlan plan = visitSubquery(ctx);
-            telemetryAccounting(plan);
             subqueries.add(new Subquery(source(ctx), plan));
         }
         return subqueries;
@@ -395,20 +391,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
         // build a subquery tree
         EsqlBaseParser.FromCommandContext fromCtx = ctx.fromCommand();
-        if (fromCtx != null) {
-            LogicalPlan from = visitFromCommand(fromCtx);
-            List<PlanFactory> processingCommands = visitList(this, ctx.subqueryProcessingCommand(), PlanFactory.class);
-            LogicalPlan child = from;
-            LogicalPlan parent = from;
-            for (PlanFactory processingCommand : processingCommands) {
-                parent = processingCommand.apply(child);
-                telemetryAccounting(child);
-                child = parent;
-            }
-            return parent;
-        } else { // We should not reach here as the grammar does not allow it
-            throw new ParsingException("FROM is required in a subquery");
+        LogicalPlan plan = visitFromCommand(fromCtx);
+        List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
+        for (PlanFactory processingCommand : processingCommands) {
+            telemetryAccounting(plan);
+            plan = processingCommand.apply(plan);
         }
+        telemetryAccounting(plan);
+        return plan;
     }
 
     @Override

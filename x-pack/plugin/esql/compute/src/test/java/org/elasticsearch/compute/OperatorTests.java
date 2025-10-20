@@ -191,7 +191,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         f -> new BlockDocValuesReader.LongsBlockLoader("v")
                     )
                 ),
-                new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 0

@@ -39,8 +39,6 @@ public interface Tracer {
      * This method can be useful to determine when TraceContext needs to be cleaned up; this becomes necessary since
      * we are stashing some trace state within TraceContext, while the rest is managed by the OTel library.
      *
-     * @param traceContext
-     * @return
      */
     boolean hasActiveTrace(TraceContext traceContext);
 

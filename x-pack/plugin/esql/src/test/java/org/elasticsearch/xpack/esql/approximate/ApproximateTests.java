@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximate;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,7 +20,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -55,9 +55,8 @@ import static org.mockito.Mockito.mock;
 public class ApproximateTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
-    private static final Analyzer analyzer = AnalyzerTestUtils.defaultAnalyzer();
     private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(
-        new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class))
+        new LogicalPreOptimizerContext(FoldContext.small(), mock(InferenceService.class), TransportVersion.current())
     );
     private static final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
     private static final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
@@ -367,7 +366,7 @@ public class ApproximateTests extends ESTestCase {
         SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
         LogicalPlan plan = parser.createStatement(query, new QueryParams());
-        plan = analyzer.analyze(plan);
+        plan = AnalyzerTestUtils.defaultAnalyzer().analyze(plan);
         plan.setAnalyzed();
         preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));
         if (exceptionHolder.get() != null) {

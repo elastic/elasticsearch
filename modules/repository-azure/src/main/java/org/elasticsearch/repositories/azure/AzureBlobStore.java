@@ -1097,10 +1097,7 @@ public class AzureBlobStore implements BlobStore {
             rangeLength = Math.min(rangeLength, contentLength - rangeOffset);
             final BlobRange range = new BlobRange(rangeOffset, rangeLength);
             final DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions().setMaxRetryRequests(maxRetries);
-            final BlobRequestConditions requestConditions = new BlobRequestConditions();
-            if (ifMatchETag != null) {
-                requestConditions.setIfMatch(ifMatchETag);
-            }
+            final BlobRequestConditions requestConditions = new BlobRequestConditions().setIfMatch(ifMatchETag);
             AtomicReference<String> eTagRef = new AtomicReference<>();
             Flux<ByteBuf> byteBufFlux = client.downloadWithResponse(range, downloadRetryOptions, requestConditions, false)
                 .flux()

@@ -1423,15 +1423,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 Decision.Type.THROTTLE,
                 Decision.Type.NOT_PREFERRED
             );
-            private static final Set<Decision.Type> YES_OR_THROTTLE = Set.of(Decision.Type.YES, Decision.Type.THROTTLE);
 
             public static DecisionTypeComparison compare(Type existingType, Type newType) {
                 assert SUPPORTED_TYPES.contains(existingType) && SUPPORTED_TYPES.contains(newType)
                     : "unsupported type being compared: " + existingType + " vs " + newType;
-                if (existingType == newType || (YES_OR_THROTTLE.contains(existingType) && YES_OR_THROTTLE.contains(newType))) {
+                if (existingType == newType || (existingType != Type.NOT_PREFERRED && newType != Type.NOT_PREFERRED)) {
                     return SAME;
                 }
-                return newType.higherThan(existingType) ? IMPROVED : WORSE;
+                return existingType == Type.NOT_PREFERRED ? IMPROVED : WORSE;
             }
         }
 

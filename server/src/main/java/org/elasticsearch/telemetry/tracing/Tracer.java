@@ -35,10 +35,10 @@ public interface Tracer {
 
     /**
      * A given TraceContext may contain headers relating to a span. Such a span may or may not still be active.
-     * This method provides a way to check if the tracing headers present in the context are stale or still relevant.
+     * This method provides a way to look up this span and determine whether it is still active or ended.
+     * This method can be useful to determine when TraceContext needs to be cleaned up; this becomes necessary since
+     * we are stashing some trace state within TraceContext, while the rest is managed by the OTel library.
      *
-     * Please note: this method is more accurately named hasActiveSpan but other methods in this class use the terms
-     * 'trace', which isn't totally accurate but okay in simple cases where 1 trace contains 1 span.
      * @param traceContext
      * @return
      */

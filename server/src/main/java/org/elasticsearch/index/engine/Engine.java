@@ -34,6 +34,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
@@ -43,6 +44,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -66,7 +68,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -160,6 +161,8 @@ public abstract class Engine implements Closeable {
     private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
 
+    private final boolean isStateless;
+
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
@@ -188,6 +191,8 @@ public abstract class Engine implements Closeable {
         this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
+
+        this.isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
     }
 
     /**
@@ -265,7 +270,7 @@ public abstract class Engine implements Closeable {
      */
     public ShardFieldStats shardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-            return shardFieldStats(searcher.getLeafContexts());
+            return shardFieldStats(searcher.getLeafContexts(), isStateless);
         }
     }
 
@@ -278,12 +283,12 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves, boolean isStateless) {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;
         long totalPostingBytes = 0;
-        long liveDocsBytes = 0;
+        long totalLiveDocsBytes = 0;
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -295,35 +300,34 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            boolean trackPostingsMemoryEnabled = TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled();
-            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
+            if (isStateless) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    if (trackPostingsMemoryEnabled) {
-                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                        );
-                        if (postingBytes != null) {
-                            totalPostingBytes += Long.parseLong(postingBytes);
-                        }
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
                     }
-                    if (trackLiveDocsMemoryEnabled) {
-                        var liveDocs = segmentReader.getLiveDocs();
-                        if (liveDocs != null) {
-                            assert validateLiveDocsClass(liveDocs);
-                            // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
-                            // This almost does what FixedBitSet#ramBytesUsed() does, liveDocs.length() returns the length of the bits long
-                            // array
-                            liveDocsBytes += RamUsageEstimator.alignObjectSize(
-                                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (liveDocs.length() / 8L)
-                            );
-                        }
+                    var liveDocs = segmentReader.getLiveDocs();
+                    if (liveDocs != null) {
+                        assert validateLiveDocsClass(liveDocs);
+                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                        totalLiveDocsBytes += liveDocsBytes;
                     }
                 }
             }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, liveDocsBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes);
+    }
+
+    // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
+    // This simulates FixedBitSet#ramBytesUsed() does:
+    private static long getLiveDocsBytes(Bits liveDocs) {
+        int words = FixedBitSet.bits2words(liveDocs.length());
+        return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.sizeOf(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words)
+        );
     }
 
     private static boolean validateLiveDocsClass(Bits liveDocs) {
@@ -393,7 +397,7 @@ public abstract class Engine implements Closeable {
                 if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorsReader = fieldsReader.getFieldReader(info.name);
                 }
-                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
                 offHeapStats.put(info.name, offHeap);
             }
         }
@@ -994,6 +998,11 @@ public abstract class Engine implements Closeable {
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
+    // Allows subclasses to wrap the DirectoryReader before it is used to create Searchers
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return reader;
+    }
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
@@ -1008,6 +1017,7 @@ public abstract class Engine implements Closeable {
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            DirectoryReader wrappedDirectoryReader = wrapDirectoryReader(acquire);
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -1015,7 +1025,7 @@ public abstract class Engine implements Closeable {
                     onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        acquire,
+                        wrappedDirectoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),

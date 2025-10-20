@@ -63,9 +63,7 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -274,6 +272,12 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       MedianAbsoluteDeviationLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

@@ -440,7 +440,6 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(histogram, fieldType1, fieldType2, fieldTypePart));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54365")
     public void testFormatter() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
         MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -183,7 +184,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     }
 
     private static Map<String, ReservedStateMetadata> getMetadata(ClusterState state, Optional<ProjectId> projectId) {
-        return projectId.map(p -> state.metadata().getProject(p).reservedStateMetadata())
+        return projectId.map(p -> ProjectStateRegistry.get(state).reservedStateMetadata(p))
             .orElseGet(() -> state.metadata().reservedStateMetadata());
     }
 
@@ -739,10 +740,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         Optional<ProjectId> projectId = randomBoolean() ? Optional.empty() : Optional.of(randomProjectIdOrDefault());
 
-        Metadata metadata = projectId.map(p -> Metadata.builder().put(ProjectMetadata.builder(p).put(operatorMetadata)))
-            .orElseGet(() -> Metadata.builder().put(operatorMetadata))
-            .build();
-        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("test"));
+        if (projectId.isPresent()) {
+            builder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), operatorMetadata).build()
+            );
+        } else {
+            builder.metadata(Metadata.builder().put(operatorMetadata));
+        }
+        ClusterState state = builder.build();
 
         assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
         assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
@@ -849,10 +856,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             .putHandler(hmOne)
             .build();
 
-        metadata = projectId.map(p -> Metadata.builder().put(ProjectMetadata.builder(p).put(opMetadata)))
-            .orElseGet(() -> Metadata.builder().put(opMetadata))
-            .build();
-        ClusterState newState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        builder = ClusterState.builder(new ClusterName("test"));
+        if (projectId.isPresent()) {
+            builder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), opMetadata).build()
+            );
+        } else {
+            builder.metadata(Metadata.builder().put(opMetadata));
+        }
+        ClusterState newState = builder.build();
 
         // We exit on duplicate errors before we update the reserved state error metadata
         assertThat(
@@ -865,10 +878,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
         Optional<ProjectId> projectId = randomBoolean() ? Optional.empty() : Optional.of(randomProjectIdOrDefault());
-        Metadata metadata = projectId.map(p -> Metadata.builder().put(ProjectMetadata.builder(p).put(operatorMetadata)))
-            .orElseGet(() -> Metadata.builder().put(operatorMetadata))
-            .build();
-        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("test"));
+        if (projectId.isPresent()) {
+            builder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), operatorMetadata).build()
+            );
+        } else {
+            builder.metadata(Metadata.builder().put(operatorMetadata));
+        }
+        ClusterState state = builder.build();
 
         ReservedStateUpdateTask<?> task = createEmptyTask(
             projectId,

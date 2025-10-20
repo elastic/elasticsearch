@@ -150,6 +150,11 @@
  *         {@code Block evaluateFinal(AggregatorState state, DriverContext)} converts the inner state of the aggregation to the result
  *         column
  *     </li>
+ *     <li>
+ *         (optional) {@code void first(AggregatorState state, I input)} if present, this is called the first time a value
+ *         is seen <strong>instead</strong> of calling {@code combine}. This is more efficient than manually checking for
+ *         uninitialized state on every call to {@code combine}.
+ *     </li>
  * </ul>
  * <h4>Grouping aggregation expects:</h4>
  * <ul>

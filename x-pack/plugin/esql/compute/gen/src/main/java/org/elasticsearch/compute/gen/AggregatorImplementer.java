@@ -18,6 +18,10 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.Methods.TypeMatcher;
+import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.BlockArgument;
+import org.elasticsearch.compute.gen.argument.PositionArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,12 +34,11 @@ import java.util.stream.Stream;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
 import static org.elasticsearch.compute.gen.Methods.requireArgs;
@@ -76,6 +79,7 @@ public class AggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final ExecutableElement first;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<IntermediateStateDesc> intermediateState;
@@ -85,6 +89,7 @@ public class AggregatorImplementer {
 
     public AggregatorImplementer(
         Elements elements,
+        javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions
@@ -106,13 +111,33 @@ public class AggregatorImplementer {
             requireName("combine"),
             requireArgsStartsWith(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
         );
-        this.aggParams = combine.getParameters().stream().skip(1).map(AggregationParameter::create).toList();
+        this.aggParams = combine.getParameters().stream().skip(1).flatMap(v -> {
+            Argument a = Argument.fromParameter(types, v);
+            return switch (a) {
+                case StandardArgument sa -> Stream.of(new AggregationParameter(sa.name(), sa.type(), false));
+                case BlockArgument ba -> Stream.of(new AggregationParameter(ba.name(), Types.elementType(ba.type()), true));
+                case PositionArgument pa -> Stream.of();
+                default -> throw new IllegalArgumentException("unsupported argument [" + declarationType + "][" + a + "]");
+            };
+        }).toList();
 
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
             .filter(f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT))
             .toList();
+
+        this.first = aggState.declaredType.isPrimitive()
+            ? null
+            : optionalStaticMethod(
+                declarationType,
+                requireVoidType(),
+                requireName("first"),
+                requireArgs(combine.getParameters().stream().map(p -> requireType(TypeName.get(p.asType()))).toArray(TypeMatcher[]::new))
+            );
+        if (this.aggState.hasSeen == false && this.first != null) {
+            throw new IllegalArgumentException("[first] method not supported without [seen] on agg state");
+        }
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -339,10 +364,17 @@ public class AggregatorImplementer {
             builder.addComment("This type does not support vectors because all values are multi-valued");
             return builder.build();
         }
+
+        if (first != null) {
+            builder.addComment("Find the first value up front in the Vector path which is more complex but should be faster");
+            builder.addStatement("int valuesPosition = 0");
+            addRawVectorWithFirst(builder, true, masked);
+            addRawVectorWithFirst(builder, false, masked);
+            return builder.build();
+        }
         if (aggState.hasSeen()) {
             builder.addStatement("state.seen(true)");
         }
-
         builder.beginControlFlow(
             "for (int valuesPosition = 0; valuesPosition < $L.getPositionCount(); valuesPosition++)",
             aggParams.getFirst().vectorName()
@@ -354,11 +386,37 @@ public class AggregatorImplementer {
             for (AggregationParameter p : aggParams) {
                 p.read(builder, true);
             }
-            combineRawInput(builder);
-
+            combineRawInput(builder, false);
         }
         builder.endControlFlow();
         return builder.build();
+    }
+
+    private void addRawVectorWithFirst(MethodSpec.Builder builder, boolean firstPass, boolean masked) {
+        builder.beginControlFlow(
+            firstPass
+                ? "while (state.seen() == false && valuesPosition < $L.getPositionCount())"
+                : "while (valuesPosition < $L.getPositionCount())",
+            aggParams.getFirst().vectorName()
+        );
+        {
+            if (masked) {
+                builder.beginControlFlow("if (mask.getBoolean(valuesPosition) == false)");
+                builder.addStatement("valuesPosition++");
+                builder.addStatement("continue");
+                builder.endControlFlow();
+            }
+            for (AggregationParameter p : aggParams) {
+                p.read(builder, true);
+            }
+            combineRawInput(builder, firstPass);
+            builder.addStatement("valuesPosition++");
+            if (firstPass) {
+                builder.addStatement("state.seen(true)");
+                builder.addStatement("break");
+            }
+        }
+        builder.endControlFlow();
     }
 
     private MethodSpec addRawBlock(boolean masked) {
@@ -370,38 +428,27 @@ public class AggregatorImplementer {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
             for (AggregationParameter p : aggParams) {
-                builder.beginControlFlow("if ($L.isNull(p))", p.blockName());
+                builder.addStatement("int $LValueCount = $L.getValueCount(p)", p.name(), p.blockName());
+                builder.beginControlFlow("if ($LValueCount == 0)", p.name());
                 builder.addStatement("continue");
                 builder.endControlFlow();
-            }
-            if (aggState.hasSeen()) {
-                builder.addStatement("state.seen(true)");
             }
 
             if (aggParams.getFirst().isArray()) {
                 if (aggParams.size() > 1) {
                     throw new IllegalArgumentException("array mode not supported for multiple args");
                 }
-                builder.addStatement("int start = $L.getFirstValueIndex(p)", aggParams.getFirst().blockName());
-                builder.addStatement("int end = start + $L.getValueCount(p)", aggParams.getFirst().blockName());
-                // TODO move this to the top of the loop
-                builder.addStatement(
-                    "$L[] valuesArray = new $L[end - start]",
-                    aggParams.getFirst().arrayType(),
-                    aggParams.getFirst().arrayType()
+                warningsBlock(
+                    builder,
+                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, aggParams.getFirst().blockName())
                 );
-                builder.beginControlFlow("for (int i = start; i < end; i++)");
-                builder.addStatement(
-                    "valuesArray[i-start] = $L.get$L(i)",
-                    aggParams.getFirst().blockName(),
-                    capitalize(aggParams.getFirst().arrayType())
-                );
-                builder.endControlFlow();
-                combineRawInputForArray(builder, "valuesArray");
             } else {
+                if (first == null && aggState.hasSeen()) {
+                    builder.addStatement("state.seen(true)");
+                }
                 for (AggregationParameter p : aggParams) {
                     builder.addStatement("int $L = $L.getFirstValueIndex(p)", p.startName(), p.blockName());
-                    builder.addStatement("int $L = $L + $L.getValueCount(p)", p.endName(), p.startName(), p.blockName());
+                    builder.addStatement("int $L = $L + $LValueCount", p.endName(), p.startName(), p.name());
                     builder.beginControlFlow(
                         "for (int $L = $L; $L < $L; $L++)",
                         p.offsetName(),
@@ -412,7 +459,21 @@ public class AggregatorImplementer {
                     );
                     p.read(builder, false);
                 }
-                combineRawInput(builder);
+                if (first != null) {
+                    builder.addComment("Check seen in every iteration to save on complexity in the Block path");
+                    builder.beginControlFlow("if (state.seen())");
+                    {
+                        combineRawInput(builder, false);
+                    }
+                    builder.nextControlFlow("else");
+                    {
+                        builder.addStatement("state.seen(true)");
+                        combineRawInput(builder, true);
+                    }
+                    builder.endControlFlow();
+                } else {
+                    combineRawInput(builder, false);
+                }
                 for (AggregationParameter p : aggParams) {
                     builder.endControlFlow();
                 }
@@ -443,22 +504,26 @@ public class AggregatorImplementer {
         return builder;
     }
 
-    private void combineRawInput(MethodSpec.Builder builder) {
+    private void combineRawInput(MethodSpec.Builder builder, boolean useFirst) {
         TypeName returnType = TypeName.get(combine.getReturnType());
-        warningsBlock(builder, () -> invokeCombineRawInput(returnType, builder));
+        warningsBlock(builder, () -> invokeCombineRawInput(returnType, builder, useFirst));
     }
 
-    private void invokeCombineRawInput(TypeName returnType, MethodSpec.Builder builder) {
+    private void invokeCombineRawInput(TypeName returnType, MethodSpec.Builder builder, boolean useFirst) {
         StringBuilder pattern = new StringBuilder();
         List<Object> params = new ArrayList<>();
         if (returnType.isPrimitive()) {
+            if (useFirst) {
+                throw new IllegalArgumentException("[first] not supported with primitive");
+            }
             pattern.append("state.$TValue($T.combine(state.$TValue()");
             params.add(returnType);
             params.add(declarationType);
             params.add(returnType);
         } else if (returnType == TypeName.VOID) {
-            pattern.append("$T.combine(state");
+            pattern.append("$T.$L(state");
             params.add(declarationType);
+            params.add(useFirst ? first.getSimpleName() : combine.getSimpleName());
         } else {
             throw new IllegalArgumentException("combine must return void or a primitive");
         }
@@ -471,10 +536,6 @@ public class AggregatorImplementer {
         }
         pattern.append(")");
         builder.addStatement(pattern.toString(), params.toArray());
-    }
-
-    private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
-        warningsBlock(builder, () -> builder.addStatement("$T.combine(state, $L)", declarationType, arrayVariable));
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {
@@ -703,14 +764,6 @@ public class AggregatorImplementer {
     }
 
     public record AggregationParameter(String name, TypeName type, boolean isArray) {
-        public static AggregationParameter create(VariableElement v) {
-            return new AggregationParameter(
-                v.getSimpleName().toString(),
-                TypeName.get(v.asType()),
-                Objects.equals(v.asType().getKind(), TypeKind.ARRAY)
-            );
-        }
-
         public String blockName() {
             return name + "Block";
         }

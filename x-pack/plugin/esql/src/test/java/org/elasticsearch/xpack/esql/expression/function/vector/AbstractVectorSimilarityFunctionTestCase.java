@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractScalarFunctionTestCase {
+public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractVectorTestCase {
 
     protected AbstractVectorSimilarityFunctionTestCase(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -33,6 +33,8 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractS
     public void checkCapability() {
         assumeTrue("Similarity function is not enabled", capability().isEnabled());
     }
+
+    public abstract String getBaseEvaluatorName();
 
     /**
      * Get the capability of the vector similarity function to check
@@ -44,7 +46,11 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractS
         VectorSimilarityFunction.SimilarityEvaluatorFunction similarityFunction
     ) {
 
-        final String evaluatorName = className + "Evaluator" + "[left=Attribute[channel=0], right=Attribute[channel=1]]";
+        final String evaluatorName = className
+            + "Evaluator["
+            + "left=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]], "
+            + "right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=1]]]"
+            + "]";
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
@@ -70,33 +76,52 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractS
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static float[] listToFloatArray(List<Float> floatList) {
-        float[] floatArray = new float[floatList.size()];
-        for (int i = 0; i < floatList.size(); i++) {
-            floatArray[i] = floatList.get(i);
+    public final void testEvaluatorToStringWhenOneVectorIsLiteral() {
+        Expression literal = buildLiteralExpression(testCase).children().getFirst();
+        Expression field = buildFieldExpression(testCase).children().getLast();
+        var expression = build(testCase.getSource(), List.of(literal, field));
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
         }
-        return floatArray;
-    }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        var factory = evaluator(expression);
+        final String evaluatorName = getBaseEvaluatorName()
+            + "Evaluator"
+            + "[left=ConstantVectorProvider[vector="
+            + testCase.getData().getFirst().getValue()
+            + "],"
+            + " right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]]]";
 
-    protected double calculateSimilarity(List<Float> left, List<Float> right) {
-        return 0;
-    }
-
-    /**
-     * @return A random dense vector for testing
-     * @param dimensions
-     */
-    private static List<Float> randomDenseVector(int dimensions) {
-        List<Float> vector = new ArrayList<>();
-        for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloat());
+        try (EvalOperator.ExpressionEvaluator ev = factory.get(driverContext())) {
+            if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+            }
+            assertThat(ev.toString(), equalTo(evaluatorName));
         }
-        return vector;
     }
 
-    @Override
-    protected Matcher<Object> allNullsMatcher() {
-        // A null value on the left or right vector. Similarity is 0
-        return equalTo(0.0);
+    public final void testFactoryToStringWhenOneVectorIsLiteral() {
+
+        Expression literal = buildLiteralExpression(testCase).children().getFirst();
+        Expression field = buildFieldExpression(testCase).children().getLast();
+        var expression = build(testCase.getSource(), List.of(literal, field));
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        var factory = evaluator(expression);
+        if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+            assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+        }
+        final String evaluatorName = getBaseEvaluatorName()
+            + "Evaluator"
+            + "[left=ConstantVectorProvider[vector="
+            + testCase.getData().getFirst().getValue()
+            + "],"
+            + " right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]]]";
+
+        assertThat(factory.toString(), equalTo(evaluatorName));
     }
 }

@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,16 +59,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
 
 /**
- * Meta data about snapshots that are currently executing
+ * Metadata about snapshots that are currently executing.
+ * <p>
+ * This data structure serves two purposes:
+ * <ol>
+ * <li>It records a checkpoint of the state of the ongoing snapshots so that if the current master fails and a new master is elected then
+ * the ongoing snapshots can continue without having to re-do an excessive amount of work. In practice today the only work that is repeated
+ * on a master failover is the finalization of any snapshots that are ready to finalize.</li>
+ * <li>It communicates to the data nodes the snapshot work they should currently be performing, which it does by setting each shard's
+ * {@link ShardSnapshotStatus#state} field to {@link ShardState#INIT}.</li>
+ * </ol>
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     private static final Logger logger = LogManager.getLogger(SnapshotsInProgress.class);
+
+    private static final Tuple<Map<State, Integer>, Map<ShardState, Integer>> NO_SNAPSHOTS_IN_PROGRESS_STATS = Tuple.tuple(
+        Arrays.stream(State.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0)),
+        Arrays.stream(ShardState.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0))
+    );
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of(), Set.of());
 
@@ -176,6 +192,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public List<Entry> forRepo(ProjectId projectId, String repository) {
         return forRepo(new ProjectRepo(projectId, repository));
+    }
+
+    /**
+     * Calculate snapshot and shard state summaries for this repository
+     *
+     * @param projectId The project ID
+     * @param repository The repository name
+     * @return A tuple containing the snapshot and shard stat summaries
+     */
+    public Tuple<Map<State, Integer>, Map<ShardState, Integer>> shardStateSummaryForRepository(ProjectId projectId, String repository) {
+        ByRepo byRepo = entries.get(new ProjectRepo(projectId, repository));
+        if (byRepo != null) {
+            return byRepo.calculateStateSummaries();
+        } else {
+            return NO_SNAPSHOTS_IN_PROGRESS_STATS;
+        }
     }
 
     /**
@@ -307,7 +339,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     private static final TransportVersion DIFFABLE_VERSION = TransportVersions.V_8_5_0;
@@ -1780,6 +1812,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final class SnapshotInProgressDiff implements NamedDiff<Custom> {
 
+        private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<ProjectRepo, ByRepo, Map<ProjectRepo, ByRepo>> mapDiff;
@@ -1792,7 +1826,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         SnapshotInProgressDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            if (in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                 final var oldMapDiff = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1831,7 +1865,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -1843,13 +1877,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
             if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
-                if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+                if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOT) == false) {
                     DiffableUtils.jdkMapDiffWithUpdatedKeys(mapDiff, projectRepo -> {
                         if (ProjectId.DEFAULT.equals(projectRepo.projectId()) == false) {
                             final var message = "Cannot write instance with non-default project id "
                                 + projectRepo.projectId()
                                 + " to version before "
-                                + TransportVersions.PROJECT_ID_IN_SNAPSHOT;
+                                + PROJECT_ID_IN_SNAPSHOT;
                             assert false : message;
                             throw new IllegalArgumentException(message);
                         }
@@ -1893,6 +1927,31 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         private ByRepo(List<Entry> entries) {
             this.entries = List.copyOf(entries);
+        }
+
+        /**
+         * Calculate summaries of how many shards and snapshots are in each shard/snapshot state
+         *
+         * @return a {@link Tuple} containing the snapshot and shard state summaries respectively
+         */
+        public Tuple<Map<State, Integer>, Map<ShardState, Integer>> calculateStateSummaries() {
+            final int[] snapshotCounts = new int[State.values().length];
+            final int[] shardCounts = new int[ShardState.values().length];
+            for (Entry entry : entries) {
+                snapshotCounts[entry.state().ordinal()]++;
+                if (entry.isClone()) {
+                    // Can't get shards for clone entry
+                    continue;
+                }
+                for (ShardSnapshotStatus shardSnapshotStatus : entry.shards().values()) {
+                    shardCounts[shardSnapshotStatus.state().ordinal()]++;
+                }
+            }
+            final Map<State, Integer> snapshotStates = Arrays.stream(State.values())
+                .collect(Collectors.toUnmodifiableMap(state -> state, state -> snapshotCounts[state.ordinal()]));
+            final Map<ShardState, Integer> shardStates = Arrays.stream(ShardState.values())
+                .collect(Collectors.toUnmodifiableMap(shardState -> shardState, state -> shardCounts[state.ordinal()]));
+            return Tuple.tuple(snapshotStates, shardStates);
         }
 
         @Override

@@ -53,6 +53,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -155,7 +156,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             threadPool,
             client,
-            List.of()
+            List.of(),
+            SnapshotMetrics.NOOP
         );
 
         clusterService.start();
@@ -377,8 +379,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
         RepositoriesStats throttlingStats = repositoriesService.getRepositoriesThrottlingStats();
-        assertTrue(throttlingStats.getRepositoryThrottlingStats().containsKey(repoName));
-        assertNotNull(throttlingStats.getRepositoryThrottlingStats().get(repoName));
+        assertTrue(throttlingStats.getRepositorySnapshotStats().containsKey(repoName));
+        assertNotNull(throttlingStats.getRepositorySnapshotStats().get(repoName));
     }
 
     // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from
@@ -701,16 +703,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public long getSnapshotThrottleTimeInNanos() {
-            return 0;
-        }
-
-        @Override
-        public long getRestoreThrottleTimeInNanos() {
-            return 0;
-        }
-
-        @Override
         public String startVerification() {
             return null;
         }
@@ -770,6 +762,16 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void awaitIdle() {}
+
+        @Override
+        public LongWithAttributes getShardSnapshotsInProgress() {
+            return null;
+        }
+
+        @Override
+        public RepositoriesStats.SnapshotStats getSnapshotStats() {
+            return RepositoriesStats.SnapshotStats.ZERO;
+        }
 
         @Override
         public Lifecycle.State lifecycleState() {
@@ -832,7 +834,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-a")
+                Map.of("bucket", "bucket-a"),
+                SnapshotMetrics.NOOP
             );
         }
 
@@ -860,7 +863,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-b")
+                Map.of("bucket", "bucket-b"),
+                SnapshotMetrics.NOOP
             );
         }
 

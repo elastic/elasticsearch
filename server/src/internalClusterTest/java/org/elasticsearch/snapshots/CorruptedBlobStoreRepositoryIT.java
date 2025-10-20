@@ -327,7 +327,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify that repo is assumed in old metadata format");
         assertThat(
-            SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
+            SnapshotsServiceUtils.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
 
@@ -336,7 +336,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(
-            SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
+            SnapshotsServiceUtils.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null),
             is(IndexVersion.current())
         );
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);

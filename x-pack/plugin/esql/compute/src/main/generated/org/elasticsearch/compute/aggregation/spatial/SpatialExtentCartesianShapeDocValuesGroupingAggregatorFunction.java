@@ -66,9 +66,7 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -125,13 +123,7 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
-        int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
-        int[] valuesArray = new int[valuesEnd - valuesStart];
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          valuesArray[v-valuesStart] = valuesBlock.getInt(v);
-        }
-        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
       }
     }
   }
@@ -192,13 +184,7 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
-        int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
-        int[] valuesArray = new int[valuesEnd - valuesStart];
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          valuesArray[v-valuesStart] = valuesBlock.getInt(v);
-        }
-        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+        SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
       }
     }
   }
@@ -253,13 +239,7 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
         continue;
       }
       int groupId = groups.getInt(groupPosition);
-      int valuesStart = valuesBlock.getFirstValueIndex(valuesPosition);
-      int valuesEnd = valuesStart + valuesBlock.getValueCount(valuesPosition);
-      int[] valuesArray = new int[valuesEnd - valuesStart];
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        valuesArray[v-valuesStart] = valuesBlock.getInt(v);
-      }
-      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesArray);
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 
@@ -296,6 +276,12 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentCartesianShapeDocValuesAggregator.combineIntermediate(state, groupId, minX.getInt(valuesPosition), maxX.getInt(valuesPosition), maxY.getInt(valuesPosition), minY.getInt(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valuesBlock) {
+    if (valuesBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

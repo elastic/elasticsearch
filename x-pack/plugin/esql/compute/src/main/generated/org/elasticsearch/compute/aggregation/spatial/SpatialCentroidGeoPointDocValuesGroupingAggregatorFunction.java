@@ -70,9 +70,7 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
     LongBlock encodedBlock = page.getBlock(channels.get(0));
     LongVector encodedVector = encodedBlock.asVector();
     if (encodedVector == null) {
-      if (encodedBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, encodedBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -341,6 +339,12 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialCentroidGeoPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock encodedBlock) {
+    if (encodedBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

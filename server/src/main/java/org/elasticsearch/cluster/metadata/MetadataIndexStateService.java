@@ -77,7 +77,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -346,7 +346,7 @@ public class MetadataIndexStateService {
         }
 
         // Check if index closing conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentProjectState, indicesToClose);
+        Set<Index> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndices(currentProjectState, indicesToClose);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot close indices that are being snapshotted: "
@@ -544,9 +544,7 @@ public class MetadataIndexStateService {
                                             blockedIndices,
                                             verifyResults,
                                             task.request().markVerified()
-                                                && clusterService.state()
-                                                    .getMinTransportVersion()
-                                                    .onOrAfter(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE),
+                                                && clusterService.state().getMinTransportVersion().supports(TransportVersions.V_8_18_0),
                                             delegate2
                                         ),
                                         null
@@ -934,7 +932,7 @@ public class MetadataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running snapshots
-                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentProjectState, Set.of(index));
+                Set<Index> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndices(currentProjectState, Set.of(index));
                 if (snapshottingIndices.isEmpty() == false) {
                     closingResults.put(
                         result.getKey(),

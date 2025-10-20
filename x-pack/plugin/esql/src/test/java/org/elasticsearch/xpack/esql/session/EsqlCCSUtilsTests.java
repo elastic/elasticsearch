@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -21,7 +20,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
@@ -34,12 +32,12 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,13 +47,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
-import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.shouldIgnoreRuntimeError;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class EsqlCCSUtilsTests extends ESTestCase {
 
@@ -63,85 +59,56 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private final String REMOTE1_ALIAS = "remote1";
     private final String REMOTE2_ALIAS = "remote2";
 
-    public void testCreateIndexExpressionFromAvailableClusters() {
+    public void testCreateQualifiedLookupIndexExpressionFromAvailableClusters() {
 
+        var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;
         // no clusters marked as skipped
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true));
-
-            String indexExpr = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            List<String> list = Arrays.stream(Strings.splitStringByCommaToArray(indexExpr)).toList();
-            assertThat(list.size(), equalTo(5));
-            assertThat(
-                new HashSet<>(list),
-                equalTo(Strings.commaDelimitedListToSet("logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*"))
+            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "", false));
+            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true));
+            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true));
+            assertIndexPattern(
+                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
+                containsInAnyOrder("lookup", REMOTE1_ALIAS + ":lookup", REMOTE2_ALIAS + ":lookup")
             );
         }
-
-        // one cluster marked as skipped, so not present in revised index expression
+        // one cluster marked as skipped
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(
-                    REMOTE2_ALIAS,
-                    "mylogs1,mylogs2,logs*",
-                    true,
-                    EsqlExecutionInfo.Cluster.Status.SKIPPED
-                )
+            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "", false));
+            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true));
+            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true, skipped));
+            assertIndexPattern(
+                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
+                containsInAnyOrder("lookup", REMOTE1_ALIAS + ":lookup")
             );
-
-            String indexExpr = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            List<String> list = Arrays.stream(Strings.splitStringByCommaToArray(indexExpr)).toList();
-            assertThat(list.size(), equalTo(3));
-            assertThat(new HashSet<>(list), equalTo(Strings.commaDelimitedListToSet("logs*,remote1:*,remote1:foo")));
         }
-
-        // two clusters marked as skipped, so only local cluster present in revised index expression
+        // all remotes marked as skipped
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(
-                REMOTE1_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "", false));
+            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true, skipped));
+            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true, skipped));
+            assertIndexPattern(
+                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
+                containsInAnyOrder("lookup")
             );
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(
-                    REMOTE2_ALIAS,
-                    "mylogs1,mylogs2,logs*",
-                    true,
-                    EsqlExecutionInfo.Cluster.Status.SKIPPED
-                )
-            );
-
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
         }
-
-        // only remotes present and all marked as skipped, so in revised index expression should be empty string
+        // all remotes are skipped and no local
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(
-                REMOTE1_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "", true, skipped));
+            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "", true, skipped));
+            assertIndexPattern(
+                EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, "lookup"),
+                containsInAnyOrder()
             );
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(
-                    REMOTE2_ALIAS,
-                    "mylogs1,mylogs2,logs*",
-                    true,
-                    EsqlExecutionInfo.Cluster.Status.SKIPPED
-                )
-            );
-
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
         }
+    }
+
+    private static void assertIndexPattern(String indexPattern, Matcher<Iterable<? extends String>> matcher) {
+        assertThat(Set.of(Strings.splitStringByCommaToArray(indexPattern)), matcher);
     }
 
     public void testUpdateExecutionInfoWithUnavailableClusters() {
@@ -703,7 +670,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // local only search works with any license state
         {
-            var localOnly = List.of(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
+            var localOnly = new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"));
 
             assertLicenseCheckPasses(indicesGrouper, null, localOnly, "");
             for (var mode : License.OperationMode.values()) {
@@ -714,7 +681,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
         {
-            var remote = List.of(new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs")));
+            var remote = new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs"));
 
             var supportedLicenses = EnumSet.of(License.OperationMode.TRIAL, License.OperationMode.ENTERPRISE);
             var unsupportedLicenses = EnumSet.complementOf(supportedLicenses);
@@ -742,18 +709,18 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private void assertLicenseCheckPasses(
         TestIndicesExpressionGrouper indicesGrouper,
         XPackLicenseStatus status,
-        List<IndexPattern> patterns,
+        IndexPattern pattern,
         String... expectedRemotes
     ) {
         var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(indicesGrouper, createLicenseState(status), patterns, executionInfo);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), pattern, executionInfo);
         assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
     }
 
     private void assertLicenseCheckFails(
         TestIndicesExpressionGrouper indicesGrouper,
         XPackLicenseStatus licenseStatus,
-        List<IndexPattern> patterns,
+        IndexPattern pattern,
         String expectedErrorMessageSuffix
     ) {
         ElasticsearchStatusException e = expectThrows(
@@ -761,38 +728,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), patterns, new EsqlExecutionInfo(true))
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), pattern, new EsqlExecutionInfo(true))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-    }
-
-    public void testShouldIgnoreRuntimeError() {
-        Predicate<String> skipUnPredicate = s -> s.equals(REMOTE1_ALIAS);
-
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, true);
-        executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-        executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-        executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false));
-
-        // remote1: skip_unavailable=true, so should ignore connect errors, but not others
-        assertThat(
-            shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new IllegalStateException("Unable to open any connections")),
-            is(true)
-        );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new TaskCancelledException("task cancelled")), is(true));
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new ElasticsearchException("something is wrong")), is(true));
-        // remote2: skip_unavailable=false, so should not ignore any errors
-        assertThat(
-            shouldIgnoreRuntimeError(executionInfo, REMOTE2_ALIAS, new IllegalStateException("Unable to open any connections")),
-            is(false)
-        );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE2_ALIAS, new TaskCancelledException("task cancelled")), is(false));
-        // same for local
-        assertThat(
-            shouldIgnoreRuntimeError(executionInfo, LOCAL_CLUSTER_ALIAS, new IllegalStateException("Unable to open any connections")),
-            is(false)
-        );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, LOCAL_CLUSTER_ALIAS, new TaskCancelledException("task cancelled")), is(false));
     }
 
     private XPackLicenseStatus activeLicenseStatus(License.OperationMode operationMode) {
@@ -805,11 +743,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
         @Override
-        public Map<String, OriginalIndices> groupIndices(
-            Set<String> remoteClusterNames,
-            IndicesOptions indicesOptions,
-            String[] indexExpressions
-        ) {
+        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
             final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
@@ -839,5 +773,4 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             return originalIndicesMap;
         }
     }
-
 }

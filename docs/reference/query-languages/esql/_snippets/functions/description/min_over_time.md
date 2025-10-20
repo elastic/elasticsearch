@@ -2,10 +2,5 @@
 
 **Description**
 
-The minimum over time value of a field.
-
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds
-::::
-
+Calculates the minimum over time value of a field.
 

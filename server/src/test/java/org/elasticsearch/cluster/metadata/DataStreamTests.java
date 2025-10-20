@@ -1185,6 +1185,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
                                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
+                                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dummy_path")
                                     .build()
                             )
                             .build()
@@ -1965,7 +1966,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
-            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConfiguration();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
 
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);

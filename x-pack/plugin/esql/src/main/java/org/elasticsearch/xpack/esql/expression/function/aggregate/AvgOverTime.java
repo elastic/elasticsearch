@@ -40,17 +40,17 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Surrogat
 
     @FunctionInfo(
         returnType = "double",
-        description = "The average over time of a numeric field.",
+        description = "Calculates the average over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "avg_over_time") }
     )
     public AvgOverTime(
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long" },
+            type = { "aggregate_metric_double", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
@@ -104,6 +104,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Surrogat
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Avg(source(), field(), filter());
+        return new Avg(source(), field(), filter(), SummationMode.LOSSY_LITERAL);
     }
 }

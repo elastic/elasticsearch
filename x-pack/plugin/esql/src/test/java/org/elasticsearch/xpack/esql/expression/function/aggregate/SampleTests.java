@@ -59,13 +59,16 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+                MultiRowTestCaseSupplier.geohashCases(1, 1000),
+                MultiRowTestCaseSupplier.geotileCases(1, 1000),
+                MultiRowTestCaseSupplier.geohexCases(1, 1000)
             )
                 .flatMap(List::stream)
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))
                 .collect(Collectors.toCollection(() -> suppliers));
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -86,7 +89,7 @@ public class SampleTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, limitTypedData),
-                "Sample[field=Attribute[channel=0], limit=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("Sample", fieldSupplier.type()),
                 fieldSupplier.type(),
                 subsetOfSize(rows, limit)
             );

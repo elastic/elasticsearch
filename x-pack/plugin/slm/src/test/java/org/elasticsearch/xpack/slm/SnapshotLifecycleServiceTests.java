@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -129,7 +131,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
             SnapshotLifecycleService sls = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                (projectId) -> new FakeSnapshotTask(e -> logger.info("triggered")),
+                (projectId) -> new FakeSnapshotTask(e -> logger.info("triggered"), new NoOpClient(threadPool)),
                 clusterService,
                 clock
             )
@@ -198,7 +200,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
             SnapshotLifecycleService sls = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                (projectId) -> new FakeSnapshotTask(e -> trigger.get().accept(e)),
+                (projectId) -> new FakeSnapshotTask(e -> trigger.get().accept(e), new NoOpClient(threadPool)),
                 clusterService,
                 clock
             )
@@ -329,7 +331,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
             SnapshotLifecycleService sls = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                (projectId) -> new FakeSnapshotTask(e -> trigger.get().accept(e)),
+                (projectId) -> new FakeSnapshotTask(e -> trigger.get().accept(e), new NoOpClient(threadPool)),
                 clusterService,
                 clock
             )
@@ -492,7 +494,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                         ClusterService.USER_DEFINED_METADATA,
                         ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                        ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                        ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                        ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                        ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                     )
                 )
             );
@@ -509,7 +513,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             SnapshotLifecycleService service = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                (projectId) -> new SnapshotLifecycleTask(projectId, null, null, null),
+                (projectId) -> new SnapshotLifecycleTask(projectId, new NoOpClient(threadPool), null, null),
                 fakeService,
                 clock
             );
@@ -529,8 +533,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     class FakeSnapshotTask extends SnapshotLifecycleTask {
         private final Consumer<SchedulerEngine.Event> onTriggered;
 
-        FakeSnapshotTask(Consumer<SchedulerEngine.Event> onTriggered) {
-            super(projectId, null, null, null);
+        FakeSnapshotTask(Consumer<SchedulerEngine.Event> onTriggered, Client client) {
+            super(projectId, client, null, null);
             this.onTriggered = onTriggered;
         }
 

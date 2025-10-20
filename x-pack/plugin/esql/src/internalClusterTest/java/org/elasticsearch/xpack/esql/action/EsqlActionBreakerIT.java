@@ -87,10 +87,6 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
     }
 
     public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
-        public EsqlTestPluginWithMockBlockFactory(Settings settings) {
-            super(settings);
-        }
-
         @Override
         protected BlockFactoryProvider blockFactoryProvider(
             CircuitBreaker breaker,

@@ -32,7 +32,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    static final Version bwcVersion = Version.fromString(
+        System.getProperty("tests.old_cluster_version") != null
+            ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
+            : null
+    );
 
     private static TestFeatureService oldClusterTestFeatureService = null;
 
@@ -63,11 +67,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
-    }
-
-    @Override
-    protected boolean supportTimeSeriesCommand() {
-        return false;
     }
 
     @Override

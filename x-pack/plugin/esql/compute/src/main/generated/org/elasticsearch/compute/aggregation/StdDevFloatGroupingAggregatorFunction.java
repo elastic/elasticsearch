@@ -66,9 +66,7 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
     FloatBlock valueBlock = page.getBlock(channels.get(0));
     FloatVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      if (valueBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -307,6 +305,12 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       StdDevFloatAggregator.combineIntermediate(state, groupId, mean.getDouble(valuesPosition), m2.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, FloatBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

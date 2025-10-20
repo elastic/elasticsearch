@@ -69,6 +69,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSna
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageMetric;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
@@ -127,6 +129,18 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
+import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
+import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -405,6 +419,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -424,6 +439,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.ingest.SamplingService.RANDOM_SAMPLING_FEATURE_FLAG;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
@@ -458,6 +474,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
+    private final ClusterService clusterService;
 
     public ActionModule(
         Settings settings,
@@ -533,6 +550,7 @@ public class ActionModule extends AbstractModule {
             reservedProjectStateHandlers
         );
         this.restExtension = restExtension;
+        this.clusterService = clusterService;
     }
 
     private static <T> T getRestServerComponent(
@@ -672,6 +690,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportDeleteSnapshotAction.TYPE, TransportDeleteSnapshotAction.class);
         actions.register(TransportCreateSnapshotAction.TYPE, TransportCreateSnapshotAction.class);
         actions.register(TransportCloneSnapshotAction.TYPE, TransportCloneSnapshotAction.class);
+        actions.register(TransportUpdateSnapshotStatusAction.TYPE, TransportUpdateSnapshotStatusAction.class);
         actions.register(TransportRestoreSnapshotAction.TYPE, TransportRestoreSnapshotAction.class);
         actions.register(TransportSnapshotsStatusAction.TYPE, TransportSnapshotsStatusAction.class);
         actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
@@ -809,6 +828,13 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
+        if (RANDOM_SAMPLING_FEATURE_FLAG) {
+            actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
+            actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
+            actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
+            actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
+        }
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -923,25 +949,25 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());
-        registerHandler.accept(new RestResolveIndexAction());
+        registerHandler.accept(new RestResolveIndexAction(settings));
 
-        registerHandler.accept(new RestIndexAction());
-        registerHandler.accept(new CreateHandler());
-        registerHandler.accept(new AutoIdHandler());
+        registerHandler.accept(new RestIndexAction(clusterService, projectIdResolver));
+        registerHandler.accept(new CreateHandler(clusterService, projectIdResolver));
+        registerHandler.accept(new AutoIdHandler(clusterService, projectIdResolver));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
         registerHandler.accept(new RestDeleteAction());
-        registerHandler.accept(new RestCountAction());
+        registerHandler.accept(new RestCountAction(settings));
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
         registerHandler.accept(new RestBulkAction(settings, clusterSettings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature));
+        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, settings));
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
-        registerHandler.accept(new RestOpenPointInTimeAction());
+        registerHandler.accept(new RestOpenPointInTimeAction(settings));
         registerHandler.accept(new RestClosePointInTimeAction());
         registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
         registerHandler.accept(new RestKnnSearchAction());
@@ -961,7 +987,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetScriptContextAction());
         registerHandler.accept(new RestGetScriptLanguageAction());
 
-        registerHandler.accept(new RestFieldCapabilitiesAction());
+        registerHandler.accept(new RestFieldCapabilitiesAction(settings));
 
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
@@ -989,7 +1015,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesAction(projectIdResolver));
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction());
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings));
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
         registerHandler.accept(new RestCatRecoveryAction());
         registerHandler.accept(new RestHealthAction());
@@ -1036,6 +1062,13 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
+
+        if (RANDOM_SAMPLING_FEATURE_FLAG) {
+            registerHandler.accept(new RestGetSampleAction());
+            registerHandler.accept(new RestPutSampleConfigurationAction());
+            registerHandler.accept(new RestGetSampleStatsAction());
+            registerHandler.accept(new RestDeleteSampleConfigurationAction());
+        }
     }
 
     @Override
@@ -1073,5 +1106,15 @@ public class ActionModule extends AbstractModule {
 
     public ReservedClusterStateService getReservedClusterStateService() {
         return reservedClusterStateService;
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                ExtendedSearchUsageMetric.class,
+                ExtendedSearchUsageLongCounter.NAME,
+                ExtendedSearchUsageLongCounter::new
+            )
+        );
     }
 }

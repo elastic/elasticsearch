@@ -64,9 +64,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      if (valueBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -300,6 +298,12 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

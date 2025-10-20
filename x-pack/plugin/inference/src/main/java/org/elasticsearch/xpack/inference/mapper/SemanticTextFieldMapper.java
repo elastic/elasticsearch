@@ -23,6 +23,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -57,7 +59,6 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -79,7 +80,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
@@ -89,21 +90,23 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
@@ -125,6 +128,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
+
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -149,6 +153,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
+
+    public static final String UNSUPPORTED_INDEX_MESSAGE = "["
+        + CONTENT_TYPE
+        + "] is available on indices created with 8.11 or higher. Please create a new index to use ["
+        + CONTENT_TYPE
+        + "]";
 
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
@@ -582,16 +592,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         }
+
+        SemanticTextField semanticTextField;
         boolean isWithinLeaf = context.path().isWithinLeafObject();
         try {
             context.path().setWithinLeafObject(true);
-            return SemanticTextField.parse(
+            semanticTextField = SemanticTextField.parse(
                 context.parser(),
                 new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType())
             );
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+
+        IndexVersion indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
+        if (semanticTextField != null
+            && semanticTextField.inference().modelSettings() != null
+            && indexCreatedVersion.before(NEW_SPARSE_VECTOR)) {
+            // Explicitly fail to parse semantic text fields that meet the following criteria:
+            // - Are in pre 8.11 indices
+            // - Have model settings, indicating that they have embeddings to be indexed
+            //
+            // We can't fail earlier than this because it causes pre 8.11 indices with semantic text fields to either be in red state or
+            // cause Elasticsearch to not launch.
+            throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
+        }
+
+        return semanticTextField;
     }
 
     void parseCreateFieldFromContext(DocumentParserContext context, SemanticTextField field, XContentLocation xContentLocation)
@@ -777,7 +804,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
-            super(name, true, false, false, TextSearchInfo.NONE, meta);
+            super(name, IndexType.terms(true, false), false, meta);
             this.inferenceId = inferenceId;
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
@@ -864,6 +891,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null && "chunks".equals(format) == false) {
+                throw new IllegalArgumentException(
+                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
+                );
+            }
+            if (format != null) {
+                return valueFetcherWithInferenceResults(getChunksField().bitsetProducer(), context.searcher(), true);
+            }
             if (useLegacyFormat) {
                 // Redirect the fetcher to load the original values of the field
                 return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
@@ -871,7 +906,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return SourceValueFetcher.toString(name(), context, null);
         }
 
-        ValueFetcher valueFetcherWithInferenceResults(Function<Query, BitSetProducer> bitSetCache, IndexSearcher searcher) {
+        ValueFetcher valueFetcherWithInferenceResults(
+            Function<Query, BitSetProducer> bitSetCache,
+            IndexSearcher searcher,
+            boolean onlyTextChunks
+        ) {
             var embeddingsField = getEmbeddingsField();
             if (embeddingsField == null) {
                 return ValueFetcher.EMPTY;
@@ -884,7 +923,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES,
                     1
                 );
-                return new SemanticTextFieldValueFetcher(bitSetFilter, childWeight, embeddingsLoader);
+                return new SemanticTextFieldValueFetcher(bitSetFilter, childWeight, embeddingsLoader, onlyTextChunks);
             } catch (IOException exc) {
                 throw new UncheckedIOException(exc);
             }
@@ -928,13 +967,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         );
                     }
                     case TEXT_EMBEDDING -> {
-                        if (inferenceResults instanceof MlTextEmbeddingResults == false) {
+                        if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
                             throw new IllegalArgumentException(
-                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlTextEmbeddingResults.NAME)
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
                             );
                         }
 
-                        MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
+                        MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
                         int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
                             ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
@@ -951,7 +990,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             k = Math.max(k, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["
@@ -1014,7 +1053,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             String name = useLegacyFormat ? name().concat(".text") : name();
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
 
@@ -1022,6 +1061,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             private final BitSetProducer parentBitSetProducer;
             private final Weight childWeight;
             private final SourceLoader.SyntheticFieldLoader fieldLoader;
+            private final boolean onlyTextChunks;
 
             private BitSet bitSet;
             private Scorer childScorer;
@@ -1031,11 +1071,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             private SemanticTextFieldValueFetcher(
                 BitSetProducer bitSetProducer,
                 Weight childWeight,
-                SourceLoader.SyntheticFieldLoader fieldLoader
+                SourceLoader.SyntheticFieldLoader fieldLoader,
+                boolean onlyTextChunks
             ) {
                 this.parentBitSetProducer = bitSetProducer;
                 this.childWeight = childWeight;
                 this.fieldLoader = fieldLoader;
+                this.onlyTextChunks = onlyTextChunks;
             }
 
             @Override
@@ -1046,7 +1088,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     if (childScorer != null) {
                         childScorer.iterator().nextDoc();
                     }
-                    dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    if (onlyTextChunks == false) {
+                        dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    }
                     var terms = context.reader().terms(getOffsetsFieldName(name()));
                     offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
                 } catch (IOException exc) {
@@ -1064,21 +1108,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 if (it.docID() < previousParent) {
                     it.advance(previousParent);
                 }
+
+                return onlyTextChunks ? fetchTextChunks(source, doc, it) : fetchFullField(source, doc, it);
+            }
+
+            private List<Object> fetchTextChunks(Source source, int doc, DocIdSetIterator it) throws IOException {
+                Map<String, String> originalValueMap = new HashMap<>();
+                List<Object> chunks = new ArrayList<>();
+
+                iterateChildDocs(doc, it, offset -> {
+                    var rawValue = originalValueMap.computeIfAbsent(offset.field(), k -> {
+                        var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
+                        var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj).stream().toList();
+                        return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
+                    });
+
+                    chunks.add(rawValue.substring(offset.start(), offset.end()));
+                });
+
+                return chunks;
+            }
+
+            private List<Object> fetchFullField(Source source, int doc, DocIdSetIterator it) throws IOException {
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
-                while (it.docID() < doc) {
-                    if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
-                        throw new IllegalStateException(
-                            "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
-                        );
-                    }
-                    var offset = offsetsLoader.advanceTo(it.docID());
-                    if (offset == null) {
-                        throw new IllegalStateException(
-                            "Cannot fetch values for field [" + name() + "], missing offsets for doc [" + doc + "]"
-                        );
-                    }
-                    var chunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
-                    chunks.add(
+
+                iterateChildDocs(doc, it, offset -> {
+                    var fullChunks = chunkMap.computeIfAbsent(offset.field(), k -> new ArrayList<>());
+                    fullChunks.add(
                         new SemanticTextField.Chunk(
                             null,
                             offset.start(),
@@ -1086,13 +1142,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             rawEmbeddings(fieldLoader::write, source.sourceContentType())
                         )
                     );
-                    if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-                        break;
-                    }
-                }
+                });
+
                 if (chunkMap.isEmpty()) {
                     return List.of();
                 }
+
                 return List.of(
                     new SemanticTextField(
                         useLegacyFormat,
@@ -1102,6 +1157,38 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         source.sourceContentType()
                     )
                 );
+            }
+
+            /**
+             * Iterates over all child documents for the given doc and applies the provided action for each valid offset.
+             */
+            private void iterateChildDocs(
+                int doc,
+                DocIdSetIterator it,
+                CheckedConsumer<OffsetSourceFieldMapper.OffsetSource, IOException> action
+            ) throws IOException {
+                while (it.docID() < doc) {
+                    if (onlyTextChunks == false) {
+                        if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
+                            throw new IllegalStateException(
+                                "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
+                            );
+                        }
+                    }
+
+                    var offset = offsetsLoader.advanceTo(it.docID());
+                    if (offset == null) {
+                        throw new IllegalStateException(
+                            "Cannot fetch values for field [" + name() + "], missing offsets for doc [" + doc + "]"
+                        );
+                    }
+
+                    action.accept(offset);
+
+                    if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                }
             }
 
             private BytesReference rawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
@@ -1144,7 +1231,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
-        return new ObjectMapper.Builder(INFERENCE_FIELD, Optional.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
+        return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
             .add(createChunksField(indexVersionCreated, useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings))
             .build(context);
     }
@@ -1198,7 +1285,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
-                    false
+                    false,
+                    List.of()
                 );
 
                 configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
@@ -1234,13 +1322,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions
     ) {
-        SimilarityMeasure similarity = modelSettings.similarity();
-        if (similarity != null) {
-            switch (similarity) {
-                case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
-                case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
-                case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                default -> throw new IllegalArgumentException("Unknown similarity measure in model_settings [" + similarity.name() + "]");
+        // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be set
+        // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially configured is
+        // moot because we will explicitly fail to index docs into this semantic text field anyways.
+        if (indexVersionCreated.onOrAfter(NEW_SPARSE_VECTOR)) {
+            SimilarityMeasure similarity = modelSettings.similarity();
+            if (similarity != null) {
+                switch (similarity) {
+                    case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
+                    case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
+                    case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
+                    default -> throw new IllegalArgumentException(
+                        "Unknown similarity measure in model_settings [" + similarity.name() + "]"
+                    );
+                }
             }
         }
 

@@ -101,9 +101,24 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             super.doExecute(task, request, l);
         });
 
+        // Set cluster alias to null because this request targets a single shard and thus there cannot be any multi-cluster resource
+        // conflicts. This is also consistent with the cluster alias value set downstream in the SearchExecutionContext used in this
+        // code path.
+        // Set CCS minimize round-trips to false because this transport implementation runs coordinator rewrite only on the local cluster.
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(
+                timeProvider,
+                clusterService.state().getMinTransportVersion(),
+                null,
+                resolvedIndices,
+                null,
+                false
+            ),
+            rewriteListener
+        );
     }
 
     @Override

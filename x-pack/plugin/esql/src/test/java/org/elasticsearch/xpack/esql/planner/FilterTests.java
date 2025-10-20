@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.TransportVersions.V_8_17_0;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -88,7 +88,8 @@ public class FilterTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        TransportVersion minimumVersion = logicalOptimizer.context().minimumVersion();
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, minimumVersion));
         mapper = new Mapper();
 
         analyzer = new Analyzer(
@@ -96,8 +97,10 @@ public class FilterTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
+                Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),
-                emptyInferenceResolution()
+                emptyInferenceResolution(),
+                minimumVersion
             ),
             TEST_VERIFIER
         );
@@ -321,17 +324,6 @@ public class FilterTests extends ESTestCase {
         assertThat(filter, nullValue());
     }
 
-    public void testLikeList() {
-        String query = LoggerMessageFormat.format(null, """
-             FROM test
-            |WHERE {} LIKE ("a+", "b+")
-            """, LAST_NAME);
-        var plan = plan(query, null);
-        // test with an older version, so like list is not supported
-        var filter = filterQueryForTransportNodes(V_8_17_0, plan);
-        assertNull(filter);
-    }
-
     /**
      * Tests that we <strong>can</strong> extract a filter if the transport
      * version is {@code null}. This isn't run in the "filter for transport nodes"
@@ -382,9 +374,9 @@ public class FilterTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, QueryBuilder restFilter) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
-        var physical = mapper.map(logical);
+        var physical = mapper.map(new Versioned<>(logical, logicalOptimizer.context().minimumVersion()));
         // System.out.println("physical\n" + physical);
         physical = physical.transformUp(
             FragmentExec.class,

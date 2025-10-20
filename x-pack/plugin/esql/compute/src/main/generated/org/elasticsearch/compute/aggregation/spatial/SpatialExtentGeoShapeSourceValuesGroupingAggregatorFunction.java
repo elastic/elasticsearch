@@ -71,9 +71,7 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
-      if (bytesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, bytesBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -364,6 +362,12 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock bytesBlock) {
+    if (bytesBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

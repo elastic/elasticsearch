@@ -112,8 +112,7 @@ public class Ai21ChatCompletionResponseHandlerTests extends ESTestCase {
                 mock(),
                 mock(),
                 mockRequest(),
-                new HttpResult(mockErrorResponse(statusCode), responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
+                new HttpResult(mockErrorResponse(statusCode), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
     }

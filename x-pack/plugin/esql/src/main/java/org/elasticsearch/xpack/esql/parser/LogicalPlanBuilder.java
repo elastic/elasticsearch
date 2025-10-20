@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -44,11 +45,15 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -67,16 +72,15 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
@@ -86,11 +90,13 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -117,6 +123,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
+    protected EsqlStatement statement(ParseTree ctx) {
+        EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
+        return p;
+    }
+
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
         if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
@@ -134,6 +145,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
+    @Override
+    public EsqlStatement visitStatements(EsqlBaseParser.StatementsContext ctx) {
+        List<QuerySetting> settings = new ArrayList<>();
+        for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
+            settings.add(visitSetCommand(setCommandContext));
+        }
+
+        LogicalPlan query = visitSingleStatement(ctx.singleStatement());
+        return new EsqlStatement(query, settings);
+    }
+
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
         return ParserUtils.visitList(this, ctxs, LogicalPlan.class);
     }
@@ -143,6 +165,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var plan = plan(ctx.query());
         telemetryAccounting(plan);
         return plan;
+    }
+
+    @Override
+    public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
+        var field = visitSetField(ctx.setField());
+        return new QuerySetting(source(ctx), field);
+    }
+
+    @Override
+    public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
+        String name = visitIdentifier(ctx.identifier());
+        Expression value = expression(ctx.constant());
+        return new Alias(source(ctx), name, value);
     }
 
     @Override
@@ -181,30 +216,52 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
+            FoldContext patternFoldContext = FoldContext.small(); /* TODO remove me */
+            List<String> patterns = ctx.string()
+                .stream()
+                .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(patternFoldContext)))
+                .toList();
+
+            String combinePattern = org.elasticsearch.grok.Grok.combinePatterns(patterns);
+
             Grok.Parser grokParser;
             try {
-                grokParser = Grok.pattern(source, pattern);
+                grokParser = Grok.pattern(source, combinePattern);
             } catch (SyntaxException e) {
-                throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
+                if (patterns.size() == 1) {
+                    throw new ParsingException(source, "Invalid GROK pattern [{}]: [{}]", patterns.getFirst(), e.getMessage());
+                } else {
+                    throw new ParsingException(source, "Invalid GROK patterns {}: [{}]", patterns, e.getMessage());
+                }
             }
-            validateGrokPattern(source, grokParser, pattern);
+            validateGrokPattern(source, grokParser, combinePattern, patterns);
             Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), grokParser);
             return result;
         };
     }
 
-    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern) {
+    private void validateGrokPattern(Source source, Grok.Parser grokParser, String pattern, List<String> originalPatterns) {
         Map<String, DataType> definedAttributes = new HashMap<>();
         for (Attribute field : grokParser.extractedFields()) {
             String name = field.name();
             DataType type = field.dataType();
             DataType prev = definedAttributes.put(name, type);
             if (prev != null) {
-                throw new ParsingException(
-                    source,
-                    "Invalid GROK pattern [" + pattern + "]: the attribute [" + name + "] is defined multiple times with different types"
-                );
+                if (originalPatterns.size() == 1) {
+                    throw new ParsingException(
+                        source,
+                        "Invalid GROK pattern [{}]: the attribute [{}] is defined multiple times with different types",
+                        originalPatterns.getFirst(),
+                        name
+                    );
+                } else {
+                    throw new ParsingException(
+                        source,
+                        "Invalid GROK patterns {}: the attribute [{}] is defined multiple times with different types",
+                        originalPatterns,
+                        name
+                    );
+                }
             }
         }
     }
@@ -256,7 +313,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name(), null));
 
     }
 
@@ -323,8 +380,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        // Only the first STATS command in a TS query is treated as the time-series aggregation
         return input -> {
-            if (input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
+            if (input.anyMatch(p -> p instanceof Aggregate) == false
+                && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
                 return new TimeSeriesAggregate(source(ctx), input, stats.groupings, stats.aggregates, null);
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
@@ -370,16 +429,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG) {
-            throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
+    public PlanFactory visitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) {
+        var source = source(ctx);
+        if (false == EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
+            throw new ParsingException(source, "INLINE STATS command currently requires a snapshot build");
+        }
+        // TODO: drop after next minor release
+        if (ctx.INLINESTATS() != null) {
+            HeaderWarning.addWarning(
+                "Line {}:{}: INLINESTATS is deprecated, use INLINE STATS instead",
+                source.source().getLineNumber(),
+                source.source().getColumnNumber()
+            );
         }
         List<Alias> aggFields = visitAggFields(ctx.stats);
         List<NamedExpression> aggregates = new ArrayList<>(aggFields);
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
-        // TODO: add support for filters
-        return input -> new InlineStats(source(ctx), new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates));
+        return input -> new InlineStats(source, new Aggregate(source, input, new ArrayList<>(groupings), aggregates));
     }
 
     @Override
@@ -464,7 +531,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
-        return p -> {
+        return child -> {
             var source = source(ctx);
             Tuple<Mode, String> tuple = parsePolicyName(ctx.policyName);
             Mode mode = tuple.v1();
@@ -483,9 +550,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
+
+            // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            if (mode == Mode.REMOTE) {
+                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+            }
+
             return new Enrich(
                 source,
-                p,
+                child,
                 mode,
                 Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,
@@ -501,14 +574,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
         Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+
+        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
+        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+
+        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
+        }
+
+        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
+        }
+
         Attribute targetType = new ReferenceAttribute(
             src,
-            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            null,
+            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
-            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            null,
+            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
@@ -550,9 +637,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new IllegalArgumentException("TS command currently requires a snapshot build");
-        }
         return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
     }
 
@@ -581,6 +665,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
+    @Override
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
         if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
@@ -622,23 +707,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         var condition = ctx.joinCondition();
-
-        // ON only with qualified names
-        var predicates = expressions(condition.joinPredicate());
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
-        for (var f : predicates) {
-            // verify each field is an unresolved attribute
-            if (f instanceof UnresolvedAttribute ua) {
-                joinFields.add(ua);
-            } else {
-                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
-            }
-        }
-
-        var matchFieldsCount = joinFields.size();
-        if (matchFieldsCount > 1) {
-            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
-        }
+        var joinInfo = typedParsing(this, condition, JoinInfo.class);
 
         return p -> {
             boolean hasRemotes = p.anyMatch(node -> {
@@ -652,8 +721,112 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                 throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
             }
-            return new LookupJoin(source, p, right, joinFields, hasRemotes);
+            return new LookupJoin(source, p, right, joinInfo.joinFields(), hasRemotes, Predicates.combineAnd(joinInfo.joinExpressions()));
         };
+    }
+
+    private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
+
+    @Override
+    public JoinInfo visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) {
+        var expressions = visitList(this, ctx.booleanExpression(), Expression.class);
+        if (expressions.isEmpty()) {
+            throw new ParsingException(source(ctx), "JOIN ON clause cannot be empty");
+        }
+
+        // inspect the first expression to determine the type of join (field-based or expression-based)
+        boolean isFieldBased = expressions.get(0) instanceof UnresolvedAttribute;
+
+        if (isFieldBased) {
+            return processFieldBasedJoin(expressions);
+        } else {
+            return processExpressionBasedJoin(expressions, ctx);
+        }
+    }
+
+    private JoinInfo processFieldBasedJoin(List<Expression> expressions) {
+        List<Attribute> joinFields = new ArrayList<>(expressions.size());
+        for (var f : expressions) {
+            // verify each field is an unresolved attribute
+            if (f instanceof UnresolvedAttribute ua) {
+                if (ua.qualifier() != null) {
+                    throw new ParsingException(
+                        ua.source(),
+                        "JOIN ON clause only supports unqualified fields, found [{}]",
+                        ua.qualifiedName()
+                    );
+                }
+                joinFields.add(ua);
+            } else {
+                throw new ParsingException(
+                    f.source(),
+                    "JOIN ON clause must be a comma separated list of fields or a single expression, found [{}]",
+                    f.sourceText()
+                );
+            }
+        }
+        validateJoinFields(joinFields);
+        return new JoinInfo(joinFields, emptyList());
+    }
+
+    private JoinInfo processExpressionBasedJoin(List<Expression> expressions, EsqlBaseParser.JoinConditionContext ctx) {
+        if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
+            throw new ParsingException(source(ctx), "JOIN ON clause only supports fields at the moment.");
+        }
+        List<Attribute> joinFields = new ArrayList<>();
+        List<Expression> joinExpressions = new ArrayList<>();
+        if (expressions.size() != 1) {
+            throw new ParsingException(
+                source(ctx),
+                "JOIN ON clause with expressions only supports a single expression, found [{}]",
+                expressions
+            );
+        }
+        expressions = Predicates.splitAnd(expressions.get(0));
+        for (var f : expressions) {
+            addJoinExpression(f, joinFields, joinExpressions);
+        }
+        return new JoinInfo(joinFields, joinExpressions);
+    }
+
+    private void addJoinExpression(Expression exp, List<Attribute> joinFields, List<Expression> joinExpressions) {
+        exp = handleNegationOfEquals(exp);
+        if (exp instanceof EsqlBinaryComparison comparison
+            && comparison.left() instanceof UnresolvedAttribute left
+            && comparison.right() instanceof UnresolvedAttribute right) {
+            joinFields.add(left);
+            joinFields.add(right);
+            joinExpressions.add(exp);
+        } else {
+            throw new ParsingException(
+                exp.source(),
+                "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                exp.sourceText()
+            );
+        }
+    }
+
+    private void validateJoinFields(List<Attribute> joinFields) {
+        if (joinFields.size() > 1) {
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+            }
+        }
+    }
+
+    private Expression handleNegationOfEquals(Expression f) {
+        if (f instanceof Not not && not.children().size() == 1 && not.children().get(0) instanceof Equals equals) {
+            // we only support NOT on Equals, by converting it to NotEquals
+            return equals.negate();
+        }
+        return f;
     }
 
     private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
@@ -683,7 +856,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            checkForRemoteClusters(input, source(ctx), "FORK");
+            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+                checkForRemoteClusters(input, source(ctx), "FORK");
+            }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
             return new Fork(source(ctx), subPlans, List.of());
         };
@@ -738,17 +913,84 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
         Source source = source(ctx);
         return input -> {
-            Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-            Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
-            Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
-            Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
-            List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
-            );
-            List<Attribute> groupings = List.of(idAttr, indexAttr);
+            Attribute scoreAttr = visitFuseScoreBy(ctx.fuseConfiguration(), source);
+            Attribute discriminatorAttr = visitFuseGroupBy(ctx.fuseConfiguration(), source);
 
-            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
+            List<NamedExpression> keys = visitFuseKeyBy(ctx.fuseConfiguration(), source);
+
+            MapExpression options = visitFuseOptions(ctx.fuseConfiguration());
+
+            String fuseTypeName = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType);
+            Fuse.FuseType fuseType;
+            try {
+                fuseType = Fuse.FuseType.valueOf(fuseTypeName.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(source(ctx), "Fuse type " + fuseTypeName + " is not supported");
+            }
+
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, keys, fuseType, options);
         };
+    }
+
+    private Attribute visitFuseScoreBy(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts, Source source) {
+        Attribute scoreAttr = null;
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.score != null) {
+                if (scoreAttr != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one SCORE BY can be specified");
+                }
+                scoreAttr = visitQualifiedName(fuseConfigurationContext.score);
+            }
+        }
+
+        return scoreAttr == null ? new UnresolvedAttribute(source, MetadataAttribute.SCORE) : scoreAttr;
+    }
+
+    private Attribute visitFuseGroupBy(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts, Source source) {
+        Attribute groupByAttr = null;
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.group != null) {
+                if (groupByAttr != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one GROUP BY can be specified");
+                }
+                groupByAttr = visitQualifiedName(fuseConfigurationContext.group);
+            }
+        }
+
+        return groupByAttr == null ? new UnresolvedAttribute(source, Fork.FORK_FIELD) : groupByAttr;
+    }
+
+    private List<NamedExpression> visitFuseKeyBy(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts, Source source) {
+        List<NamedExpression> keys = null;
+
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.key != null) {
+                if (keys != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one KEY BY can be specified");
+                }
+
+                keys = visitGrouping(fuseConfigurationContext.key);
+            }
+        }
+
+        return keys == null
+            ? List.of(new UnresolvedAttribute(source, IdFieldMapper.NAME), new UnresolvedAttribute(source, MetadataAttribute.INDEX))
+            : keys;
+    }
+
+    private MapExpression visitFuseOptions(List<EsqlBaseParser.FuseConfigurationContext> fuseConfigurationContexts) {
+        MapExpression options = null;
+
+        for (EsqlBaseParser.FuseConfigurationContext fuseConfigurationContext : fuseConfigurationContexts) {
+            if (fuseConfigurationContext.options != null) {
+                if (options != null) {
+                    throw new ParsingException(source(fuseConfigurationContext), "Only one WITH can be specified");
+                }
+                options = visitMapExpression(fuseConfigurationContext.options);
+            }
+        }
+
+        return options;
     }
 
     @Override
@@ -757,6 +999,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
+        if (scoreAttribute.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
@@ -794,6 +1039,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");

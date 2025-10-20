@@ -21,9 +21,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -89,14 +91,15 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final GcsRepositoryStatsCollector statsCollector
+        final GcsRepositoryStatsCollector statsCollector,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
             projectId,
@@ -106,7 +109,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.storageService = storageService;
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);

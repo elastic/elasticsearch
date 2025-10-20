@@ -1,24 +1,25 @@
 {
-  "security.get_user_privileges":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-privileges.html",
-      "description":"Retrieves security privileges for the logged in user."
+  "security.get_user_privileges": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-user-privileges",
+      "description": "Get user privileges"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/user/_privileges",
-          "methods":[
+          "path": "/_security/user/_privileges",
+          "methods": [
             "GET"
           ]
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

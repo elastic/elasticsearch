@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -46,7 +45,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,6 +71,10 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     public static final ActionType<SnapshotsStatusResponse> TYPE = new ActionType<>("cluster:admin/snapshot/status");
     private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
+
+    private static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = TransportVersion.fromName(
+        "snapshot_index_shard_status_missing_stats"
+    );
 
     private final RepositoriesService repositoriesService;
 
@@ -121,7 +124,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
         final ProjectId projectId = projectResolver.getProjectId();
-        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
+        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsServiceUtils.currentSnapshots(
             snapshotsInProgress,
             projectId,
             request.repository(),
@@ -270,7 +273,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         // When processing currently running snapshots, instead of reading the statistics from the repository, which can be
                         // expensive, we choose instead to provide a message to the caller explaining why the stats are missing and the API
                         // that can be used to load them once the snapshot has completed.
-                        if (minTransportVersion.onOrAfter(TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+                        if (minTransportVersion.supports(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
                             shardStatus = SnapshotIndexShardStatus.forDoneButMissingStats(shardId, """
                                 Snapshot shard stats missing from a currently running snapshot due to a node leaving the cluster after \
                                 completing the shard snapshot; retry once the snapshot has completed to load all shard stats from the \

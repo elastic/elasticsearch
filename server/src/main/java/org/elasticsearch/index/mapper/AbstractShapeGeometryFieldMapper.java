@@ -54,14 +54,13 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         protected AbstractShapeGeometryFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Parser<T> parser,
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
+            super(name, indexType, isStored, parser, null, meta);
             this.orientation = orientation;
         }
 
@@ -98,7 +97,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
                 return new BlockLoader.AllReader() {
                     @Override
-                    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+                    public BlockLoader.Block read(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered
+                    ) throws IOException {
                         var binaryDocValues = context.reader().getBinaryDocValues(fieldName);
                         var reader = new GeometryDocValueReader();
                         try (var builder = factory.ints(docs.count() - offset)) {

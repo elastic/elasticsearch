@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -56,9 +58,9 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPostOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
@@ -71,7 +73,8 @@ public abstract class FullTextFunction extends Function
         PostAnalysisPlanVerificationAware,
         EvaluatorMapper,
         ExpressionScoreMapper,
-        PostOptimizationVerificationAware {
+        PostOptimizationVerificationAware,
+        RewriteableAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -164,13 +167,12 @@ public abstract class FullTextFunction extends Function
         return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
     }
 
+    @Override
     public QueryBuilder queryBuilder() {
         return queryBuilder;
     }
 
     protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
-
-    public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
@@ -379,24 +381,27 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
+    }
+
+    /**
+     * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
+     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     *
+     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     */
+    protected QueryBuilder evaluatorQueryBuilder() {
+        // Use the same query builder as for the translation by default
+        return queryBuilder();
     }
 
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
-        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
-        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
-        int i = 0;
-        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
-        }
-        return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
+        return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
+    }
+
+    private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
+        return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
     // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks

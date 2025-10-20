@@ -14,12 +14,20 @@
 | boolean | date | | date |
 | boolean | date_nanos | date_nanos | date_nanos |
 | boolean | date_nanos | | date_nanos |
+| boolean | dense_vector | dense_vector | dense_vector |
+| boolean | dense_vector | | dense_vector |
 | boolean | double | double | double |
 | boolean | double | | double |
 | boolean | geo_point | geo_point | geo_point |
 | boolean | geo_point | | geo_point |
 | boolean | geo_shape | geo_shape | geo_shape |
 | boolean | geo_shape | | geo_shape |
+| boolean | geohash | geohash | geohash |
+| boolean | geohash | | geohash |
+| boolean | geohex | geohex | geohex |
+| boolean | geohex | | geohex |
+| boolean | geotile | geotile | geotile |
+| boolean | geotile | | geotile |
 | boolean | integer | integer | integer |
 | boolean | integer | | integer |
 | boolean | ip | ip | ip |

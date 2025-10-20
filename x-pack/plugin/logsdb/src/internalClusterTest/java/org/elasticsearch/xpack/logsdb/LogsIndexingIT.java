@@ -11,11 +11,13 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -35,6 +37,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -204,6 +208,38 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
                 assertThat(getResponse.getId(), equalTo(id));
             }
         });
+    }
+
+    public void testShrink() throws Exception {
+        client().admin()
+            .indices()
+            .prepareCreate("my-logs")
+            .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
+            .setSettings(indexSettings(between(3, 5), 0).put("index.mode", "logsdb").put("index.sort.field", "host.name"))
+            .get();
+
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-08-08T00:00:00Z");
+        BulkRequest bulkRequest = new BulkRequest("my-logs");
+        int numDocs = randomIntBetween(100, 10_000);
+        for (int i = 0; i < numDocs; i++) {
+            timestamp += randomIntBetween(0, 1000);
+            String field = "field-" + randomIntBetween(1, 20);
+            bulkRequest.add(
+                new IndexRequest("my-logs").id(Integer.toString(i))
+                    .source("host.name", "host-" + between(1, 5), "@timestamp", timestamp, field, randomNonNegativeLong())
+            );
+        }
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        client().bulk(bulkRequest).actionGet();
+        client().admin().indices().prepareFlush("my-logs").get();
+        client().admin().indices().prepareUpdateSettings("my-logs").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        client().admin()
+            .indices()
+            .prepareResizeIndex("my-logs", "shrink-my-logs")
+            .setResizeType(ResizeType.SHRINK)
+            .setSettings(indexSettings(1, 0).build())
+            .get();
+        assertNoFailures(client().admin().indices().prepareForceMerge("shrink-my-logs").setMaxNumSegments(1).setFlush(true).get());
     }
 
     static String formatInstant(Instant instant) {

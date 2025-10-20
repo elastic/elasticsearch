@@ -22,6 +22,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -151,7 +152,8 @@ public class ReservedRepositoryActionTests extends ESTestCase {
                 Map.of("fs", fsFactory),
                 threadPool,
                 mock(NodeClient.class),
-                null
+                null,
+                SnapshotMetrics.NOOP
             )
         );
 

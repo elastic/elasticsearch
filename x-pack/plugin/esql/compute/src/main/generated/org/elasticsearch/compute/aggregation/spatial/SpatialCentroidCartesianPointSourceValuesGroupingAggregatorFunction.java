@@ -73,9 +73,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
     BytesRefVector wkbVector = wkbBlock.asVector();
     if (wkbVector == null) {
-      if (wkbBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, wkbBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -350,6 +348,12 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock wkbBlock) {
+    if (wkbBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

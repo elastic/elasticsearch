@@ -41,7 +41,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(StdDevTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override
@@ -64,7 +64,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
             var expected = Double.isFinite(result) ? result : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "StdDev[field=Attribute[channel=0]]",
+                standardAggregatorName("StdDev", fieldSupplier.type()),
                 DataType.DOUBLE,
                 equalTo(expected)
             );

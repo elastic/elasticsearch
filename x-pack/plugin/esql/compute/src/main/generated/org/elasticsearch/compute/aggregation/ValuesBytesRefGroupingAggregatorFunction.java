@@ -61,9 +61,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
-      if (vBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       var addInput = new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -252,6 +250,12 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
     ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
   }
 
   @Override

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -30,8 +30,10 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
@@ -39,6 +41,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static EsqlParser parser;
     protected static LogicalOptimizerContext logicalOptimizerCtx;
     protected static LogicalPlanOptimizer logicalOptimizer;
+
+    protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
 
     protected static Map<String, EsField> mapping;
     protected static Analyzer analyzer;
@@ -51,14 +55,15 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Map<String, EsField> metricMapping;
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
+    protected static Analyzer sampleDataIndexAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
-    public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
+    public static class TestSubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        // A static instance of this would break the EsqlNodeSubclassTests because its initialization requires a Random instance.
 
-        SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
-            super(optimizerContext);
+        public TestSubstitutionOnlyOptimizer() {
+            super(unboundLogicalOptimizerContext());
         }
 
         @Override
@@ -72,6 +77,9 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         parser = new EsqlParser();
         logicalOptimizerCtx = unboundLogicalOptimizerContext();
         logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
+        logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
+        );
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
@@ -80,7 +88,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResult,
@@ -96,7 +104,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultAirports,
@@ -112,12 +120,12 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
         IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultTypes,
                 enrichResolution,
-                emptyInferenceResolution()
+                defaultInferenceResolution()
             ),
             TEST_VERIFIER
         );
@@ -127,7 +135,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 getIndexResultExtra,
@@ -140,7 +148,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         metricMapping = loadMapping("k8s-mappings.json");
         var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 metricsIndex,
@@ -151,7 +159,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var multiIndexMapping = loadMapping("mapping-basic.json");
-        multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
+        multiIndexMapping.put(
+            "partial_type_keyword",
+            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         var multiIndex = IndexResolution.valid(
             new EsIndex(
                 "multi_index",
@@ -161,10 +172,25 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             )
         );
         multiIndexAnalyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 multiIndex,
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        var sampleDataMapping = loadMapping("mapping-sample_data.json");
+        var sampleDataIndex = IndexResolution.valid(
+            new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD))
+        );
+        sampleDataIndexAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                sampleDataIndex,
                 enrichResolution,
                 emptyInferenceResolution()
             ),
@@ -181,7 +207,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = optimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -189,7 +215,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyzerAirports.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzerAirports.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -197,7 +223,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyzerExtra.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzerExtra.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -205,11 +231,16 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
     }
 
     protected LogicalPlan planMultiIndex(String query) {
-        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query)));
+    }
+
+    protected LogicalPlan planSample(String query) {
+        var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query));
+        return logicalOptimizer.optimize(analyzed);
     }
 
     @Override

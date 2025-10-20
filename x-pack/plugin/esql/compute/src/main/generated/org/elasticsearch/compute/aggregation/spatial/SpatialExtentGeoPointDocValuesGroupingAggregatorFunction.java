@@ -70,9 +70,7 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
     LongBlock encodedBlock = page.getBlock(channels.get(0));
     LongVector encodedVector = encodedBlock.asVector();
     if (encodedVector == null) {
-      if (encodedBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+      maybeEnableGroupIdTracking(seenGroupIds, encodedBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -356,6 +354,12 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentGeoPointDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock encodedBlock) {
+    if (encodedBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

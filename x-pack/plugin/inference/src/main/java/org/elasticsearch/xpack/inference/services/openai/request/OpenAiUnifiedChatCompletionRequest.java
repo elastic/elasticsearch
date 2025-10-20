@@ -51,6 +51,12 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
             httpPost.setHeader(createOrgHeader(org));
         }
 
+        if (model.getTaskSettings().headers() != null) {
+            for (var header : model.getTaskSettings().headers().entrySet()) {
+                httpPost.setHeader(header.getKey(), header.getValue());
+            }
+        }
+
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 

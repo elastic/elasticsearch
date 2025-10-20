@@ -57,6 +57,7 @@ PUT _connector/my-sharepoint_server-connector
   "service_type": "sharepoint_server"
 }
 ```
+%  TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -147,6 +148,7 @@ The following configuration fields are required to set up the connector:
     * `collection1`
     * `collection1, collection2`
 
+To index from the root of all site collections, simply specify your SharePoint server URL in the `site_collections` field.
 
 `ssl_enabled`
 :   Whether SSL verification will be enabled. Default value is `False`.
@@ -193,6 +195,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+%  NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 

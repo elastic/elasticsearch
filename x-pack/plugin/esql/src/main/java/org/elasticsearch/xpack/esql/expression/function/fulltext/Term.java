@@ -21,11 +21,11 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -79,7 +79,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         return new Term(source, field, query, queryBuilder);
@@ -90,7 +90,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalNamedWriteable(queryBuilder());
         }
     }
@@ -134,7 +134,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         // Uses a term query that contributes to scoring
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), FunctionUtils.queryAsObject(query(), sourceText()), false, true);
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), Foldables.queryAsObject(query(), sourceText()), false, true);
     }
 
     @Override

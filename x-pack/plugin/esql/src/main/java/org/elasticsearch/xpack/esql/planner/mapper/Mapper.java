@@ -12,10 +12,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
 
@@ -52,8 +55,13 @@ import java.util.List;
  */
 public class Mapper {
 
-    public PhysicalPlan map(LogicalPlan p) {
+    public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        // We ignore the version for now, but it's fine to use later for plans that work
+        // differently from some version and up.
+        return mapInner(versionedPlan.inner());
+    }
 
+    private PhysicalPlan mapInner(LogicalPlan p) {
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }
@@ -82,7 +90,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapUnary(UnaryPlan unary) {
-        PhysicalPlan mappedChild = map(unary.child());
+        PhysicalPlan mappedChild = mapInner(unary.child());
 
         //
         // TODO - this is hard to follow, causes bugs and needs reworking
@@ -100,6 +108,8 @@ public class Mapper {
             // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
             Holder<Boolean> hasFragment = new Holder<>(false);
 
+            // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
+            // include the plan up until this ENRICH in the fragment.
             var childTransformed = mappedChild.transformUp(f -> {
                 // Once we reached FragmentExec, we stuff our Enrich under it
                 if (f instanceof FragmentExec) {
@@ -118,7 +128,10 @@ public class Mapper {
                         return unaryExec.child();
                     }
                 }
-                // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
+                // Here we have the following possibilities:
+                // 1. LeafExec - should resolve to FragmentExec or we can ignore it
+                // 2. Join - must be remote, and thus will go inside FragmentExec
+                // 3. Fork/MergeExec - not currently allowed with remote enrich
                 return f;
             });
 
@@ -154,12 +167,16 @@ public class Mapper {
             if (mappedChild instanceof ExchangeExec exchange) {
                 mappedChild = new ExchangeExec(mappedChild.source(), intermediate, true, exchange.child());
             }
-            // if no exchange was added (aggregation happening on the coordinator), create the initial agg
-            else {
-                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-            }
+            // if no exchange was added (aggregation happening on the coordinator), try to only create a single-pass agg
+            else if (aggregate.groupings()
+                .stream()
+                .noneMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction))) {
+                    return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.SINGLE, intermediate);
+                } else {
+                    mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+                }
 
-            // always add the final/reduction agg
+            // The final/reduction agg
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
@@ -206,38 +223,57 @@ public class Mapper {
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan left = map(bp.left());
+            PhysicalPlan left = mapInner(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan right = map(bp.right());
+            PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
                 return new HashJoinExec(
                     join.source(),
                     left,
                     localData,
-                    config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof FragmentExec fragment
-                && fragment.fragment() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            if (right instanceof FragmentExec fragment) {
+                boolean isIndexModeLookup = isIndexModeLookup(fragment);
+                if (isIndexModeLookup) {
+                    return new LookupJoinExec(
+                        join.source(),
+                        left,
+                        right,
+                        config.leftFields(),
+                        config.rightFields(),
+                        join.rightOutputFields(),
+                        config.joinOnConditions()
+                    );
+                }
             }
         }
-
         return MapperUtils.unsupported(bp);
     }
 
+    private static boolean isIndexModeLookup(FragmentExec fragment) {
+        // we support 2 cases:
+        // EsRelation in index_mode=lookup
+        boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
+        // or Filter(EsRelation) in index_mode=lookup
+        isIndexModeLookup = isIndexModeLookup
+            || fragment.fragment() instanceof Filter filter
+                && filter.child() instanceof EsRelation relation
+                && relation.indexMode() == IndexMode.LOOKUP;
+        return isIndexModeLookup;
+    }
+
     private PhysicalPlan mapFork(Fork fork) {
-        return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
+        return new MergeExec(fork.source(), fork.children().stream().map(this::mapInner).toList(), fork.output());
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

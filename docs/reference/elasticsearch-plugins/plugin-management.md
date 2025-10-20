@@ -106,7 +106,7 @@ Use the `elasticsearch-plugin` command line tool to install, list, and remove pl
 
 Run the following command to get usage instructions:
 
-``` 
+```
 sudo bin/elasticsearch-plugin -h
 ```
 
@@ -116,7 +116,7 @@ If Elasticsearch was installed using the deb or rpm package then run `/usr/share
 
 For detailed instructions on installing, managing, and configuring plugins, see the following:
 
-* [Intalling Plugings](./installation.md)
+* [Installing Plugins](./installation.md)
 * [Custom URL or file system](./plugin-management-custom-url.md)
 * [Installing multiple plugins](./installing-multiple-plugins.md)
 * [Mandatory plugins](./mandatory-plugins.md)

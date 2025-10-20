@@ -1,32 +1,36 @@
 {
-  "nodes.reload_secure_settings":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/secure-settings.html#reloadable-secure-settings",
-      "description":"Reloads secure settings."
+  "nodes.reload_secure_settings": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-reload-secure-settings",
+      "description": "Reload the keystore on nodes in the cluster"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": [ "application/json" ]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_nodes/reload_secure_settings",
-          "methods":[
+          "path": "/_nodes/reload_secure_settings",
+          "methods": [
             "POST"
           ]
         },
         {
-          "path":"/_nodes/{node_id}/reload_secure_settings",
-          "methods":[
+          "path": "/_nodes/{node_id}/reload_secure_settings",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "node_id":{
-              "type":"list",
-              "description":"A comma-separated list of node IDs to span the reload/reinit call. Should stay empty because reloading usually involves all cluster nodes."
+          "parts": {
+            "node_id": {
+              "type": "list",
+              "description": "A comma-separated list of node IDs to span the reload/reinit call. Should stay empty because reloading usually involves all cluster nodes."
             }
           }
         }
@@ -35,6 +39,7 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     },

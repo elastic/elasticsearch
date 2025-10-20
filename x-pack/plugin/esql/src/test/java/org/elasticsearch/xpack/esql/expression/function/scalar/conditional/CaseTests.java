@@ -46,6 +46,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.BOOLEAN,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.INTEGER,
             DataType.LONG,
@@ -56,12 +57,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEO_POINT,
             DataType.CARTESIAN_SHAPE,
             DataType.GEO_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
             t.addAll(
-                DataType.UNDER_CONSTRUCTION.keySet()
-                    .stream()
+                DataType.UNDER_CONSTRUCTION.stream()
                     .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
                     .toList()
             );

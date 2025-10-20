@@ -1,0 +1,28 @@
+{
+  "security.get_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-stats",
+      "description": "Get security statistics for all nodes"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/stats",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

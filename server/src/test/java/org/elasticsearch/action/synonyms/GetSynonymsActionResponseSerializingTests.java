@@ -11,6 +11,7 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -31,6 +32,11 @@ public class GetSynonymsActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected GetSynonymsAction.Response mutateInstance(GetSynonymsAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        PagedResult<SynonymRule> originalResults = instance.getResults();
+        PagedResult<SynonymRule> mutatedResults = randomValueOtherThan(
+            originalResults,
+            () -> new PagedResult<>(randomLongBetween(0, Long.MAX_VALUE), randomSynonymsSet())
+        );
+        return new GetSynonymsAction.Response(mutatedResults);
     }
 }

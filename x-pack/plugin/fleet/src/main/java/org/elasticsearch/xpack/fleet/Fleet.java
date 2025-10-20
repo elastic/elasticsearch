@@ -316,6 +316,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateStatus> listener
     ) {
         Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
@@ -335,11 +336,23 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                     DeleteDataStreamAction.INSTANCE,
                     request,
                     ActionListener.wrap(
-                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        response -> SystemIndexPlugin.super.cleanUpFeature(
+                            clusterService,
+                            projectResolver,
+                            client,
+                            masterNodeTimeout,
+                            listener
+                        ),
                         e -> {
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof ResourceNotFoundException) {
-                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                                SystemIndexPlugin.super.cleanUpFeature(
+                                    clusterService,
+                                    projectResolver,
+                                    client,
+                                    masterNodeTimeout,
+                                    listener
+                                );
                             } else {
                                 listener.onFailure(e);
                             }
@@ -349,13 +362,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
                 } else {
                     listener.onFailure(e);
                 }
             }
         } else {
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
         }
     }
 

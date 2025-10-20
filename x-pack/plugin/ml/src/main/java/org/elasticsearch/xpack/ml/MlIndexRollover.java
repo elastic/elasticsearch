@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -59,7 +60,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Wait for all nodes to be upgraded to ensure that the
         // newly created index will be of the latest version.
-        return true;
+        return minTransportVersion.supports(TransportVersions.V_8_18_0);
     }
 
     @Override

@@ -104,7 +104,7 @@ public class ContainsTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("🐱Meow!🐶Woof!", "Meow!🐶Woof!", true));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "eow!🐶Woof!", true));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

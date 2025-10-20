@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -602,7 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Lifecycle lifecycle
     ) {
         final boolean header;
-        if (threadPool.getThreadContext() != null) {
+        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
             header = getErrorTraceHeader(threadPool);
         } else {
             header = true;

@@ -191,7 +191,7 @@ class ValuesFromManyReader extends ValuesReader {
         }
         SourceLoader sourceLoader = null;
         if (storedFieldsSpec.requiresSource()) {
-            sourceLoader = operator.shardContexts.get(shard).newSourceLoader().get();
+            sourceLoader = operator.shardContexts.get(shard).newSourceLoader().apply(storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
         storedFields = new BlockLoaderStoredFieldsFromLeafLoader(

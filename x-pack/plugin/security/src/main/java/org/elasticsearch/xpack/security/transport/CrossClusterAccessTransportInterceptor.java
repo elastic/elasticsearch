@@ -325,7 +325,12 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     threadContext.newRestorableContext(true),
                     handler
                 );
-                try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(AuditUtil.AUDIT_REQUEST_ID)) {
+                try (
+                    ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(
+                        ThreadContext.HeadersFor.REMOTE_CLUSTER,
+                        AuditUtil.AUDIT_REQUEST_ID
+                    )
+                ) {
                     if (connection.getTransportVersion().supports(ADD_CROSS_CLUSTER_API_KEY_SIGNATURE)) {
                         crossClusterAccessHeaders.writeToContext(threadContext, signer);
                     } else {

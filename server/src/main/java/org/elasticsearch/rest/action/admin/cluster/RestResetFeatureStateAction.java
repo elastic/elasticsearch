@@ -9,9 +9,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -47,7 +47,7 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final var req = new ResetFeatureStateRequest(RestUtils.getMasterNodeTimeout(request));
         return restChannel -> client.execute(
-            ResetFeatureStateAction.INSTANCE,
+            TransportResetFeatureStateAction.TYPE,
             req,
             new RestToXContentListener<>(
                 restChannel,

@@ -77,7 +77,7 @@ First let's create two indices with mappings: `threat_list` and `firewall_logs`.
 PUT threat_list
 {
   "settings": {
-    "index.mode": "lookup" # The lookup index must use this mode
+    "index.mode": "lookup" <1>
   },
   "mappings": {
     "properties": {
@@ -89,6 +89,8 @@ PUT threat_list
   }
 }
 ```
+1. The lookup index must use this mode
+  
 ```console
 PUT firewall_logs
 {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -66,7 +67,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, MalformedValueHandler malformedHandler)
             throws IOException;
 
-        private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
+        void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
                 parseFromSource(parser, consumer);
             } catch (IOException e) {
@@ -74,7 +75,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             }
         }
 
-        private void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
+        void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
             parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
         }
 
@@ -172,9 +173,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format) {
+        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format, IndexSettings indexSettings) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
+            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue), indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();
@@ -185,7 +186,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
-            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
+            var fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB, blContext.indexSettings());
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
             return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }

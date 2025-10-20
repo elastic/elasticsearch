@@ -80,6 +80,7 @@ GET /seats/_search
   }
 }
 ```
+% TEST[setup:seats]
 
 1. The `buckets_path` points to two aggregations (`min_cost`, `max_cost`) and adds `min`/`max` variables to the `params` map
 2. The user-specified `base_cost` is also added to the script’s `params` map

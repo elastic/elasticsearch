@@ -15,8 +15,8 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 
 import java.util.List;
 
@@ -182,7 +182,7 @@ public class TextEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
             int firstValueIndex = block.getFirstValueIndex(currentPos);
             for (int i = 0; i < expectedByteEmbeddings[currentPos].length; i++) {
                 float actualValue = block.getFloat(firstValueIndex + i);
-                // Convert byte to float the same way as TextEmbeddingByteResults.Embedding.toFloatArray()
+                // Convert byte to float the same way as DenseEmbeddingByteResults.Embedding.toFloatArray()
                 float expectedValue = expectedByteEmbeddings[currentPos][i];
                 assertThat(actualValue, equalTo(expectedValue));
             }
@@ -206,20 +206,20 @@ public class TextEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
     }
 
     private static InferenceAction.Response createFloatEmbeddingResponse(float[] embedding) {
-        var embeddingResult = new TextEmbeddingFloatResults.Embedding(embedding);
-        var textEmbeddingResults = new TextEmbeddingFloatResults(List.of(embeddingResult));
-        return new InferenceAction.Response(textEmbeddingResults);
+        var embeddingResult = new DenseEmbeddingFloatResults.Embedding(embedding);
+        var denseEmbeddingResults = new DenseEmbeddingFloatResults(List.of(embeddingResult));
+        return new InferenceAction.Response(denseEmbeddingResults);
     }
 
     private static InferenceAction.Response createByteEmbeddingResponse(byte[] embedding) {
-        var embeddingResult = new TextEmbeddingByteResults.Embedding(embedding);
-        var textEmbeddingResults = new TextEmbeddingByteResults(List.of(embeddingResult));
-        return new InferenceAction.Response(textEmbeddingResults);
+        var embeddingResult = new DenseEmbeddingByteResults.Embedding(embedding);
+        var denseEmbeddingResults = new DenseEmbeddingByteResults(List.of(embeddingResult));
+        return new InferenceAction.Response(denseEmbeddingResults);
     }
 
     private static InferenceAction.Response createEmptyFloatEmbeddingResponse() {
-        var textEmbeddingResults = new TextEmbeddingFloatResults(List.of());
-        return new InferenceAction.Response(textEmbeddingResults);
+        var denseEmbeddingResults = new DenseEmbeddingFloatResults(List.of());
+        return new InferenceAction.Response(denseEmbeddingResults);
     }
 
     private Page randomInputPage(int positionCount, int columnCount) {

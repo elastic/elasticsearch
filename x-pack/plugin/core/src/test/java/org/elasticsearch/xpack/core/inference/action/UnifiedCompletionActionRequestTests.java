@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -82,7 +83,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersion.minimumCompatible()
+            TransportVersions.V_8_18_0
         );
         assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
@@ -113,14 +114,30 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
-            InferenceContext.EMPTY_INSTANCE,
+            new InferenceContext(randomAlphaOfLength(10)),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
     }
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstance(UnifiedCompletionAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String inferenceEntityId = instance.getInferenceEntityId();
+        TaskType taskType = instance.getTaskType();
+        UnifiedCompletionRequest unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
+        InferenceContext inferenceContext = instance.getContext();
+        TimeValue timeout = instance.getTimeout();
+        switch (between(0, 4)) {
+            case 0 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, () -> randomAlphaOfLength(10));
+            case 1 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            case 2 -> unifiedCompletionRequest = randomValueOtherThan(
+                unifiedCompletionRequest,
+                () -> UnifiedCompletionRequestTests.randomUnifiedCompletionRequest()
+            );
+            case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
+            case 4 -> timeout = randomValueOtherThan(timeout, () -> TimeValue.timeValueMillis(randomLongBetween(1, 2048)));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
     }
 
     @Override

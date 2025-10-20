@@ -254,6 +254,7 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[skip:TODO]
 
 ### Cluster routing settings [cluster-routing-settings]
 
@@ -304,7 +305,7 @@ PUT _cluster/settings
   }
 }
 ```
-
+% TEST[skip:TODO]
 
 ## Node allocation stats cache [node-allocation-stats-cache]
 

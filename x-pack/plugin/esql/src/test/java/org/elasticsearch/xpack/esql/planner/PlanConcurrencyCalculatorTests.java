@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
 
@@ -238,11 +240,14 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             );
 
         Analyzer analyzer = analyzer(analyzerDefaultMapping(), TEST_VERIFIER, configuration);
+        TransportVersion minimumVersion = analyzer.context().minimumVersion();
         LogicalPlan logicalPlan = AnalyzerTestUtils.analyze(query, analyzer);
-        logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small())).optimize(logicalPlan);
+        logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small(), minimumVersion)).optimize(
+            logicalPlan
+        );
 
-        PhysicalPlan physicalPlan = new Mapper().map(logicalPlan);
-        physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan);
+        PhysicalPlan physicalPlan = new Mapper().map(new Versioned<>(logicalPlan, minimumVersion));
+        physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion)).optimize(physicalPlan);
 
         PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, configuration).v2();
 

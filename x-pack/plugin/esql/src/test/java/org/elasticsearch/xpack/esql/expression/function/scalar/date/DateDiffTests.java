@@ -95,7 +95,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static List<TestCaseSupplier> makeSuppliers(Instant startTimestamp, Instant endTimestamp, String unit, int expected) {

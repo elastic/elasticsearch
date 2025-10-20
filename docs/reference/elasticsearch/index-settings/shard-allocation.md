@@ -44,6 +44,7 @@ To filter based on a custom node attribute:
       "index.routing.allocation.include.size": "big,medium"
     }
     ```
+    % TEST[s/^/PUT test\n/]
 
     If you specify multiple filters the following conditions must be satisfied simultaneously by a node in order for shards to be relocated to it:
 
@@ -60,7 +61,7 @@ To filter based on a custom node attribute:
       "index.routing.allocation.require.rack": "rack1"
     }
     ```
-
+    % TEST[s/^/PUT test\n/]
 
 
 ## Index allocation filter settings [index-allocation-settings]
@@ -110,4 +111,4 @@ PUT test/_settings
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ```
-
+% TEST[skip:indexes don’t assign]

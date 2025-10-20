@@ -59,6 +59,7 @@ If a call was initiated with an `X-Opaque-ID` header, then the ID is automatical
   "user.realm": "reserved"
 }
 ```
+% NOTCONSOLE
 
 The following is an example of an indexing event in the slow log:
 
@@ -85,7 +86,7 @@ The following is an example of an indexing event in the slow log:
   "user.realm": "reserved"
 }
 ```
-
+% NOTCONSOLE
 
 ## Enable slow logging [enable-slow-log]
 
@@ -143,7 +144,7 @@ PUT /my-index-000001/_settings
   "index.search.slowlog.include.user": true
 }
 ```
-
+% TEST[setup:my_index]
 
 ### Enable slow logging for indexing events [index-slow-log]
 
@@ -179,7 +180,7 @@ PUT /my-index-000001/_settings
   "index.indexing.slowlog.include.user": true
 }
 ```
-
+% TEST[setup:my_index]
 
 #### Logging the `_source` field [_logging_the_source_field]
 
@@ -208,6 +209,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
       "index.search.slowlog.threshold.query.warn": "30s"
     }
     ```
+    % TEST[setup:my_index]
 
 * Enable for indexing requests:
 
@@ -218,6 +220,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
       "index.indexing.slowlog.threshold.index.warn": "30s"
     }
     ```
+    % TEST[setup:my_index]
 
 
 Slow log thresholds being met does not guarantee cluster performance issues. In the event that symptoms are noticed, slow logs can provide helpful data to diagnose upstream traffic patterns or sources to resolve client-side issues. For example, you can use data included in `X-Opaque-ID`, the `_source` request body, or `user.*` fields to identify the source of your issue. This is similar to troubleshooting [live expensive tasks](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md).

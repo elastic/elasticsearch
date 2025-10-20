@@ -45,7 +45,7 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         geohashGrid(cases, "mv_first", "MvLast", DataType.GEOHASH, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geotileGrid(cases, "mv_first", "MvLast", DataType.GEOTILE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geohexGrid(cases, "mv_first", "MvLast", DataType.GEOHEX, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 
     @Override

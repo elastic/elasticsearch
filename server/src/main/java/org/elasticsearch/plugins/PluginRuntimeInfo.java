@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,11 +41,19 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     }
 
     private static Boolean readIsOfficial(StreamInput in) throws IOException {
-        return in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            return in.readBoolean();
+        } else {
+            return null;
+        }
     }
 
     private static PluginApiInfo readApiInfo(StreamInput in) throws IOException {
-        return in.readOptionalWriteable(PluginApiInfo::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            return in.readOptionalWriteable(PluginApiInfo::new);
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -64,7 +73,9 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         descriptor.writeTo(out);
-        out.writeBoolean(isOfficial);
-        out.writeOptionalWriteable(pluginApiInfo);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            out.writeBoolean(isOfficial);
+            out.writeOptionalWriteable(pluginApiInfo);
+        }
     }
 }

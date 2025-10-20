@@ -15,6 +15,7 @@ import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 
 import java.io.IOException;
 import java.util.List;

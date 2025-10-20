@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -162,7 +163,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
         this.keepAlive = in.readOptionalTimeValue();
-        allowPartialSearchResults = in.readBoolean();
+        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
     }
 
     /**
@@ -294,7 +295,9 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeBoolean(keepOnCompletion);
         out.writeOptionalTimeValue(keepAlive);
-        out.writeBoolean(allowPartialSearchResults);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+            out.writeBoolean(allowPartialSearchResults);
+        }
     }
 
     @Override

@@ -29,9 +29,10 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -92,7 +93,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
+    public record ShardContext(
+        IndexReader reader,
+        Function<Set<String>, SourceLoader> newSourceLoader,
+        double storedFieldsSequentialProportion
+    ) {}
 
     final BlockFactory blockFactory;
     /**

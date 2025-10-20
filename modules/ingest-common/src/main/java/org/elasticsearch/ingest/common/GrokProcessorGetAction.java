@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -59,7 +60,9 @@ public class GrokProcessorGetAction {
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.readString();
+            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+                ? in.readString()
+                : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
         }
 
         @Override
@@ -71,7 +74,9 @@ public class GrokProcessorGetAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            out.writeString(ecsCompatibility);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+                out.writeString(ecsCompatibility);
+            }
         }
 
         public boolean sorted() {

@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
@@ -314,6 +315,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             range[0] = dft.resolution().parsePointAsMillis(min);
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
+                    } else if (dft.hasDocValuesSkipper()) {
+                        log.trace("Attempting to apply skipper-based data rounding");
+                        range[0] = dft.resolution()
+                            .roundDownToMillis(DocValuesSkipper.globalMinValue(context.searcher(), fieldContext.field()));
+                        range[1] = dft.resolution()
+                            .roundDownToMillis(DocValuesSkipper.globalMaxValue(context.searcher(), fieldContext.field()));
                     }
                     log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 

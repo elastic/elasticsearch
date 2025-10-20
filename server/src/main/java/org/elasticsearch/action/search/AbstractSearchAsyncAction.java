@@ -691,6 +691,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return searchTransportService;
     }
 
+    /**
+     * Returns the {@link SearchResponseMetrics} to record search phase timings
+     */
+    public SearchResponseMetrics getSearchResponseMetrics() {
+        return searchResponseMetrics;
+    }
+
     public final void execute(Runnable command) {
         executor.execute(command);
     }

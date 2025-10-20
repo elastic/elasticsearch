@@ -270,7 +270,7 @@ public interface ExponentialHistogram extends Accountable {
     static ReleasableExponentialHistogram merge(
         int maxBucketCount,
         ExponentialHistogramCircuitBreaker breaker,
-        Iterator<ExponentialHistogram> histograms
+        Iterator<? extends ExponentialHistogram> histograms
     ) {
         try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(maxBucketCount, breaker)) {
             while (histograms.hasNext()) {

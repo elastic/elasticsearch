@@ -3381,3 +3381,31 @@ VALUES(color):keyword | color:keyword
                yellow | yellow
 // end::mv-group-values-expand-result[]
 ;
+
+filterOrdinalValues
+required_capability: fix_filter_ordinals
+from employees 
+| MV_EXPAND job_positions
+| WHERE job_positions != "Purchase Manager"
+| STATS employees=count(*) BY job_positions
+| SORT job_positions
+| LIMIT 1000
+;
+
+employees:long | job_positions:keyword
+18             | Accountant
+13             | Architect
+11             | Business Analyst
+13             | Data Scientist
+10             | Head Human Resources
+15             | Internship
+14             | Junior Developer
+20             | Principal Support Engineer
+13             | Python Developer
+15             | Reporting Analyst
+20             | Senior Python Developer
+15             | Senior Team Lead
+11             | Support Engineer
+15             | Tech Lead    
+;
+

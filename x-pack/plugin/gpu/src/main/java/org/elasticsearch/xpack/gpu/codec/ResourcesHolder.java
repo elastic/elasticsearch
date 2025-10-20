@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.gpu.codec;
 
 /**
- * Holds an acquired resource, allows to manually release it while ensuring it gets released (closed) via the {@link AutoCloseable}
- * pattern.
+ * Holds an acquired resource, allows to manually release it, but still ensures it gets released (closed)
+ * at the end of a try-with-resources block via the {@link AutoCloseable} pattern.
  */
 class ResourcesHolder implements AutoCloseable {
 

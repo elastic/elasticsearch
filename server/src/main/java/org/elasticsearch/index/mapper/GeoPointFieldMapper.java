@@ -494,7 +494,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    valueFetcher(sourcePaths, null, null),
+                    valueFetcher(sourcePaths, null, null, fieldDataContext.indexSettings()),
                     searchLookup,
                     GeoPointDocValuesField::new
                 );
@@ -569,7 +569,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     /** GeoPoint parser implementation */
-    private static class GeoPointParser extends PointParser<GeoPoint> {
+    static class GeoPointParser extends PointParser<GeoPoint> {
         private final boolean storeMalformedDataForSyntheticSource;
 
         GeoPointParser(

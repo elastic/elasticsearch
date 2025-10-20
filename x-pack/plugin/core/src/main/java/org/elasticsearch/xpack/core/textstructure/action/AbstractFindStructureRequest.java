@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.textstructure.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -80,7 +81,11 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        ecsCompatibility = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            ecsCompatibility = in.readOptionalString();
+        } else {
+            ecsCompatibility = null;
+        }
         timestampFormat = in.readOptionalString();
         timestampField = in.readOptionalString();
     }
@@ -322,7 +327,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        out.writeOptionalString(ecsCompatibility);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            out.writeOptionalString(ecsCompatibility);
+        }
         out.writeOptionalString(timestampFormat);
         out.writeOptionalString(timestampField);
     }

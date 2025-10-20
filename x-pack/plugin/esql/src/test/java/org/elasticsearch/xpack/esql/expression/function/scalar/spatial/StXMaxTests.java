@@ -42,7 +42,7 @@ public class StXMaxTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXMaxTests::valueOfCartesian, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StXMaxTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StXMaxTests::valueOfCartesian, List.of());
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static double valueOfGeo(BytesRef wkb) {

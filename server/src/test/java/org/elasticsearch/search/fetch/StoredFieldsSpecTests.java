@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -20,6 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -82,6 +86,53 @@ public class StoredFieldsSpecTests extends ESTestCase {
         StoredFieldsSpec withCat = spec.merge(needsCat);
         spec = withCat.merge(StoredFieldsSpec.NO_REQUIREMENTS);
         assertThat(spec.requiredStoredFields(), sameInstance(withCat.requiredStoredFields()));
+    }
+
+    public void testMergeSourcePaths() {
+        StoredFieldsSpec spec = StoredFieldsSpec.NO_REQUIREMENTS;
+        spec = spec.merge(
+            new StoredFieldsSpec(true, false, Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("cat"))
+        );
+        assertThat(spec.ignoredSourceFormat(), equalTo(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), empty());
+        assertThat(spec.sourcePaths(), containsInAnyOrder("cat"));
+
+        spec = spec.merge(
+            new StoredFieldsSpec(true, false, Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("dog"))
+        );
+        assertThat(spec.ignoredSourceFormat(), equalTo(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), empty());
+        assertThat(spec.sourcePaths(), containsInAnyOrder("cat", "dog"));
+
+        spec = spec.merge(
+            new StoredFieldsSpec(true, false, Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("hamster"))
+        );
+        assertThat(spec.ignoredSourceFormat(), equalTo(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), empty());
+        assertThat(spec.sourcePaths(), containsInAnyOrder("cat", "dog", "hamster"));
+        var pref = spec.sourcePaths();
+
+        spec = spec.merge(
+            new StoredFieldsSpec(
+                true,
+                false,
+                Set.of("other_field"),
+                IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                Set.of()
+            )
+        );
+        assertThat(spec.ignoredSourceFormat(), equalTo(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), containsInAnyOrder("other_field"));
+        assertThat(spec.sourcePaths(), containsInAnyOrder("cat", "dog", "hamster"));
+        assertThat(spec.sourcePaths(), sameInstance(pref));
     }
 
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {

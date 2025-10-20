@@ -174,7 +174,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            this.inferenceTimeout = in.readTimeValue();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+                this.inferenceTimeout = in.readTimeValue();
+            } else {
+                this.inferenceTimeout = TimeValue.MAX_VALUE;
+            }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 textInput = in.readOptionalStringCollectionAsList();
             } else {
@@ -263,7 +267,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            out.writeTimeValue(inferenceTimeout);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
+                out.writeTimeValue(inferenceTimeout);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }

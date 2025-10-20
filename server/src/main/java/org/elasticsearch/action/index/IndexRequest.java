@@ -217,7 +217,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireDataStream = false;
         }
 
-        includeSourceOnError = in.readBoolean();
+        if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                in.readZLong(); // obsolete normalisedBytesParsed
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                in.readBoolean(); // obsolete originatesFromUpdateByScript
+                in.readBoolean(); // obsolete originatesFromUpdateByDoc
+            }
+        }
+
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
@@ -796,7 +808,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireDataStream);
         }
 
-        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                out.writeZLong(-1);  // obsolete normalisedBytesParsed
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
+                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
+            }
+        }
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeBoolean(includeSourceOnError);
+        }
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }
@@ -903,6 +926,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public int route(IndexRouting indexRouting) {
         return indexRouting.indexShard(this);
+    }
+
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteToTarget(this);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

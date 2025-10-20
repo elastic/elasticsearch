@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -41,6 +42,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -2270,7 +2272,10 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON languages_left == language_code and abs(salary) > 1000
             """;
 
-        assertEquals("3:71: Unsupported join filter expression:abs(salary) > 1000", error(queryString));
+        assertEquals(
+            "3:71: Unsupported join filter expression:abs(salary) > 1000",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
     }
 
     public void testLookupJoinExpressionConstant() {
@@ -2284,7 +2289,7 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON false and languages_left == language_code
             """;
 
-        assertEquals("3:35: Unsupported join filter expression:false", error(queryString));
+        assertEquals("3:35: Unsupported join filter expression:false", error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION));
     }
 
     public void testLookupJoinExpressionTranslatableButFromLeft() {
@@ -2298,7 +2303,10 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON languages_left == language_code and languages_left == "English"
             """;
 
-        assertEquals("3:71: Unsupported join filter expression:languages_left == \"English\"", error(queryString));
+        assertEquals(
+            "3:71: Unsupported join filter expression:languages_left == \"English\"",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
     }
 
     public void testLookupJoinExpressionTranslatableButMixedLeftRight() {
@@ -2312,7 +2320,10 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON languages_left == language_code and CONCAT(languages_left, language_code) == "English"
             """;
 
-        assertEquals("3:71: Unsupported join filter expression:CONCAT(languages_left, language_code) == \"English\"", error(queryString));
+        assertEquals(
+            "3:71: Unsupported join filter expression:CONCAT(languages_left, language_code) == \"English\"",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
     }
 
     public void testLookupJoinExpressionComplexFormula() {
@@ -2326,7 +2337,10 @@ public class VerifierTests extends ESTestCase {
             | lookup join languages_lookup ON languages_left == language_code AND STARTSWITH(languages_left, language_code)
             """;
 
-        assertEquals("3:71: Unsupported join filter expression:STARTSWITH(languages_left, language_code)", error(queryString));
+        assertEquals(
+            "3:71: Unsupported join filter expression:STARTSWITH(languages_left, language_code)",
+            error(queryString, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+        );
     }
 
     public void testLookupJoinExpressionAmbiguousLeft() {
@@ -2906,11 +2920,15 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Object... params) {
-        return error(query, defaultAnalyzer, params);
+        return error(query, defaultAnalyzer, VerificationException.class, params);
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
         return error(query, analyzer, VerificationException.class, params);
+    }
+
+    private String error(String query, TransportVersion transportVersion, Object... params) {
+        return error(query, transportVersion, VerificationException.class, params);
     }
 
     private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
@@ -2940,6 +2958,13 @@ public class VerifierTests extends ESTestCase {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
+    }
+
+    private String error(String query, TransportVersion transportVersion, Class<? extends Exception> exception, Object... params) {
+        MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) defaultAnalyzer.context();
+        try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+            return error(query, defaultAnalyzer, exception, params);
+        }
     }
 
     @Override

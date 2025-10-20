@@ -174,6 +174,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
@@ -5388,7 +5389,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and language_name == "English"
-            """);
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -5404,7 +5405,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
-            """);
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -5430,7 +5431,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
             | WHERE language_name LIKE "French*"
-            """);
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         var upperLimit = asLimit(plan, 1000, false);
         var topFilter = as(upperLimit.child(), Filter.class);
@@ -7359,7 +7360,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan("""
               FROM test
             | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"), shape)
-            """);
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -7387,7 +7388,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan("""
               FROM test
             | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE("POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))"))
-            """);
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -7416,7 +7417,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
               FROM test
             | LOOKUP JOIN spatial_lookup
             ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE("POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))"))
-            """);
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);

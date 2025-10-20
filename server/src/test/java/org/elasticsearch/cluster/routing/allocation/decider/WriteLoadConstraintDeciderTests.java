@@ -127,16 +127,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 + "Cannot allocate shard [[test-index][1]] to node without risking increased write latencies."
         );
         assertDecisionMatches(
-            "Unassigned shard should always be accepted",
-            writeLoadDecider.canAllocate(
-                testHarness.unassignedShardRouting,
-                randomFrom(testHarness.exceedingThresholdRoutingNode, testHarness.belowThresholdRoutingNode),
-                testHarness.routingAllocation
-            ),
-            Decision.Type.YES,
-            "Shard is unassigned. Decider takes no action."
-        );
-        assertDecisionMatches(
             "Assigning a new shard to a node that has capacity should succeed",
             writeLoadDecider.canAllocate(
                 testHarness.shardRoutingOnNodeExceedingUtilThreshold,

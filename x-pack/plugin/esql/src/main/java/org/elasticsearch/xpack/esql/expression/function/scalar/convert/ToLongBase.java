@@ -15,7 +15,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,9 +26,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 
 //
@@ -73,11 +75,12 @@ public class ToLongBase extends EsqlScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution resolution = TypeResolutions.isString(string, sourceText(), FIRST);
+        TypeResolution resolution = isString(string, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        return TypeResolutions.isWholeNumber(base, sourceText(), SECOND);
+        resolution = isType(base, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+        return resolution;
     }
 
     @Override

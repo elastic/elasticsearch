@@ -668,11 +668,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         // Store the current term so we can check later whether a new master has been elected
-        final long currentTerm = coordinationState.get().getLastAcceptedState().term();
+        final long currentTerm = getCurrentTerm();
         transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
             @Override
             public void onResponse(Releasable response) {
-                String joiningNodeName = joinRequest.getSourceNode().getName();
+                String joiningNode = joinRequest.getSourceNode().toString();
                 SubscribableListener
                     // Validates the join request: can the remote node deserialize our cluster state and does it respond to pings?
                     .<Void>newForked(l -> validateJoinRequest(joinRequest, l))
@@ -692,11 +692,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                     + "cluster state we've just published and will therefore include {} in its future states too. "
                                     + "We will keep the connection to {} open until the next published cluster state update confirms "
                                     + "whether {} has been added to the cluster",
-                                joiningNodeName,
+                                joiningNode,
                                 masterNode.getName(),
-                                joiningNodeName,
-                                joiningNodeName,
-                                joiningNodeName
+                                joiningNode,
+                                joiningNode,
+                                joiningNode
                             );
 
                             // NB we are on the master update thread here at the end of processing the failed cluster state update, so this

@@ -344,12 +344,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
-            return getNewInferenceResultsFromSupplier(
-                inferenceResultsMapSupplier,
-                this,
-                inferenceResultsMap,
-                m -> copy(m, null, ccsRequest)
-            );
+            return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
         }
 
         FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();

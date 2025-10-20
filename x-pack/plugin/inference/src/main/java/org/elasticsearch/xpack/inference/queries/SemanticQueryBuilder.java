@@ -55,7 +55,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -322,21 +321,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResultsMapSupplier;
     }
 
-    static Map<FullyQualifiedInferenceId, InferenceResults> mergeInferenceResultsMaps(
-        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> originalInferenceResultsMap,
-        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap
-    ) {
-        Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = newInferenceResultsMap;
-        if (originalInferenceResultsMap != null && originalInferenceResultsMap.isEmpty() == false) {
-            mergedInferenceResultsMap = Stream.concat(
-                originalInferenceResultsMap.entrySet().stream(),
-                newInferenceResultsMap.entrySet().stream()
-            ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        }
-
-        return mergedInferenceResultsMap;
-    }
-
     static void registerInferenceAsyncActions(
         QueryRewriteContext queryRewriteContext,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
@@ -391,20 +375,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
         T currentQueryBuilder,
-        Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap,
         Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
     ) {
-        T rewritten = currentQueryBuilder;
         Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = supplier.get();
-        if (newInferenceResultsMap != null) {
-            Map<FullyQualifiedInferenceId, InferenceResults> mergedInferenceResultsMap = mergeInferenceResultsMaps(
-                currentInferenceResultsMap,
-                newInferenceResultsMap
-            );
-            rewritten = copyGenerator.apply(mergedInferenceResultsMap);
-        }
-
-        return rewritten;
+        // It's safe to use only the new inference results map (once set) because we can enumerate the scenarios where we need to get
+        // inference results:
+        // - On the local coordinating node, getting inference results for the first time. The previous inference results map is null.
+        // - On the remote coordinating node, getting inference results for remote cluster inference IDs. In this case, we can guarantee
+        // that only remote cluster inference results are required to handle the query.
+        return newInferenceResultsMap != null ? copyGenerator.apply(newInferenceResultsMap) : currentQueryBuilder;
     }
 
     private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
@@ -538,7 +517,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return getNewInferenceResultsFromSupplier(
                 inferenceResultsMapSupplier,
                 this,
-                inferenceResultsMap,
                 m -> new SemanticQueryBuilder(this, m, null, ccsRequest)
             );
         }

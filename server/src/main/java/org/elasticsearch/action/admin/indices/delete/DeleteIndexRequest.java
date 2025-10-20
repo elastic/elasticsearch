@@ -144,6 +144,9 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
 
     @Override
     public String getDescription() {
-        return "indices[" + Strings.arrayToCommaDelimitedString(indices) + "]";
+        final var stringBuilder =new StringBuilder("indices[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 }

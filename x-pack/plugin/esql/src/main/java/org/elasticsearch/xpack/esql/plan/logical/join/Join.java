@@ -98,7 +98,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         PARTIAL_AGG,
         AGGREGATE_METRIC_DOUBLE,
         DENSE_VECTOR,
-        DATE_RANGE};
+        DATE_RANGE };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;

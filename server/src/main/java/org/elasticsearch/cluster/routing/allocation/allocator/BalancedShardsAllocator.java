@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
@@ -1373,17 +1374,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = currentDecision.type() == Type.YES || decision.type() == Type.NOT_PREFERRED;
                         }
                     } else {
-                        if (decision == null) {
-                            // This is the first YES/NOT_PREFERRED/THROTTLE decision we've seen, take it
-                            updateMinNode = true;
-                        } else {
-                            // Compare it to the current best decision
-                            updateMinNode = switch (DecisionTypeComparison.compare(decision.type(), currentDecision.type())) {
-                                case IMPROVED -> true;
-                                case SAME -> currentWeight < minWeight;
-                                case WORSE -> false;
-                            };
-                        }
+                        updateMinNode = preferNewDecisionOverExisting(currentDecision, currentWeight, decision, minWeight);
                     }
                     if (updateMinNode) {
                         minNode = node;
@@ -1411,26 +1402,37 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Utility for comparing {@code YES}/{@code NOT_PREFERRED}/{@code THROTTLE} decisions.
+         * Decide whether to take a new allocation decision/weight over the existing allocation decision/weight
+         * <p>
+         * We take the lowest weight decision, but we always prefer {@code YES} or {@code THROTTLE} decisions over {@code NOT_PREFERRED}
+         *
+         * @param newDecision The new decision
+         * @param newWeight The new weight
+         * @param existingDecision The existing decision, or null if there is no existing decision
+         * @param existingWeight The existing weight, or {@link Float#POSITIVE_INFINITY} if there is no existing weight
+         * @return true to take the new decision/weight, false to keep the existing decision/weight
          */
-        private enum DecisionTypeComparison {
-            IMPROVED,
-            SAME,
-            WORSE;
-
-            private static final Set<Decision.Type> SUPPORTED_TYPES = Set.of(
-                Decision.Type.YES,
-                Decision.Type.THROTTLE,
-                Decision.Type.NOT_PREFERRED
-            );
-
-            public static DecisionTypeComparison compare(Type existingType, Type newType) {
-                assert SUPPORTED_TYPES.contains(existingType) && SUPPORTED_TYPES.contains(newType)
-                    : "unsupported type being compared: " + existingType + " vs " + newType;
-                if (existingType == newType || (existingType != Type.NOT_PREFERRED && newType != Type.NOT_PREFERRED)) {
-                    return SAME;
-                }
-                return existingType == Type.NOT_PREFERRED ? IMPROVED : WORSE;
+        private static boolean preferNewDecisionOverExisting(
+            Decision newDecision,
+            float newWeight,
+            @Nullable Decision existingDecision,
+            float existingWeight
+        ) {
+            assert newDecision != null : "newDecision should never be null";
+            assert newDecision.type() == Type.YES || newDecision.type() == Type.NOT_PREFERRED || newDecision.type() == Type.THROTTLE
+                : "unsupported decision type: " + newDecision.type();
+            assert newWeight != existingWeight : "Equal weights should be handled elsewhere";
+            if (existingDecision == null) {
+                // This is the first YES/NOT_PREFERRED/THROTTLE decision we've seen, take it
+                return true;
+            } else if (existingDecision.type() == newDecision.type()) {
+                // Decision types are the same, take the lower weight
+                return newWeight < existingWeight;
+            } else {
+                // Decision types are different, take the lower weight unless it's NOT_PREFERRED
+                float adjustedCurrentWeight = newDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : newWeight;
+                float adjustedExistingWeight = existingDecision.type() == Type.NOT_PREFERRED ? Float.POSITIVE_INFINITY : existingWeight;
+                return adjustedCurrentWeight < adjustedExistingWeight;
             }
         }
 

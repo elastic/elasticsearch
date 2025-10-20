@@ -1041,8 +1041,8 @@ public class ModelRegistry implements ClusterStateListener {
         return request;
     }
 
-    // default for testing
-    static IndexRequestBuilder createIndexRequestBuilder(
+    // public for testing
+    public static IndexRequestBuilder createIndexRequestBuilder(
         String inferenceId,
         String indexName,
         ToXContentObject body,

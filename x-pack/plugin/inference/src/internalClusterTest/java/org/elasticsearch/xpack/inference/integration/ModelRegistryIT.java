@@ -8,16 +8,23 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -34,20 +41,23 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -65,16 +75,21 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertMinimalServiceSettings;
+import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ModelRegistryIT extends ESSingleNodeTestCase {
@@ -96,7 +111,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testStoreModel() throws Exception {
         String inferenceEntityId = "test-store-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        ModelRegistryTests.assertStoreModel(modelRegistry, model);
+        assertStoreModel(modelRegistry, model);
     }
 
     public void testStoreModelWithUnknownFields() throws Exception {
@@ -104,7 +119,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         Model model = buildModelWithUnknownField(inferenceEntityId);
         ElasticsearchStatusException statusException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> ModelRegistryTests.assertStoreModel(modelRegistry, model)
+            () -> assertStoreModel(modelRegistry, model)
         );
         assertThat(
             statusException.getRootCause().getMessage(),
@@ -116,7 +131,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testGetModel() throws Exception {
         String inferenceEntityId = "test-get-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        ModelRegistryTests.assertStoreModel(modelRegistry, model);
+        assertStoreModel(modelRegistry, model);
 
         // now get the model
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -148,10 +163,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testStoreModelFailsWhenModelExists() throws Exception {
         String inferenceEntityId = "test-put-trained-model-config-exists";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
-        ModelRegistryTests.assertStoreModel(modelRegistry, model);
+        assertStoreModel(modelRegistry, model);
 
         // a model with the same id exists
-        var exc = expectThrows(Exception.class, () -> ModelRegistryTests.assertStoreModel(modelRegistry, model));
+        var exc = expectThrows(Exception.class, () -> assertStoreModel(modelRegistry, model));
         assertThat(exc.getMessage(), containsString("Inference endpoint [test-put-trained-model-config-exists] already exists"));
     }
 
@@ -159,7 +174,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         // put models
         for (var id : new String[] { "model1", "model2", "model3" }) {
             Model model = buildElserModelConfig(id, TaskType.SPARSE_EMBEDDING);
-            ModelRegistryTests.assertStoreModel(modelRegistry, model);
+            assertStoreModel(modelRegistry, model);
         }
 
         AtomicReference<Boolean> deleteResponseHolder = new AtomicReference<>();
@@ -238,7 +253,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         sparseAndTextEmbeddingModels.add(createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service));
 
         for (var model : sparseAndTextEmbeddingModels) {
-            ModelRegistryTests.assertStoreModel(modelRegistry, model);
+            assertStoreModel(modelRegistry, model);
         }
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -277,7 +292,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         for (int i = 0; i < modelCount; i++) {
             var model = createModel(randomAlphaOfLength(5), randomFrom(TaskType.values()), service);
             createdModels.add(model);
-            ModelRegistryTests.assertStoreModel(modelRegistry, model);
+            assertStoreModel(modelRegistry, model);
         }
 
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
@@ -303,7 +318,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var secret = "abc";
 
         var modelWithSecrets = createModelWithSecrets(inferenceEntityId, randomFrom(TaskType.values()), service, secret);
-        ModelRegistryTests.assertStoreModel(modelRegistry, modelWithSecrets);
+        assertStoreModel(modelRegistry, modelWithSecrets);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<UnparsedModel> modelHolder = new AtomicReference<>();
@@ -352,7 +367,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             var id = randomAlphaOfLength(5) + i;
             var model = createModel(id, randomFrom(TaskType.values()), serviceName);
             createdModels.put(id, model);
-            ModelRegistryTests.assertStoreModel(modelRegistry, model);
+            assertStoreModel(modelRegistry, model);
         }
 
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
@@ -495,8 +510,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         var configured1 = createModel(randomAlphaOfLength(5) + 1, randomFrom(TaskType.values()), serviceName);
         var configured2 = createModel(randomAlphaOfLength(5) + 1, randomFrom(TaskType.values()), serviceName);
-        ModelRegistryTests.assertStoreModel(modelRegistry, configured1);
-        ModelRegistryTests.assertStoreModel(modelRegistry, configured2);
+        assertStoreModel(modelRegistry, configured1);
+        assertStoreModel(modelRegistry, configured2);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<UnparsedModel> modelHolder = new AtomicReference<>();
@@ -546,9 +561,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var configuredSparse = createModel("configured-sparse", TaskType.SPARSE_EMBEDDING, serviceName);
         var configuredText = createModel("configured-text", TaskType.TEXT_EMBEDDING, serviceName);
         var configuredRerank = createModel("configured-rerank", TaskType.RERANK, serviceName);
-        ModelRegistryTests.assertStoreModel(modelRegistry, configuredSparse);
-        ModelRegistryTests.assertStoreModel(modelRegistry, configuredText);
-        ModelRegistryTests.assertStoreModel(modelRegistry, configuredRerank);
+        assertStoreModel(modelRegistry, configuredSparse);
+        assertStoreModel(modelRegistry, configuredText);
+        assertStoreModel(modelRegistry, configuredRerank);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
@@ -576,6 +591,438 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertEquals("default-chat", modelHolder.get().get(0).inferenceEntityId());
         assertReturnModelIsModifiable(modelHolder.get().get(0));
     }
+
+    public void testGetUnparsedModelMap_ThrowsResourceNotFound_WhenNoHitsReturned() {
+        var listener = new PlainActionFuture<UnparsedModel>();
+        modelRegistry.getModelWithSecrets("1", listener);
+
+        ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(exception.getMessage(), Matchers.is("Inference endpoint not found [1]"));
+    }
+
+    public void testStoreModels_StoresSingleInferenceEndpoint() {
+        var inferenceId = "1";
+        var secrets = "secret";
+
+        var model = new TestModel(
+            inferenceId,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(model), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), Matchers.is(1));
+        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
+
+        assertMinimalServiceSettings(modelRegistry, model);
+
+        var listener = new PlainActionFuture<UnparsedModel>();
+        modelRegistry.getModelWithSecrets(inferenceId, listener);
+
+        var returnedModel = listener.actionGet(TIMEOUT);
+        assertModel(returnedModel, model, secrets);
+    }
+
+    public void testStoreModels_StoresMultipleInferenceEndpoints() {
+        var secrets = "secret";
+        var inferenceId1 = "1";
+        var inferenceId2 = "2";
+
+        var model1 = new TestModel(
+            inferenceId1,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        var model2 = new TestModel(
+            inferenceId2,
+            TaskType.TEXT_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings("model", 123, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), Matchers.is(2));
+        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId1, RestStatus.CREATED, null)));
+        assertThat(response.get(1), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId2, RestStatus.CREATED, null)));
+
+        assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
+        assertModelAndMinimalSettingsWithSecrets(modelRegistry, model2, secrets);
+    }
+
+    private static void assertModelAndMinimalSettingsWithSecrets(ModelRegistry registry, Model model, String secrets) {
+        assertMinimalServiceSettings(registry, model);
+
+        var listener = new PlainActionFuture<UnparsedModel>();
+        registry.getModelWithSecrets(model.getInferenceEntityId(), listener);
+
+        var storedModel = listener.actionGet(TIMEOUT);
+        assertModel(storedModel, model, secrets);
+    }
+
+    private static void assertModel(UnparsedModel model, Model expected, String secrets) {
+        assertThat(model.inferenceEntityId(), Matchers.is(expected.getInferenceEntityId()));
+        assertThat(model.service(), Matchers.is(expected.getConfigurations().getService()));
+        assertThat(model.taskType(), Matchers.is(expected.getConfigurations().getTaskType()));
+        assertThat(model.secrets().keySet(), hasSize(1));
+        assertThat(model.secrets().get("secret_settings"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        var secretSettings = (Map<String, Object>) model.secrets().get("secret_settings");
+        assertThat(secretSettings.get("api_key"), Matchers.is(secrets));
+    }
+
+    public void testStoreModels_StoresOneModel_FailsToStoreSecond_WhenVersionConflictExists() {
+        var secrets = "secret";
+
+        var inferenceId = "1";
+
+        var model1 = new TestModel(
+            inferenceId,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        var model2 = new TestModel(
+            // using the same inference id as model1 to cause a failure
+            inferenceId,
+            TaskType.TEXT_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings("model", 123, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(model1, model2), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), Matchers.is(2));
+        assertThat(response.get(0), Matchers.is(new ModelRegistry.ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
+        assertThat(response.get(1).inferenceId(), Matchers.is(model2.getInferenceEntityId()));
+        assertThat(response.get(1).status(), Matchers.is(RestStatus.CONFLICT));
+        assertTrue(response.get(1).failed());
+
+        var cause = response.get(1).failureCause();
+        assertNotNull(cause);
+        assertThat(cause, instanceOf(VersionConflictEngineException.class));
+        assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
+
+        assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
+        assertIndicesContainExpectedDocsCount(model1, 2);
+    }
+
+    public void testStoreModels_FailsToStoreModel_WhenInferenceIndexDocumentAlreadyExists() {
+        var secrets = "secret";
+
+        var model = new TestModel(
+            "1",
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        storeCorruptedModel(model, false);
+
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(model), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), Matchers.is(1));
+        assertThat(response.get(0).inferenceId(), Matchers.is(model.getInferenceEntityId()));
+        assertThat(response.get(0).status(), Matchers.is(RestStatus.CONFLICT));
+        assertTrue(response.get(0).failed());
+
+        var cause = response.get(0).failureCause();
+        assertNotNull(cause);
+        assertThat(cause, instanceOf(VersionConflictEngineException.class));
+        assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
+        // Since there was a partial write, both documents should be removed
+        assertIndicesContainExpectedDocsCount(model, 0);
+    }
+
+    public void testStoreModels_OnFailure_RemovesPartialWritesOfInferenceEndpoint() {
+        var secrets = "secret";
+
+        var inferenceId1 = "1";
+        var inferenceId2 = "2";
+        var inferenceId3 = "3";
+
+        var model1 = new TestModel(
+            inferenceId1,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        var model2 = new TestModel(
+            inferenceId2,
+            TaskType.CHAT_COMPLETION,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        var model3 = new TestModel(
+            inferenceId3,
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings(secrets)
+        );
+
+        storeCorruptedModel(model1, false);
+        storeCorruptedModel(model2, true);
+
+        PlainActionFuture<List<ModelRegistry.ModelStoreResponse>> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModels(List.of(model1, model2, model3), storeListener, TimeValue.THIRTY_SECONDS);
+
+        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
+        assertThat(response.size(), Matchers.is(3));
+        assertThat(response.get(0).inferenceId(), Matchers.is(model1.getInferenceEntityId()));
+        assertThat(response.get(0).status(), Matchers.is(RestStatus.CONFLICT));
+        assertTrue(response.get(0).failed());
+
+        var cause = response.get(0).failureCause();
+        assertNotNull(cause);
+        assertThat(cause, instanceOf(VersionConflictEngineException.class));
+        assertThat(cause.getMessage(), containsString("[model_1]: version conflict, document already exists"));
+
+        // Since we did a partial write of model1's secrets, both documents should be removed
+        assertIndicesContainExpectedDocsCount(model1, 0);
+
+        assertThat(response.get(1).inferenceId(), Matchers.is(model2.getInferenceEntityId()));
+        assertThat(response.get(1).status(), Matchers.is(RestStatus.CONFLICT));
+        assertTrue(response.get(1).failed());
+
+        cause = response.get(1).failureCause();
+        assertNotNull(cause);
+        assertThat(cause, instanceOf(VersionConflictEngineException.class));
+        assertThat(cause.getMessage(), containsString("[model_2]: version conflict, document already exists"));
+
+        // Since we did a partial write of model2's configurations, both documents should be removed
+        assertIndicesContainExpectedDocsCount(model2, 0);
+
+        // model3 should be stored successfully
+        assertModelAndMinimalSettingsWithSecrets(modelRegistry, model3, secrets);
+        assertIndicesContainExpectedDocsCount(model3, 2);
+    }
+
+    public void testGetModelNoSecrets() {
+        var inferenceId = "1";
+
+        assertStoreModel(
+            modelRegistry,
+            new TestModel(
+                inferenceId,
+                TaskType.SPARSE_EMBEDDING,
+                "foo",
+                new TestModel.TestServiceSettings(null, null, null, null),
+                new TestModel.TestTaskSettings(randomInt(3)),
+                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            )
+        );
+
+        var getListener = new PlainActionFuture<UnparsedModel>();
+        modelRegistry.getModel(inferenceId, getListener);
+
+        var modelConfig = getListener.actionGet(TIMEOUT);
+        assertEquals(inferenceId, modelConfig.inferenceEntityId());
+        assertEquals("foo", modelConfig.service());
+        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
+        assertNotNull(modelConfig.settings().keySet());
+        assertThat(modelConfig.secrets().keySet(), empty());
+    }
+
+    public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {
+        var model = TestModel.createRandomInstance();
+        assertStoreModel(modelRegistry, model);
+    }
+
+    public void testStoreModel_ThrowsException_WhenFailureIsAVersionConflict() {
+        var model = TestModel.createRandomInstance();
+        assertStoreModel(modelRegistry, model);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> assertStoreModel(modelRegistry, model));
+        assertThat(exception.status(), Matchers.is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            Matchers.is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
+        );
+    }
+
+    public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
+        var listener = new PlainActionFuture<Boolean>();
+        modelRegistry.removeDefaultConfigs(Set.of(), listener);
+        assertTrue(listener.actionGet(TIMEOUT));
+    }
+
+    public void testDeleteModels_Returns_ConflictException_WhenModelIsBeingAdded() {
+        var model = TestModel.createRandomInstance();
+        var newModel = TestModel.createRandomInstance();
+        modelRegistry.updateModelTransaction(newModel, model, new PlainActionFuture<>());
+
+        var listener = new PlainActionFuture<Boolean>();
+
+        modelRegistry.deleteModels(Set.of(newModel.getInferenceEntityId()), listener);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            containsString("are currently being updated, please wait until after they are finished updating to delete.")
+        );
+        assertThat(exception.status(), Matchers.is(RestStatus.CONFLICT));
+    }
+
+    public void testContainsDefaultConfigId() {
+        modelRegistry.addDefaultIds(
+            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+        );
+        modelRegistry.addDefaultIds(
+            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
+        );
+        assertTrue(modelRegistry.containsDefaultConfigId("foo"));
+        assertFalse(modelRegistry.containsDefaultConfigId("baz"));
+    }
+
+    public void testDuplicateDefaultIds() {
+        var id = "my-inference";
+        var mockServiceA = mock(InferenceService.class);
+        when(mockServiceA.name()).thenReturn("service-a");
+        var mockServiceB = mock(InferenceService.class);
+        when(mockServiceB.name()).thenReturn("service-b");
+
+        modelRegistry.addDefaultIds(new InferenceService.DefaultConfigId(id, MinimalServiceSettingsTests.randomInstance(), mockServiceA));
+        var ise = expectThrows(
+            IllegalStateException.class,
+            () -> modelRegistry.addDefaultIds(
+                new InferenceService.DefaultConfigId(id, MinimalServiceSettingsTests.randomInstance(), mockServiceB)
+            )
+        );
+        assertThat(
+            ise.getMessage(),
+            containsString(
+                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
+                    + "service [service-b]. The inference Id is already use by [service-a] service."
+            )
+        );
+    }
+
+    public void testStoreModel_DeletesIndexDocs_WhenInferenceIndexDocumentAlreadyExists() {
+        storeCorruptedModelThenStoreModel(false);
+    }
+
+    public void testStoreModel_DeletesIndexDocs_WhenInferenceSecretsIndexDocumentAlreadyExists() {
+        storeCorruptedModelThenStoreModel(true);
+    }
+
+    public void testStoreModel_DoesNotDeleteIndexDocs_WhenModelAlreadyExists() {
+        var model = new TestModel(
+            "model-id",
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings("secret")
+        );
+
+        PlainActionFuture<Boolean> firstStoreListener = new PlainActionFuture<>();
+        modelRegistry.storeModel(model, firstStoreListener, TimeValue.THIRTY_SECONDS);
+        firstStoreListener.actionGet(TimeValue.THIRTY_SECONDS);
+
+        assertIndicesContainExpectedDocsCount(model, 2);
+
+        PlainActionFuture<Boolean> secondStoreListener = new PlainActionFuture<>();
+        modelRegistry.storeModel(model, secondStoreListener, TimeValue.THIRTY_SECONDS);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> secondStoreListener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(exception.getMessage(), containsString("already exists"));
+        assertThat(exception.status(), Matchers.is(RestStatus.BAD_REQUEST));
+        assertIndicesContainExpectedDocsCount(model, 2);
+    }
+
+    private void storeCorruptedModelThenStoreModel(boolean storeSecrets) {
+        var model = new TestModel(
+            "corrupted-model-id",
+            TaskType.SPARSE_EMBEDDING,
+            "foo",
+            new TestModel.TestServiceSettings(null, null, null, null),
+            new TestModel.TestTaskSettings(randomInt(3)),
+            new TestModel.TestSecretSettings("secret")
+        );
+
+        storeCorruptedModel(model, storeSecrets);
+
+        assertIndicesContainExpectedDocsCount(model, 1);
+
+        PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
+        modelRegistry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> storeListener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(exception.getMessage(), containsString("already exists"));
+        assertThat(exception.status(), Matchers.is(RestStatus.BAD_REQUEST));
+
+        assertIndicesContainExpectedDocsCount(model, 0);
+    }
+
+    private void assertIndicesContainExpectedDocsCount(TestModel model, int numberOfDocs) {
+        SearchRequest modelSearch = client().prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(model.getInferenceEntityId()))))
+            .setSize(2)
+            .setTrackTotalHits(false)
+            .request();
+        SearchResponse searchResponse = client().search(modelSearch).actionGet(TimeValue.THIRTY_SECONDS);
+        try {
+            assertThat(searchResponse.getHits().getHits(), Matchers.arrayWithSize(numberOfDocs));
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    private void storeCorruptedModel(Model model, boolean storeSecrets) {
+        var listener = new PlainActionFuture<BulkResponse>();
+
+        client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(
+                ModelRegistry.createIndexRequestBuilder(
+                    model.getInferenceEntityId(),
+                    storeSecrets ? InferenceSecretsIndex.INDEX_NAME : InferenceIndex.INDEX_NAME,
+                    storeSecrets ? model.getSecrets() : model.getConfigurations(),
+                    false,
+                    client()
+                )
+            )
+            .execute(listener);
+
+        var bulkResponse = listener.actionGet(TIMEOUT);
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to store model: " + bulkResponse.buildFailureMessage());
+        }
+    }
+
+
 
     private void assertInferenceIndexExists() {
         var indexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".inference").get();

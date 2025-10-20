@@ -9,9 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -58,10 +60,11 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.ignore_dynamic_field_names_beyond_limit"
     );
     static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
+    static final NodeFeature EXPONENTIAL_HISTOGRAM_TYPE_SUPPORT = new NodeFeature("mapper.exponential_histogram_type_support");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        Set<NodeFeature> result = Set.of(
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -101,5 +104,10 @@ public class MapperFeatures implements FeatureSpecification {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX
         );
+        if (new FeatureFlag("exponential_histogram").isEnabled() == false) {
+            result = new HashSet<>(result);
+            result.add(EXPONENTIAL_HISTOGRAM_TYPE_SUPPORT);
+        }
+        return result;
     }
 }

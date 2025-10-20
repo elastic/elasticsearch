@@ -23,12 +23,6 @@ public class ExponentialHistogramYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         super(testCandidate);
     }
 
-    @Before
-    public void setup() {
-        // TODO: remove when FeatureFlag is removed and add minimum required version to yaml spec
-        assumeTrue("Only when exponential_histogram feature flag is enabled", Build.current().isSnapshot());
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();

@@ -1,8 +1,7 @@
 setup:
-
-#  - skip:
-#      version: " - 8.12.99"
-#      reason: "exponential_histogram was added in 8.13"
+  - requires:
+      cluster_features: mapper.exponential_histogram_type_support
+      reason:           exponential histogram field type and aggregations introduced
 
   - do:
       indices.create:

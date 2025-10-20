@@ -16,9 +16,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
@@ -29,24 +29,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser.EMBEDDING_TYPE;
-import static org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS;
+import static org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser.EMBEDDING_TYPE;
+import static org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializationTestCase<TextEmbeddingResponseParser> {
+public class DenseEmbeddingResponseParserTests extends AbstractBWCWireSerializationTestCase<DenseEmbeddingResponseParser> {
 
     private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = TransportVersion.fromName(
         "ml_inference_custom_service_embedding_type"
     );
 
-    public static TextEmbeddingResponseParser createRandom() {
-        return new TextEmbeddingResponseParser("$." + randomAlphaOfLength(5), randomFrom(CustomServiceEmbeddingType.values()));
+    public static DenseEmbeddingResponseParser createRandom() {
+        return new DenseEmbeddingResponseParser("$." + randomAlphaOfLength(5), randomFrom(CustomServiceEmbeddingType.values()));
     }
 
     public void testFromMap() {
         var validation = new ValidationException();
-        var parser = TextEmbeddingResponseParser.fromMap(
+        var parser = DenseEmbeddingResponseParser.fromMap(
             new HashMap<>(
                 Map.of(
                     TEXT_EMBEDDING_PARSER_EMBEDDINGS,
@@ -59,14 +59,14 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             validation
         );
 
-        assertThat(parser, is(new TextEmbeddingResponseParser("$.result[*].embeddings", CustomServiceEmbeddingType.BIT)));
+        assertThat(parser, is(new DenseEmbeddingResponseParser("$.result[*].embeddings", CustomServiceEmbeddingType.BIT)));
     }
 
     public void testFromMap_ThrowsException_WhenRequiredFieldIsNotPresent() {
         var validation = new ValidationException();
         var exception = expectThrows(
             ValidationException.class,
-            () -> TextEmbeddingResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.result[*].embeddings")), "scope", validation)
+            () -> DenseEmbeddingResponseParser.fromMap(new HashMap<>(Map.of("some_field", "$.result[*].embeddings")), "scope", validation)
         );
 
         assertThat(
@@ -76,7 +76,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
     }
 
     public void testToXContent() throws IOException {
-        var entity = new TextEmbeddingResponseParser("$.result.path", CustomServiceEmbeddingType.BINARY);
+        var entity = new DenseEmbeddingResponseParser("$.result.path", CustomServiceEmbeddingType.BINARY);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         {
@@ -120,14 +120,18 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
-        TextEmbeddingFloatResults parsedResults = (TextEmbeddingFloatResults) parser.parse(
+        var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
-            is(new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }))))
+            is(
+                new DenseEmbeddingFloatResults(
+                    List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }))
+                )
+            )
         );
     }
 
@@ -153,12 +157,15 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BYTE);
-        TextEmbeddingByteResults parsedResults = (TextEmbeddingByteResults) parser.parse(
+        var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BYTE);
+        DenseEmbeddingByteResults parsedResults = (DenseEmbeddingByteResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, is(new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { 1, -2 })))));
+        assertThat(
+            parsedResults,
+            is(new DenseEmbeddingByteResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { 1, -2 }))))
+        );
     }
 
     public void testParseBit() throws IOException {
@@ -183,12 +190,12 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BIT);
-        TextEmbeddingBitResults parsedResults = (TextEmbeddingBitResults) parser.parse(
+        var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BIT);
+        DenseEmbeddingBitResults parsedResults = (DenseEmbeddingBitResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults, is(new TextEmbeddingBitResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { 1, -2 })))));
+        assertThat(parsedResults, is(new DenseEmbeddingBitResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { 1, -2 })))));
     }
 
     public void testParse_MultipleEmbeddings() throws IOException {
@@ -221,18 +228,18 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
-        TextEmbeddingFloatResults parsedResults = (TextEmbeddingFloatResults) parser.parse(
+        var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults,
             is(
-                new TextEmbeddingFloatResults(
+                new DenseEmbeddingFloatResults(
                     List.of(
-                        new TextEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                        new TextEmbeddingFloatResults.Embedding(new float[] { 1F, -2F })
+                        new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                        new DenseEmbeddingFloatResults.Embedding(new float[] { 1F, -2F })
                     )
                 )
             )
@@ -269,7 +276,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
@@ -303,7 +310,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
+        var parser = new DenseEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
@@ -319,25 +326,25 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
     }
 
     @Override
-    protected TextEmbeddingResponseParser mutateInstanceForVersion(TextEmbeddingResponseParser instance, TransportVersion version) {
+    protected DenseEmbeddingResponseParser mutateInstanceForVersion(DenseEmbeddingResponseParser instance, TransportVersion version) {
         if (version.supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE) == false) {
-            return new TextEmbeddingResponseParser(instance.getTextEmbeddingsPath(), CustomServiceEmbeddingType.FLOAT);
+            return new DenseEmbeddingResponseParser(instance.getTextEmbeddingsPath(), CustomServiceEmbeddingType.FLOAT);
         }
         return instance;
     }
 
     @Override
-    protected Writeable.Reader<TextEmbeddingResponseParser> instanceReader() {
-        return TextEmbeddingResponseParser::new;
+    protected Writeable.Reader<DenseEmbeddingResponseParser> instanceReader() {
+        return DenseEmbeddingResponseParser::new;
     }
 
     @Override
-    protected TextEmbeddingResponseParser createTestInstance() {
+    protected DenseEmbeddingResponseParser createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected TextEmbeddingResponseParser mutateInstance(TextEmbeddingResponseParser instance) throws IOException {
-        return randomValueOtherThan(instance, TextEmbeddingResponseParserTests::createRandom);
+    protected DenseEmbeddingResponseParser mutateInstance(DenseEmbeddingResponseParser instance) throws IOException {
+        return randomValueOtherThan(instance, DenseEmbeddingResponseParserTests::createRandom);
     }
 }

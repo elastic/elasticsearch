@@ -1634,6 +1634,49 @@ ROW salary = 12300, emp_no = 5, gender = "F"
 emp_no:integer
 5
 ;
+
+inlineStatsWithShadowedOutput1
+required_capability: inline_stats
+
+ROW a = null, b = 0, c = "x"
+| INLINE STATS a = MAX(c) BY b
+| EVAL a = c
+;
+
+c:keyword      |b:integer      |a:keyword
+x              |0              |x
+;
+
+inlineStatsWithShadowedOutput2
+required_capability: inline_stats
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c) by b
+| EVAL a = c, d = 2
+;
+
+c:keyword      |b:integer      |a:keyword |d:integer
+x              |0              |x         |2
+;
+
+inlineStatsWithShadowedOutput3
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, salary, birth_date
+| EVAL orig_emp_no = emp_no
+| INLINE STATS emp_no = MAX(birth_date) BY salary
+| EVAL emp_no = birth_date
+| SORT orig_emp_no
+| LIMIT 3
+;
+
+birth_date:date         |orig_emp_no:integer|salary:integer |emp_no:date
+1953-09-02T00:00:00.000Z|10001              |57305          |1953-09-02T00:00:00.000Z
+1964-06-02T00:00:00.000Z|10002              |56371          |1964-06-02T00:00:00.000Z
+1959-12-03T00:00:00.000Z|10003              |61805          |1959-12-03T00:00:00.000Z
+;
+
 ///////////////////////////
 // INLINE STATS with filters
 ///////////////////////////

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -123,7 +124,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         } else {
             // not expecting high groups cardinality, nested loops in lists should be fine, no need for a HashSet
             if (inlineJoin && aggregate.groupings().containsAll(remaining)) {
-                // An INLINEJOIN right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
+                // An InlineJoin right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
                 // already part of the IJ output (from the left-hand side): the agg can just be dropped entirely.
                 p = emptyLocalRelation(aggregate);
             } else { // not an INLINEJOIN or there are actually aggregates to compute
@@ -140,7 +141,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
-            p = ij.left();
+            p = new EsqlProject(ij.source(), ij.left(), ij.output());
             recheck.set(true);
         } else if (right != ij.right()) {
             // if the right side has been updated, replace it

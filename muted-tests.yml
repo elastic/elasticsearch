@@ -585,9 +585,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyConcat
   issue: https://github.com/elastic/elasticsearch/issues/136728
-- class: org.elasticsearch.compute.data.BasicPageTests
-  method: testEqualityAndHashCode
-  issue: https://github.com/elastic/elasticsearch/issues/136753
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/136767

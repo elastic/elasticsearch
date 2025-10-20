@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
@@ -56,25 +57,25 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), node.node());
+        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), shardRouting, node.node());
     }
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, node.node());
+        return canAllocateToNode(indexMetadata, shardRouting, node.node());
     }
 
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, node.node());
+        return canAllocateToNode(indexMetadata, null, node.node());
     }
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(indexMetadata, node);
+        return canAllocateToNode(indexMetadata, null, node);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    private Decision canAllocateToNode(IndexMetadata indexMetadata, @Nullable ShardRouting shardRouting, DiscoveryNode discoveryNode) {
         if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }
@@ -83,7 +84,13 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             case HAS_CACHE -> HAS_FROZEN_CACHE;
             case NO_CACHE -> NO_FROZEN_CACHE;
             case FAILED -> UNKNOWN_FROZEN_CACHE;
-            default -> STILL_FETCHING;
+            // THROTTLE is an odd choice here. In all other places, it means YES but not right now. But here it can eventually
+            // turn into a NO if the node responds that it has no frozen cache. Since BalancedShardAllocator effectively handles
+            // THROTTLE as a rejection, it is desirable that we simply return a NO here for shard level decisions. For BWC,
+            // we keep the THROTTLE decision for unassigned shards.
+            // For index level decisions (shardRouting == null), we still need THROTTLE so that the node is not excluded from
+            // the candidates too early.
+            default -> shardRouting != null && shardRouting.unassigned() ? STILL_FETCHING : Decision.NO;
         };
     }
 

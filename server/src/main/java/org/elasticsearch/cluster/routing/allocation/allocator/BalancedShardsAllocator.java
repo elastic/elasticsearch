@@ -707,10 +707,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 // Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
                                 shardBalanced = true;
                             } else {
-                                // A THROTTLE decision can happen when:
-                                // 1. Not simulating
-                                // 2. Or, a partial searchable snapshot index due to HasFrozenCacheAllocationDecider
-                                assert allocation.isSimulating() == false || indexMetadata.isPartialSearchableSnapshot()
+                                // A THROTTLE decision can happen when it is NOT simulating
+                                assert allocation.isSimulating() == false
                                     : "unexpected THROTTLE decision (simulation="
                                         + allocation.isSimulating()
                                         + ") when balancing index ["
@@ -844,9 +842,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // A THROTTLE allocation decision can happen when:
                 // 1. Not simulating
                 // 2. Or, there are prior shard movements
-                // 3. Or, a partial searchable snapshot index due to HasFrozenCacheAllocationDecider
                 assert moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
-                    || (allocation.isSimulating() == false || shardMoved || indexMetadata(index).isPartialSearchableSnapshot())
+                    || (allocation.isSimulating() == false || shardMoved)
                     : "unexpected allocation decision ["
                         + moveDecision.getAllocationDecision()
                         + "] (simulation="

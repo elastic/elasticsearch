@@ -170,13 +170,13 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    public int nonSemanticHashCode() {
-        return Objects.hash(super.nonSemanticHashCode(), searchable);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), searchable);
     }
 
     @Override
-    public boolean nonSemanticEquals(Attribute o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (MetadataAttribute) o;
-        return super.nonSemanticEquals(other) && searchable == other.searchable;
+        return super.innerEquals(other, ignoreIds) && searchable == other.searchable;
     }
 }

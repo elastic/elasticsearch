@@ -1877,7 +1877,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.get()).toList());
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList());
         }
 
         /**
@@ -1997,10 +1997,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int existingIndex = unionFieldAttributes.indexOf(nonSemanticUnionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
-                return unionFieldAttributes.get(existingIndex).get();
+                return unionFieldAttributes.get(existingIndex).inner();
             } else {
                 unionFieldAttributes.add(nonSemanticUnionFieldAttribute);
-                return nonSemanticUnionFieldAttribute.get();
+                return nonSemanticUnionFieldAttribute.inner();
             }
         }
 

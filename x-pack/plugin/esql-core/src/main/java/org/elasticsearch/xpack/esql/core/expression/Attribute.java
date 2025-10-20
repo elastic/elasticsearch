@@ -22,34 +22,24 @@ import static java.util.Collections.emptyList;
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
  * In other words, an attribute represent a column in the results of a query.
- *
+ * <p>
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
- *
+ * <p>
  * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} only {@code foo} inside the SELECT
  * is a named expression (an {@code Alias} will be created automatically for it).
  * The rest are not as they are not part of the projection and thus are not part of the derived table.
+ * <p>
+ * Note on equality: Because the name alone is not sufficient to identify an attribute
+ * (two different relations can have the same attribute name), we respect the {@link #id()} in equality checks and hashing.
  */
 public abstract class Attribute extends NamedExpression {
     /**
      * A wrapper class where equality of the contained attribute ignores the {@link Attribute#id()}. Useful when we want to create new
      * attributes and want to avoid duplicates - we can create a set of {@link NonSemanticAttribute}s.
      */
-    public class NonSemanticAttribute {
-        private Attribute attribute;
-
-        public NonSemanticAttribute(Attribute attribute) {
-            if (attribute == null) {
-                throw new IllegalStateException("Attribute inside NonSemanticAttribute cannot be null");
-            }
-            this.attribute = attribute;
-        }
-
-        public Attribute get() {
-            return attribute;
-        }
-
+    public record NonSemanticAttribute(Attribute inner) {
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -59,21 +49,13 @@ public abstract class Attribute extends NamedExpression {
                 return false;
             }
 
-            Attribute otherAttribute = ((NonSemanticAttribute) o).attribute;
-
-            if (attribute == otherAttribute) {
-                return true;
-            }
-            if (otherAttribute == null || attribute.getClass() != otherAttribute.getClass()) {
-                return false;
-            }
-
-            return attribute.nonSemanticEquals(otherAttribute);
+            Attribute otherAttribute = ((NonSemanticAttribute) o).inner();
+            return inner().equals(otherAttribute, true);
         }
 
         @Override
         public int hashCode() {
-            return attribute.nonSemanticHashCode();
+            return inner().hashCode(true);
         }
     }
 
@@ -209,42 +191,17 @@ public abstract class Attribute extends NamedExpression {
         return clone(Source.EMPTY, qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
-    /**
-     * Compares all fields except the id. Useful when looking for attributes that are the same except for their origin, or when we create
-     * new attributes based on existing ones and want to avoid duplicates.
-     * <p>
-     * Does not perform the usual instance and class equality checks, those are already done in {@link NamedExpression#equals(Object)}
-     */
-    public boolean nonSemanticEquals(Attribute other) {
-        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
-    }
-
-    /**
-     * Hashcode that's consistent with {@link #nonSemanticEquals(Attribute)}. Hashes everything but the id.
-     */
-    public int nonSemanticHashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullability);
-    }
-
-    /**
-     * Inheritors should generally only override {@link #nonSemanticHashCode()}.
-     */
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(id(), nonSemanticHashCode());
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), qualifier, nullability);
     }
 
-    /**
-     * Because the name alone is not sufficient to identify an attribute (two different relations can have the same attribute name),
-     * we also have an id that is used in equality checks and hashing.
-     * <p>
-     * Inheritors should generally only override {@link #nonSemanticEquals(Attribute)}.
-     */
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (Attribute) o;
-        return semanticEquals(other) && nonSemanticEquals(other);
+        return super.innerEquals(other, ignoreIds)
+            && Objects.equals(qualifier, other.qualifier)
+            && Objects.equals(nullability, other.nullability);
     }
 
     @Override

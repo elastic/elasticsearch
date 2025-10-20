@@ -178,14 +178,14 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public int nonSemanticHashCode() {
-        return Objects.hash(super.nonSemanticHashCode(), hasCustomMessage, message);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), hasCustomMessage, message);
     }
 
     @Override
-    public boolean nonSemanticEquals(Attribute o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnsupportedAttribute) o;
-        return super.nonSemanticEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
+        return super.innerEquals(other, ignoreIds) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
     /**

@@ -231,14 +231,14 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    public int nonSemanticHashCode() {
-        return Objects.hash(super.nonSemanticHashCode(), parentName, field);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
     @Override
-    public boolean nonSemanticEquals(Attribute o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
-        return super.nonSemanticEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override

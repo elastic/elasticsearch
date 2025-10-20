@@ -39,7 +39,7 @@ public class Failure {
     @Override
     public int hashCode() {
         if (node instanceof UnresolvedAttribute ua) {
-            return ua.nonSemanticHashCode();
+            return ua.hashCode(true);
         }
         return Objects.hash(node);
     }
@@ -63,10 +63,8 @@ public class Failure {
         // Otherwise, two failures will be emitted to the user for e.g.
         // `FROM test | STATS max(unknown) by unknown` because the two `unknown` attributes will have differentNameIds - even though they
         // clearly refer to the same problem.
-        if (node instanceof UnresolvedAttribute ua
-            && other.node instanceof UnresolvedAttribute otherUa
-            && ua.getClass() == otherUa.getClass()) {
-            return ua.nonSemanticEquals(otherUa);
+        if (node instanceof UnresolvedAttribute ua) {
+            return ua.equals(other.node, true);
         }
         return Objects.equals(node, other.node);
     }

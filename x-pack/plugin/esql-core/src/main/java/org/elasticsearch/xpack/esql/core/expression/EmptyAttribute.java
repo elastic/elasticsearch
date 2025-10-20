@@ -79,12 +79,12 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    public int nonSemanticHashCode() {
+    protected int innerHashCode(boolean ignoreIds) {
         return EmptyAttribute.class.hashCode();
     }
 
     @Override
-    public boolean nonSemanticEquals(Attribute o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         return true;
     }
 

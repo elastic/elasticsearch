@@ -50,13 +50,13 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    public int nonSemanticHashCode() {
-        return Objects.hash(super.nonSemanticHashCode(), dataType);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), dataType);
     }
 
     @Override
-    public boolean nonSemanticEquals(Attribute o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (TypedAttribute) o;
-        return super.nonSemanticEquals(other) && dataType == other.dataType;
+        return super.innerEquals(other, ignoreIds) && dataType == other.dataType;
     }
 }

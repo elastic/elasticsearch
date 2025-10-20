@@ -17,17 +17,17 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
 /**
  * An {@code Alias} is a {@code NamedExpression} that gets renamed to something else through the Alias.
- *
+ * <p>
  * For example, in the statement {@code 5 + 2 AS x}, {@code x} is an alias which is points to {@code ADD(5, 2)}.
- *
  * And in {@code SELECT col AS x} "col" is a named expression that gets renamed to "x" through an alias.
- *
+ * <p>
+ * Note on equality: The id is respected in {@link #equals(Object)} for Alias because the {@link ReferenceAttribute}
+ * created by {@link #toAttribute()} uses it.
  */
 public final class Alias extends NamedExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(NamedExpression.class, "Alias", Alias::new);
@@ -151,21 +151,5 @@ public final class Alias extends NamedExpression {
      */
     public static Expression unwrap(Expression e) {
         return e instanceof Alias as ? as.child() : e;
-    }
-
-    @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), id());
-    }
-
-    /**
-     * The id is part of equality for Alias because the {@link ReferenceAttribute} created
-     * by {@link #toAttribute()} uses it.
-     */
-    @Override
-    protected boolean innerEquals(Object o) {
-        var other = (Alias) o;
-        return Objects.equals(id(), other.id()) && super.innerEquals(other);
     }
 }

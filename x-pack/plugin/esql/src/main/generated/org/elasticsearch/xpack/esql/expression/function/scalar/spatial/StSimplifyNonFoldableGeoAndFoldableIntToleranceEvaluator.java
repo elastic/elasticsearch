@@ -23,21 +23,21 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyNonFoldableGeoAndConstantToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeoAndConstantToleranceEvaluator.class);
+public final class StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator.class);
 
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator inputGeometry;
 
-  private final double inputTolerance;
+  private final int inputTolerance;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StSimplifyNonFoldableGeoAndConstantToleranceEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator inputGeometry, double inputTolerance,
+  public StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator inputGeometry, int inputTolerance,
       DriverContext driverContext) {
     this.source = source;
     this.inputGeometry = inputGeometry;
@@ -108,7 +108,7 @@ public final class StSimplifyNonFoldableGeoAndConstantToleranceEvaluator impleme
 
   @Override
   public String toString() {
-    return "StSimplifyNonFoldableGeoAndConstantToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
+    return "StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
   }
 
   @Override
@@ -133,23 +133,23 @@ public final class StSimplifyNonFoldableGeoAndConstantToleranceEvaluator impleme
 
     private final EvalOperator.ExpressionEvaluator.Factory inputGeometry;
 
-    private final double inputTolerance;
+    private final int inputTolerance;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory inputGeometry,
-        double inputTolerance) {
+        int inputTolerance) {
       this.source = source;
       this.inputGeometry = inputGeometry;
       this.inputTolerance = inputTolerance;
     }
 
     @Override
-    public StSimplifyNonFoldableGeoAndConstantToleranceEvaluator get(DriverContext context) {
-      return new StSimplifyNonFoldableGeoAndConstantToleranceEvaluator(source, inputGeometry.get(context), inputTolerance, context);
+    public StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator get(DriverContext context) {
+      return new StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator(source, inputGeometry.get(context), inputTolerance, context);
     }
 
     @Override
     public String toString() {
-      return "StSimplifyNonFoldableGeoAndConstantToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
+      return "StSimplifyNonFoldableGeoAndFoldableIntToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
     }
   }
 }

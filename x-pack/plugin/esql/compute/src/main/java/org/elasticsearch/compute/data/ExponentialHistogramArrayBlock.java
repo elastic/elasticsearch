@@ -33,8 +33,20 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex) {
-        BytesRef encodedHisto = encodedHistograms.getBytesRef(valueIndex, new BytesRef());
-        return new BlockBackedHistogram(encodedHisto);
+        return accessor().getExponentialHistogram(valueIndex);
+    }
+
+    @Override
+    public Accessor accessor() {
+        BytesRef bytesRef = new BytesRef();
+        BlockBackedHistogram reusedHistogram = new BlockBackedHistogram();
+        return new Accessor() {
+            @Override
+            public ExponentialHistogram getExponentialHistogram(int valueIndex) {
+                reusedHistogram.reset(encodedHistograms.getBytesRef(valueIndex, bytesRef));
+                return reusedHistogram;
+            }
+        };
     }
 
     static BytesRef encode(ExponentialHistogram histogram, BytesRef growableScratch) {
@@ -191,10 +203,16 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
         // TODO(b/133393): encode all of the ExponentialHistogram data except for min/max/sum/count
         private static final int SCALE_OFFSET = 0;
 
-        private final ByteBuffer data;
+        private ByteBuffer data;
+        private int scale;
 
-        private BlockBackedHistogram(BytesRef bytes) {
+        private BlockBackedHistogram() {
+            data = null;
+        }
+
+        void reset(BytesRef bytes) {
             data = ByteBuffer.wrap(bytes.bytes, bytes.offset, bytes.length).order(ByteOrder.LITTLE_ENDIAN);
+            scale = data.get(data.position() + SCALE_OFFSET);
         }
 
         static BytesRef encode(ExponentialHistogram histogram, BytesRef growableBuffer) {
@@ -225,8 +243,9 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
         @Override
         public int scale() {
+            assert data != null;
             checkForUseAfterClose();
-            return data.get(data.position() + SCALE_OFFSET);
+            return scale;
         }
 
         private void checkForUseAfterClose() {

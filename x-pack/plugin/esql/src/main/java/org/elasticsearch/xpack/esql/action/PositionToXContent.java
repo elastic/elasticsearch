@@ -172,10 +172,13 @@ public abstract class PositionToXContent {
                 }
             };
             case EXPONENTIAL_HISTOGRAM -> new PositionToXContent(block) {
+
+                final ExponentialHistogramBlock.Accessor accessor = ((ExponentialHistogramBlock) block).accessor();
+
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
-                    ExponentialHistogram histogram = ((ExponentialHistogramBlock) block).getExponentialHistogram(valueIndex);
+                    ExponentialHistogram histogram = accessor.getExponentialHistogram(valueIndex);
                     ExponentialHistogramXContent.serialize(builder, histogram);
                     return builder;
                 }

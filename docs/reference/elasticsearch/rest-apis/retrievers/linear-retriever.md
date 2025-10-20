@@ -135,6 +135,7 @@ GET my_index/_search
   }
 }
 ```
+
 1. KNN query weighted 5x
 2. BM25 query weighted 1.5x
 

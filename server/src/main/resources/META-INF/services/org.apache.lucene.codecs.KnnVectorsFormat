@@ -10,7 +10,7 @@ org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsForma
 org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat
 org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat
-org.elasticsearch.index.codec.vectors.es93.ES93Int8FlatVectorFormat
+org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedFlatVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat
 org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat

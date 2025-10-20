@@ -29,7 +29,7 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 
-public class ES93Int8FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -42,7 +42,7 @@ public class ES93Int8FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase 
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93Int8FlatVectorFormat(useBFloat16()));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedFlatVectorsFormat(useBFloat16()));
     }
 
     public void testSearchWithVisitedLimit() {

@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.closeTo;
 
-public class ES93Int8FlatBFloat16VectorFormatTests extends ES93Int8FlatVectorFormatTests {
+public class ES93ScalarQuantizedFlatBFloat16VectorFormatTests extends ES93ScalarQuantizedFlatVectorsFormatTests {
     @Override
     boolean useBFloat16() {
         return true;

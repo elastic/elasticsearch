@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedFlatVectorsFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
@@ -465,7 +466,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.es93.ES93Int8FlatVectorFormat,
+                ES93ScalarQuantizedFlatVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;

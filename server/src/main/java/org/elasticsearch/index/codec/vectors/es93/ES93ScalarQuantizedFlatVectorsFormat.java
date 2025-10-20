@@ -30,21 +30,21 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
-public class ES93Int8FlatVectorFormat extends KnnVectorsFormat {
+public class ES93ScalarQuantizedFlatVectorsFormat extends KnnVectorsFormat {
 
-    static final String NAME = "ES93Int8FlatVectorFormat";
+    static final String NAME = "ES93ScalarQuantizedFlatVectorsFormat";
 
     private final FlatVectorsFormat format;
 
-    public ES93Int8FlatVectorFormat() {
+    public ES93ScalarQuantizedFlatVectorsFormat() {
         this(false, null, 7, false);
     }
 
-    public ES93Int8FlatVectorFormat(boolean useBFloat16) {
+    public ES93ScalarQuantizedFlatVectorsFormat(boolean useBFloat16) {
         this(useBFloat16, null, 7, false);
     }
 
-    public ES93Int8FlatVectorFormat(boolean useBFloat16, Float confidenceInterval, int bits, boolean compress) {
+    public ES93ScalarQuantizedFlatVectorsFormat(boolean useBFloat16, Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
         this.format = new ES93ScalarQuantizedVectorsFormat(useBFloat16, confidenceInterval, bits, compress, false);
     }
@@ -56,7 +56,7 @@ public class ES93Int8FlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES813FlatVectorReader(format.fieldsReader(state));
+        return new ES93FlatVectorsReader(format.fieldsReader(state));
     }
 
     @Override
@@ -69,11 +69,11 @@ public class ES93Int8FlatVectorFormat extends KnnVectorsFormat {
         return NAME + "(name=" + NAME + ", innerFormat=" + format + ")";
     }
 
-    public static class ES813FlatVectorReader extends KnnVectorsReader {
+    public static class ES93FlatVectorsReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
-        public ES813FlatVectorReader(FlatVectorsReader reader) {
+        public ES93FlatVectorsReader(FlatVectorsReader reader) {
             super();
             this.reader = reader;
         }

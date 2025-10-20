@@ -826,9 +826,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() < Fork.MIN_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork requires at least " + Fork.MIN_BRANCHES + " branches");
-        }
         if (subQueries.size() > Fork.MAX_BRANCHES) {
             throw new ParsingException(source(ctx), "Fork supports up to " + Fork.MAX_BRANCHES + " branches");
         }

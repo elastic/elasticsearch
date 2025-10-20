@@ -1005,8 +1005,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | FORK
                ( WHERE content:"fox" )
             """;
-        var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork requires at least 2 branches"));
+        try (var resp = run(query)) {
+            assertNotNull(resp);
+        }
     }
 
     public void testForkWithinFork() {

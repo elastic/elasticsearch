@@ -14,6 +14,8 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -22,10 +24,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -37,8 +38,11 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.IMPLEMENTED_TASK_TYPES;
 
-public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable {
-    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationHandlerV2.class);
+public class AuthorizationPoller extends AllocatedPersistentTask {
+
+    public static final String TASK_NAME = "eis-authorization-poller";
+
+    private static final Logger logger = LogManager.getLogger(AuthorizationPoller.class);
 
     private final ServiceComponents serviceComponents;
     private final ModelRegistry modelRegistry;
@@ -52,19 +56,33 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
-    public ElasticInferenceServiceAuthorizationHandlerV2(
+    public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
+
+    public record Parameters(
         ServiceComponents serviceComponents,
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         Sender sender,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ElasticInferenceServiceComponents components,
         ModelRegistry modelRegistry
-    ) {
-        this(serviceComponents, authorizationRequestHandler, sender, elasticInferenceServiceSettings, components, modelRegistry, null);
+    ) {}
+
+    public AuthorizationPoller(TaskFields taskFields, Parameters parameters) {
+        this(
+            taskFields,
+            parameters.serviceComponents,
+            parameters.authorizationRequestHandler,
+            parameters.sender,
+            parameters.elasticInferenceServiceSettings,
+            parameters.components,
+            parameters.modelRegistry,
+            null
+        );
     }
 
     // default for testing
-    ElasticInferenceServiceAuthorizationHandlerV2(
+    AuthorizationPoller(
+        TaskFields taskFields,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         Sender sender,
@@ -74,6 +92,7 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
         // this is a hack to facilitate testing
         Runnable callback
     ) {
+        super(taskFields.id, taskFields.type, taskFields.action, taskFields.description, taskFields.parentTask, taskFields.headers);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.authorizationHandler = Objects.requireNonNull(authorizationRequestHandler);
         this.sender = Objects.requireNonNull(sender);
@@ -83,7 +102,7 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
         this.callback = callback;
     }
 
-    public void init() {
+    public void start() {
         if (initialized.compareAndSet(false, true)) {
             logger.debug("Initializing authorization logic");
             serviceComponents.threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::scheduleAndSendAuthorizationRequest);
@@ -106,7 +125,7 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
     }
 
     @Override
-    public void close() throws IOException {
+    protected void onCancelled() {
         shutdown.set(true);
         if (lastAuthTask.get() != null) {
             lastAuthTask.get().cancel();
@@ -156,12 +175,16 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
     }
 
     private void sendAuthorizationRequest() {
+        if (modelRegistry.isReady() == false) {
+            return;
+        }
+
         var finalListener = ActionListener.<Void>running(() -> {
             if (callback != null) {
                 callback.run();
             }
             firstAuthorizationCompletedLatch.countDown();
-        }).delegateResponse((delegate, e) -> { logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints"); });
+        }).delegateResponse((delegate, e) -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints"));
 
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
@@ -195,6 +218,7 @@ public class ElasticInferenceServiceAuthorizationHandlerV2 implements Closeable 
 
         var modelsToAdd = PreconfiguredEndpointModelAdapter.getModels(newInferenceIds, elasticInferenceServiceComponents);
 
+        // TODO
         ActionListener<List<ModelRegistry.ModelStoreResponse>> storeListener = ActionListener.wrap(responses -> {
             for (var response : responses) {
                 if (response.failed()) {

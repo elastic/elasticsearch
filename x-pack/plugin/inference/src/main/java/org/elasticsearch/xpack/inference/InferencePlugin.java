@@ -133,8 +133,8 @@ import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationInitializer;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandlerV2;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
@@ -162,6 +162,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
@@ -225,7 +226,6 @@ public class InferencePlugin extends Plugin
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
-    private final SetOnce<ElasticInferenceServiceAuthorizationHandlerV2> eisAuthorizationHandler = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -326,17 +326,21 @@ public class InferencePlugin extends Plugin
         );
 
         var eisComponents = new ElasticInferenceServiceComponents(inferenceServiceSettings.getElasticInferenceServiceUrl());
-        var eisAuthPoller = new ElasticInferenceServiceAuthorizationHandlerV2(
-            serviceComponents.get(),
-            authorizationHandler,
-            elasicInferenceServiceFactory.get().createSender(),
-            inferenceServiceSettings,
-            eisComponents,
-            modelRegistry.get()
+
+        var authTaskExecutor = new AuthorizationTaskExecutor(
+            services.client(),
+            services.clusterService(),
+            services.threadPool(),
+            new AuthorizationPoller.Parameters(
+                serviceComponents.get(),
+                authorizationHandler,
+                elasicInferenceServiceFactory.get().createSender(),
+                inferenceServiceSettings,
+                eisComponents,
+                modelRegistry.get()
+            )
         );
-        var eisAuthInitializer = new AuthorizationInitializer(eisAuthPoller);
-        services.clusterService().addListener(eisAuthInitializer);
-        eisAuthorizationHandler.set(eisAuthPoller);
+        authTaskExecutor.init();
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
@@ -412,6 +416,7 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
+        components.add(authTaskExecutor);
 
         return components;
     }
@@ -449,54 +454,52 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        var entries = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new));
-        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new));
-        entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
-        entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
-        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
-        entries.add(
-            new NamedWriteableRegistry.Entry(
-                QueryBuilder.class,
-                InterceptedInferenceMatchQueryBuilder.NAME,
-                InterceptedInferenceMatchQueryBuilder::new
-            )
-        );
-        entries.add(
-            new NamedWriteableRegistry.Entry(
-                QueryBuilder.class,
-                InterceptedInferenceKnnVectorQueryBuilder.NAME,
-                InterceptedInferenceKnnVectorQueryBuilder::new
-            )
-        );
-        entries.add(
-            new NamedWriteableRegistry.Entry(
-                QueryBuilder.class,
-                InterceptedInferenceSparseVectorQueryBuilder.NAME,
-                InterceptedInferenceSparseVectorQueryBuilder::new
-            )
-        );
-        return entries;
+        return Stream.of(
+            List.of(
+                new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new),
+                new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new),
+                new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new),
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(
+                    QueryBuilder.class,
+                    InterceptedInferenceMatchQueryBuilder.NAME,
+                    InterceptedInferenceMatchQueryBuilder::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    QueryBuilder.class,
+                    InterceptedInferenceKnnVectorQueryBuilder.NAME,
+                    InterceptedInferenceKnnVectorQueryBuilder::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    QueryBuilder.class,
+                    InterceptedInferenceSparseVectorQueryBuilder.NAME,
+                    InterceptedInferenceSparseVectorQueryBuilder::new
+                )
+            ),
+            InferenceNamedWriteablesProvider.getNamedWriteables(),
+            AuthorizationTaskExecutor.getNamedWriteables()
+        ).flatMap(List::stream).toList();
+
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                new ParseField(ModelRegistryMetadata.TYPE),
-                ModelRegistryMetadata::fromXContent
-            )
-        );
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                new ParseField(ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME),
-                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
-            )
-        );
-        return namedXContent;
+        return Stream.of(
+            List.of(
+                new NamedXContentRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    new ParseField(ModelRegistryMetadata.TYPE),
+                    ModelRegistryMetadata::fromXContent
+                ),
+                new NamedXContentRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    new ParseField(ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME),
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
+                )
+            ),
+            AuthorizationTaskExecutor.getNamedXContentParsers()
+        ).flatMap(List::stream).toList();
     }
 
     @Override
@@ -611,7 +614,7 @@ public class InferencePlugin extends Plugin
         var serviceComponentsRef = serviceComponents.get();
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
-        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose, eisAuthorizationHandler.get());
+        IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
     }
 
     @Override

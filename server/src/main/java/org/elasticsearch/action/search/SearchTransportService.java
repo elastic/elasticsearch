@@ -452,7 +452,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,

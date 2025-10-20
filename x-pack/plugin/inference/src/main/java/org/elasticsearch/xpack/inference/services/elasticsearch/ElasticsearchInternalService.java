@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -39,15 +38,16 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -115,8 +114,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
-
-    public static final FeatureFlag ELASTIC_RERANKER_CHUNKING = new FeatureFlag("elastic_reranker_chunking_long_documents");
 
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
@@ -645,7 +642,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
-            (l, inferenceResult) -> l.onResponse(TextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
+            (l, inferenceResult) -> l.onResponse(DenseEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
         );
 
         var maybeDeployListener = mlResultsListener.delegateResponse(
@@ -698,18 +695,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         });
 
-        if (model instanceof ElasticRerankerModel elasticRerankerModel && ELASTIC_RERANKER_CHUNKING.isEnabled()) {
-            var serviceSettings = elasticRerankerModel.getServiceSettings();
-            var longDocumentStrategy = serviceSettings.getLongDocumentStrategy();
-            if (longDocumentStrategy == ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK) {
-                var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
-                inputs = rerankChunker.getChunkedInputs();
-                resultsListener = rerankChunker.parseChunkedRerankResultsListener(resultsListener);
-            }
-
-        }
-        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
-
         var returnDocs = Boolean.TRUE;
         if (returnDocuments != null) {
             returnDocs = returnDocuments;
@@ -717,6 +702,18 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var requestSettings = RerankTaskSettings.fromMap(requestTaskSettings);
             returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
         }
+
+        if (model instanceof ElasticRerankerModel elasticRerankerModel) {
+            var serviceSettings = elasticRerankerModel.getServiceSettings();
+            var longDocumentStrategy = serviceSettings.getLongDocumentStrategy();
+            if (longDocumentStrategy == ElasticRerankerServiceSettings.LongDocumentStrategy.CHUNK) {
+                var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
+                inputs = rerankChunker.getChunkedInputs();
+                resultsListener = rerankChunker.parseChunkedRerankResultsListener(resultsListener, returnDocs);
+            }
+
+        }
+        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
 
         Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
 
@@ -775,22 +772,22 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<InferenceServiceResults> chunkPartListener
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            var translated = new ArrayList<TextEmbeddingFloatResults.Embedding>();
+            var translated = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
 
             for (var inferenceResult : inferenceResults) {
-                if (inferenceResult instanceof MlTextEmbeddingResults mlTextEmbeddingResult) {
-                    translated.add(new TextEmbeddingFloatResults.Embedding(mlTextEmbeddingResult.getInferenceAsFloat()));
+                if (inferenceResult instanceof MlDenseEmbeddingResults mlTextEmbeddingResult) {
+                    translated.add(new DenseEmbeddingFloatResults.Embedding(mlTextEmbeddingResult.getInferenceAsFloat()));
                 } else if (inferenceResult instanceof ErrorInferenceResults error) {
                     chunkPartListener.onFailure(error.getException());
                     return;
                 } else {
                     chunkPartListener.onFailure(
-                        createInvalidChunkedResultException(MlTextEmbeddingResults.NAME, inferenceResult.getWriteableName())
+                        createInvalidChunkedResultException(MlDenseEmbeddingResults.NAME, inferenceResult.getWriteableName())
                     );
                     return;
                 }
             }
-            chunkPartListener.onResponse(new TextEmbeddingFloatResults(translated));
+            chunkPartListener.onResponse(new DenseEmbeddingFloatResults(translated));
         } else { // sparse
             var translated = new ArrayList<SparseEmbeddingResults.Embedding>();
 

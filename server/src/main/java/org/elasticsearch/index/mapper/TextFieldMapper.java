@@ -1030,12 +1030,12 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         * Returns true if the delegate sub-field can be used for querying only (ie. isSearchable must be true)
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate.isPresent()
                 && syntheticSourceDelegate.get().ignoreAbove().isSet() == false
-                && syntheticSourceDelegate.get().isIndexed();
+                && syntheticSourceDelegate.get().isSearchable();
         }
 
         /**
@@ -1050,12 +1050,12 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         * Returns true if the delegate sub-field can be used for querying only (ie. isSearchable must be true)
          */
         public boolean canUseSyntheticSourceDelegateForQueryingEquality(String str) {
             if (syntheticSourceDelegate.isEmpty()
                 // Can't push equality to an index if there isn't an index
-                || syntheticSourceDelegate.get().isIndexed() == false
+                || syntheticSourceDelegate.get().isSearchable() == false
                 // ESQL needs docs values to push equality
                 || syntheticSourceDelegate.get().hasDocValues() == false) {
                 return false;
@@ -1116,9 +1116,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 return fallbackSyntheticSourceBlockLoader(blContext);
             }
-
             // otherwise, load values from _source (synthetic or not)
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
@@ -1174,10 +1173,8 @@ public final class TextFieldMapper extends FieldMapper {
                 return BlockSourceReader.lookupMatchingAll();
             }
 
-            if (isIndexed()) {
-                if (getTextSearchInfo().hasNorms()) {
-                    return BlockSourceReader.lookupFromNorms(name());
-                }
+            if (indexType.hasTerms() && getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
             } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }
@@ -1249,7 +1246,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name()), fieldDataContext.indexSettings()),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );
@@ -1695,7 +1692,7 @@ public final class TextFieldMapper extends FieldMapper {
         // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we need to check both this
         // field and the delegate
 
-        // first field loader - to check whether the field's value was stored under this match_only_text field
+        // first field loader - to check whether the field's value was stored under this text field
         final String fieldName = fieldType().syntheticSourceFallbackFieldName();
         final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
             @Override

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,35 +24,16 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
 
-    private record SkipUnavailableUpdate(
-        ProjectId originProjectId,
-        ProjectId linkedProjectId,
-        String linkedProjectAlias,
-        boolean skipUnavailable
-    ) {}
-
     private static class StubLinkedProjectConfigListener implements LinkedProjectConfigListener {
         LinkedProjectConfig updatedConfig;
-        SkipUnavailableUpdate skipUnavailableUpdate;
 
         @Override
         public void updateLinkedProject(LinkedProjectConfig config) {
             updatedConfig = config;
         }
 
-        @Override
-        public void skipUnavailableChanged(
-            ProjectId originProjectId,
-            ProjectId linkedProjectId,
-            String linkedProjectAlias,
-            boolean skipUnavailable
-        ) {
-            skipUnavailableUpdate = new SkipUnavailableUpdate(originProjectId, linkedProjectId, linkedProjectAlias, skipUnavailable);
-        }
-
         void reset() {
             updatedConfig = null;
-            skipUnavailableUpdate = null;
         }
     }
 
@@ -66,9 +46,11 @@ public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
         final var alias = randomAlphaOfLength(10);
 
         final var initialProxyAddress = "localhost:9400";
+        final var initialSkipUnavailable = randomBoolean();
         final var initialSettings = Settings.builder()
             .put("cluster.remote." + alias + ".mode", "proxy")
             .put("cluster.remote." + alias + ".proxy_address", initialProxyAddress)
+            .put("cluster.remote." + alias + ".skip_unavailable", initialSkipUnavailable)
             .build();
         final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(initialSettings);
         final var service = new ClusterSettingsLinkedProjectConfigService(
@@ -76,7 +58,9 @@ public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
             clusterSettings,
             DefaultProjectResolver.INSTANCE
         );
-        final var config = new ProxyLinkedProjectConfigBuilder(alias).proxyAddress(initialProxyAddress).build();
+        final var config = new ProxyLinkedProjectConfigBuilder(alias).proxyAddress(initialProxyAddress)
+            .skipUnavailable(initialSkipUnavailable)
+            .build();
 
         // Verify we can get the linked projects on startup.
         assertThat(service.getInitialLinkedProjectConfigs(), equalTo(List.of(config)));
@@ -92,48 +76,23 @@ public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
         clusterSettings.applySettings(initialSettings);
         for (int i = 0; i < numListeners; ++i) {
             assertThat(listeners.get(i).updatedConfig, sameInstance(null));
-            assertThat(listeners.get(i).skipUnavailableUpdate, sameInstance(null));
             listeners.get(i).reset();
         }
 
-        // Change the skip_unavailable, leave the other settings alone, we should get the skip_unavailable update only.
-        var expectedSkipUnavailableUpdate = new SkipUnavailableUpdate(
-            config.originProjectId(),
-            config.linkedProjectId(),
-            config.linkedProjectAlias(),
-            config.skipUnavailable() == false
-        );
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(initialSettings)
-                .put("cluster.remote." + alias + ".skip_unavailable", expectedSkipUnavailableUpdate.skipUnavailable)
-                .build()
-        );
-        for (int i = 0; i < numListeners; ++i) {
-            assertThat(listeners.get(i).updatedConfig, sameInstance(null));
-            assertThat(listeners.get(i).skipUnavailableUpdate, equalTo(expectedSkipUnavailableUpdate));
-            listeners.get(i).reset();
-        }
-
-        // Change the proxy address, and set skip_unavailable back to original value, we should get both updates.
-        expectedSkipUnavailableUpdate = new SkipUnavailableUpdate(
-            config.originProjectId(),
-            config.linkedProjectId(),
-            config.linkedProjectAlias(),
-            config.skipUnavailable()
-        );
+        // Change the proxy address and skip_unavailable values.
         final var newProxyAddress = "localhost:9401";
+        final var newSkipUnavailable = config.skipUnavailable() == false;
         clusterSettings.applySettings(
             Settings.builder()
                 .put(initialSettings)
                 .put("cluster.remote." + alias + ".proxy_address", newProxyAddress)
-                .put("cluster.remote." + alias + ".skip_unavailable", expectedSkipUnavailableUpdate.skipUnavailable)
+                .put("cluster.remote." + alias + ".skip_unavailable", newSkipUnavailable)
                 .build()
         );
         for (int i = 0; i < numListeners; ++i) {
             assertNotNull("expected non-null updatedConfig for listener " + i, listeners.get(i).updatedConfig);
             assertThat(listeners.get(i).updatedConfig.proxyAddress(), equalTo(newProxyAddress));
-            assertThat(listeners.get(i).skipUnavailableUpdate, equalTo(expectedSkipUnavailableUpdate));
+            assertThat(listeners.get(i).updatedConfig.skipUnavailable(), equalTo(newSkipUnavailable));
         }
     }
 }

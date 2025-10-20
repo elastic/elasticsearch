@@ -45,7 +45,7 @@ PUT my-index/
   }
 }
 ```
-
+% TESTSETUP
 
 ## Define a runtime field only in a search request [painless-runtime-fields-query]
 

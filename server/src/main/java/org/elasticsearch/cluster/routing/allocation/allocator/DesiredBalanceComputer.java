@@ -291,7 +291,25 @@ public class DesiredBalanceComputer {
         while ((commands = pendingDesiredBalanceMoves.poll()) != null) {
             for (MoveAllocationCommand command : commands) {
                 try {
-                    command.execute(routingAllocation, false);
+                    final var rerouteExplanation = command.execute(routingAllocation, false);
+                    assert rerouteExplanation.decisions().type() != Decision.Type.NO : "should have thrown for NO decision";
+                    if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
+                        final ShardRouting[] initializingShards = routingNodes.node(
+                            routingAllocation.nodes().resolveNode(command.toNode()).getId()
+                        ).initializing();
+                        assert initializingShards.length == 1
+                            : "expect exactly one relocating shard, but got: " + List.of(initializingShards);
+                        final var initializingShard = initializingShards[0];
+                        assert routingAllocation.nodes()
+                            .resolveNode(command.fromNode())
+                            .getId()
+                            .equals(initializingShard.relocatingNodeId())
+                            : initializingShard
+                                + " has unexpected relocation source node, expect node "
+                                + routingAllocation.nodes().resolveNode(command.fromNode());
+                        clusterInfoSimulator.simulateShardStarted(initializingShard);
+                        routingNodes.startShard(initializingShard, changes, 0L);
+                    }
                 } catch (RuntimeException e) {
                     logger.debug(
                         () -> "move shard ["
@@ -483,7 +501,7 @@ public class DesiredBalanceComputer {
             );
         }
 
-        maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation);
+        maybeLogAllocationExplainForUnassigned(finishReason, routingNodes, routingAllocation, desiredBalanceInput.index());
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
@@ -559,13 +577,23 @@ public class DesiredBalanceComputer {
     private void maybeLogAllocationExplainForUnassigned(
         DesiredBalance.ComputationFinishReason finishReason,
         RoutingNodes routingNodes,
-        RoutingAllocation routingAllocation
+        RoutingAllocation routingAllocation,
+        long inputIndex
     ) {
         if (allocationExplainLogger.isDebugEnabled()) {
+            final var clusterState = routingAllocation.getClusterState();
+            if (clusterState.metadata().nodeShutdowns().contains(clusterState.nodes().getLocalNodeId())) {
+                // Master is shutting down, the project is likely being deleted. Shards can be unassigned and no need to report
+                return;
+            }
             if (lastTrackedUnassignedShard != null) {
                 if (Stream.concat(routingNodes.unassigned().stream(), routingNodes.unassigned().ignored().stream())
                     .noneMatch(shardRouting -> shardRouting.equals(lastTrackedUnassignedShard))) {
-                    allocationExplainLogger.debug("previously tracked unassigned shard [{}] is now assigned", lastTrackedUnassignedShard);
+                    allocationExplainLogger.debug(
+                        "computation for input index [{}] assigned previously tracked unassigned shard [{}]",
+                        inputIndex,
+                        lastTrackedUnassignedShard
+                    );
                     lastTrackedUnassignedShard = null;
                 } else {
                     return; // The last tracked unassigned shard is still unassigned, keep tracking it
@@ -589,7 +617,8 @@ public class DesiredBalanceComputer {
                     routingAllocation.setDebugMode(originalDebugMode);
                 }
                 allocationExplainLogger.debug(
-                    "unassigned shard [{}] with allocation decision {}",
+                    "computation converged for input index [{}] with unassigned shard [{}] due to allocation decision {}",
+                    inputIndex,
                     lastTrackedUnassignedShard,
                     org.elasticsearch.common.Strings.toString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))

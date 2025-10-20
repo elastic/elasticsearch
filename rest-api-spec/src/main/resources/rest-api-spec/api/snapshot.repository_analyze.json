@@ -29,51 +29,62 @@
     },
     "params": {
       "blob_count": {
-        "type": "number",
+        "type": "int",
+        "default": 100,
         "description": "Number of blobs to create during the test. Defaults to 100."
       },
       "concurrency": {
-        "type": "number",
+        "type": "int",
+        "default": 10,
         "description": "Number of operations to run concurrently during the test. Defaults to 10."
       },
       "register_operation_count": {
-        "type": "number",
+        "type": "int",
+        "default": 10,
         "description": "The minimum number of linearizable register operations to perform in total. Defaults to 10."
       },
       "read_node_count": {
-        "type": "number",
+        "type": "int",
+        "default": 10,
         "description": "Number of nodes on which to read a blob after writing. Defaults to 10."
       },
       "early_read_node_count": {
-        "type": "number",
+        "type": "int",
+        "default": 2,
         "description": "Number of nodes on which to perform an early read on a blob, i.e. before writing has completed. Early reads are rare actions so the 'rare_action_probability' parameter is also relevant. Defaults to 2."
       },
       "seed": {
-        "type": "number",
+        "type": "int",
         "description": "Seed for the random number generator used to create the test workload. Defaults to a random value."
       },
       "rare_action_probability": {
-        "type": "number",
+        "type": "double",
+        "default": 0,
         "description": "Probability of taking a rare action such as an early read or an overwrite. Defaults to 0.02."
       },
       "max_blob_size": {
         "type": "string",
+        "default": "10mb",
         "description": "Maximum size of a blob to create during the test, e.g '1gb' or '100mb'. Defaults to '10mb'."
       },
       "max_total_data_size": {
         "type": "string",
+        "default": "1gb",
         "description": "Maximum total size of all blobs to create during the test, e.g '1tb' or '100gb'. Defaults to '1gb'."
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout. Defaults to '30s'."
       },
       "detailed": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to return detailed results or a summary. Defaults to 'false' so that only the summary is returned."
       },
       "rarely_abort_writes": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to rarely abort writes before they complete. Defaults to 'true'."
       }
     }

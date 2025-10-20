@@ -28,6 +28,10 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
@@ -65,10 +69,9 @@ public class ES93ScalarQuantizedFlatVectorsFormatTests extends BaseKnnVectorsFor
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(2, offHeap.size());
-                    int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
-                    assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
-                    assertTrue(offHeap.get("veq") > 0L);
+                    assertThat(offHeap, aMapWithSize(2));
+                    assertThat(offHeap, hasEntry("vec", vector.length * (useBFloat16() ? BFloat16.BYTES : Float.BYTES)));
+                    assertThat(offHeap, hasEntry(equalTo("veq"), greaterThan(0L)));
                 }
             }
         }

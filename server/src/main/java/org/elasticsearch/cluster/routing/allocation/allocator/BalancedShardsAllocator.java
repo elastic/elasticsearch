@@ -707,7 +707,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 // Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
                                 shardBalanced = true;
                             } else {
-                                // A THROTTLE decision can happen when it is NOT simulating
+                                // A THROTTLE decision can happen when not simulating
                                 assert allocation.isSimulating() == false
                                     : "unexpected THROTTLE decision (simulation="
                                         + allocation.isSimulating()
@@ -839,16 +839,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
 
-                // A THROTTLE allocation decision can happen when:
-                // 1. Not simulating
-                // 2. Or, there are prior shard movements
-                assert moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
-                    || (allocation.isSimulating() == false || shardMoved)
+                // A THROTTLE allocation decision can happen when not simulating
+                assert moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED || allocation.isSimulating() == false
                     : "unexpected allocation decision ["
                         + moveDecision.getAllocationDecision()
                         + "] (simulation="
                         + allocation.isSimulating()
-                        + ") with no prior shard movements when moving shard ["
+                        + ") with "
+                        + (shardMoved ? "" : "no ")
+                        + "prior shard movements when moving shard ["
                         + shardRouting
                         + "]";
             }

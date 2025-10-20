@@ -7,10 +7,21 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class TransportGetStackTracesActionTests extends ESTestCase {
     public void testSliceEmptyList() {
@@ -57,5 +68,38 @@ public class TransportGetStackTracesActionTests extends ESTestCase {
         List<String> input = randomList(slices + 1, 20000, () -> "s");
         List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
+    }
+
+    public void testDetailsHandlerOnConcurrentFailure() throws InterruptedException {
+        ActionListener<GetStackTracesResponse> listener = mock();
+
+        var handler = new TransportGetStackTracesAction.DetailsHandler(mock(), listener, 0, 0, 1, 2);
+
+        var executables1 = new MultiGetItemResponse(null, new MultiGetResponse.Failure("executables", "1", new RuntimeException()));
+        var stackframes1 = new MultiGetItemResponse(null, new MultiGetResponse.Failure("stackframes", "1", new RuntimeException()));
+        var stackframes2 = new MultiGetItemResponse(null, new MultiGetResponse.Failure("stackframes", "2", new RuntimeException()));
+
+        var t1 = Thread.ofVirtual()
+            .start(() -> handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[] { executables1 })));
+        var t2 = Thread.ofVirtual()
+            .start(() -> handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[] { stackframes1 })));
+        var t3 = Thread.ofVirtual()
+            .start(() -> handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[] { stackframes2 })));
+
+        t1.join();
+        t2.join();
+        t3.join();
+
+        verify(listener, times(1)).onFailure(assertArg(failure -> {
+            assertThat(
+                failure,
+                anyOf(
+                    is(executables1.getFailure().getFailure()),
+                    is(stackframes1.getFailure().getFailure()),
+                    is(stackframes2.getFailure().getFailure())
+                )
+            );
+            assertThat(failure.getSuppressed(), arrayWithSize(2));
+        }));
     }
 }

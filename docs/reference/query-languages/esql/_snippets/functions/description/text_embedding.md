@@ -2,5 +2,5 @@
 
 **Description**
 
-Generates dense vector embeddings for text using a specified inference endpoint.
+Generates dense vector embeddings from text input using a specified [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). Use this function to generate query vectors for KNN searches against your vectorized data or others dense vector based operations.
 

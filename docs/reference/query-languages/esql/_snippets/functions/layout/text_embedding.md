@@ -2,7 +2,7 @@
 
 ## `TEXT_EMBEDDING` [esql-text_embedding]
 ```{applies_to}
-stack: development
+stack: preview 9.3
 serverless: preview
 ```
 

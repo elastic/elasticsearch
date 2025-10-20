@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -93,6 +94,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
+    protected final SearchResponseMetrics searchResponseMetrics;
+    protected long phaseStartTimeInNanos;
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -114,7 +117,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -155,6 +159,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     protected void notifyListShards(
@@ -221,6 +226,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     protected final void run() {
+        phaseStartTimeInNanos = System.nanoTime();
         if (outstandingShards.get() == 0) {
             onPhaseDone();
             return;
@@ -666,6 +672,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        searchResponseMetrics.recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos);
         executeNextPhase(getName(), this::getNextPhase);
     }
 
@@ -682,6 +689,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public SearchTransportService getSearchTransport() {
         return searchTransportService;
+    }
+
+    /**
+     * Returns the {@link SearchResponseMetrics} to record search phase timings
+     */
+    public SearchResponseMetrics getSearchResponseMetrics() {
+        return searchResponseMetrics;
     }
 
     public final void execute(Runnable command) {

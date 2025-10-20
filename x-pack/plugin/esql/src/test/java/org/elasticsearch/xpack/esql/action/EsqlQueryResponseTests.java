@@ -1281,7 +1281,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case EXPONENTIAL_HISTOGRAM -> {
                         ExponentialHistogramBlockBuilder expHistoBuilder = (ExponentialHistogramBlockBuilder) builder;
                         Map<String, Object> serializedHisto = Types.forciblyCast(value);
-                        expHistoBuilder.append(ExponentialHistogramXContent.parseForTesting(serializedHisto));
+                        ExponentialHistogram parsed = ExponentialHistogramXContent.parseForTesting(serializedHisto);
+                        if (parsed == null) {
+                            expHistoBuilder.appendNull();
+                        } else {
+                            expHistoBuilder.append(parsed);
+                        }
                     }
                 }
             }

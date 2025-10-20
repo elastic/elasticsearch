@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
@@ -27,12 +26,9 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
         this.tempScratch = new BytesRef(new byte[INITIAL_SCRATCH_SIZE], 0, INITIAL_SCRATCH_SIZE);
     }
 
-    public ExponentialHistogramBlockBuilder append(@Nullable ExponentialHistogram value) {
-        if (value == null) {
-            appendNull();
-        } else {
-            encodedHistogramsBuilder.appendBytesRef(ExponentialHistogramArrayBlock.encode(value, tempScratch));
-        }
+    public ExponentialHistogramBlockBuilder append(ExponentialHistogram value) {
+        assert value != null;
+        encodedHistogramsBuilder.appendBytesRef(ExponentialHistogramArrayBlock.encode(value, tempScratch));
         return this;
     }
 

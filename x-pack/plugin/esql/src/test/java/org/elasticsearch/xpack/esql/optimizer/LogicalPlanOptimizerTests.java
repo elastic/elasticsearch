@@ -9237,8 +9237,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testNestedSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
-            FROM test, (FROM test1, (FROM languages
-                                                        | WHERE language_code > 0))
+            FROM test, (FROM test, (FROM languages
+                                                      | WHERE language_code > 0))
             | WHERE emp_no > 10000
             """));
         assertTrue(e.getMessage().startsWith("Found "));

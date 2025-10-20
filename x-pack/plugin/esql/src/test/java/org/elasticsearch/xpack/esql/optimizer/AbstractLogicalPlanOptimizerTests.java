@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultSubqueryResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
@@ -215,7 +216,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                Map.of("test1", subqueryIndex1, "languages", subqueryIndex2, "test_mixed_types", subqueryIndex3)
+                defaultSubqueryResolution()
             ),
             TEST_VERIFIER
         );

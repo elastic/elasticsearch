@@ -441,7 +441,7 @@ public abstract class FullTextFunction extends Function
     @Override
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
         // check plan again after predicates are pushed down into subqueries
-        return FullTextFunction::checkFullTextQueryFunctions;
+        return postAnalysisPlanVerification();
     }
 
     private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {

@@ -470,6 +470,9 @@ public final class EsqlTestUtils {
         );
     }
 
+    /**
+     * Analyzer context with subquery resolutions.
+     */
     public static AnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,

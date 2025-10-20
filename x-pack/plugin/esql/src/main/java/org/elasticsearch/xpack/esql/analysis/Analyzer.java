@@ -2286,14 +2286,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            /* The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output,
-             * if the conversion functions in the main query are pushed down into the UnionAll branches, a new ReferenceAttribute
-             * is created for the corresponding output of UnionAll, the value is the new ReferenceAttribute
-             */
+            // The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output,
+            // if the conversion functions in the main query are pushed down into the UnionAll branches, a new ReferenceAttribute
+            // is created for the corresponding output of UnionAll, the value is the new ReferenceAttribute
             Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes = new HashMap<>();
-            /* The list of attributes in the UnionAll output that have been updated. The parent plans that reference these attributes
-             * need to be updated accordingly.
-             */
+
+            // The list of attributes in the UnionAll output that have been updated.
+            // The parent plans that reference these attributes need to be updated accordingly.
             List<Attribute> updatedUnionAllOutput = new ArrayList<>();
 
             // First push down the conversion functions into the UnionAll branches
@@ -2324,17 +2323,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting, updatedUnionAllOutput);
         }
 
+        /**
+         * Push down the explicit conversion functions into the UnionAll branches
+         */
         private static LogicalPlan maybePushDownConvertFunctions(
             UnionAll unionAll,
             LogicalPlan plan,
             Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
         ) {
-            /* Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
-             * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
-             * The values of convertFunctionsToAttributes are the new ReferenceAttributes created for the updated unionAll
-             *  output after pushing down the conversion functions.
-             */
+            // Collect all conversion functions that convert the UnionAll outputs to a different type
             Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(unionAll, plan);
+
             if (oldOutputToConvertFunctions.isEmpty()) { // nothing to push down
                 return unionAll;
             }
@@ -2370,11 +2369,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
             }
 
+            // Populate convertFunctionsToAttributes. The values of convertFunctionsToAttributes are the new ReferenceAttributes
+            // in the new UnionAll outputs created for the updated unionAll output after pushing down the conversion functions.
             return outputChanged
                 ? rebuildUnionAll(unionAll, newChildren, newOutputToConvertFunctions, convertFunctionsToAttributes)
                 : unionAll;
         }
 
+        /**
+         * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
+         * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         */
         private static Map<String, Set<AbstractConvertFunction>> collectConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
             Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
             plan.forEachExpressionDown(AbstractConvertFunction.class, f -> {
@@ -2390,6 +2395,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return convertFunctions;
         }
 
+        /**
+         * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
+         */
         private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
             // Fork/UnionAll adds an EsqlProject on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
@@ -2401,6 +2409,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return child;
         }
 
+        /**
+         * Rebuild the UnionAll with the new children and the new output after pushing down the conversion functions,
+         * and populate convertFunctionsToAttributes with the mapping between conversion functions and the
+         * new ReferenceAttributes in the new UnionAll output.
+         */
         private static LogicalPlan rebuildUnionAll(
             UnionAll unionAll,
             List<LogicalPlan> newChildren,
@@ -2461,6 +2474,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new UnionAll(unionAll.source(), newChildren, newOutput);
         }
 
+        /**
+         * Replace the conversion functions with the corresponding attributes in the UnionAll output
+         */
         private static LogicalPlan replaceConvertFunctions(
             LogicalPlan plan,
             Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
@@ -2486,6 +2502,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
+        /**
+         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+         */
         private static LogicalPlan implicitCastingUnionAllOutput(
             UnionAll unionAll,
             LogicalPlan plan,
@@ -2535,6 +2554,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes, updatedUnionAllOutput) : unionAll;
         }
 
+        /**
+         * Build a map of UnionAll output to a list of LogicalPlan that reference this output
+         */
         private static Map<Attribute, List<LogicalPlan>> outputToPlans(UnionAll unionAll, LogicalPlan plan) {
             Map<Attribute, List<LogicalPlan>> outputToPlans = new HashMap<>();
             plan.forEachDown(p -> p.forEachExpression(Attribute.class, attr -> {
@@ -2578,6 +2600,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return null;
         }
 
+        /**
+         * Resolve the attribute to the target type, if target type is null, create:
+         * an UnsupportedAttribute if the attribute is referenced in the parent plans,
+         * a Null alias with keyword type if the attribute is not referenced in the parent plans.
+         */
         private static Attribute resolveAttribute(
             Attribute oldAttr,
             DataType targetType,
@@ -2652,6 +2679,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return dataTypes;
         }
 
+        /**
+         * Rebuild the UnionAll with the new children and the new output after implicit casting date and date_nanos types,
+         * and populate updatedUnionAllOutput with the list of attributes in the UnionAll output that have been updated.
+         */
         private static UnionAll rebuildUnionAllOutput(
             UnionAll unionAll,
             List<LogicalPlan> newChildren,
@@ -2686,6 +2717,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new UnionAll(unionAll.source(), newChildren, newOutput);
         }
 
+        /**
+         * Update the attributes referencing the updated UnionAll output
+         */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput

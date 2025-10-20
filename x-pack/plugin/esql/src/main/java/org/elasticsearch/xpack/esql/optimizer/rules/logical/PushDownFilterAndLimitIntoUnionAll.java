@@ -32,12 +32,32 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_A
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
 /**
- * Push down filters that can be evaluated by the UnionAll child to each child, below the added
- * {@code Limit} and {@code Subquery}, so that the filters can be pushed down further to the
- * data source when possible. Filters that cannot be pushed down remain above the UnionAll.
+ * Push down filters that can be evaluated by the {@code UnionAll} branch to each branch, below the added {@code Limit} and
+ * {@code Subquery}, so that the filters can be pushed down further to the data source when possible. Filters that cannot be pushed down
+ * remain above the {@code UnionAll}.
  *
- * Also push down the {@code Limit} added by {@code AddImplicitForkLimit} below the
- * {@code Subquery}, so that the other rules related to {@code Limit} optimization can be applied.
+ * Also push down the {@code Limit} added by {@code AddImplicitForkLimit} below the {@code Subquery}, so that the other rules related
+ * to {@code Limit} optimization can be applied.
+ *
+ * This rule applies for certain patterns of {@code UnionAll} branches. The branches of a {@code UnionAll}/{@code Fork} plan has a similar
+ * pattern, as {@code Fork} adds {@code EsqlProject}, an optional {@code Eval} and {@code Limit} on top of its actual children. In case
+ * there is mismatched data types on the same field across different {@code UnionAll} branches, a {@code ConvertFunction} could also be
+ * added in the optional {@code Eval}.
+ *
+ * If the patterns of the {@code UnionAll} branches do not match the following expected patterns, the rule is not applied.
+ *
+ *   EsqlProject
+ *     Eval (optional) - added when the output of each UnionAll branch are not exactly the same
+ *       Limit
+ *         EsRelation
+ * or
+ *   EsqlProject
+ *     Eval (optional)
+ *       Limit
+ *         Subquery
+ * or
+ *   Limit   - CombineProjections may remove the EsqlProject on top of the limit
+ *     Subquery
  */
 public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -59,26 +79,6 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         );
     }
 
-    /* Push down filters that can be evaluated by the UnionAll branch to each branch,
-     so that the filters can be pushed down further to the data source when possible.
-     * Filters that cannot be pushed down remain above the UnionAll.
-     *
-     * The children of a UnionAll/Fork plan has a similar pattern, as Fork adds EsqlProject, an optional Eval and Limit on top of its
-      * actual children. If the pattern of a UnionAll branch does not match the following patterns, predicate push down is not applied.
-     * UnionAll
-     *   EsqlProject
-     *     Eval (optional) - added by Fork when the output of each UnionAll child are not exactly the same
-     *       Limit
-     *         EsRelation
-     *   EsqlProject
-     *     Eval (optional)
-     *       Limit
-     *         Subquery
-     *   Limit   - CombineProjections may remove the EsqlProject on top of the limit
-     *       Subquery
-     *
-     * Push down the filter below limit when possible
-     */
     private static LogicalPlan maybePushDownPastUnionAll(Filter filter, UnionAll unionAll) {
         AttributeSet unionAllOutputSet = unionAll.outputSet();
         // check ReferenceAttribute name and id to make sure it is from the UnionAll output
@@ -92,16 +92,16 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         if (pushable.isEmpty()) {
             return filter; // nothing to push down
         }
-        // Push the filter down to each child of the UnionAll, the child of a UnionAll is always
-        // a project followed by an optional eval and then limit or a limit added by fork and
-        // then the real child, if there is unknown pattern, keep the filter and UnionAll plan unchanged
+        // Push the filter down to each child of the UnionAll, the child of a UnionAll is always a project followed by an optional eval
+        // and then limit or a limit added by fork and then the real child, if there is unknown pattern, keep the filter and UnionAll plan
+        // unchanged
         List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
         for (LogicalPlan child : unionAll.children()) {
             LogicalPlan newChild = switch (child) {
                 case Project project -> maybePushDownFilterPastProjectForUnionAllChild(pushable, project);
                 case Limit limit -> maybePushDownFilterPastLimitForUnionAllChild(pushable, limit);
-                default -> null; // TODO add a general push down for unexpected pattern
+                default -> null; // TODO may add a general push down for unexpected pattern
             };
 
             if (newChild == null) {
@@ -113,9 +113,9 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
                 changed = true;
                 newChildren.add(newChild);
             } else {
-                // Theoretically, all the pushable predicates should be pushed down into each child,
-                // in case one child is not changed, preserve the filter on top of UnionAll to make sure
-                // correct results are returned and avoid infinite loop of the rule.
+                // Theoretically, all the pushable predicates should be pushed down into each child, in case one child is not changed
+                // it is because the plan pattern is not as expected, preserve the filter on top of UnionAll to make sure correct results
+                // are returned and avoid infinite loop of the rule.
                 return filter;
             }
         }
@@ -132,13 +132,38 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         }
     }
 
+    /**
+     * Handle UnionAll branch pattern below, if the pattern does not match, the plan is returned unchanged
+     * Filter (pushable predicates)
+     *   UnionAll
+     *     Project
+     *       Eval (optional)
+     *         Limit
+     *           EsRelation
+     *      Project
+     *        Eval (optional)
+     *          Limit
+     *            Subquery
+     *  becomes the following after pushing down the filters that can be evaluated by the UnionAll branches
+     *  UnionAll
+     *    Project
+     *      Eval (optional)
+     *        Limit
+     *          Filter (pushable predicates)
+     *            EsRelation
+     *     Project
+     *       Eval (optional)
+     *         Limit
+     *           Filter (pushable predicates)
+     *             Subquery
+     */
     private static LogicalPlan maybePushDownFilterPastProjectForUnionAllChild(List<Expression> pushable, Project project) {
         List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, project.projections());
         if (resolvedPushable == null) {
             return project;
         }
         LogicalPlan child = project.child();
-        // check if the pushables attributes' name and id are in the child's output, if so push down
+        // check if the predicates' attributes' name and id are in the child's output, if so push down
         Tuple<List<Expression>, List<Expression>> pushablesAndNonPushables = splitPushableAndNonPushablePredicates(
             resolvedPushable,
             exp -> isSubset(exp.references(), child.outputSet()) == false
@@ -170,6 +195,18 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             : filterWithPlanAsChild(planWithNewResolvedPushablePushedDown, newResolvedNonPushable); // create a filter above the new plan
     }
 
+    /**
+     * Handle UnionAll branch pattern, if the pattern does not match, the plan is returned unchanged
+     * Filter (pushable predicates)
+     *   UnionAll
+     *     Limit
+     *       Subquery
+     * Becomes the following after pushing down the filters that can be evaluated by the UnionAll branches
+     * UnionAll
+     *   Limit
+     *     Filter (pushable predicates)
+     *       Subquery
+     */
     private static LogicalPlan maybePushDownFilterPastLimitForUnionAllChild(List<Expression> pushable, Limit limit) {
         List<Expression> resolvedPushable = resolvePushableAgainstOutput(pushable, limit.output());
         if (resolvedPushable == null) {
@@ -178,6 +215,18 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         return pushDownFilterPastLimitForUnionAllChild(resolvedPushable, limit);
     }
 
+    /**
+     * Handle UnionAll branch pattern
+     * Project
+     *   Eval (optional)
+     *     Limit
+     *       EsRelation
+     *  or
+     *  Project
+     *    Eval (optional)
+     *      Limit
+     *        Subquery
+     */
     private static LogicalPlan pushDownFilterPastEvalForUnionAllChild(List<Expression> pushable, Project project, Eval eval) {
         // if the pushable references any attribute created by the eval, we cannot push down
         AttributeMap<Expression> evalAliases = buildEvaAliases(eval);
@@ -208,11 +257,17 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         return project;
     }
 
+    /**
+     * Push down the filter below project.
+     */
     private static LogicalPlan projectWithFilterAsChild(Project project, LogicalPlan child, List<Expression> predicates) {
         Expression combined = Predicates.combineAnd(predicates);
         return project.replaceChild(new Filter(project.source(), child, combined));
     }
 
+    /**
+     * Create a filter on top of the logical plan.
+     */
     private static Filter filterWithPlanAsChild(LogicalPlan logicalPlan, List<Expression> predicates) {
         Expression combined = Predicates.combineAnd(predicates);
         return new Filter(logicalPlan.source(), logicalPlan, combined);
@@ -231,6 +286,9 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         return limit.replaceChild(pushed);
     }
 
+    /**
+     * Check if all attributes in subset are also in superset by checking their names and ids.
+     */
     private static boolean isSubset(AttributeSet subset, AttributeSet superset) {
         return subset.stream()
             .allMatch(
@@ -238,6 +296,9 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
             );
     }
 
+    /**
+     * Build a map of eval aliases to their corresponding expressions.
+     */
     private static AttributeMap<Expression> buildEvaAliases(Eval eval) {
         AttributeMap.Builder<Expression> builder = AttributeMap.builder();
         for (Alias alias : eval.fields()) {
@@ -246,6 +307,9 @@ public final class PushDownFilterAndLimitIntoUnionAll extends Rule<LogicalPlan, 
         return builder.build();
     }
 
+    /**
+     * Split the predicates into pushable and non-pushable based on the given check.
+     */
     private static Tuple<List<Expression>, List<Expression>> splitPushableAndNonPushablePredicates(
         List<Expression> predicates,
         Predicate<Expression> nonPushableCheck

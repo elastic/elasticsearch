@@ -170,8 +170,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    public static boolean isSourceAttribute(Attribute attr) {
-        return DOC_ID_FIELD.getName().equals(attr.name());
+    public static boolean isDocAttribute(Attribute attr) {
+        // While the user can create columns with the same name as DOC_ID_FIELD, they cannot create a field with the DOC_DATA_TYPE.
+        return attr.typeResolved().resolved() && attr.dataType() == DataType.DOC_DATA_TYPE;
     }
 
     public boolean hasScoring() {

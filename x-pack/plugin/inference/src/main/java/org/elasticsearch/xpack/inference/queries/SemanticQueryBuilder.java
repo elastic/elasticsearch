@@ -33,7 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
@@ -156,7 +156,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             this.inferenceResultsMap = inferenceResults != null ? buildSingleResultInferenceResultsMap(inferenceResults) : null;
             in.readBoolean(); // Discard noInferenceResults, it is no longer necessary
         }
-        this.lenient = in.readOptionalBoolean();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            this.lenient = in.readOptionalBoolean();
+        } else {
+            this.lenient = null;
+        }
         if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
             this.ccsRequest = in.readBoolean();
         } else {
@@ -193,7 +197,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             out.writeOptionalNamedWriteable(inferenceResults);
             out.writeBoolean(inferenceResults == null);
         }
-        out.writeOptionalBoolean(lenient);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeOptionalBoolean(lenient);
+        }
         if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
             out.writeBoolean(ccsRequest);
         } else if (ccsRequest) {
@@ -499,7 +505,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         InferenceResults inferenceResults = inferenceResultsList.getFirst();
         if (inferenceResults instanceof TextExpansionResults == false
-            && inferenceResults instanceof MlTextEmbeddingResults == false
+            && inferenceResults instanceof MlDenseEmbeddingResults == false
             && inferenceResults instanceof ErrorInferenceResults == false
             && inferenceResults instanceof WarningInferenceResults == false) {
             return new ErrorInferenceResults(
@@ -507,7 +513,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     "Expected query inference results to be of type ["
                         + TextExpansionResults.NAME
                         + "] or ["
-                        + MlTextEmbeddingResults.NAME
+                        + MlDenseEmbeddingResults.NAME
                         + "], got ["
                         + inferenceResults.getWriteableName()
                         + "]. Has the inference endpoint ["

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -34,6 +35,8 @@ import java.util.Collections;
  */
 public class TransportResetFeatureStateAction extends TransportMasterNodeAction<ResetFeatureStateRequest, ResetFeatureStateResponse> {
 
+    public static final ActionType<ResetFeatureStateResponse> TYPE = new ActionType<>("cluster:admin/features/reset");
+
     private final SystemIndices systemIndices;
     private final NodeClient client;
     private final ProjectResolver projectResolver;
@@ -49,7 +52,7 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
         ProjectResolver projectResolver
     ) {
         super(
-            ResetFeatureStateAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

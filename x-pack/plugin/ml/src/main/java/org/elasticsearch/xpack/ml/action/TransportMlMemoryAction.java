@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.MlMemoryAction.Response.MlMemoryStats;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction.Response.CacheInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -88,6 +90,9 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
+        var clusterName = state.getClusterName();
+        var trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(state);
+        PersistentTasksCustomMetadata persistentTasksCustomMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         // Resolve the node specification to some concrete nodes
         String[] nodeIds = state.nodes().resolveNodes(request.getNodeId());
 
@@ -116,7 +121,9 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                         trainedModelCacheInfoRequest,
                         delegate2.delegateFailureAndWrap(
                             (l, trainedModelCacheInfoResponse) -> handleResponses(
-                                state,
+                                clusterName,
+                                persistentTasksCustomMetadata,
+                                trainedModelAssignmentMetadata,
                                 clusterSettings,
                                 nodesStatsResponse,
                                 trainedModelCacheInfoResponse,
@@ -131,12 +138,14 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         if (memoryTracker.isEverRefreshed()) {
             memoryTrackerRefreshListener.onResponse(null);
         } else {
-            memoryTracker.refresh(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE), memoryTrackerRefreshListener);
+            memoryTracker.refresh(persistentTasksCustomMetadata, memoryTrackerRefreshListener);
         }
     }
 
     void handleResponses(
-        ClusterState state,
+        ClusterName clusterName,
+        PersistentTasksCustomMetadata persistentTasks,
+        TrainedModelAssignmentMetadata assignmentMetadata,
         ClusterSettings clusterSettings,
         NodesStatsResponse nodesStatsResponse,
         TrainedModelCacheInfoAction.Response trainedModelCacheInfoResponse,
@@ -174,7 +183,8 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             ByteSizeValue mlNativeInference;
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                 NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(
-                    state,
+                    persistentTasks,
+                    assignmentMetadata,
                     node,
                     maxOpenJobsPerNode,
                     maxMachineMemoryPercent,
@@ -220,7 +230,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             );
         }
 
-        listener.onResponse(new MlMemoryAction.Response(state.getClusterName(), nodeResponses, failures));
+        listener.onResponse(new MlMemoryAction.Response(clusterName, nodeResponses, failures));
     }
 
     @Override

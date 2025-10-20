@@ -39,7 +39,7 @@ public class SplitStateRequest extends MasterNodeRequest<SplitStateRequest> {
         long sourcePrimaryTerm,
         long targetPrimaryTerm
     ) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        super(INFINITE_MASTER_NODE_TIMEOUT);
         this.shardId = shardId;
         this.newTargetShardState = newTargetShardState;
         this.sourcePrimaryTerm = sourcePrimaryTerm;

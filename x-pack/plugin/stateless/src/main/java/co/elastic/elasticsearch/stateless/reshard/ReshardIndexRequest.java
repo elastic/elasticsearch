@@ -44,7 +44,7 @@ public class ReshardIndexRequest extends MasterNodeRequest<ReshardIndexRequest> 
     }
 
     public ReshardIndexRequest(String index, int multiple) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        super(INFINITE_MASTER_NODE_TIMEOUT);
         this.index = index;
         this.multiple = multiple;
     }

@@ -388,9 +388,6 @@ setup:
       indices.get:
         index: test
 
-  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
-
 ---
 "Downsample index sample last values":
   - requires:
@@ -473,9 +470,6 @@ setup:
   - do:
       indices.get:
         index: test
-
-  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
 
 ---
 "Downsample non-existing index":

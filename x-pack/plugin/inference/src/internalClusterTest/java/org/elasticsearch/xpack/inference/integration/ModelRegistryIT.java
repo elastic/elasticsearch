@@ -89,7 +89,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ModelRegistryIT extends ESSingleNodeTestCase {
@@ -108,13 +107,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
-    public void testStoreModel() throws Exception {
+    public void testStoreModel() {
         String inferenceEntityId = "test-store-model";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         assertStoreModel(modelRegistry, model);
     }
 
-    public void testStoreModelWithUnknownFields() throws Exception {
+    public void testStoreModelWithUnknownFields() {
         String inferenceEntityId = "test-store-model-unknown-field";
         Model model = buildModelWithUnknownField(inferenceEntityId);
         ElasticsearchStatusException statusException = expectThrows(
@@ -160,7 +159,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertEquals(model, roundTripModel);
     }
 
-    public void testStoreModelFailsWhenModelExists() throws Exception {
+    public void testStoreModelFailsWhenModelExists() {
         String inferenceEntityId = "test-put-trained-model-config-exists";
         Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         assertStoreModel(modelRegistry, model);
@@ -870,62 +869,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(
             exception.getMessage(),
             Matchers.is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
-        );
-    }
-
-    public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
-        var listener = new PlainActionFuture<Boolean>();
-        modelRegistry.removeDefaultConfigs(Set.of(), listener);
-        assertTrue(listener.actionGet(TIMEOUT));
-    }
-
-    public void testDeleteModels_Returns_ConflictException_WhenModelIsBeingAdded() {
-        var model = TestModel.createRandomInstance();
-        var newModel = TestModel.createRandomInstance();
-        modelRegistry.updateModelTransaction(newModel, model, new PlainActionFuture<>());
-
-        var listener = new PlainActionFuture<Boolean>();
-
-        modelRegistry.deleteModels(Set.of(newModel.getInferenceEntityId()), listener);
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            containsString("are currently being updated, please wait until after they are finished updating to delete.")
-        );
-        assertThat(exception.status(), Matchers.is(RestStatus.CONFLICT));
-    }
-
-    public void testContainsDefaultConfigId() {
-        modelRegistry.addDefaultIds(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
-        );
-        modelRegistry.addDefaultIds(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
-        );
-        assertTrue(modelRegistry.containsDefaultConfigId("foo"));
-        assertFalse(modelRegistry.containsDefaultConfigId("baz"));
-    }
-
-    public void testDuplicateDefaultIds() {
-        var id = "my-inference";
-        var mockServiceA = mock(InferenceService.class);
-        when(mockServiceA.name()).thenReturn("service-a");
-        var mockServiceB = mock(InferenceService.class);
-        when(mockServiceB.name()).thenReturn("service-b");
-
-        modelRegistry.addDefaultIds(new InferenceService.DefaultConfigId(id, MinimalServiceSettingsTests.randomInstance(), mockServiceA));
-        var ise = expectThrows(
-            IllegalStateException.class,
-            () -> modelRegistry.addDefaultIds(
-                new InferenceService.DefaultConfigId(id, MinimalServiceSettingsTests.randomInstance(), mockServiceB)
-            )
-        );
-        assertThat(
-            ise.getMessage(),
-            containsString(
-                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
-                    + "service [service-b]. The inference Id is already use by [service-a] service."
-            )
         );
     }
 

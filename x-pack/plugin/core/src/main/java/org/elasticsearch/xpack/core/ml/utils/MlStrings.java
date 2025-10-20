@@ -26,10 +26,11 @@ public final class MlStrings {
     /**
      * Valid user id pattern.
      * Matches a string that contains lower case characters, digits, hyphens, underscores or dots.
-     * The string may start and end only in lower case characters or digits.
+     * The string may start and end only in lower case characters, digits or '.'.
      * Note that '.' is allowed but not documented.
      */
-    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z0-9])?");
+    private static final Pattern VALID_ID_CHAR_PATTERN =
+        Pattern.compile("^[a-z0-9.](?:[a-z0-9_\\-.]*[a-z0-9.])?$");
 
     public static final int ID_LENGTH_LIMIT = 64;
 

@@ -44,6 +44,17 @@ public class PutInferenceModelActionTests extends ESTestCase {
         ActionRequestValidationException validationException = request.validate();
         assertNull(validationException);
 
+        // valid model ID with . at start
+        var modelWithDotAtStart = new PutInferenceModelAction.Request(
+            TASK_TYPE,
+            "." +MODEL_ID + "_-0",
+            BYTES,
+            X_CONTENT_TYPE,
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
+        assertNull(modelWithDotAtStart.validate());
+
+
         // invalid model IDs
 
         var invalidRequest = new PutInferenceModelAction.Request(

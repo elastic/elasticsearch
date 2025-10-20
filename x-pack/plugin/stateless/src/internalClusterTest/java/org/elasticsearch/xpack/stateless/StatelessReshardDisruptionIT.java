@@ -20,8 +20,11 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -154,6 +157,30 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
                     // Unlucky, shard does not exist yet.
                 }
             }
+            case RELOCATE_SHARD -> {
+                ensureGreen(index.getName());
+                var shardId = randomIntBetween(0, shardCount);
+                var clusterState = clusterService().state();
+                var shardRoutingTable = clusterState.routingTable().index(index.getName()).shard(shardId);
+                if (shardRoutingTable == null) {
+                    // target shard doesn't exist yet, relocate source instead
+                    assert shardId != 0;
+                    shardId = 0;
+                    shardRoutingTable = clusterState.routingTable().index(index.getName()).shard(shardId);
+                }
+                var fromNode = clusterState.getNodes().get(shardRoutingTable.primaryShard().currentNodeId()).getName();
+                var eligibleNodes = clusterState.nodes()
+                    .getAllNodes()
+                    .stream()
+                    .filter(node -> node.getName().equals(fromNode) == false && node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()))
+                    .map(DiscoveryNode::getName)
+                    .toList();
+                if (eligibleNodes.isEmpty() == false) {
+                    var toNode = randomFrom(eligibleNodes);
+                    logger.info("--> relocating shard {} from {} to {}", shardId, fromNode, toNode);
+                    ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(index.getName(), shardId, fromNode, toNode));
+                }
+            }
         }
     }
 
@@ -167,7 +194,8 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
     private enum Failure {
         RESTART,
         REPLACE_FAILED_NODE,
-        LOCAL_FAIL_SHARD
+        LOCAL_FAIL_SHARD,
+        RELOCATE_SHARD,
     }
 
     private static void checkNumberOfShardsSetting(String indexName, int expected_shards) {

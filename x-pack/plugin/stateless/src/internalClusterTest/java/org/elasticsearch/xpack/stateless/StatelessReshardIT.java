@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -2258,6 +2259,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSourceRelocationDuringReshard() {
+        testRelocationDuringReshard(0);
+    }
+
+    public void testTargetRelocationDuringReshard() {
+        testRelocationDuringReshard(1);
+    }
+
+    private void testRelocationDuringReshard(int shardId) {
         var masterNode = startMasterOnlyNode();
         var indexNodeA = startIndexNode();
         var searchNode = startSearchNode();
@@ -2266,7 +2275,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
-
         checkNumberOfShardsSetting(indexNodeA, indexName, 1);
 
         indexDocs(indexName, 100);
@@ -2276,12 +2284,20 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         // spin up new index node
         var indexNodeB = startIndexNode();
         ensureStableCluster(4);
+        var clusterState = clusterService().state();
 
         logger.info("starting reshard");
         client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
-        // relocate source shard
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB));
+        clusterState = waitForClusterState(state -> {
+            var shardRoutingTable = state.routingTable().index(indexName).shard(shardId);
+            return shardRoutingTable != null && shardRoutingTable.primaryShard().state() == ShardRoutingState.STARTED;
+        }).actionGet();
+        var nodeId = clusterState.routingTable().index(indexName).shard(shardId).primaryShard().currentNodeId();
+        var fromNode = clusterState.getNodes().get(nodeId).getName();
+        var toNode = fromNode.equals(indexNodeA) ? indexNodeB : indexNodeA;
+        logger.info("Relocating shard {} from {} to {}", shardId, fromNode, toNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, shardId, fromNode, toNode));
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);

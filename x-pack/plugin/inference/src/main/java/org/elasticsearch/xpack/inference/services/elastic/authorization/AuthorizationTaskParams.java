@@ -20,12 +20,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller.TASK_NAME;
 
 public class AuthorizationTaskParams implements PersistentTaskParams {
     private static final AuthorizationTaskParams INSTANCE = new AuthorizationTaskParams();
 
-    private static final ObjectParser<HealthNodeTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
+    private static final ObjectParser<AuthorizationTaskParams, Void> PARSER = new ObjectParser<>(TASK_NAME, true, () -> INSTANCE);
 
     AuthorizationTaskParams() {}
 
@@ -51,7 +51,7 @@ public class AuthorizationTaskParams implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) {}
 
-    public static HealthNodeTaskParams fromXContent(XContentParser parser) {
+    public static AuthorizationTaskParams fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

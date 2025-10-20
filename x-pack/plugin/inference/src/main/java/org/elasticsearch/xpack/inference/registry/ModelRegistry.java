@@ -87,6 +87,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -147,10 +148,12 @@ public class ModelRegistry implements ClusterStateListener {
     private final MasterServiceTaskQueue<MetadataTask> metadataTaskQueue;
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final ClusterService clusterService;
 
     private volatile Metadata lastMetadata;
 
     public ModelRegistry(ClusterService clusterService, Client client) {
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.defaultConfigIds = new ConcurrentHashMap<>();
         var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
@@ -952,6 +955,16 @@ public class ModelRegistry implements ClusterStateListener {
         } catch (Exception exc) {
             storeListener.onFailure(exc);
         }
+    }
+
+    public boolean isReady() {
+        synchronized (this) {
+            if (lastMetadata == null) {
+                return false;
+            }
+        }
+
+        return clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
     }
 
     public synchronized void removeDefaultConfigs(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {

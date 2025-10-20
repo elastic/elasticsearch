@@ -51,9 +51,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -1905,7 +1905,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testDefaultTruncationSizeSetting() {
         ClusterAdminClient client = admin().cluster();
 
-        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
+        Settings settings = Settings.builder().put(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(settings);
@@ -1915,14 +1915,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(1, getValuesList(results).size());
         } finally {
-            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
+            clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
         }
     }
 
     public void testMaxTruncationSizeSetting() {
         ClusterAdminClient client = admin().cluster();
 
-        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
+        Settings settings = Settings.builder().put(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(settings);
@@ -1932,7 +1932,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(10, getValuesList(results).size());
         } finally {
-            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+            clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
         }
     }
 

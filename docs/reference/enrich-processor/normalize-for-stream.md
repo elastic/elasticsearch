@@ -57,7 +57,7 @@ If the document is not OpenTelemetry-compliant, the processor normalizes it as f
 
 If an OpenTelemetry-compliant document is detected, the processor does nothing. For example, the following document will stay unchanged:
 
-```json
+```js
 {
   "resource": {
     "attributes": {
@@ -76,10 +76,11 @@ If an OpenTelemetry-compliant document is detected, the processor does nothing. 
   }
 }
 ```
+% NOTCONSOLE
 
 If a non-OpenTelemetry-compliant document is detected, the processor normalizes it. For example, the following document:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "service": {
@@ -118,9 +119,11 @@ If a non-OpenTelemetry-compliant document is detected, the processor normalizes 
   "trace.id": "abcdef1234567890abcdef1234567890"
 }
 ```
+% NOTCONSOLE
+
 will be normalized into the following form:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "resource": {
@@ -153,6 +156,8 @@ will be normalized into the following form:
   "trace_id": "abcdef1234567890abcdef1234567890"
 }
 ```
+% NOTCONSOLE
+
 ## Structured `message` field
 
 If the `message` field in the ingested document is structured as a JSON, the
@@ -167,16 +172,18 @@ the `body.structured` field as is, without any further normalization.
 
 For example, if the `message` field is an ECS-JSON, as follows:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "message": "{\"@timestamp\":\"2023-10-01T12:01:00Z\",\"log.level\":\"INFO\",\"service.name\":\"my-service\",\"message\":\"The actual log message\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
 
 }
 ```
+% NOTCONSOLE
+
 it will be normalized into the following form:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:01:00Z",
   "severity_text": "INFO",
@@ -194,10 +201,11 @@ it will be normalized into the following form:
   }
 }
 ```
+% NOTCONSOLE
 
 However, if the `message` field is not recognized as ECS format, as follows:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "log": {
@@ -210,9 +218,11 @@ However, if the `message` field is not recognized as ECS format, as follows:
   "message": "{\"root_cause\":\"Network error\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
 }
 ```
+% NOTCONSOLE
+
 it will be normalized into the following form:
 
-```json
+```js
 {
   "@timestamp": "2023-10-01T12:00:00Z",
   "severity_text": "INFO",
@@ -237,3 +247,4 @@ it will be normalized into the following form:
   }
 }
 ```
+% NOTCONSOLE

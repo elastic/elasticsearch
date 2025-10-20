@@ -53,7 +53,6 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         registry = node().injector().getInstance(ModelRegistry.class);
     }
 
-
     public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
         var listener = new PlainActionFuture<Boolean>();
         registry.removeDefaultConfigs(Set.of(), listener);

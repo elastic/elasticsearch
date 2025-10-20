@@ -1374,19 +1374,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
                     } else {
                         if (decision == null) {
-                            // This is our first YES/NOT_PREFERRED/THROTTLE, just take it
-                            updateMinNode = true;
-                        } else if (decision.type() == currentDecision.type()) {
-                            // For the same type we take the lower weight
-                            updateMinNode = currentWeight < minWeight;
-                        } else if (decision.type() == Type.NOT_PREFERRED) {
-                            // We prefer anything over a NOT_PREFERRED
-                            assert currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE;
+                            // This is the first YES/NOT_PREFERRED/THROTTLE decision we've seen, take it
                             updateMinNode = true;
                         } else {
-                            // We prefer the lowest-weight YES/THROTTLE
-                            assert currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE;
-                            updateMinNode = currentWeight < minWeight;
+                            // Compare it to the current best decision
+                            updateMinNode = switch (DecisionTypeComparison.compare(decision.type(), currentDecision.type())) {
+                                case IMPROVED -> true;
+                                case SAME -> currentWeight < minWeight;
+                                case WORSE -> false;
+                            };
                         }
                     }
                     if (updateMinNode) {
@@ -1412,6 +1408,31 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
             return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.routingNode.node() : null, nodeDecisions);
+        }
+
+        /**
+         * Utility for comparing {@code YES}/{@code NOT_PREFERRED}/{@code THROTTLE} decisions.
+         */
+        private enum DecisionTypeComparison {
+            IMPROVED,
+            SAME,
+            WORSE;
+
+            private static final Set<Decision.Type> SUPPORTED_TYPES = Set.of(
+                Decision.Type.YES,
+                Decision.Type.THROTTLE,
+                Decision.Type.NOT_PREFERRED
+            );
+            private static final Set<Decision.Type> YES_OR_THROTTLE = Set.of(Decision.Type.YES, Decision.Type.THROTTLE);
+
+            public static DecisionTypeComparison compare(Type existingType, Type newType) {
+                assert SUPPORTED_TYPES.contains(existingType) && SUPPORTED_TYPES.contains(newType)
+                    : "unsupported type being compared: " + existingType + " vs " + newType;
+                if (existingType == newType || (YES_OR_THROTTLE.contains(existingType) && YES_OR_THROTTLE.contains(newType))) {
+                    return SAME;
+                }
+                return newType.higherThan(existingType) ? IMPROVED : WORSE;
+            }
         }
 
         private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = (s1, s2) -> Integer.compare(s2.id(), s1.id());

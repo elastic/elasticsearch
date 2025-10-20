@@ -185,7 +185,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         }
         String[] concreteIndices = resolvedLocallyList.stream()
-            .map(r -> r.localExpressions().expressions())
+            .map(r -> r.localExpressions().indices())
             .flatMap(Set::stream)
             .distinct()
             .toArray(String[]::new);

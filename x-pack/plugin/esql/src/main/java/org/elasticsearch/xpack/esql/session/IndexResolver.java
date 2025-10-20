@@ -135,7 +135,7 @@ public class IndexResolver {
                 entry -> entry.getValue()
                     .expressions()
                     .stream()
-                    .filter(e -> e.localExpressions().expressions().isEmpty() == false)
+                    .filter(e -> e.localExpressions().indices().isEmpty() == false)
                     .map(e -> Map.entry(entry.getKey(), e.original()))
             )
             .collect(groupingBy(Map.Entry::getKey, mapping(Map.Entry::getValue, joining(","))));

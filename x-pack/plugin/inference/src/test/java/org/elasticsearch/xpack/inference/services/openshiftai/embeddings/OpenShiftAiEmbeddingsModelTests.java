@@ -21,11 +21,30 @@ public class OpenShiftAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public static OpenShiftAiEmbeddingsModel createModel(String url, String apiKey, @Nullable String modelId, int maxInputTokens) {
+        return createModel(url, apiKey, modelId, maxInputTokens, false, 1536);
+    }
+
+    public static OpenShiftAiEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        @Nullable String modelId,
+        @Nullable Integer maxInputTokens,
+        @Nullable Boolean dimensionsSetByUser,
+        @Nullable Integer dimensions
+    ) {
         return new OpenShiftAiEmbeddingsModel(
             "inferenceEntityId",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenShiftAiEmbeddingsServiceSettings(modelId, url, 1536, SimilarityMeasure.DOT_PRODUCT, maxInputTokens, null, false),
+            new OpenShiftAiEmbeddingsServiceSettings(
+                modelId,
+                url,
+                dimensions,
+                SimilarityMeasure.DOT_PRODUCT,
+                maxInputTokens,
+                null,
+                dimensionsSetByUser
+            ),
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

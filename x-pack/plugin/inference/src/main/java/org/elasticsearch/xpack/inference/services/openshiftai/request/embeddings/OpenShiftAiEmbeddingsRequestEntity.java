@@ -28,7 +28,6 @@ public record OpenShiftAiEmbeddingsRequestEntity(
 
     public OpenShiftAiEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
-        Objects.requireNonNull(modelId);
     }
 
     @Override

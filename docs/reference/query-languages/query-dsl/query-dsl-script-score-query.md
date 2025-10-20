@@ -30,7 +30,6 @@ GET /_search
   }
 }
 ```
-% TEARDOWN
 
 ## Top-level parameters for `script_score` [script-score-top-level-params]
 
@@ -370,7 +369,6 @@ PUT my-index-000001/_doc/2
 
 POST my-index-000001/_refresh
 ```
-% TESTSETUP
 
 #### Cosine similarity [vector-functions-cosine]
 
@@ -400,6 +398,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. To restrict the number of documents on which script score calculation is applied, provide a filter.
 2. The script adds 1.0 to the cosine similarity to prevent the score from being negative.
@@ -443,6 +442,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Using the standard sigmoid function prevents scores from being negative.
 
@@ -476,6 +476,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Unlike `cosineSimilarity` that represent similarity, `l1norm` and `l2norm` shown below represent distances or differences. This means, that the more similar the vectors are, the lower the scores will be that are produced by the `l1norm` and `l2norm` functions. Thus, as we need more similar vectors to score higher, we reversed the output from `l1norm` and `l2norm`. Also, to avoid division by 0 when a document vector matches the query exactly, we added `1` in the denominator.
 
@@ -509,6 +510,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Calculate the Hamming distance and normalize it by the bits to get a score between 0 and 1.
 
@@ -542,7 +544,7 @@ GET my-index-000001/_search
   }
 }
 ```
-
+% TEST[continued]
 
 #### Checking for missing values [vector-functions-missing-values]
 
@@ -741,7 +743,7 @@ GET /my-index-000001/_explain/0
   }
 }
 ```
-%  TEST[setup:my_index]
+%  TEST[continued]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.
 

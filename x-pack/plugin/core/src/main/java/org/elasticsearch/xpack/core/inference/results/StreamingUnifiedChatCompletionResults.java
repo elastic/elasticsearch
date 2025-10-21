@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
@@ -59,6 +61,8 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
     public static final String PROMPT_TOKENS_DETAILS_FIELD = "prompt_tokens_details";
     public static final String CACHED_TOKENS_FIELD = "cached_tokens";
     public static final String TYPE_FIELD = "type";
+
+    private static final TransportVersion INFERENCE_CACHED_TOKENS = TransportVersion.fromName("inference_cached_tokens");
 
     /**
      * OpenAI Spec only returns one result at a time, and Chat Completion adheres to that spec as much as possible.
@@ -362,13 +366,18 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
             }
         }
 
-        public record Usage(int completionTokens, int promptTokens, int totalTokens, Integer cachedTokens) implements Writeable {
+        public record Usage(int completionTokens, int promptTokens, int totalTokens, @Nullable Integer cachedTokens) implements Writeable {
             public Usage(int completionTokens, int promptTokens, int totalTokens) {
                 this(completionTokens, promptTokens, totalTokens, null);
             }
 
             private Usage(StreamInput in) throws IOException {
-                this(in.readInt(), in.readInt(), in.readInt(), in.readOptionalInt());
+                this(
+                    in.readInt(),
+                    in.readInt(),
+                    in.readInt(),
+                    in.getTransportVersion().supports(INFERENCE_CACHED_TOKENS) ? in.readOptionalInt() : null
+                );
             }
 
             @Override
@@ -376,7 +385,9 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                 out.writeInt(completionTokens);
                 out.writeInt(promptTokens);
                 out.writeInt(totalTokens);
-                out.writeOptionalInt(cachedTokens);
+                if (out.getTransportVersion().supports(INFERENCE_CACHED_TOKENS)) {
+                    out.writeOptionalInt(cachedTokens);
+                }
             }
         }
 

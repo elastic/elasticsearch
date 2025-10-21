@@ -27,7 +27,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 /**
- * Similar to {@link Variance}, but it is used to calculate the standard deviation over a time series of values from the given field.
+ * Similar to {@link Variance}, but it is used to calculate the variance over a time series of values from the given field.
  */
 public class VarianceOverTime extends TimeSeriesAggregateFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -38,7 +38,7 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the population standard variance over time of a numeric field.",
+        description = "Calculates the population variance over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         preview = true,

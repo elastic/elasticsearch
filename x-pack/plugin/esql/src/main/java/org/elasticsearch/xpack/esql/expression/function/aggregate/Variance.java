@@ -37,7 +37,7 @@ public class Variance extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = "double",
-        description = "The population standard variance of a numeric field.",
+        description = "The population variance of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = { @Example(file = "stats", tag = "stdvar") }
     )

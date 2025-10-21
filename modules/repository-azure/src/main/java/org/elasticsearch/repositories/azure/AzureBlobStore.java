@@ -344,6 +344,10 @@ public class AzureBlobStore implements BlobStore {
         return false;
     }
 
+    public int getMaxReadRetries() {
+        return service.getMaxReadRetries(projectId, clientName);
+    }
+
     AzureInputStream getInputStream(
         OperationPurpose purpose,
         String blob,
@@ -365,13 +369,12 @@ public class AzureBlobStore implements BlobStore {
             totalSize = position + length;
         }
         BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
-        int maxReadRetries = service.getMaxReadRetries(projectId, clientName);
         return new AzureInputStream(
             blobAsyncClient,
             position,
             length == null ? totalSize : length,
             totalSize,
-            maxReadRetries,
+            0,
             azureBlobServiceClient.getAllocator(),
             eTag
         );

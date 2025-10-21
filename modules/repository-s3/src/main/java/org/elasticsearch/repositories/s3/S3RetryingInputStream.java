@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
@@ -57,7 +58,7 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
             BlobStoreServices<String> {
 
         @Override
-        public InputStreamAtVersion<String> getInputStreamAtVersion(String version, long start, long end) throws IOException {
+        public InputStreamAtVersion<String> getInputStreamAtVersion(@Nullable String version, long start, long end) throws IOException {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
                 configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);

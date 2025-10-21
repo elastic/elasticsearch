@@ -83,7 +83,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public int getMaxRetries() {
-            return 3; // TODO
+            return blobStore.getMaxReadRetries();
         }
 
         @Override

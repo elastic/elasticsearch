@@ -163,6 +163,9 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[setup:host]
+% TEST[s/35.238.149.\d+:930\d+/\${transport_host}/]
+% end::ccs-remote-cluster-setup[]
 
 1. Since `skip_unavailable` was not set on `cluster_three`, it uses the default of `true`. See the [Optional remote clusters](#ccq-skip-unavailable-clusters) section for details.
 

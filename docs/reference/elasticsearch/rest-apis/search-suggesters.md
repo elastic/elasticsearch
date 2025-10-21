@@ -34,8 +34,8 @@ POST _search
   }
 }
 ```
-%  TEST[setup:messages]
-%  TEST[s/^/PUT my-index-000001\/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
+% TEST[setup:messages]
+% TEST[s/^/PUT my-index-000001\/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
 
 The following suggest response example includes the suggestion response for `my-suggest-1` and `my-suggest-2`. Each suggestion part contains entries. Each entry is effectively a token from the suggest text and contains the suggestion entry text, the original start offset and length in the suggest text and if found an arbitrary number of options.
 
@@ -67,7 +67,7 @@ The following suggest response example includes the suggestion response for `my-
 }
 ```
 % TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
-% TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": "$body.hits",/]
 % TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 % TESTRESPONSE[s/"my-suggest-2": \.\.\./"my-suggest-2": "$body.suggest.my-suggest-2"/]
 
@@ -275,9 +275,9 @@ The response contains suggestions scored by the most likely spelling correction 
   }
 }
 ```
-%  TESTRESPONSE[s/"_shards": …​/"_shards": "$body._shards",/]
-%  TESTRESPONSE[s/"hits": …​/"hits": "$body.hits",/]
-%  TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+% TESTRESPONSE[s/"hits": \.\.\.​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
 
 $$$_basic_phrase_suggest_api_parameters$$$
 Basic phrase suggest API parameters include:
@@ -621,8 +621,8 @@ It returns this response:
   }
 }
 ```
-%  TESTRESPONSE[s/"hits": …​/"hits": "$body.hits",/]
-%  TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
+% TESTRESPONSE[s/"hits": \.\.\.​/"hits": "$body.hits",/]
+% TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 ::::{important} 
 `_source` metadata field must be enabled, which is the default behavior, to enable returning `_source` with suggestions.
@@ -1191,9 +1191,9 @@ In the response, the suggester names will be changed to respectively `term#my-fi
   ...
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
-%  TESTRESPONSE[s/"score": 0.8333333/"score": $body.suggest.term#my-first-suggester.2.options.0.score/]
-%  TESTRESPONSE[s/"score": 0.030227963/"score": $body.suggest.phrase#my-second-suggester.0.options.0.score/]
+% TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
+% TESTRESPONSE[s/"score": 0.8333333/"score": $body.suggest.term#my-first-suggester.2.options.0.score/]
+% TESTRESPONSE[s/"score": 0.030227963/"score": $body.suggest.phrase#my-second-suggester.0.options.0.score/]
 
 1. The name `my-first-suggester` now contains the `term` prefix.
 2. The name `my-second-suggester` now contains the `phrase` prefix.

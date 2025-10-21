@@ -119,7 +119,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.overallTook = in.readOptionalTimeValue();
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
         this.includeCCSMetadata = in.readBoolean();
-        this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) ? in.readBoolean() : false;
+        this.isPartial = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readBoolean() : false;
         this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
@@ -137,7 +137,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeCollection(Collections.emptyList());
         }
         out.writeBoolean(includeCCSMetadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(isPartial);
         }
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {

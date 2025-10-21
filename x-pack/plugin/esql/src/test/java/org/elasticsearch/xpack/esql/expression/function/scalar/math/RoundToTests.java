@@ -146,7 +146,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier(1.5, 1.0, 0.0, 1.0, 100.0));
         suppliers.add(supplier(200, 100, 0.0, 1.0, 100.0));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
             (int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original) -> {
                 if (nullValueDataType != DataType.NULL) {
                     return original.expectedType();

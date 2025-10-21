@@ -1948,7 +1948,7 @@ public class MetadataCreateIndexService {
         return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty) // index is a new index
-            && minClusterTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            && minClusterTransportVersion.supports(TransportVersions.V_8_18_0);
     }
 
     private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state, TransportVersion minTransportVersion) {

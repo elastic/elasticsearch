@@ -47,7 +47,7 @@ public class DeleteSampleConfigurationActionTests extends AbstractWireSerializin
                     instance.masterNodeTimeout(),
                     instance.ackTimeout()
                 );
-                String[] newIndices = randomValueOtherThan(instance.indices(), () -> new String[] { randomAlphaOfLength(10) });
+                String[] newIndices = randomArrayOtherThan(instance.indices(), () -> new String[] { randomAlphaOfLength(10) });
                 mutated.indices(newIndices);
                 yield mutated;
             }

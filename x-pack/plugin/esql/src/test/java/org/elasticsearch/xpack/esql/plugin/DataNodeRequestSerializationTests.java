@@ -243,7 +243,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 yield request;
             }
             case 7 -> {
-                var indices = randomValueOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
+                var indices = randomArrayOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
                 var request = new DataNodeRequest(
                     in.sessionId(),
                     in.configuration(),

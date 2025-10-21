@@ -38,7 +38,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)
             && in.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
             in.readBoolean();
         }
@@ -63,7 +63,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)
             && out.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
             out.writeBoolean(true);
         }

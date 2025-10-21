@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -424,7 +425,11 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 cancelJob();
             }
         }
-        if (samples.isEmpty()) {
+        if (isMaster == false && samples.isEmpty()) {
+            /*
+             * The remaining code potentially removes entries from samples, and delete configurations if this is the master. So if this is
+             * not the master and has no sampling configurations, we can just bail out here.
+             */
             return;
         }
         // We want to remove any samples if their sampling configuration has been deleted or modified.
@@ -438,46 +443,75 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
                 event.previousState().metadata().projects().keySet()
             );
             for (ProjectId projectId : allProjectIds) {
-                if (event.customMetadataChanged(projectId, SamplingMetadata.TYPE)) {
-                    Map<String, SamplingConfiguration> oldSampleConfigsMap = Optional.ofNullable(
-                        event.previousState().metadata().projects().get(projectId)
-                    )
-                        .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
-                        .map(SamplingMetadata::getIndexToSamplingConfigMap)
-                        .orElse(Map.of());
-                    Map<String, SamplingConfiguration> newSampleConfigsMap = Optional.ofNullable(
-                        event.state().metadata().projects().get(projectId)
-                    )
-                        .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
-                        .map(SamplingMetadata::getIndexToSamplingConfigMap)
-                        .orElse(Map.of());
-                    Set<String> indicesWithRemovedConfigs = new HashSet<>(oldSampleConfigsMap.keySet());
-                    indicesWithRemovedConfigs.removeAll(newSampleConfigsMap.keySet());
-                    /*
-                     * These index names no longer have sampling configurations associated with them. So we remove their samples. We are OK
-                     * with the fact that we have a race condition here -- it is possible that in maybeSample() the configuration still
-                     * exists but before the sample is read from samples it is deleted by this method and gets recreated. In the worst case
-                     * we'll have a small amount of memory being used until the sampling configuration is recreated or the TTL checker
-                     * reclaims it. The advantage is that we can avoid locking here, which could slow down ingestion.
-                     */
-                    for (String indexName : indicesWithRemovedConfigs) {
-                        logger.debug("Removing sample info for {} because its configuration has been removed", indexName);
-                        samples.remove(new ProjectIndex(projectId, indexName));
-                    }
-                    /*
-                     * Now we check if any of the sampling configurations have changed. If they have, we remove the existing sample. Same as
-                     * above, we have a race condition here that we can live with.
-                     */
-                    for (Map.Entry<String, SamplingConfiguration> entry : newSampleConfigsMap.entrySet()) {
-                        String indexName = entry.getKey();
-                        if (entry.getValue().equals(oldSampleConfigsMap.get(indexName)) == false) {
-                            logger.debug("Removing sample info for {} because its configuration has changed", indexName);
-                            samples.remove(new ProjectIndex(projectId, indexName));
-                        }
-                    }
+                maybeRemoveStaleSamples(event, projectId);
+                // Now delete configurations for any indices that have been deleted:
+                if (isMaster) {
+                    maybeDeleteSamplingConfigurations(event, projectId);
                 }
             }
-            // TODO: If an index has been deleted, we want to remove its sampling configuration
+        }
+    }
+
+    /*
+     * This method removes any samples from the samples Map that have had their sampling configuration removed or changed in this event.
+     */
+    private void maybeRemoveStaleSamples(ClusterChangedEvent event, ProjectId projectId) {
+        if (samples.isEmpty() == false && event.customMetadataChanged(projectId, SamplingMetadata.TYPE)) {
+            Map<String, SamplingConfiguration> oldSampleConfigsMap = Optional.ofNullable(
+                event.previousState().metadata().projects().get(projectId)
+            )
+                .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
+                .map(SamplingMetadata::getIndexToSamplingConfigMap)
+                .orElse(Map.of());
+            Map<String, SamplingConfiguration> newSampleConfigsMap = Optional.ofNullable(event.state().metadata().projects().get(projectId))
+                .map(p -> (SamplingMetadata) p.custom(SamplingMetadata.TYPE))
+                .map(SamplingMetadata::getIndexToSamplingConfigMap)
+                .orElse(Map.of());
+            Set<String> indicesWithRemovedConfigs = new HashSet<>(oldSampleConfigsMap.keySet());
+            indicesWithRemovedConfigs.removeAll(newSampleConfigsMap.keySet());
+            /*
+             * These index names no longer have sampling configurations associated with them. So we remove their samples. We are OK
+             * with the fact that we have a race condition here -- it is possible that in maybeSample() the configuration still
+             * exists but before the sample is read from samples it is deleted by this method and gets recreated. In the worst case
+             * we'll have a small amount of memory being used until the sampling configuration is recreated or the TTL checker
+             * reclaims it. The advantage is that we can avoid locking here, which could slow down ingestion.
+             */
+            for (String indexName : indicesWithRemovedConfigs) {
+                logger.debug("Removing sample info for {} because its configuration has been removed", indexName);
+                samples.remove(new ProjectIndex(projectId, indexName));
+            }
+            /*
+             * Now we check if any of the sampling configurations have changed. If they have, we remove the existing sample. Same as
+             * above, we have a race condition here that we can live with.
+             */
+            for (Map.Entry<String, SamplingConfiguration> entry : newSampleConfigsMap.entrySet()) {
+                String indexName = entry.getKey();
+                if (oldSampleConfigsMap.containsKey(indexName) && entry.getValue().equals(oldSampleConfigsMap.get(indexName)) == false) {
+                    logger.debug("Removing sample info for {} because its configuration has changed", indexName);
+                    samples.remove(new ProjectIndex(projectId, indexName));
+                }
+            }
+        }
+    }
+
+    /*
+     * This method deletes the sampling configuration for any index that has been deleted in this event.
+     */
+    private void maybeDeleteSamplingConfigurations(ClusterChangedEvent event, ProjectId projectId) {
+        ProjectMetadata currentProject = event.state().metadata().projects().get(projectId);
+        ProjectMetadata previousProject = event.previousState().metadata().projects().get(projectId);
+        if (currentProject == null || previousProject == null) {
+            return;
+        }
+        if (currentProject.indices() != previousProject.indices()) {
+            for (IndexMetadata index : previousProject.indices().values()) {
+                IndexMetadata current = currentProject.index(index.getIndex());
+                if (current == null) {
+                    String indexName = index.getIndex().getName();
+                    logger.debug("Deleting sample configuration for {} because the index has been deleted", indexName);
+                    deleteSampleConfiguration(projectId, indexName);
+                }
+            }
         }
     }
 

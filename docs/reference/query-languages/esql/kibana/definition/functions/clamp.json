@@ -222,7 +222,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS bytes_in = sum(network.bytes_in),\n        // our network cards are rate-limited to 200bps so we clamp to that (just an example)\n        clamped_network_bytes_in = sum(clamp(network.bytes_in, 0, 200))\n        BY time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| EVAL full_clamped_cost = clamp(network.cost, clamp_max(network.bytes_in, 5), network.bytes_in / 100)\n| KEEP full_clamped_cost, @timestamp"
   ],
   "preview" : false,
   "snapshot_only" : false

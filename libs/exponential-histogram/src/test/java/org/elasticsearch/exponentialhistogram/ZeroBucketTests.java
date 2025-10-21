@@ -33,6 +33,7 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
     public void testExactThresholdPreserved() {
         ZeroBucket bucket = ZeroBucket.create(3.0, 10);
         assertThat(bucket.zeroThreshold(), equalTo(3.0));
+        assertThat(bucket.isIndexBased(), equalTo(false));
     }
 
     public void testMergingPreservesExactThreshold() {
@@ -41,6 +42,7 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
         ZeroBucket merged = bucketA.merge(bucketB);
         assertThat(merged.zeroThreshold(), equalTo(3.5));
         assertThat(merged.count(), equalTo(30L));
+        assertThat(merged.isIndexBased(), equalTo(false));
     }
 
     public void testBucketCollapsingPreservesExactThreshold() {
@@ -56,6 +58,7 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
         assertThat(iterator.hasNext(), equalTo(false));
         assertThat(merged.zeroThreshold(), equalTo(3.0));
         assertThat(merged.count(), equalTo(52L));
+        assertThat(merged.isIndexBased(), equalTo(false));
     }
 
     public void testHashCodeEquality() {

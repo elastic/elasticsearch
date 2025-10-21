@@ -86,7 +86,14 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders("foo", "ctx.foo", "missing")) {
+        try (
+            ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(
+                randomFrom(ThreadContext.HeadersFor.values()),
+                "foo",
+                "ctx.foo",
+                "missing"
+            )
+        ) {
             assertEquals("bar", threadContext.getHeader("foo"));
             // only request headers preserved, not transient
             assertNull(threadContext.getTransient("ctx.foo"));
@@ -101,15 +108,28 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
-    public void testStashContextPreservingHeadersWithDefaultHeadersToCopy() {
+    public void testStashContextPreservingHeadersWithDefaultHeadersToCopyInLocalCluster() {
+        doTestStashContextPreservingHeadersWithDefaultHeadersToCopy(ThreadContext.HeadersFor.LOCAL_CLUSTER);
+    }
+
+    public void testStashContextPreservingHeadersWithDefaultHeadersToCopyForRemoteCluster() {
+        doTestStashContextPreservingHeadersWithDefaultHeadersToCopy(ThreadContext.HeadersFor.REMOTE_CLUSTER);
+    }
+
+    private static void doTestStashContextPreservingHeadersWithDefaultHeadersToCopy(final ThreadContext.HeadersFor headersFor) {
         for (String header : HEADERS_TO_COPY) {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(header, "bar");
-            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders()) {
-                assertEquals("bar", threadContext.getHeader(header));
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(headersFor)) {
+                if (headersFor == ThreadContext.HeadersFor.REMOTE_CLUSTER && header.equals(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)) {
+                    assertNull(threadContext.getHeader(header));
+                } else {
+                    assertEquals("bar", threadContext.getHeader(header));
+                }
             }
             // Also works if we pass it explicitly
-            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(header)) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(headersFor, header)) {
+                // If we pass it explicitly, then we expect it to be preserved even if it's not normally included in `HeadersFor`
                 assertEquals("bar", threadContext.getHeader(header));
             }
         }

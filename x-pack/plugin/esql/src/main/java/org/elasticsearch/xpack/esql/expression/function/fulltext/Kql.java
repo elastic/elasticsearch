@@ -137,7 +137,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         // Options are not serialized - they're embedded in the QueryBuilder
@@ -148,7 +148,7 @@ public class Kql extends FullTextFunction implements OptionalArgument {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalNamedWriteable(queryBuilder());
         }
         // Options are not serialized - they're embedded in the QueryBuilder

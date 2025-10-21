@@ -362,7 +362,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                             }
                         }
                     }
-                    throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
+                    throw new IllegalArgumentException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
                 }
             } catch (Exception e) {
                 l.onFailure(e);

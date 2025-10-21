@@ -104,7 +104,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public void testAllChronoFields() {

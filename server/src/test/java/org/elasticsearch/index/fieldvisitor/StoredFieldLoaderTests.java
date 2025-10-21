@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +47,7 @@ public class StoredFieldLoaderTests extends ESTestCase {
         Set<String> ignoredFields,
         IgnoredSourceFieldMapper.IgnoredSourceFormat format
     ) {
-        return new StoredFieldsSpec(false, false, storedFields, new IgnoredFieldsSpec(ignoredFields, format));
+        return new StoredFieldsSpec(ignoredFields.isEmpty() == false, false, storedFields, format, ignoredFields);
     }
 
     public void testEmpty() throws IOException {

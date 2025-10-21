@@ -87,6 +87,12 @@ toc:
   - file: esql.md
     children:
       - file: esql/esql-getting-started.md
+      - file: esql/esql-use-cases.md
+        children:
+          - title: "ES|QL for search"
+            crosslink: docs-content://solutions/search/esql-for-search.md
+          - title: "ES|QL for cybersecurity"
+            crosslink: docs-content://solutions/security/esql-for-security.md
       - file: esql/esql-rest.md
       - file: esql/esql-syntax-reference.md
         children:
@@ -155,6 +161,8 @@ toc:
       - file: esql/esql-examples.md
         children:
           - file: esql/esql-search-tutorial.md
+          - title: "ES|QL for threat hunting"
+            crosslink: docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md
       - file: esql/esql-troubleshooting.md
         children:
           - file: esql/esql-query-log.md

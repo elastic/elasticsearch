@@ -55,6 +55,7 @@ import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REW
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
@@ -374,7 +375,9 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
         // verify that we don't delegate anything
@@ -423,7 +426,9 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
         // verify that we don't delegate anything

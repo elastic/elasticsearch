@@ -172,4 +172,9 @@ public class SplitShardCountSummary {
     public int hashCode() {
         return Integer.hashCode(shardCountSummary);
     }
+
+    @Override
+    public String toString() {
+        return "SplitShardCountSummary [shardCountSummary=" + shardCountSummary + "]";
+    }
 }

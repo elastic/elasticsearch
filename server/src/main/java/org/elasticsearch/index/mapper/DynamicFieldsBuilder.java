@@ -14,7 +14,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
@@ -412,11 +411,7 @@ final class DynamicFieldsBuilder {
                     DateFieldMapper.Resolution.MILLISECONDS,
                     dateTimeFormatter,
                     ScriptCompiler.NONE,
-                    ignoreMalformed,
-                    context.indexSettings().getMode(),
-                    context.indexSettings().getIndexSortConfig(),
-                    context.indexSettings().getIndexVersionCreated(),
-                    IndexSettings.USE_DOC_VALUES_SKIPPER.get(context.indexSettings().getSettings())
+                    context.indexSettings()
                 ),
                 context
             );

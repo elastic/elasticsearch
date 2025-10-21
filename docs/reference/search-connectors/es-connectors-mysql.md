@@ -48,7 +48,7 @@ PUT _connector/my-mysql-connector
   "service_type": "mysql"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -233,6 +233,7 @@ This connector has the following known issues:
       }
     }
     ```
+    % TEST[skip:TODO]
 
 * **Upgrading to 8.8 does not migrate MySQL sync rules.**
 

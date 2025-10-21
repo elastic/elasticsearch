@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -324,14 +325,14 @@ public final class IndicesPermission {
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
-        Map<Automaton, Automaton> indexGroupAutomatonsForDataSelector = indexGroupAutomatons(
+        Map<Automaton, List<Automaton>> indexGroupAutomatonsForDataSelector = indexGroupAutomatons(
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
             IndexComponentSelector.DATA
         );
         // optimization: if there are no failures selector privileges in the set of privileges to check, we can skip building
         // the automaton map
         final boolean containsPrivilegesForFailuresSelector = containsPrivilegesForFailuresSelector(checkForPrivileges);
-        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
+        Map<Automaton, List<Automaton>> indexGroupAutomatonsForFailuresSelector = false == containsPrivilegesForFailuresSelector
             ? Map.of()
             : indexGroupAutomatons(
                 combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
@@ -856,43 +857,54 @@ public final class IndicesPermission {
      *
      * @param combine combine index groups to allow for checking against regular expressions
      *
-     * @return a map of all index and privilege pattern automatons
+     * @return a map of all privilege to index pattern automatons
      */
-    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
+    private Map<Automaton, List<Automaton>> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
-        Map<Automaton, Automaton> allAutomatons = new HashMap<>();
+        var privilegeToIndexAutomatons = new HashMap<Automaton, List<Automaton>>();
         for (Group group : groups) {
             if (false == group.checkSelector(selector)) {
                 continue;
             }
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
-            allAutomatons.compute(
-                group.privilege().getAutomaton(),
-                (key, value) -> value == null ? indexAutomaton : Automatons.unionAndMinimize(List.of(value, indexAutomaton))
-            );
+
             if (combine) {
+                privilegeToIndexAutomatons.compute(
+                    group.privilege().getAutomaton(),
+                    (key, value) -> value == null
+                        ? List.of(indexAutomaton)
+                        : List.of(Automatons.unionAndMinimize(List.of(value.getFirst(), indexAutomaton)))
+                );
                 List<Tuple<Automaton, Automaton>> combinedAutomatons = new ArrayList<>();
-                for (var indexAndPrivilegeAutomatons : allAutomatons.entrySet()) {
+                for (var privilegeAndIndexAutomatons : privilegeToIndexAutomatons.entrySet()) {
                     Automaton intersectingPrivileges = Operations.intersection(
-                        indexAndPrivilegeAutomatons.getKey(),
+                        privilegeAndIndexAutomatons.getKey(),
                         group.privilege().getAutomaton()
                     );
                     if (Operations.isEmpty(intersectingPrivileges) == false) {
                         Automaton indexPatternAutomaton = Automatons.unionAndMinimize(
-                            List.of(indexAndPrivilegeAutomatons.getValue(), indexAutomaton)
+                            List.of(privilegeAndIndexAutomatons.getValue().getFirst(), indexAutomaton)
                         );
                         combinedAutomatons.add(new Tuple<>(intersectingPrivileges, indexPatternAutomaton));
                     }
                 }
                 combinedAutomatons.forEach(
-                    automatons -> allAutomatons.compute(
+                    automatons -> privilegeToIndexAutomatons.compute(
                         automatons.v1(),
-                        (key, value) -> value == null ? automatons.v2() : Automatons.unionAndMinimize(List.of(value, automatons.v2()))
+                        (key, value) -> value == null
+                            ? List.of(automatons.v2())
+                            : List.of(Automatons.unionAndMinimize(List.of(value.getFirst(), automatons.v2())))
                     )
                 );
+            } else {
+                privilegeToIndexAutomatons.compute(group.privilege().getAutomaton(), (k, v) -> {
+                    var list = v == null ? new ArrayList<Automaton>() : v;
+                    list.add(group.getIndexMatcherAutomaton());
+                    return list;
+                });
             }
         }
-        return allAutomatons;
+        return privilegeToIndexAutomatons;
     }
 
     private static boolean containsPrivilegesForFailuresSelector(Set<String> checkForPrivileges) {
@@ -909,21 +921,26 @@ public final class IndicesPermission {
     }
 
     @Nullable
-    private static Automaton getIndexPrivilegesAutomaton(Map<Automaton, Automaton> indexGroupAutomatons, Automaton checkIndexAutomaton) {
+    private static Automaton getIndexPrivilegesAutomaton(
+        Map<Automaton, List<Automaton>> indexGroupAutomatons,
+        Automaton checkIndexAutomaton
+    ) {
         if (indexGroupAutomatons.isEmpty()) {
             return null;
         }
         Automaton allowedPrivilegesAutomaton = null;
-        for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
-            Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
-            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
-                Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
-                if (allowedPrivilegesAutomaton != null) {
-                    allowedPrivilegesAutomaton = Automatons.unionAndMinimize(
-                        Arrays.asList(allowedPrivilegesAutomaton, privilegesAutomaton)
-                    );
-                } else {
-                    allowedPrivilegesAutomaton = privilegesAutomaton;
+        for (Map.Entry<Automaton, List<Automaton>> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
+            List<Automaton> indexNameAutomatons = indexAndPrivilegeAutomaton.getValue();
+            for (var indexNameAutomaton : indexNameAutomatons) {
+                if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                    Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                    if (allowedPrivilegesAutomaton != null) {
+                        allowedPrivilegesAutomaton = Automatons.unionAndMinimize(
+                            Arrays.asList(allowedPrivilegesAutomaton, privilegesAutomaton)
+                        );
+                    } else {
+                        allowedPrivilegesAutomaton = privilegesAutomaton;
+                    }
                 }
             }
         }
@@ -961,15 +978,13 @@ public final class IndicesPermission {
             this.selectorPredicate = privilege.getSelectorPredicate();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
-            ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
+                this.indexNameAutomaton = CachedSupplier.wrap(() -> Automatons.patterns(indices));
             } else {
                 this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    indices,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                this.indexNameAutomaton = CachedSupplier.wrap(
+                    () -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

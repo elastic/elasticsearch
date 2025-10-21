@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
@@ -127,7 +127,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(
             () -> assertThat(countInferenceProcessors(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()), equalTo(0))
         );
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertBusy(() -> {
             List<String> indices = Arrays.asList(
                 client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".ml*").get().indices()
@@ -145,7 +145,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         createdPipelines.add("feature_reset_failure_inference_pipeline");
         Exception ex = expectThrows(
             Exception.class,
-            () -> client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet()
+            () -> client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet()
         );
         assertThat(
             ex.getMessage(),
@@ -160,7 +160,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
 
     public void testMLFeatureResetWithModelDeployment() throws Exception {
         createModelDeployment();
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         assertBusy(() -> {
             List<String> indices = Arrays.asList(
                 client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".ml*").get().indices()

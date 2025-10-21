@@ -36,8 +36,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
             sizeInBytes = 0;
         }
         var transportVersion = input.getTransportVersion();
-        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
-            || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
+        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0) || transportVersion.supports(TransportVersions.V_8_18_0)) {
             hasCustomCutoffDate = input.readBoolean();
         } else {
             hasCustomCutoffDate = false;
@@ -54,8 +53,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
             out.writeVLong(sizeInBytes);
         }
         var transportVersion = out.getTransportVersion();
-        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
-            || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
+        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0) || transportVersion.supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(hasCustomCutoffDate);
         }
     }

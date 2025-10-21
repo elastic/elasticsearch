@@ -76,7 +76,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static List<TestCaseSupplier> generateTest(String dateTime, String expectedMonthName) {
@@ -134,7 +134,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
             locale,
             null,
             null,
-            new QueryPragmas(Settings.EMPTY),
+            QueryPragmas.EMPTY,
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",

@@ -59,6 +59,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.TransportClosePointInTimeAction.closeContexts;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -658,7 +659,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     ) {
         SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
         boolean idChanged = false;
-        Map<ShardId, SearchContextIdForNode> updatedShardMap = null;  // only create this if we detect a change
+        // only create the following maps if we detect a change
+        Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
+        Collection<SearchContextIdForNode> contextsToClose = null;
         for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
@@ -670,28 +673,24 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     // the target node for this shard entry in the PIT has changed, we need to update it
                     idChanged = true;
                     if (updatedShardMap == null) {
-                        updatedShardMap = new HashMap<>(original.shards().size());
+                        // initialize the map with entries from old map to keep ids for shards that have not responded in this results
+                        updatedShardMap = new HashMap<>(original.shards());
+                        contextsToClose = new ArrayList<>();
                     }
-                    updatedShardMap.put(
-                        shardId,
-                        new SearchContextIdForNode(
-                            searchShardTarget.getClusterAlias(),
-                            searchShardTarget.getNodeId(),
-                            result.getContextId()
-                        )
+                    SearchContextIdForNode updatedId = new SearchContextIdForNode(
+                        searchShardTarget.getClusterAlias(),
+                        searchShardTarget.getNodeId(),
+                        result.getContextId()
                     );
+                    updatedShardMap.put(shardId, updatedId);
+                    contextsToClose.add(original.shards().get(shardId));
                 }
             }
         }
-        logger.info("re-encoding PIT [{}]", idChanged);
         if (idChanged) {
             // we free all old contexts that have moved, just in case we have re-tried them elsewhere but they still exist in the old
             // location
-            Collection<SearchContextIdForNode> contextsToClose = updatedShardMap.keySet()
-                .stream()
-                .map(shardId -> original.shards().get(shardId))
-                .collect(Collectors.toCollection(ArrayList::new));
-            TransportClosePointInTimeAction.closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<>() {
+            closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<Integer>() {
                 @Override
                 public void onResponse(Integer integer) {
                     // ignore
@@ -699,16 +698,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug("Failure while freeing old point in time contexts", e);
+                    logger.trace("Failure while freeing old point in time contexts", e);
                 }
             }, logger);
-            // we also need to add shard that are not in the results for some reason (e.g. query rewrote to match none) but that
-            // were part of the original PIT
-            for (ShardId shardId : original.shards().keySet()) {
-                if (updatedShardMap.containsKey(shardId) == false) {
-                    updatedShardMap.put(shardId, original.shards().get(shardId));
-                }
-            }
             return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return originalPit.getEncodedId();

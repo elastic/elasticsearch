@@ -365,13 +365,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicLong idGenerator = new AtomicLong();
 
-    private final Map<ShardSearchContextId, ReaderContext> activeReaders = ConcurrentCollections
-        .newConcurrentMapWithAggressiveConcurrency();
+    private final ActiveReaders activeReaders;
 
     private final MultiBucketConsumerService multiBucketConsumerService;
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
-    private final String sessionId = UUIDs.randomBase64UUID();
+    private final String sessionId;
 
     private final Tracer tracer;
     private Map<ShardId, Set<ReaderContext>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -389,6 +388,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         OnlinePrewarmingService onlinePrewarmingService
     ) {
         Settings settings = clusterService.getSettings();
+        this.sessionId = UUIDs.randomBase64UUID();
+        this.activeReaders = new ActiveReaders(this.sessionId, this.idGenerator);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -1297,7 +1298,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         searcherSupplier,
                         this::putReaderContext,
                         false,
-                        keepAliveInMillis
+                        getDefaultKeepAliveInMillis()
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {

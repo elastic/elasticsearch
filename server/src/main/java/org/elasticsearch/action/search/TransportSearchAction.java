@@ -2005,8 +2005,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // In context of PIT the searcher is reused or can be recreated only in read-only scenarios.
                         // If a searcher is reused, this value won't be used
                         // (it was calculated and used when PIT was created).
-                        // In read-only scenarios (e.g. searchable snapshots) we don't expect resharding to happen
-                        // so the value doesn't matter.
+                        // If the searcher is recreated, which will happen when PITs are relocatable, then we should supply
+                        // the same summary when recreating the search that was first used in order to produce the same
+                        // filtering decision. See ES-13264 for the work needed when relocatable PITs land.
                         SplitShardCountSummary.UNSET
                     )
                 );

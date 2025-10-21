@@ -1535,7 +1535,7 @@ public class EsqlCapabilities {
          * Support for pushing down EVAL with SCORE
          * https://github.com/elastic/elasticsearch/issues/133462
          */
-        PUSHING_DOWN_EVAL_WITH_SCORE
+        PUSHING_DOWN_EVAL_WITH_SCORE,
 
         /**
          * Fix for ClassCastException in STATS

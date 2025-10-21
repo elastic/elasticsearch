@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * A field attribute that has a function applied to it for value extraction.
  * This is used to replace a field attribute with a function that can extract
@@ -18,8 +16,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * and applying the function to it.
  */
 public class FieldFunctionAttribute extends FieldAttribute {
-
-    private static final AtomicLong COUNTER = new AtomicLong();
 
     private final MappedFieldType.BlockLoaderValueFunction<?, ?> blockLoaderValueFunction;
     private final DataType dataType;
@@ -31,7 +27,8 @@ public class FieldFunctionAttribute extends FieldAttribute {
         DataType dataType
     ) {
         super(fieldAttribute.source(), fieldAttribute.parentName(), fieldAttribute.qualifier(),
-            fieldAttribute.name() + "_replaced_" + COUNTER.incrementAndGet(), fieldAttribute.field(), fieldAttribute.synthetic());
+            Attribute.rawTemporaryName(fieldAttribute.name(), "replaced", new NameId().toString()),
+            fieldAttribute.field(), fieldAttribute.synthetic());
         this.fieldName = fieldAttribute.fieldName();
         this.blockLoaderValueFunction = blockLoaderValueFunction;
         this.dataType = dataType;

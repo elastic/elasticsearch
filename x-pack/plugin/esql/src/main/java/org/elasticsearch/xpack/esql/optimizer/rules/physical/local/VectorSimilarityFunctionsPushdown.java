@@ -67,7 +67,6 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         return nonFunctionUsages.keySet().stream().filter(k -> nonFunctionUsages.get(k) > 0).collect(Collectors.toSet());
     }
 
-
     private EvalExec replaceSimilarityFunctionsForFieldTransformations(EvalExec eval, Set<Attribute> denseVectorAttrsToKeep) {
         Map<Attribute, Attribute> replacements = new HashMap<>();
         EvalExec resultEval = (EvalExec) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {

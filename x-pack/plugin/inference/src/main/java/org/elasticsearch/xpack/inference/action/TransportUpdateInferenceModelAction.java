@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -137,10 +138,16 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                             unparsedModel.service()
                         )
                     );
-                } else {
-                    service.set(optionalService.get());
-                    listener.onResponse(unparsedModel);
+                    return;
                 }
+
+                if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
+                    listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
+                    return;
+                }
+
+                service.set(optionalService.get());
+                listener.onResponse(unparsedModel);
             })
             .<Boolean>andThen((listener, existingUnparsedModel) -> {
 

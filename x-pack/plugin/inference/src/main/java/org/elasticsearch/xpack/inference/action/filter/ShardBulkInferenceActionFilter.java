@@ -48,7 +48,6 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -57,10 +56,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferenceException;
+import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -78,7 +77,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
 
@@ -383,6 +381,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
+
+            if (InferenceLicenceCheck.isServiceLicenced(inferenceProvider.service.name(), licenseState) == false) {
+                try (onFinish) {
+                    for (FieldInferenceRequest request : requests) {
+                        addInferenceResponseFailure(
+                            request.bulkItemIndex,
+                            InferenceLicenceCheck.complianceException(inferenceProvider.service.name())
+                        );
+                    }
+                    return;
+                }
+            }
+
             final List<ChunkInferenceInput> inputs = requests.stream()
                 .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
                 .collect(Collectors.toList());
@@ -568,11 +579,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         values = SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
                         addInferenceResponseFailure(itemIndex, exc);
-                        break;
-                    }
-
-                    if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-                        addInferenceResponseFailure(itemIndex, LicenseUtils.newComplianceException(XPackField.INFERENCE));
                         break;
                     }
 

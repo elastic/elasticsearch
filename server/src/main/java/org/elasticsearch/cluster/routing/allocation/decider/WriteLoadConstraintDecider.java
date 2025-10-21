@@ -18,8 +18,10 @@ import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -31,10 +33,16 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
     public static final String NAME = "write_load";
 
+    private final FrequencyCappedAction logInterventionMessage;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     public WriteLoadConstraintDecider(ClusterSettings clusterSettings) {
         this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+        logInterventionMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        clusterSettings.initializeAndWatch(
+            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
+            logInterventionMessage::setMinInterval
+        );
     }
 
     @Override
@@ -77,7 +85,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 nodeWriteThreadPoolLoadThreshold,
                 shardRouting.shardId()
             );
-            logger.debug(explain);
+            if (logger.isDebugEnabled()) {
+                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            }
             return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
@@ -97,7 +107,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 shardWriteLoad,
                 nodeWriteThreadPoolStats.totalThreadPoolThreads()
             );
-            logger.debug(explain);
+            if (logger.isDebugEnabled()) {
+                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            }
             return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
@@ -108,7 +120,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             node.nodeId(),
             newWriteThreadPoolUtilization
         );
-        logger.trace(explanation);
         return allocation.decision(Decision.YES, NAME, explanation);
     }
 
@@ -146,7 +157,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                 nodeWriteThreadPoolStats.averageThreadPoolUtilization()
             );
-            logger.debug(explain);
+            if (logger.isDebugEnabled()) {
+                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            }
             return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
@@ -156,7 +169,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2)
         );
-        logger.trace(explanation);
         return allocation.decision(Decision.YES, NAME, explanation);
     }
 

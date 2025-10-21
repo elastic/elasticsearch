@@ -534,12 +534,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
   issue: https://github.com/elastic/elasticsearch/issues/136443
-- class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
-  method: testExcludeInferenceFieldsFromSource
-  issue: https://github.com/elastic/elasticsearch/issues/136451
-- class: org.elasticsearch.xpack.inference.integration.SemanticTextInferenceFieldsIT
-  method: testExcludeInferenceFieldsFromSourceOldIndexVersions
-  issue: https://github.com/elastic/elasticsearch/issues/136452
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
   method: testEsqlRcs2UnavailableRemoteScenarios
   issue: https://github.com/elastic/elasticsearch/issues/136493

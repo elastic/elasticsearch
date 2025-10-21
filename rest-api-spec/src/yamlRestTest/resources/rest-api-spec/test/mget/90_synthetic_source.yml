@@ -73,14 +73,17 @@ keyword with normalizer:
               keyword:
                 type: keyword
                 normalizer: lowercase
+                normalizer_skip_store_original_value: false
               keyword_with_ignore_above:
                 type: keyword
                 normalizer: lowercase
                 ignore_above: 10
+                normalizer_skip_store_original_value: false
               keyword_without_doc_values:
                 type: keyword
                 normalizer: lowercase
                 doc_values: false
+                normalizer_skip_store_original_value: false
 
   - do:
       index:

@@ -283,8 +283,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "normalizer_skip_store_original_value",
                 false,
                 m -> ((KeywordFieldMapper) m).isNormalizerSkipStoreOriginalValue(),
-                false
-            );
+                () -> "lowercase".equals(normalizer.getValue())
+            ).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
 
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);

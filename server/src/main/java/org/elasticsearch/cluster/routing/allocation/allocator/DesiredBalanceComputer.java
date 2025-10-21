@@ -486,10 +486,12 @@ public class DesiredBalanceComputer {
                     || info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) : "Unexpected stats in: " + info;
 
             if (hasChanges == false && info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+                // Unassigned ignored shards must be based on the provided set of ignoredShards
                 assert ignoredShards.contains(discardAllocationStatus(shard))
+                    || ignoredShards.stream().filter(ShardRouting::primary).anyMatch(primary -> primary.shardId().equals(shard.shardId()))
                     : "ignored shard "
                         + shard
-                        + " unexpectedly has THROTTLE status and is not in the provided ignoredShards set "
+                        + " unexpectedly has THROTTLE status and no counterpart in the provided ignoredShards set "
                         + ignoredShards;
                 // Simulation could not progress due to missing information in any of the deciders.
                 // Currently, this could happen if `HasFrozenCacheAllocationDecider` is still fetching the data.

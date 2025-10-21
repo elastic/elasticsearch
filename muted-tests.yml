@@ -570,6 +570,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTextFieldWithIpSubfieldMalformed {STORED}
   issue: https://github.com/elastic/elasticsearch/issues/136917
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTextFieldWithKeywordSubfield {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/136918
 
 # Examples:
 #

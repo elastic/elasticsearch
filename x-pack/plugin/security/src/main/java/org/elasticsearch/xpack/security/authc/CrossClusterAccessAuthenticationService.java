@@ -149,14 +149,14 @@ public class CrossClusterAccessAuthenticationService implements RemoteClusterAut
                 logger.debug(Strings.format("Invalid cross cluster api key signature received [%s]", signature));
                 authException = Exceptions.authenticationError(
                     "Invalid cross cluster api key signature from [{}]",
-                    X509CertificateSignature.certificateToString(signature.certificates()[0])
+                    X509CertificateSignature.certificateToString(signature.leafCertificate())
                 );
             }
         } catch (GeneralSecurityException securityException) {
             logger.debug(Strings.format("Failed to verify cross cluster api key signature certificate [%s]", signature), securityException);
             authException = Exceptions.authenticationError(
                 "Failed to verify cross cluster api key signature certificate from [{}]",
-                X509CertificateSignature.certificateToString(signature.certificates()[0])
+                X509CertificateSignature.certificateToString(signature.leafCertificate())
             );
         }
         if (authException != null) {

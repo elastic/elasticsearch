@@ -74,6 +74,11 @@ public final class X509CertificateSignature implements Writeable {
         return certificateChain;
     }
 
+    public X509Certificate leafCertificate() {
+        assert certificateChain.length > 0;
+        return certificateChain[0];
+    }
+
     public String algorithm() {
         return algorithm;
     }

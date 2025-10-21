@@ -95,7 +95,7 @@ public final class CrossClusterAccessHeaders {
             if (signature.certificates().length == 0) {
                 throw new IllegalArgumentException("Provided signature does not contain any certificates");
             }
-            return signature.certificates()[0].getSubjectX500Principal().getName(X500Principal.RFC2253);
+            return signature.leafCertificate().getSubjectX500Principal().getName(X500Principal.RFC2253);
         }
         return null;
     }

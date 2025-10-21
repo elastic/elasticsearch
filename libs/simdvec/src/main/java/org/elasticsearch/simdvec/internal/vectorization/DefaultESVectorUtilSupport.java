@@ -339,7 +339,6 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * @param packed the output packed byte array
      */
     public static void packDibitImpl(int[] vector, byte[] packed) {
-        assert packed.length == 2 * ((vector.length + 7) / 8);
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;

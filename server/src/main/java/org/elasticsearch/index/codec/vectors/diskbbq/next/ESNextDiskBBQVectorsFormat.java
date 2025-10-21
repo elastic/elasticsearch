@@ -88,6 +88,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             public void packQuery(int[] quantized, byte[] destination) {
                 ESVectorUtil.transposeHalfByte(quantized, destination);
             }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
+                // we want to force dibit packing to byte boundaries assuming single bit striping
+                int docDiscretized = ((dimensions + 7) / 8 * 8) * 2;
+                int maxDiscretized = Math.max(queryDiscretized, docDiscretized);
+                assert maxDiscretized % (8.0 / 4) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
+                assert maxDiscretized % (8.0 / 2) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
+                return maxDiscretized;
+            }
         };
 
         private final int id;

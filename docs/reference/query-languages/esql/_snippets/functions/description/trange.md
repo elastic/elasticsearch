@@ -2,5 +2,5 @@
 
 **Description**
 
-Filters time-series data for the given time range.
+Filters data for the given time range using the @timestamp attribute.
 

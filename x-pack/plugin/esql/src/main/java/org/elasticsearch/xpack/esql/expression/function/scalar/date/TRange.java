@@ -79,7 +79,7 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Filters time-series data for the given time range.",
+        description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
             @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeString"),
@@ -195,16 +195,8 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     public Expression surrogate() {
         long[] range = getRange(FoldContext.small());
 
-        Expression startLiteral;
-        Expression endLiteral;
-
-        if (timestamp.dataType() == DataType.DATE_NANOS) {
-            startLiteral = new Literal(source(), range[0], DataType.DATE_NANOS);
-            endLiteral = new Literal(source(), range[1], DataType.DATE_NANOS);
-        } else {
-            startLiteral = new Literal(source(), range[0], DataType.DATETIME);
-            endLiteral = new Literal(source(), range[1], DataType.DATETIME);
-        }
+        Expression startLiteral = new Literal(source(), range[0], timestamp.dataType());
+        Expression endLiteral = new Literal(source(), range[1], timestamp.dataType());
 
         return new And(source(), new GreaterThan(source(), timestamp, startLiteral), new LessThanOrEqual(source(), timestamp, endLiteral));
     }
@@ -289,10 +281,6 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (first.resolved() && first.dataType() == DataType.NULL) {
-            failures.add(fail(first, "{} cannot be null", START_TIME_OR_OFFSET_PARAMETER));
-        }
-
         // single parameter mode
         if (second == null) {
             Object rangeStartValue = first.fold(FoldContext.small());

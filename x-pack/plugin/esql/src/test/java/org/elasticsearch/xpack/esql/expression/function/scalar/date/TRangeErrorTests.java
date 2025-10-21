@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
-    private static final String ONE_PARAM_TYPE_ERROR_STRING = "time_duration, date_period, string or long";
-    private static final String TWO_PARAM_TYPE_ERROR_STRING = "string or long";
+    private static final String ONE_PARAM_TYPE_ERROR_STRING = "time_duration or date_period";
+    private static final String TWO_PARAM_TYPE_ERROR_STRING = "string, long, date or date_nanos";
 
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -40,10 +40,14 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_PERIOD), () -> null));
         suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD), () -> null));
         suppliers.add(new TestCaseSupplier(List.of(DataType.LONG), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS), () -> null));
 
         // two parameters
         suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> null));
         suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> null));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> null));
 
         return suppliers;
     }
@@ -99,7 +103,10 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         } else {
             // 2nd parameter must have the same type as the first (the 1st one is taken from signature to compare)
-            validPerPosition = List.of(Set.of(DataType.KEYWORD, DataType.LONG), Set.of(signature.getFirst()));
+            validPerPosition = List.of(
+                Set.of(DataType.KEYWORD, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS),
+                Set.of(signature.getFirst())
+            );
             for (int i = 0; i < signature.size(); i++) {
                 if (validPerPosition.get(i).contains(signature.get(i)) == false) {
                     return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);

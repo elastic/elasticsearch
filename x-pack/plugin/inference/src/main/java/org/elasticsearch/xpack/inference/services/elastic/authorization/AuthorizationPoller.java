@@ -11,21 +11,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -55,6 +58,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
+    private final Client client;
 
     public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
 
@@ -64,7 +68,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         Sender sender,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ElasticInferenceServiceComponents components,
-        ModelRegistry modelRegistry
+        ModelRegistry modelRegistry,
+        Client client
     ) {}
 
     public AuthorizationPoller(TaskFields taskFields, Parameters parameters) {
@@ -76,6 +81,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             parameters.elasticInferenceServiceSettings,
             parameters.components,
             parameters.modelRegistry,
+            parameters.client,
             null
         );
     }
@@ -89,6 +95,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ElasticInferenceServiceComponents components,
         ModelRegistry modelRegistry,
+        Client client,
         // this is a hack to facilitate testing
         Runnable callback
     ) {
@@ -99,6 +106,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
         this.elasticInferenceServiceComponents = Objects.requireNonNull(components);
         this.modelRegistry = Objects.requireNonNull(modelRegistry);
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
         this.callback = callback;
     }
 
@@ -184,7 +192,10 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
                 callback.run();
             }
             firstAuthorizationCompletedLatch.countDown();
-        }).delegateResponse((delegate, e) -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints"));
+        }).delegateResponse((delegate, e) -> {
+            logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints");
+            delegate.onResponse(null);
+        });
 
         SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
@@ -216,11 +227,12 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             return;
         }
 
+        logger.debug("Storing new EIS preconfigured inference endpoints with inference IDs {}", newInferenceIds);
         var modelsToAdd = PreconfiguredEndpointModelAdapter.getModels(newInferenceIds, elasticInferenceServiceComponents);
+        var storeRequest = new StoreInferenceEndpointsAction.Request(modelsToAdd, TimeValue.THIRTY_SECONDS);
 
-        // TODO
-        ActionListener<List<ModelRegistry.ModelStoreResponse>> storeListener = ActionListener.wrap(responses -> {
-            for (var response : responses) {
+        ActionListener<StoreInferenceEndpointsAction.Response> storeListener = ActionListener.wrap(responses -> {
+            for (var response : responses.getResults()) {
                 if (response.failed()) {
                     logger.atWarn()
                         .withThrowable(response.failureCause())
@@ -232,10 +244,10 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             }
         }, e -> logger.atWarn().withThrowable(e).log("Failed to store new EIS preconfigured inference endpoints [{}]", newInferenceIds));
 
-        modelRegistry.storeModels(
-            modelsToAdd,
-            ActionListener.runAfter(storeListener, () -> listener.onResponse(null)),
-            TimeValue.THIRTY_SECONDS
+        client.execute(
+            StoreInferenceEndpointsAction.INSTANCE,
+            storeRequest,
+            ActionListener.runAfter(storeListener, () -> listener.onResponse(null))
         );
     }
 }

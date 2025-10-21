@@ -11,16 +11,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -36,10 +39,12 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -79,6 +84,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
@@ -110,6 +116,7 @@ import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAct
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
+import org.elasticsearch.xpack.inference.registry.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -175,7 +182,8 @@ public class InferencePlugin extends Plugin
         MapperPlugin,
         SearchPlugin,
         InternalSearchPlugin,
-        ClusterPlugin {
+        ClusterPlugin,
+        PersistentTaskPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -227,6 +235,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
+    private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -246,7 +255,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
             new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
             new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
-            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class)
+            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
+            new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class)
         );
     }
 
@@ -337,10 +347,12 @@ public class InferencePlugin extends Plugin
                 elasicInferenceServiceFactory.get().createSender(),
                 inferenceServiceSettings,
                 eisComponents,
-                modelRegistry.get()
+                modelRegistry.get(),
+                services.client()
             )
         );
         authTaskExecutor.init();
+        authorizationTaskExecutorRef.set(authTaskExecutor);
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
@@ -419,6 +431,17 @@ public class InferencePlugin extends Plugin
         components.add(authTaskExecutor);
 
         return components;
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
+        return List.of(authorizationTaskExecutorRef.get());
     }
 
     @Override

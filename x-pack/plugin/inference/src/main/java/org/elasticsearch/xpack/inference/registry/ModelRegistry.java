@@ -688,7 +688,7 @@ public class ModelRegistry implements ClusterStateListener {
                         "Inference endpoint [{}] already exists",
                         RestStatus.BAD_REQUEST,
                         failureItem.failureCause(),
-                        failureItem.inferenceId
+                        failureItem.inferenceId()
                     )
                 );
                 return;
@@ -696,18 +696,12 @@ public class ModelRegistry implements ClusterStateListener {
 
             delegate.onFailure(
                 new ElasticsearchStatusException(
-                    format("Failed to store inference endpoint [%s]", failureItem.inferenceId),
+                    format("Failed to store inference endpoint [%s]", failureItem.inferenceId()),
                     RestStatus.INTERNAL_SERVER_ERROR,
                     failureItem.failureCause()
                 )
             );
         }), timeout);
-    }
-
-    public record ModelStoreResponse(String inferenceId, RestStatus status, @Nullable Exception failureCause) {
-        public boolean failed() {
-            return failureCause != null;
-        }
     }
 
     public void storeModels(List<Model> models, ActionListener<List<ModelStoreResponse>> listener, TimeValue timeout) {

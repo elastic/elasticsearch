@@ -53,7 +53,7 @@ public class InternalPreconfiguredEndpoints {
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SERVICE_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
     private static final ElasticInferenceServiceSparseEmbeddingsServiceSettings SPARSE_EMBEDDINGS_SERVICE_SETTINGS =
-        new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_RERANK_MODEL_ID_V1, null);
+        new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null);
     private static final ElasticInferenceServiceDenseTextEmbeddingsServiceSettings DENSE_TEXT_EMBEDDINGS_SERVICE_SETTINGS =
         new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
             DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,

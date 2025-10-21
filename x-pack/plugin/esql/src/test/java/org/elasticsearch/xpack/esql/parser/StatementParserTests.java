@@ -1293,7 +1293,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:17: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:17: Invalid GROK pattern [(?P<justification>.+)]: [undefined group option]"
+        );
+
+        expectError(
+            "row a = \"foo bar\" | GROK a \"%{NUMBER:foo}\", \"%{WORD:foo}\"",
+            "line 1:21: Invalid GROK patterns [%{NUMBER:foo}, %{WORD:foo}]:"
+                + " the attribute [foo] is defined multiple times with different types"
+        );
+
+        expectError(
+            "row a = \"foo\" | GROK a \"%{WORD:foo}\", \"(?P<justification>.+)\"",
+            "line 1:17: Invalid GROK patterns [%{WORD:foo}, (?P<justification>.+)]: [undefined group option]"
         );
     }
 
@@ -3850,11 +3861,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFork() {
-        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least 2 branches");
-        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least 2 branches");
+        expectError("""
+            FROM foo* | FORK
+            """, "line 2:1: mismatched input '<EOF>' expecting '('");
+        expectError("""
+            FROM foo* | FORK ()
+            """, "line 1:19: mismatched input ')'");
 
         expectError("""
             FROM foo*

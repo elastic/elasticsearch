@@ -272,14 +272,18 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }, finalResponseListener::onFailure);
 
-        checkForExistingModelDownloadTask(
-            client,
-            trainedModelConfig.getModelId(),
-            request.isWaitForCompletion(),
-            finalResponseListener,
-            () -> handlePackageAndTagsListener.onResponse(null),
-            request.ackTimeout()
-        );
+        if (isPackageModel) {
+            checkForExistingModelDownloadTask(
+                client,
+                trainedModelConfig.getModelId(),
+                request.isWaitForCompletion(),
+                finalResponseListener,
+                () -> handlePackageAndTagsListener.onResponse(null),
+                request.ackTimeout()
+            );
+        } else {
+            handlePackageAndTagsListener.onResponse(null);
+        }
     }
 
     void verifyMlNodesAndModelArchitectures(

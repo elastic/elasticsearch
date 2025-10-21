@@ -121,11 +121,6 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     }
 
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
-    }
-
-    @Override
     protected boolean supportsParsingObject() {
         return true;
     }

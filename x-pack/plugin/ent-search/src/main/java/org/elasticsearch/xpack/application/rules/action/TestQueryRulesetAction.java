@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -158,6 +159,14 @@ public class TestQueryRulesetAction {
         public Response(int totalMatchedRules, List<MatchedRule> matchedRules) {
             this.totalMatchedRules = totalMatchedRules;
             this.matchedRules = matchedRules;
+        }
+
+        int totalMatchedRules() {
+            return totalMatchedRules;
+        }
+
+        List<MatchedRule> matchedRules() {
+            return Collections.unmodifiableList(matchedRules);
         }
 
         @Override

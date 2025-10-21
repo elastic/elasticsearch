@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculates the population standard variance over time of a numeric field.
+Calculates the population variance over time of a numeric field.
 

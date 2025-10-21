@@ -2,5 +2,5 @@
 
 **Description**
 
-The population standard variance of a numeric field.
+The population variance of a numeric field.
 

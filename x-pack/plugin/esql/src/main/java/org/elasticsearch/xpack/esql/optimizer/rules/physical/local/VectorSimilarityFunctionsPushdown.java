@@ -44,15 +44,20 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         return plan.transformDown(EvalExec.class, eval -> replaceSimilarityFunctionsForFieldTransformations(eval, denseVectorAttrsToKeep));
     }
 
+    /**
+     * Finds the dense_vector attributes that are used outside of similarity functions
+     */
     private static Set<Attribute> findDenseVectorAttrsToKeep(PhysicalPlan plan) {
         Map<Attribute, Integer> nonFunctionUsages = new HashMap<>();
 
+        // Count all usages of dense_vector fields
         plan.references().forEach(f -> {
             if (f instanceof FieldAttribute fieldAttr && fieldAttr.dataType() == DataType.DENSE_VECTOR) {
                 nonFunctionUsages.compute(fieldAttr, (k, v) -> v == null ? 1 : v + 1);
             }
         });
 
+        // Subtract usages inside similarity functions
         plan.forEachExpression(VectorSimilarityFunction.class, similarityFunction -> {
             if (similarityFunction.left() instanceof FieldAttribute fieldAttr) {
                 assert nonFunctionUsages.containsKey(fieldAttr) : "Expected field attribute to be retrieved from plan references";
@@ -64,10 +69,13 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
             }
         });
 
+        // Return the attributes that have non-similarity function usages
         return nonFunctionUsages.keySet().stream().filter(k -> nonFunctionUsages.get(k) > 0).collect(Collectors.toSet());
     }
 
     private EvalExec replaceSimilarityFunctionsForFieldTransformations(EvalExec eval, Set<Attribute> denseVectorAttrsToKeep) {
+
+        // Replaces vector similarity functions with field transformations where one side is a literal for FieldFunctionAttributes
         Map<Attribute, Attribute> replacements = new HashMap<>();
         EvalExec resultEval = (EvalExec) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {
             if (similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) {
@@ -80,6 +88,7 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
             return eval;
         }
 
+        // Replace FieldAttributes with FieldFunctionAttributes in FieldExtractExec
         resultEval = (EvalExec) resultEval.transformDown(FieldExtractExec.class, fieldEx -> {
             List<Attribute> attrs = fieldEx.attributesToExtract();
             assert attrs.stream().anyMatch(replacements::containsKey) : "Expected at least one attribute to be replaced";

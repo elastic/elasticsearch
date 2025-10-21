@@ -994,7 +994,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 @Override
                 void innerOnResponse(SearchShardsResponse searchShardsResponse) {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-                    ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
+                    /*
+                     * This particular linked project returned empty shards and that's because none of the requested
+                     * indices are on it. So we need to prevent it from appearing in the metadata. In case the very
+                     * same indices don't exist on the origin too, we use `CrossProjectIndexResolutionValidator#validate()`
+                     * to throw an error downstream.
+                     *
+                     * TODO: Handle the `total` count that tracks total projects since it populates that info
+                     *  within Cluster#ctor().
+                     */
+                    boolean canPurge = resolvesCrossProject && searchShardsResponse.getGroups().isEmpty();
+                    if (canPurge) {
+                        clusters.swapCluster(clusterAlias, (ignored1, ignored2) -> null);
+                    } else {
+                        ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
+                    }
                     searchShardsResponses.put(clusterAlias, searchShardsResponse);
                 }
 

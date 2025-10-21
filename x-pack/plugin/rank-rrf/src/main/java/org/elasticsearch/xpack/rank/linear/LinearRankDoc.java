@@ -138,6 +138,6 @@ public class LinearRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.LINEAR_RETRIEVER_SUPPORT;
+        return TransportVersions.V_8_18_0;
     }
 }

@@ -142,11 +142,30 @@ While we do encourage experimentation, we do not recommend implementing producti
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. By default, `.elser-2-elasticsearch` is used. This
-parameter cannot be updated. Use
-the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
+embeddings for the field. By default, `.elser-2-elasticsearch` is used.
+Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 to create the endpoint. If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time.
+
+::::{applies-switch}
+
+:::{applies-item} { "stack": "ga 9.0" }
+This parameter cannot be updated.
+:::
+
+:::{applies-item} { "stack": "ga 9.3" }
+
+You can update this parameter by using
+the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
+You can update the inference endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
+
+::::{warning}
+When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
+::::
+
+:::
+
+::::
 
 `search_inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
@@ -672,6 +691,18 @@ POST test-index/_search
 
 This will return verbose chunked embeddings content that is used to perform
 semantic search for `semantic_text` fields.
+
+### Document count discrepancy in `_cat/indices`
+
+When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed. 
+This occurs because `semantic_text` stores embeddings in [nested documents](/reference/elasticsearch/mapping-reference/nested.md), one per chunk. The `_cat/indices` API counts all documents in the Lucene index, including these hidden nested documents.
+
+To count only top-level documents, excluding the nested documents that store embeddings, use one of the following APIs:
+
+* `GET /<index>/_count`
+* `GET _cat/count/<index>`
+
+
 
 ## Cross-cluster search (CCS) [ccs]
 ```{applies_to}

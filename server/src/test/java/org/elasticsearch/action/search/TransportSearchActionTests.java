@@ -1101,6 +1101,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1131,6 +1133,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1184,6 +1188,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1215,6 +1221,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1262,6 +1270,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);

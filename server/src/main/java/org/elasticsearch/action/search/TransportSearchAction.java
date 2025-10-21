@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -79,6 +81,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -120,6 +124,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -170,6 +175,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final UsageService usageService;
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportSearchAction(
@@ -218,7 +224,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
-        forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
+        this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -353,6 +360,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
         boolean collectSearchTelemetry
     ) {
+        boolean resolvesCrossProject = crossProjectModeDecider.resolvesCrossProject(original);
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
             original.getOrCreateAbsoluteStartMillis(),
@@ -365,16 +373,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         ProjectState projectState = projectResolver.getProjectState(clusterState);
         final ResolvedIndices resolvedIndices;
+
+        /*
+         * Irrespective of whether this is the origin project or a linked project, it's wiser to relax
+         * the index options to prevent the index resolution APIs from throwing index not found errors.
+         * Also, we do not replace the indices options on the SearchRequest because we'd be needing it
+         * downstream when validating the indices from both the origin and the linked projects.
+         */
+        IndicesOptions resolutionIdxOpts = crossProjectModeDecider.resolvesCrossProject(original)
+            ? indicesOptionsForCrossProjectFanout(original.indicesOptions())
+            : original.indicesOptions();
+
         if (original.pointInTimeBuilder() != null) {
             resolvedIndices = ResolvedIndices.resolveWithPIT(
                 original.pointInTimeBuilder(),
-                original.indicesOptions(),
+                resolutionIdxOpts,
                 projectState.metadata(),
                 namedWriteableRegistry
             );
         } else {
-            resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
-                original,
+            resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
+                original.indices(),
+                resolutionIdxOpts,
                 projectState.metadata(),
                 indexNameExpressionResolver,
                 remoteClusterService,
@@ -589,7 +609,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
                         }),
-                        forceConnectTimeoutSecs
+                        forceConnectTimeoutSecs,
+                        resolvesCrossProject,
+                        rewritten.getResolvedIndexExpressions()
                     );
                 }
             }
@@ -939,7 +961,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Used for ccs_minimize_roundtrips=false
      */
     static void collectSearchShards(
-        IndicesOptions indicesOptions,
+        IndicesOptions originalIdxOpts,
         String preference,
         String routing,
         QueryBuilder query,
@@ -950,7 +972,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider,
         TransportService transportService,
         ActionListener<Map<String, SearchShardsResponse>> listener,
-        TimeValue forceConnectTimeoutSecs
+        TimeValue forceConnectTimeoutSecs,
+        boolean resolvesCrossProject,
+        ResolvedIndexExpressions originResolvedIdxExpressions
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
@@ -976,6 +1000,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                 @Override
                 Map<String, SearchShardsResponse> createFinalResponse() {
+                    // TODO: Perhaps, it's wiser to check for resolvesCrossProject too.
+                    if (originResolvedIdxExpressions != null) {
+                        Map<String, ResolvedIndexExpressions> resolvedIndexExpressions = new HashMap<>();
+                        for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+                            if (entry.getValue().getResolvedIndexExpressions() == null) {
+                                throw new IllegalArgumentException(
+                                    "Failed to get resolved index expressions for cluster [" + entry.getKey() + "]"
+                                );
+                            }
+                            resolvedIndexExpressions.put(entry.getKey(), entry.getValue().getResolvedIndexExpressions());
+                        }
+                        // We do not use the related index options here when validating indices' existence.
+                        ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
+                            originalIdxOpts,
+                            originResolvedIdxExpressions,
+                            resolvedIndexExpressions
+                        );
+                        if (validationEx != null) {
+                            throw validationEx;
+                        }
+                    }
                     return searchShardsResponses;
                 }
             };
@@ -988,13 +1033,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
 
             connectionListener.addListener(singleListener.delegateFailure((responseListener, connection) -> {
+                /*
+                 * It may be possible that indices do not exist on the project that SearchShards API is targeting.
+                 * In such cases, it throws an error because it calls the index resolution APIs underneath. We relax
+                 * the index options to prevent this from happening. Also, it's fine to pass in these relaxed options
+                 * to it because SearchShardsRequest#allowsCrossProject() returns false anyway and the index rewriting
+                 * does not happen downstream.
+                 */
+                IndicesOptions searchShardsIdxOpts = resolvesCrossProject
+                    ? indicesOptionsForCrossProjectFanout(originalIdxOpts)
+                    : originalIdxOpts;
+
                 final String[] indices = entry.getValue().indices();
                 final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                 // TODO: support point-in-time
                 if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                     SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                         indices,
-                        indicesOptions,
+                        searchShardsIdxOpts,
                         query,
                         routing,
                         preference,
@@ -1013,7 +1069,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
+                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
                     transportService.sendRequest(
                         connection,
                         TransportClusterSearchShardsAction.TYPE.name(),

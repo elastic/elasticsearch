@@ -42,8 +42,8 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
 
-    private static final int DEFAULT_NUM_CHUNKS = -1;
-    private static final int DEFAULT_CHUNK_SIZE = 300;
+    public static final int DEFAULT_NUM_CHUNKS = 1;
+    public static final int DEFAULT_CHUNK_SIZE = 300;
 
     private final Expression field, numChunks, chunkSize;
 
@@ -51,8 +51,13 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         returnType = "keyword",
         preview = true,
         description = """
-            Chunks the contents of a field.""",
-        examples = { @Example(file = "chunk-function", tag = "chunk-with-field", applies_to = "stack: preview 9.2.0") }
+            Use `CHUNK` to split a text field into smaller chunks.""",
+        detailedDescription = """
+            Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+            Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
+            The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
+        """,
+        examples = { @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0") }
     )
     public Chunk(
         Source source,
@@ -100,7 +105,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
 
     @Override
     public DataType dataType() {
-        return field.dataType().noText();
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -144,18 +149,19 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         return chunkSize;
     }
 
-    @Evaluator(extraName = "BytesRef", warnExceptions = IllegalArgumentException.class)
+    @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, int chunkSize) {
+        if (numChunks < 0) {
+            throw new IllegalArgumentException("Num chunks parameter cannot be negative, found [" + numChunks + "]");
+        }
+        if (chunkSize < 0) {
+            throw new IllegalArgumentException("Chunk size parameter cannot be negative, found [" + chunkSize + "]");
+        }
+
         String content = str.utf8ToString();
 
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
-        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(settings.getChunkingStrategy());
-
-        List<String> chunks = chunker.chunk(content, settings)
-            .stream()
-            .map(offset -> content.substring(offset.start(), offset.end()))
-            .limit(numChunks > 0 ? numChunks : Long.MAX_VALUE)
-            .toList();
+        List<String> chunks = chunkText(content, settings, numChunks);
 
         boolean multivalued = chunks.size() > 1;
         if (multivalued) {
@@ -168,6 +174,16 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
         if (multivalued) {
             builder.endPositionEntry();
         }
+    }
+
+    public static List<String> chunkText(String content, ChunkingSettings chunkingSettings, int numChunks) {
+        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+
+        return chunker.chunk(content, chunkingSettings)
+            .stream()
+            .map(offset -> content.substring(offset.start(), offset.end()))
+            .limit(numChunks > 0 ? numChunks : Long.MAX_VALUE)
+            .toList();
     }
 
     @Override

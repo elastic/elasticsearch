@@ -13,7 +13,6 @@ FROM books
 | SORT book_no
 | LIMIT 5
 ;
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // tag::chunk-with-field-result[]
 book_no:keyword | title:text                                            | chunks:keyword
@@ -25,6 +24,23 @@ book_no:keyword | title:text                                            | chunks
 // end::chunk-with-field-result[]
 ;
 
+chunkDefaults
+required_capability: chunk_function
+
+FROM books
+| EVAL chunks = CHUNK(description)
+| KEEP book_no, title, chunks
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text                                            | chunks:keyword
+1211            | The brothers Karamazov                                | In 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all his life. Compelling, profound, complex, it is the story of a patricide and of the four sons who each had a motive for murder: Dmitry, the sensualist, Ivan, the intellectual, Alyosha, the mystic, and twisted, cunning Smerdyakov, the bastard child. Frequently lurid, nightmarish, always brilliant, the novel plunges the reader into a sordid love triangle, a pathological obsession, and a gripping courtroom drama. But throughout the whole, Dostoevsky searhes for the truth--about man, about life, about the existence of God. A terrifying answer to man's eternal questions, this monumental work remains the crowning achievement of perhaps the finest novelist of all time. From the Paperback edition.
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | Nikolai Gogol wrote some letters to his friends, none of which were a nose of high rank. Many are reproduced here (the letters, not noses).
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | This collection, unique to the Modern Library, gathers seven of Dostoevsky's key works and shows him to be equally adept at the short story as with the novel. Exploring many of the same themes as in his longer works, these small masterpieces move from the tender and romantic White Nights, an archetypal nineteenth-century morality tale of pathos and loss, to the famous Notes from the Underground, a story of guilt, ineffectiveness, and uncompromising cynicism, and the first major work of existential literature. Among Dostoevsky's prototypical characters is Yemelyan in The Honest Thief, whose tragedy turns on an inability to resist crime. Presented in chronological order, in David Magarshack's celebrated translation, this is the definitive edition of Dostoevsky's best stories.
+1985            | Brothers Karamazov                                    | Four brothers reunite in their hometown in Russia. The murder of their father forces the brothers to question their beliefs about each other, religion, and morality.
+;
 
 chunkTextWithMatch
 required_capability: chunk_function
@@ -34,12 +50,47 @@ FROM books
 | EVAL chunks = CHUNK(description, 1, 20)
 | KEEP book_no, title, chunks;
 ignoreOrder:true
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 book_no:keyword | title:text                                                       | chunks:keyword
 2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of
 7350            | Return of the Shadow                                             | In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings.
 ;
+
+chunkTextWithMatchMultipleChunks
+required_capability: chunk_function
+
+FROM books 
+| WHERE MATCH(title, "Return")
+| EVAL chunks = CHUNK(description, 3, 20)
+| KEEP book_no, title, chunks;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                       | chunks:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | [Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of, part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the, , featuring an exclusive cover image from the film, the definitive text, and a detailed map of Middle-earth.]
+7350            | Return of the Shadow                                             | [In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings., In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of, first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution]
+;
+
+chunkTextWithMatchMultipleChunksMvExpand
+required_capability: chunk_function
+
+FROM books 
+| WHERE MATCH(title, "Return")
+| EVAL chunks = CHUNK(description, 3, 20)
+| MV_EXPAND chunks
+| KEEP book_no, title, chunks;
+ignoreOrder:true
+
+book_no:keyword | title:text                                                       | chunks:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | , featuring an exclusive cover image from the film, the definitive text, and a detailed map of Middle-earth.
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of
+2714            | Return of the King Being the Third Part of The Lord of the Rings | part of Tolkien s epic masterpiece, The Lord of the Rings, featuring an exclusive cover image from the film, the
+7350            | Return of the Shadow                                             | In The Return of the Shadow (an abandoned title for the first volume) Christopher Tolkien describes, with full citation of
+7350            | Return of the Shadow                                             | In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings.
+7350            | Return of the Shadow                                             | first volume) Christopher Tolkien describes, with full citation of the earliest notes, outline plans, and narrative drafts, the intricate evolution
+;
+
+
+
 
 
 

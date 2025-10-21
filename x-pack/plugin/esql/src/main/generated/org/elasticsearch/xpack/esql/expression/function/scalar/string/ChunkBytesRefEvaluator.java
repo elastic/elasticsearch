@@ -123,12 +123,7 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         int numChunks = numChunksBlock.getInt(numChunksBlock.getFirstValueIndex(p));
         int chunkSize = chunkSizeBlock.getInt(chunkSizeBlock.getFirstValueIndex(p));
-        try {
-          Chunk.process(result, str, numChunks, chunkSize);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        Chunk.process(result, str, numChunks, chunkSize);
       }
       return result.build();
     }
@@ -142,12 +137,7 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
         BytesRef str = strVector.getBytesRef(p, strScratch);
         int numChunks = numChunksVector.getInt(p);
         int chunkSize = chunkSizeVector.getInt(p);
-        try {
-          Chunk.process(result, str, numChunks, chunkSize);
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        Chunk.process(result, str, numChunks, chunkSize);
       }
       return result.build();
     }

@@ -82,15 +82,16 @@ required_capability: clamp_functions
 TS k8s
 | EVAL full_clamped_cost = clamp(network.cost, 1, 20)
 | KEEP full_clamped_cost, @timestamp
-// end::clamp-max[]
+// end::clamp[]
 | SORT full_clamped_cost DESC, @timestamp | LIMIT 10;
 
-// tag::clamp-max-result[]
+// tag::clamp-result[]
 full_clamped_cost:double | @timestamp:datetime
 12.5                     | 2024-05-10T00:09:52.000Z
 12.375                   | 2024-05-10T00:01:29.000Z
 12.375                   | 2024-05-10T00:06:42.000Z
 12.375                   | 2024-05-10T00:17:12.000Z
+// end::clamp-result[]
 12.25                    | 2024-05-10T00:19:48.000Z
 12.125                   | 2024-05-10T00:00:57.000Z
 12.125                   | 2024-05-10T00:03:26.000Z
@@ -98,3 +99,28 @@ full_clamped_cost:double | @timestamp:datetime
 12.125                   | 2024-05-10T00:17:39.000Z
 12.0                     | 2024-05-10T00:08:08.000Z
 ;
+
+clamp_without_stats_using_column
+required_capability: clamp_functions
+// tag::clamp[]
+TS k8s
+| EVAL full_clamped_cost = clamp(network.cost, clamp_max(network.bytes_in, 5), network.bytes_in / 100)
+| KEEP full_clamped_cost, @timestamp
+// end::clamp[]
+| SORT full_clamped_cost DESC, @timestamp | LIMIT 10;
+
+// tag::clamp-result[]
+full_clamped_cost:double | @timestamp:datetime
+10.0                     | 2024-05-10T00:18:33.000Z
+9.0                      | 2024-05-10T00:04:49.000Z
+9.0                      | 2024-05-10T00:15:51.000Z
+9.0                      | 2024-05-10T00:17:12.000Z
+9.0                      | 2024-05-10T00:20:46.000Z
+// end::clamp-result[]
+9.0                      | 2024-05-10T00:22:54.000Z
+8.625                    | 2024-05-10T00:11:53.000Z
+8.625                    | 2024-05-10T00:17:20.000Z
+8.625                    | 2024-05-10T00:19:36.000Z
+8.375                    | 2024-05-10T00:03:26.000Z
+;
+

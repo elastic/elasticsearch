@@ -36,6 +36,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
@@ -366,6 +367,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                 internalCluster().clusterService(),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 internalCluster().client(),
+                TEST_REQUEST_TIMEOUT,
                 stateStatusPlainActionFuture
             );
             stateStatusPlainActionFuture.actionGet();
@@ -446,6 +448,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             ClusterService clusterService,
             ProjectResolver projectResolver,
             Client client,
+            TimeValue masterNodeTimeout,
             ActionListener<ResetFeatureStateStatus> listener
         ) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
@@ -466,11 +469,23 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                     DeleteDataStreamAction.INSTANCE,
                     request,
                     ActionListener.wrap(
-                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        response -> SystemIndexPlugin.super.cleanUpFeature(
+                            clusterService,
+                            projectResolver,
+                            client,
+                            masterNodeTimeout,
+                            listener
+                        ),
                         e -> {
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof ResourceNotFoundException) {
-                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                                SystemIndexPlugin.super.cleanUpFeature(
+                                    clusterService,
+                                    projectResolver,
+                                    client,
+                                    masterNodeTimeout,
+                                    listener
+                                );
                             } else {
                                 listener.onFailure(e);
                             }
@@ -480,7 +495,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
                 } else {
                     listener.onFailure(e);
                 }

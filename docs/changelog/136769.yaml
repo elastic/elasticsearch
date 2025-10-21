@@ -1,0 +1,6 @@
+pr: 136769
+summary: Release cluster state
+area: Machine Learning
+type: bug
+issues:
+ - 123243

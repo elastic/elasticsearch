@@ -62,6 +62,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             new UnresolvedAttribute(source, "@timestamp").withCustomMessageText(
                 "Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped"
             )
+
         );
     }
 

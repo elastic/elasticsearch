@@ -136,7 +136,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     public UnresolvedAttribute withCustomMessageText(String customMessageText) {
-        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage(), resolutionMetadata(), customMessageText);
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMsg, resolutionMetadata(), customMessageText);
     }
 
     @Override

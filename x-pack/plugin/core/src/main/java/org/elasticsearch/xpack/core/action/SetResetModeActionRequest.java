@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -35,7 +36,7 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
     static final String DELETE_METADATA_FIELD_NAME = "delete_metadata";
 
     SetResetModeActionRequest(TimeValue masterNodeTimeout, boolean enabled, Boolean deleteMetadata) {
-        super(masterNodeTimeout, TimeValue.ZERO);
+        super(masterNodeTimeout, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT /* wait indefinitely for acks */);
         this.enabled = enabled;
         this.deleteMetadata = deleteMetadata != null && deleteMetadata;
     }

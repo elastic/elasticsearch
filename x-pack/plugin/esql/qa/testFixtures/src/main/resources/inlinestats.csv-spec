@@ -1677,6 +1677,30 @@ birth_date:date         |orig_emp_no:integer|salary:integer |emp_no:date
 1959-12-03T00:00:00.000Z|10003              |61805          |1959-12-03T00:00:00.000Z
 ;
 
+tripleInlineStatsMultipleAssignmentsGetsPrunedPartially
+required_capability: inline_stats_prune_column_fix
+
+FROM employees
+// | SORT languages DESC
+| EVAL salaryK = salary / 10000
+| INLINE STATS count = COUNT(*) BY salaryK
+| EVAL hire_date_string = hire_date::keyword
+| INLINE STATS sum = SUM(languages) BY hire_date_string
+| DISSECT hire_date_string "%{date}"
+| INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
+| SORT emp_no
+| KEEP emp_no, salaryK, count, min
+| LIMIT 5
+;
+
+emp_no:integer |salaryK:integer|count:long     |min:integer
+10001          |5              |17             |1
+10002          |5              |17             |1
+10003          |6              |17             |1
+10004          |3              |27             |1
+10005          |6              |17             |1
+;
+
 ///////////////////////////
 // INLINE STATS with filters
 ///////////////////////////

@@ -141,7 +141,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
-            p = new EsqlProject(ij.source(), ij.left(), ij.output());
+            // InlineJoin updates the order of the output, so even if the computation is dropped, the groups need to be pulled to the end
+            List<Attribute> newOutput = new ArrayList<>(ij.output());
+            AttributeSet leftOutputSet = ij.left().outputSet();
+            newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
+            p = new EsqlProject(ij.source(), ij.left(), newOutput);
             recheck.set(true);
         } else if (right != ij.right()) {
             // if the right side has been updated, replace it

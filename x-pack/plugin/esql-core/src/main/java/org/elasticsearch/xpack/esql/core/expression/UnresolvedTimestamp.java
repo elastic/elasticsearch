@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.io.IOException;
 import java.util.Objects;
 
 public class UnresolvedTimestamp extends UnresolvedAttribute {

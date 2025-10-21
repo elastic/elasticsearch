@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfiguration
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -40,6 +41,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -51,7 +53,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
@@ -67,7 +68,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  *     <li>TRANGE(1715504400000, 1715517000000) - [explicit start in millis; explicit end in millis]</li>
  * </ul>
  */
-public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression, PostAnalysisVerificationAware {
+public class TRange extends EsqlConfigurationFunction implements OptionalArgument, SurrogateExpression, PostAnalysisPlanVerificationAware {
     public static final String NAME = "TRange";
 
     public static final String START_TIME_OR_OFFSET_PARAMETER = "start_time_or_offset";
@@ -280,36 +281,25 @@ public class TRange extends EsqlConfigurationFunction implements OptionalArgumen
     }
 
     @Override
-    public void postAnalysisVerification(Failures failures) {
-        // single parameter mode
-        if (second == null) {
-            Object rangeStartValue = first.fold(FoldContext.small());
-            if (rangeStartValue instanceof Duration duration && duration.isNegative()
-                || rangeStartValue instanceof Period period && period.isNegative()) {
-                failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));
-            }
-        }
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
 
-        // two parameter mode
-        if (second != null) {
-            if (second.resolved() && second.dataType() == DataType.NULL) {
-                failures.add(fail(second, "{} cannot be null", END_TIME_OR_OFFSET_PARAMETER));
+        return (logicalPlan, failures) -> {
+            // single parameter mode
+            if (second == null) {
+                Object rangeStartValue = first.fold(FoldContext.small());
+                if (rangeStartValue instanceof Duration duration && duration.isNegative()
+                    || rangeStartValue instanceof Period period && period.isNegative()) {
+                    failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));
+                }
             }
 
-            if (comparableTypes(first, second) == false) {
-                failures.add(
-                    fail(second, "{} must have the same type as {}", END_TIME_OR_OFFSET_PARAMETER, START_TIME_OR_OFFSET_PARAMETER)
-                );
+            // two parameter mode
+            if (second != null) {
+                Object rangeEndValue = second.fold(FoldContext.small());
+                if (rangeEndValue == null) {
+                    failures.add(fail(second, "{} cannot be null", END_TIME_OR_OFFSET_PARAMETER));
+                }
             }
-        }
-    }
-
-    private static boolean comparableTypes(Expression left, Expression right) {
-        DataType leftType = left.dataType();
-        DataType rightType = right.dataType();
-        if (leftType.isNumeric() && rightType.isNumeric()) {
-            return commonType(leftType, rightType) != null;
-        }
-        return leftType.noText() == rightType.noText();
+        };
     }
 }

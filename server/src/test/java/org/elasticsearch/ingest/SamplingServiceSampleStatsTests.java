@@ -130,6 +130,7 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
         );
     }
 
+    @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         /*
          * SampleStats class is only used in the user response, so there is no parser for it, meaning it can't be tested with
@@ -167,7 +168,8 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
                 if (sampleStats.getLastException() == null) {
                     assertThat(parserMap.containsKey("last_exception"), equalTo(false));
                 } else {
-                    assertThat(parserMap.get("last_exception"), equalTo(sampleStats.getLastException().getMessage()));
+                    Map<String, Object> exceptionMap = (Map<String, Object>) parserMap.get("last_exception");
+                    assertThat(exceptionMap.get("message"), equalTo(sampleStats.getLastException().getMessage()));
                 }
             }
         }

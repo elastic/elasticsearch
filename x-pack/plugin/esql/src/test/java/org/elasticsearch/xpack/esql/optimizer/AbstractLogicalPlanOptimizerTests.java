@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -45,6 +46,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static LogicalOptimizerContext logicalOptimizerCtx;
     protected static LogicalPlanOptimizer logicalOptimizer;
 
+    protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
+
     protected static Map<String, EsField> mapping;
     protected static Analyzer analyzer;
     protected static Map<String, EsField> mappingAirports;
@@ -78,6 +81,9 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         parser = new EsqlParser();
         logicalOptimizerCtx = unboundLogicalOptimizerContext();
         logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
+        logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
+        );
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
         AnalyzerTestUtils.loadEnrichPolicyResolution(

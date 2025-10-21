@@ -13,6 +13,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.0.1
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -32,6 +33,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.1.3
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -51,6 +53,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.2.3
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -70,6 +73,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.3.3
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -89,6 +93,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.4.3
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -108,6 +113,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.5.3
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -127,6 +133,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.6.2
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -146,6 +153,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.7.1
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -165,6 +173,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.8.2
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -184,6 +193,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.9.2
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -203,6 +213,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.10.4
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -222,6 +233,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.11.4
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -241,6 +253,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.12.2
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -260,6 +273,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.13.4
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -279,6 +293,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.14.3
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -298,6 +313,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.15.5
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -317,6 +333,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.16.6
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -336,6 +353,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.17.10
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -355,6 +373,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.18.8
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -374,6 +393,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 8.19.6
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -393,6 +413,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 9.0.8
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -412,6 +433,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 9.1.6
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -431,6 +453,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 9.2.0
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -450,6 +473,7 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 9.3.0
+          CONTINUE_GRADLE_ON_FAIL: true
         retry:
           automatic:
             - exit_status: "-1"
@@ -534,6 +558,7 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+          CONTINUE_GRADLE_ON_FAIL: true
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
@@ -561,6 +586,7 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+          CONTINUE_GRADLE_ON_FAIL: true
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -632,6 +658,7 @@ steps:
           .ci/scripts/run-gradle.sh gcsThirdPartyTest
         env:
           USE_3RD_PARTY_GCS_CREDENTIALS: "true"
+          CONTINUE_GRADLE_ON_FAIL: true
         timeout_in_minutes: 30
         agents:
           provider: gcp
@@ -655,6 +682,7 @@ steps:
           .ci/scripts/run-gradle.sh s3ThirdPartyTest
         env:
           USE_3RD_PARTY_S3_CREDENTIALS: "true"
+          CONTINUE_GRADLE_ON_FAIL: true
         timeout_in_minutes: 30
         agents:
           provider: gcp
@@ -666,6 +694,7 @@ steps:
           .ci/scripts/run-gradle.sh msGraphThirdPartyTest
         env:
           USE_3RD_PARTY_MS_GRAPH_CREDENTIALS: "true"
+          CONTINUE_GRADLE_ON_FAIL: true
         timeout_in_minutes: 30
         agents:
           provider: gcp

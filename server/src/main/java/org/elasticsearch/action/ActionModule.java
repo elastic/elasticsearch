@@ -370,6 +370,7 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
 import org.elasticsearch.rest.action.cat.RestAllocationAction;
 import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestCatCircuitBreakerAction;
 import org.elasticsearch.rest.action.cat.RestCatComponentTemplateAction;
 import org.elasticsearch.rest.action.cat.RestCatRecoveryAction;
 import org.elasticsearch.rest.action.cat.RestFielddataAction;
@@ -1020,6 +1021,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction());
         registerHandler.accept(new RestAliasAction());
         registerHandler.accept(new RestThreadPoolAction());
+        registerHandler.accept(new RestCatCircuitBreakerAction());
         registerHandler.accept(new RestPluginsAction());
         registerHandler.accept(new RestFielddataAction());
         registerHandler.accept(new RestNodeAttrsAction());

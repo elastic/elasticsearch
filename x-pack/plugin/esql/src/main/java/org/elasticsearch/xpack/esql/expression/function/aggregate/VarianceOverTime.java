@@ -40,7 +40,7 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
         returnType = "double",
         description = "Calculates the population variance over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "stdvar_over_time") }
     )

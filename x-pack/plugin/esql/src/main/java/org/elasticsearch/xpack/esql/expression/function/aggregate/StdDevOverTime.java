@@ -40,7 +40,7 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
         returnType = "double",
         description = "Calculates the population standard deviation over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "stddev_over_time") }
     )

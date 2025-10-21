@@ -2,7 +2,7 @@
 
 ## `STDDEV_OVER_TIME` [esql-stddev_over_time]
 ```{applies_to}
-stack: preview 9.3.0
+stack: preview 9.2.0
 serverless: preview
 ```
 

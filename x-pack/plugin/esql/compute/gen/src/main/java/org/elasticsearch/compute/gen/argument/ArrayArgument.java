@@ -93,6 +93,7 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
 
     @Override
     public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
+        assert invokeBlockEval != null && invokeBlockEval.length == 1;
         TypeName vectorType = vectorType(type);
         builder.addStatement("$T[] $LVectors = new $T[$L.length]", vectorType, name, vectorType, name);
         builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);

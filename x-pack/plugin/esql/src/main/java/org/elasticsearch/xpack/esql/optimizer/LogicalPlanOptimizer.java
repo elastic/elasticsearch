@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRel
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceVectorFunctionsWithFieldFunctionAttrs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
@@ -194,6 +195,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
             new PushLimitToKnn(),
+            new ReplaceVectorFunctionsWithFieldFunctionAttrs(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),

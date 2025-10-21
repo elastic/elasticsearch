@@ -41,13 +41,17 @@ public class FieldFunctionAttribute extends FieldAttribute {
         return blockLoaderValueFunction;
     }
 
-    @Override
-    public FieldName fieldName() {
-        return fieldName;
-    }
+//    @Override
+//    public FieldName fieldName() {
+//        return fieldName;
+//    }
 
     @Override
     public DataType dataType() {
         return dataType;
+    }
+
+    protected String label() {
+        return "t";
     }
 }

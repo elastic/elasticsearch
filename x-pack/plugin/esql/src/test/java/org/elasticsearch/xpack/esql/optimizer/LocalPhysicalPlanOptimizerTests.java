@@ -1459,6 +1459,45 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         as(fieldExtract.child(), EsQueryExec.class);
     }
 
+    public void testSimilarityFunctionPushdownNoSort() {
+        String query = """
+            from test
+            | eval s = v_dot_product(dense_vector, [0.1, 0.2, 0.3])
+            | keep dense_vector, s
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        var project1 = as(plan, ProjectExec.class);
+        var topN1 = as(project1.child(), TopNExec.class);
+        var exchange = as(topN1.child(), ExchangeExec.class);
+        var project2 = as(exchange.child(), ProjectExec.class);
+        var topN2 = as(project2.child(), TopNExec.class);
+        assertThat(as(topN2.limit(), Literal.class).value(), is(1000));
+        var eval = as(topN2.child(), EvalExec.class);
+
+        // Alias is replaced by field function attribute
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("s"));
+        var fieldFunctionAttr = as(alias.child(), FieldFunctionAttribute.class);
+        assertThat(fieldFunctionAttr.fieldName().string(), is("dense_vector"));
+        assertThat(fieldFunctionAttr.name(), startsWith("$$dense_vector$replaced"));
+        assertThat(fieldFunctionAttr.field().getName(), is("dense_vector"));
+        var blockLoaderFunction = as(
+            fieldFunctionAttr.getBlockLoaderValueFunction(),
+            DenseVectorFieldMapper.DenseVectorBlockLoaderValueFunction.class
+        );
+        assertThat(blockLoaderFunction.getSimilarityFunction(), is(DotProduct.SIMILARITY_FUNCTION));
+
+        // Field extract contains both the replaced attribute and the original dense vector field
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        assertThat(
+            fieldExtract.attributesToExtract().stream().map(Attribute::name).toList(),
+            containsInAnyOrder(fieldFunctionAttr.name(), "dense_vector")
+        );
+        as(fieldExtract.child(), EsQueryExec.class);
+    }
+
     /** Expects
      * ProjectExec[[dense_vector{f}#28, s{r}#4]]
      * \_TopNExec[[Order[s{r}#4,DESC,FIRST]],1000[INTEGER],4104]

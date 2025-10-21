@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -202,7 +203,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
@@ -9224,4 +9225,36 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // Verify the right side of join is EsRelation with LOOKUP
         as(join.right(), EsRelation.class);
     }
+
+    public void testVectorFunctionsReplaced() {
+        assumeTrue(
+            "requires similarity functions",
+            EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()
+        );
+        String query = """
+            from types
+            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            """;
+
+        LogicalPlan plan = planTypes(query);
+        assertNotNull(plan);
+    }
+
+    public void testVectorFunctionsReplacedWithTopN() {
+        assumeTrue(
+            "requires similarity functions",
+            EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()
+        );
+        String query = """
+            from types
+            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | sort s desc
+            | limit 10
+            | keep s
+            """;
+
+        LogicalPlan plan = planTypes(query);
+        assertNotNull(plan);
+    }
+
 }

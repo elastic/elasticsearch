@@ -39,9 +39,16 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
 
     private PhysicalPlan replaceSimilarityFunctions(PhysicalPlan plan) {
 
+        HashMap<Attribute, Attribute> replacements = new HashMap<>();
+        PhysicalPlan transformedPlan = plan.transformDown(EvalExec.class,
+            eval -> replaceSimilarityFunctionsForFieldTransformations(eval, replacements));
+        if (replacements.isEmpty()) {
+            return plan;
+        }
         Set<Attribute> denseVectorAttrsToKeep = findDenseVectorAttrsToKeep(plan);
+        return transformedPlan.transformDown(FieldExtractExec.class,
+            fieldEx -> replaceFieldExtractExecAttributes(fieldEx, replacements, denseVectorAttrsToKeep));
 
-        return plan.transformDown(EvalExec.class, eval -> replaceSimilarityFunctionsForFieldTransformations(eval, denseVectorAttrsToKeep));
     }
 
     /**
@@ -52,18 +59,20 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
 
         // Count all usages of dense_vector fields
         plan.references().forEach(f -> {
-            if (f instanceof FieldAttribute fieldAttr && fieldAttr.dataType() == DataType.DENSE_VECTOR) {
+            if (f instanceof FieldAttribute fieldAttr
+                && fieldAttr.dataType() == DataType.DENSE_VECTOR
+                && f instanceof FieldFunctionAttribute == false) {
                 nonFunctionUsages.compute(fieldAttr, (k, v) -> v == null ? 1 : v + 1);
             }
         });
 
         // Subtract usages inside similarity functions
         plan.forEachExpression(VectorSimilarityFunction.class, similarityFunction -> {
-            if (similarityFunction.left() instanceof FieldAttribute fieldAttr) {
+            if (similarityFunction.left() instanceof FieldAttribute fieldAttr && fieldAttr instanceof FieldFunctionAttribute == false) {
                 assert nonFunctionUsages.containsKey(fieldAttr) : "Expected field attribute to be retrieved from plan references";
                 nonFunctionUsages.computeIfPresent(fieldAttr, (k, v) -> v - 1);
             }
-            if (similarityFunction.right() instanceof FieldAttribute fieldAttr) {
+            if (similarityFunction.right() instanceof FieldAttribute fieldAttr && fieldAttr instanceof FieldFunctionAttribute == false) {
                 assert nonFunctionUsages.containsKey(fieldAttr) : "Expected field attribute to be retrieved from plan references";
                 nonFunctionUsages.computeIfPresent(fieldAttr, (k, v) -> v - 1);
             }
@@ -73,40 +82,15 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         return nonFunctionUsages.keySet().stream().filter(k -> nonFunctionUsages.get(k) > 0).collect(Collectors.toSet());
     }
 
-    private EvalExec replaceSimilarityFunctionsForFieldTransformations(EvalExec eval, Set<Attribute> denseVectorAttrsToKeep) {
+    private EvalExec replaceSimilarityFunctionsForFieldTransformations(EvalExec eval,
+                                                                       Map<Attribute, Attribute> replacements) {
 
         // Replaces vector similarity functions with field transformations where one side is a literal for FieldFunctionAttributes
-        Map<Attribute, Attribute> replacements = new HashMap<>();
         EvalExec resultEval = (EvalExec) eval.transformExpressionsDown(VectorSimilarityFunction.class, similarityFunction -> {
             if (similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) {
                 return replaceFieldsForFieldTransformations(similarityFunction, replacements);
             }
             return similarityFunction;
-        });
-
-        if (replacements.isEmpty()) {
-            return eval;
-        }
-
-        // Replace FieldAttributes with FieldFunctionAttributes in FieldExtractExec
-        resultEval = (EvalExec) resultEval.transformDown(FieldExtractExec.class, fieldEx -> {
-            List<Attribute> attrs = fieldEx.attributesToExtract();
-            assert attrs.stream().anyMatch(replacements::containsKey) : "Expected at least one attribute to be replaced";
-            List<Attribute> replacedAttrs = new ArrayList<>();
-            for (Attribute attr : attrs) {
-                // Add the replacement attribute, and also the original attribute if it's being used in a non-similarity function context
-                if (replacements.containsKey(attr)) {
-                    replacedAttrs.add(replacements.get(attr));
-                    if (denseVectorAttrsToKeep.contains(attr)) {
-                        replacedAttrs.add(attr);
-                    }
-                } else {
-                    replacedAttrs.add(attr);
-                }
-            }
-
-            // TODO Check that we don't have to duplicate the field, or run a second optimization to prune out unused attrs
-            return fieldEx.withAttributesToExtract(replacedAttrs).withFieldFunctionAttributes(new HashSet<>(replacements.values()));
         });
 
         return resultEval;
@@ -146,5 +130,30 @@ public class VectorSimilarityFunctionsPushdown extends PhysicalOptimizerRules.Op
         var fieldFunctionAttribute = new FieldFunctionAttribute(fieldAttribute, blockValueLoader, DataType.DOUBLE);
         replacements.put(fieldAttribute, fieldFunctionAttribute);
         return fieldFunctionAttribute;
+    }
+
+    private static FieldExtractExec replaceFieldExtractExecAttributes(
+        FieldExtractExec fieldEx,
+        Map<Attribute, Attribute> replacements,
+        Set<Attribute> denseVectorAttrsToKeep
+
+    ) {
+        // Replace FieldAttributes with FieldFunctionAttributes in FieldExtractExec
+        List<Attribute> attrs = fieldEx.attributesToExtract();
+        assert attrs.stream().anyMatch(replacements::containsKey) : "Expected at least one attribute to be replaced";
+        List<Attribute> replacedAttrs = new ArrayList<>();
+        for (Attribute attr : attrs) {
+            // Add the replacement attribute, and also the original attribute if it's being used in a non-similarity function context
+            if (replacements.containsKey(attr)) {
+                replacedAttrs.add(replacements.get(attr));
+                if (denseVectorAttrsToKeep.contains(attr)) {
+                    replacedAttrs.add(attr);
+                }
+            } else {
+                replacedAttrs.add(attr);
+            }
+        }
+
+        return fieldEx.withAttributesToExtract(replacedAttrs).withFieldFunctionAttributes(new HashSet<>(replacements.values()));
     }
 }

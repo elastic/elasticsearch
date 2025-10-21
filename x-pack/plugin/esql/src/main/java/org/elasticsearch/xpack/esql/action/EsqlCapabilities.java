@@ -1499,7 +1499,13 @@ public class EsqlCapabilities {
         /**
          * Support for dots in FUSE attributes
          */
-        DOTS_IN_FUSE;
+        DOTS_IN_FUSE,
+
+        /**
+         * Support for vector similarity functtions pushdown
+         */
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot())
+        ;
 
         private final boolean enabled;
 

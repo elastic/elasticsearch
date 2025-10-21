@@ -186,9 +186,15 @@ public final class IndexMetaDataGenerations {
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
         // If modifying this identifier, then also extend the convertBlobIdToIndexUUID function below
-        return indexMetaData.getIndexUUID() + "-" + indexMetaData.getSettings()
-            .get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE) + "-" + indexMetaData.getSettingsVersion()
-            + "-" + indexMetaData.getMappingVersion() + "-" + indexMetaData.getAliasesVersion();
+        return indexMetaData.getIndexUUID()
+            + "-"
+            + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
+            + "-"
+            + indexMetaData.getSettingsVersion()
+            + "-"
+            + indexMetaData.getMappingVersion()
+            + "-"
+            + indexMetaData.getAliasesVersion();
     }
 
     /**

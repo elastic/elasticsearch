@@ -69,22 +69,14 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         // Creates the lookup map
         SnapshotId snapshotId = new SnapshotId("snapshot", randomUUID());
         IndexId indexId = new IndexId("index", indexUUID);
-        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(
-            snapshotId, Map.of(indexId, uniqueIdentifier)
-        );
+        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(snapshotId, Map.of(indexId, uniqueIdentifier));
 
-        IndexMetaDataGenerations generations = new IndexMetaDataGenerations(
-            lookup,
-            Map.of(uniqueIdentifier, blobId)
-        );
+        IndexMetaDataGenerations generations = new IndexMetaDataGenerations(lookup, Map.of(uniqueIdentifier, blobId));
         assertEquals(indexUUID, generations.convertBlobIdToIndexUUID(blobId));
     }
 
     public void testConvertBlobIdToIndexUUIDReturnsNullWhenBlobIdIsNotFound() {
-        IndexMetaDataGenerations generations = new IndexMetaDataGenerations(
-            Map.of(),
-            Map.of()
-        );
+        IndexMetaDataGenerations generations = new IndexMetaDataGenerations(Map.of(), Map.of());
         assertNull(generations.convertBlobIdToIndexUUID(randomAlphanumericOfLength(randomIntBetween(5, 10))));
     }
 
@@ -95,18 +87,13 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
      * @param uniqueIdentifier The malformed identifier
      * @param blobId The blobId
      */
-    private void testMalformedIndexMetadataIdentifierInternalThrowsIAE(String indexUUID, String uniqueIdentifier, String blobId) {
+    private void internalMalformedIndexMetadataIdentifierThrowsIAE(String indexUUID, String uniqueIdentifier, String blobId) {
         // Creates the lookup map
         SnapshotId snapshotId = new SnapshotId("snapshot", randomUUID());
         IndexId indexId = new IndexId("index", indexUUID);
-        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(
-            snapshotId, Map.of(indexId, uniqueIdentifier)
-        );
+        Map<SnapshotId, Map<IndexId, String>> lookup = Map.of(snapshotId, Map.of(indexId, uniqueIdentifier));
 
-        IndexMetaDataGenerations malformedGenerations = new IndexMetaDataGenerations(
-            lookup,
-            Map.of(uniqueIdentifier, blobId)
-        );
+        IndexMetaDataGenerations malformedGenerations = new IndexMetaDataGenerations(lookup, Map.of(uniqueIdentifier, blobId));
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
             () -> malformedGenerations.convertBlobIdToIndexUUID(blobId)
@@ -123,18 +110,18 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         // Build the unique identifier without including the index uuid
         String uniqueIdentifier = randomSetting + "-" + settingsVersion + "-" + mappingsVersion + "-" + aliasesVersion;
         String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        testMalformedIndexMetadataIdentifierInternalThrowsIAE(indexUUID, uniqueIdentifier, blobId);
+        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
     }
 
     public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierIsMissingSettings() {
-        String indexUUID = randomUUID();
+        String indexUUID = randomAlphanumericOfLength(randomIntBetween(5, 10));
         long settingsVersion = randomNonNegativeLong();
         long mappingsVersion = randomNonNegativeLong();
         long aliasesVersion = randomNonNegativeLong();
         // Build the unique identifier without including the settings
         String uniqueIdentifier = indexUUID + "-" + settingsVersion + "-" + mappingsVersion + "-" + aliasesVersion;
         String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        testMalformedIndexMetadataIdentifierInternalThrowsIAE(indexUUID, uniqueIdentifier, blobId);
+        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
     }
 
     public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierIsMissingSettingsVersion() {
@@ -145,7 +132,7 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         // Build the unique identifier without including the settings version
         String uniqueIdentifier = indexUUID + "-" + randomSetting + "-" + mappingsVersion + "-" + aliasesVersion;
         String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        testMalformedIndexMetadataIdentifierInternalThrowsIAE(indexUUID, uniqueIdentifier, blobId);
+        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
     }
 
     public void testConvertBlobIdToIndexUUIDThrowsIllegalArgumentExceptionWhenMalformedIndexMetadataIdentifierHasIncorrectTypes() {
@@ -156,6 +143,6 @@ public class IndexMetaDataGenerationsTests extends ESTestCase {
         String aliasesVersion = randomAlphaOfLength(randomIntBetween(5, 10));
         String uniqueIdentifier = indexUUID + "-" + randomSetting + "-" + settingsVersion + "-" + mappingsVersion + "-" + aliasesVersion;
         String blobId = randomAlphanumericOfLength(randomIntBetween(5, 10));
-        testMalformedIndexMetadataIdentifierInternalThrowsIAE(indexUUID, uniqueIdentifier, blobId);
+        internalMalformedIndexMetadataIdentifierThrowsIAE(indexUUID, uniqueIdentifier, blobId);
     }
 }

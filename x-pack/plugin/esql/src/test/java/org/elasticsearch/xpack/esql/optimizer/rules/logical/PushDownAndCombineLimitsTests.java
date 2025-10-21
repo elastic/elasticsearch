@@ -16,17 +16,23 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -42,7 +48,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTe
 
 public class PushDownAndCombineLimitsTests extends ESTestCase {
 
-    private static class PushDownLimitTestCase<PlanType extends UnaryPlan> {
+    private static class PushDownLimitTestCase<PlanType extends LogicalPlan> {
         private final Class<PlanType> clazz;
         private final BiFunction<LogicalPlan, Attribute, PlanType> planBuilder;
         private final BiConsumer<PlanType, PlanType> planChecker;
@@ -101,6 +107,25 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
                 assertEquals(basePlan.queryText(), optimizedPlan.queryText());
                 assertEquals(basePlan.rerankFields(), optimizedPlan.rerankFields());
                 assertEquals(basePlan.scoreAttribute(), optimizedPlan.scoreAttribute());
+            }
+        ),
+        new PushDownLimitTestCase<>(
+            Enrich.class,
+            (plan, attr) -> new Enrich(
+                EMPTY,
+                plan,
+                randomFrom(Enrich.Mode.ANY, Enrich.Mode.COORDINATOR),
+                randomLiteral(KEYWORD),
+                attr,
+                null,
+                Map.of(),
+                List.of()
+            ),
+            (basePlan, optimizedPlan) -> {
+                assertEquals(basePlan.source(), optimizedPlan.source());
+                assertEquals(basePlan.mode(), optimizedPlan.mode());
+                assertEquals(basePlan.policyName(), optimizedPlan.policyName());
+                assertEquals(basePlan.matchField(), optimizedPlan.matchField());
             }
         )
     );
@@ -171,6 +196,58 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
                 )
             );
             assertEquals(as(optimizedPlan.child(), UnaryPlan.class).child(), nonPushableLimitTestPlan.child());
+        }
+    }
+
+    private static final List<PushDownLimitTestCase<? extends LogicalPlan>> DUPLICATING_TEST_CASES = List.of(
+        new PushDownLimitTestCase<>(
+            Enrich.class,
+            (plan, attr) -> new Enrich(EMPTY, plan, Enrich.Mode.REMOTE, randomLiteral(KEYWORD), attr, null, Map.of(), List.of()),
+            (basePlan, optimizedPlan) -> {
+                assertEquals(basePlan.source(), optimizedPlan.source());
+                assertEquals(basePlan.mode(), optimizedPlan.mode());
+                assertEquals(basePlan.policyName(), optimizedPlan.policyName());
+                assertEquals(basePlan.matchField(), optimizedPlan.matchField());
+                var limit = as(optimizedPlan.child(), Limit.class);
+                assertTrue(limit.local());
+                assertFalse(limit.duplicated());
+            }
+        ),
+        new PushDownLimitTestCase<>(MvExpand.class, (plan, attr) -> new MvExpand(EMPTY, plan, attr, attr), (basePlan, optimizedPlan) -> {
+            assertEquals(basePlan.source(), optimizedPlan.source());
+            assertEquals(basePlan.expanded(), optimizedPlan.expanded());
+            var limit = as(optimizedPlan.child(), Limit.class);
+            assertFalse(limit.local());
+            assertFalse(limit.duplicated());
+        }),
+        new PushDownLimitTestCase<>(
+            Join.class,
+            (plan, attr) -> new Join(EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr)),
+            (basePlan, optimizedPlan) -> {
+                assertEquals(basePlan.source(), optimizedPlan.source());
+                var limit = as(optimizedPlan.left(), Limit.class);
+                assertFalse(limit.local());
+                assertFalse(limit.duplicated());
+            }
+        )
+
+    );
+
+    public void testPushableLimitDuplicate() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation().withAttributes(List.of(a, b));
+
+        for (PushDownLimitTestCase<? extends LogicalPlan> duplicatingTestCase : DUPLICATING_TEST_CASES) {
+            int precedingLimitValue = randomIntBetween(1, 10_000);
+            Limit precedingLimit = new Limit(EMPTY, new Literal(EMPTY, precedingLimitValue, INTEGER), relation);
+            LogicalPlan duplicatingLimitTestPlan = duplicatingTestCase.buildPlan(precedingLimit, a);
+            int upperLimitValue = randomIntBetween(1, precedingLimitValue);
+            Limit upperLimit = new Limit(EMPTY, new Literal(EMPTY, upperLimitValue, INTEGER), duplicatingLimitTestPlan);
+            Limit optimizedPlan = as(optimizePlan(upperLimit), Limit.class);
+            duplicatingTestCase.checkOptimizedPlan(duplicatingLimitTestPlan, optimizedPlan.child());
+            assertTrue(optimizedPlan.duplicated());
+            assertFalse(optimizedPlan.local());
         }
     }
 

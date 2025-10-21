@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -34,23 +35,22 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
-            var limitSource = limit.limit();
-            var parentLimitValue = (int) limitSource.fold(ctx.foldCtx());
-            var childLimitValue = (int) childLimit.limit().fold(ctx.foldCtx());
-            // We want to preserve the duplicated() value of the smaller limit, so we'll use replaceChild.
-            return parentLimitValue < childLimitValue ? limit.replaceChild(childLimit.child()) : childLimit;
+            return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
-            if (unary instanceof Eval
-                || unary instanceof Project
-                || unary instanceof RegexExtract
-                || unary instanceof Enrich
-                || unary instanceof InferencePlan<?>) {
+            if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
-                return duplicateLimitAsFirstGrandchild(limit);
+                return duplicateLimitAsFirstGrandchild(limit, false);
+            } else if (unary instanceof Enrich enrich) {
+                if (enrich.mode() == Enrich.Mode.REMOTE) {
+                    return duplicateLimitAsFirstGrandchild(limit, true);
+                } else {
+                    // We can push past local enrich because it does not increase the number of rows
+                    return enrich.replaceChild(limit.replaceChild(enrich.child()));
+                }
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value
@@ -71,9 +71,24 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // The InlineJoin is currently excluded, as its right-hand side uses as data source a StubRelation that points to the entire
             // left-hand side, so adding a limit in there would lead to the right-hand side work on incomplete data.
             // To avoid repeating this infinitely, we have to set duplicated = true.
-            return duplicateLimitAsFirstGrandchild(limit);
+            // We use withLocal = false because if we have a remote join it will be forced into the fragment by the mapper anyway,
+            // And the verifier checks that there are no non-synthetic limits before the join.
+            // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
+            return duplicateLimitAsFirstGrandchild(limit, false);
         }
         return limit;
+    }
+
+    private static Limit combineLimits(Limit upper, Limit lower, FoldContext ctx) {
+        // Keep the smallest limit
+        var upperLimitValue = (int) upper.limit().fold(ctx);
+        var lowerLimitValue = (int) lower.limit().fold(ctx);
+        // We want to preserve the duplicated() value of the smaller limit.
+        if (lowerLimitValue <= upperLimitValue) {
+            return lower.withLocal(lower.local());
+        } else {
+            return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local());
+        }
     }
 
     /**
@@ -104,14 +119,15 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
      * Duplicate the limit past its child if it wasn't duplicated yet. The duplicate is placed on top of its leftmost grandchild.
      * Idempotent. (Sets {@link Limit#duplicated()} to {@code true} on the limit that remains at the top.)
      */
-    private static Limit duplicateLimitAsFirstGrandchild(Limit limit) {
+    private static Limit duplicateLimitAsFirstGrandchild(Limit limit, boolean withLocal) {
         if (limit.duplicated()) {
             return limit;
         }
 
         List<LogicalPlan> grandChildren = limit.child().children();
         LogicalPlan firstGrandChild = grandChildren.getFirst();
-        LogicalPlan newFirstGrandChild = limit.replaceChild(firstGrandChild);
+        // Use the local limit under the original node, so it won't break the pipeline
+        LogicalPlan newFirstGrandChild = (withLocal ? limit.withLocal(withLocal) : limit).replaceChild(firstGrandChild);
 
         List<LogicalPlan> newGrandChildren = new ArrayList<>();
         newGrandChildren.add(newFirstGrandChild);

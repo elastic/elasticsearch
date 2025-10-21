@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import com.ibm.icu.text.BreakIterator;
 
@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkerTests.TEST_TEXT;
+import static org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkerTests.TEST_TEXT;
 
 public class ChunkerUtilsTests extends ESTestCase {
     public void testCountWords() {

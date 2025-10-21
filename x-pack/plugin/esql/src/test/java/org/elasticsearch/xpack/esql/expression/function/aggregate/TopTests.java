@@ -32,7 +32,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isA;
 
 public class TopTests extends AbstractAggregationTestCase {
     public TopTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -69,18 +68,14 @@ public class TopTests extends AbstractAggregationTestCase {
                     MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
                     MultiRowTestCaseSupplier.dateCases(rows, rows)
-                )
-                    .flatMap(List::stream)
-                    .toList();
+                ).flatMap(List::stream).toList();
                 for (var fieldCaseSupplier : fieldCaseSuppliers) {
                     List<TestCaseSupplier.TypedDataSupplier> outputFieldCaseSuppliers = Stream.of(
                         MultiRowTestCaseSupplier.intCases(rows, rows, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                         MultiRowTestCaseSupplier.longCases(rows, rows, Long.MIN_VALUE, Long.MAX_VALUE, true),
                         MultiRowTestCaseSupplier.doubleCases(rows, rows, -Double.MAX_VALUE, Double.MAX_VALUE, true),
                         MultiRowTestCaseSupplier.dateCases(rows, rows)
-                    )
-                        .flatMap(List::stream)
-                        .toList();
+                    ).flatMap(List::stream).toList();
                     for (var outputFieldCaseSupplier : outputFieldCaseSuppliers) {
                         if (fieldCaseSupplier.name().equals(outputFieldCaseSupplier.name())) {
                             continue;
@@ -354,17 +349,18 @@ public class TopTests extends AbstractAggregationTestCase {
             if (outputFieldSupplied) {
                 outputFieldTypedData = outputFieldSupplier.get();
                 assertThat(outputFieldTypedData.multiRowData(), hasSize(equalTo(fieldTypedData.multiRowData().size())));
-                Comparator<Map.Entry<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>> comparator =
-                    Map.Entry
-                        .<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>comparingByKey()
-                        .thenComparing(Map.Entry::getValue);
+                Comparator<Map.Entry<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>> comparator = Map.Entry.<
+                    Comparable<? super Comparable<?>>,
+                    Comparable<? super Comparable<?>>>comparingByKey().thenComparing(Map.Entry::getValue);
                 if (isAscending == false) {
                     comparator = comparator.reversed();
                 }
                 expected = IntStream.range(0, fieldTypedData.multiRowData().size())
-                    .mapToObj(i -> Map.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>entry(
-                        (Comparable<? super Comparable<?>>) fieldTypedData.multiRowData().get(i),
-                        (Comparable<? super Comparable<?>>) outputFieldTypedData.multiRowData().get(i))
+                    .mapToObj(
+                        i -> Map.<Comparable<? super Comparable<?>>, Comparable<? super Comparable<?>>>entry(
+                            (Comparable<? super Comparable<?>>) fieldTypedData.multiRowData().get(i),
+                            (Comparable<? super Comparable<?>>) outputFieldTypedData.multiRowData().get(i)
+                        )
                     )
                     .sorted(comparator)
                     .map(Map.Entry::getValue)

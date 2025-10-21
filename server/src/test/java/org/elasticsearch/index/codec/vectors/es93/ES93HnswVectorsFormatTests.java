@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
 
 import java.io.IOException;
@@ -28,37 +27,25 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
-    protected boolean useBFloat16() {
-        return false;
-    }
-
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(useBFloat16());
+        return new ES93HnswVectorsFormat(false, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, useBFloat16(), random().nextBoolean());
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, false, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, useBFloat16(), random().nextBoolean(), numMergeWorkers, service);
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, false, random().nextBoolean(), numMergeWorkers, service);
     }
 
     public void testToString() {
         String expected = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
-        if (useBFloat16()) {
-            expected = format(
-                Locale.ROOT,
-                expected,
-                "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer=%s())"
-            );
-        } else {
-            expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s())");
-        }
+        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s())");
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer");
         String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer");
 
@@ -73,11 +60,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
                 dir,
                 newIndexWriterConfig(),
                 vector,
-                allOf(
-                    aMapWithSize(2),
-                    hasEntry("vec", (long) vector.length * (useBFloat16() ? BFloat16.BYTES : Float.BYTES)),
-                    hasEntry("vex", 1L)
-                )
+                allOf(aMapWithSize(2), hasEntry("vec", (long) vector.length * Float.BYTES), hasEntry("vex", 1L))
             );
         }
     }

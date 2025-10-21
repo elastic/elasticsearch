@@ -707,12 +707,6 @@ public class ModelRegistry implements ClusterStateListener {
         }), timeout);
     }
 
-    public record ModelStoreResponse(String inferenceId, RestStatus status, @Nullable Exception failureCause) {
-        public boolean failed() {
-            return failureCause != null;
-        }
-    }
-
     public void storeModels(List<Model> models, ActionListener<List<ModelStoreResponse>> listener, TimeValue timeout) {
         storeModels(models, true, listener, timeout);
     }

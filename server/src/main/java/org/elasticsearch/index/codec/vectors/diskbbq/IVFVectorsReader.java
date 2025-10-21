@@ -23,14 +23,21 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.DocAndFloatFeatureBuffer;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.Closeable;
@@ -283,8 +290,16 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
-        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
+        // TODO we can make this more efficient by not constructing the full FloatVectorValues
+        FloatVectorValues values = getFloatVectorValues(field);
+        int numVectors = values.size();
+        final float matchingDocs;
+        if (acceptDocs instanceof ESAcceptDocs esAcceptDocs) {
+            matchingDocs = esAcceptDocs.approximateCost();
+        } else {
+            matchingDocs = acceptDocs.cost();
+        }
+        final float percentFiltered = Math.max(0f, Math.min(1f, matchingDocs / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -304,6 +319,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        // should we just do an exact search instead?
+        long exactSearchCost = (long) (matchingDocs * fieldInfo.getVectorDimension());
+        // We consider every centroid and treat their cost as twice as cheap as floating point
+        // Additionally, we consider the number of total vectors we expect to visit
+        // during the IVF search. We consider the individual cost to be 8x cheaper than floating point
+        long ivfSearchCost = (long) ((long) entry.numCentroids * fieldInfo.getVectorDimension()/2f
+            + (fieldInfo.getVectorDimension()/8f * maxVectorVisited));
+        if (acceptDocs != ESAcceptDocs.AllDocs.INSTANCE && exactSearchCost < ivfSearchCost) {
+            // switch to exact search
+            exactSearch(values, acceptDocs.iterator(), target, knnCollector);
+            return;
+        }
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -345,6 +372,41 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
             }
+        }
+    }
+
+    private void exactSearch(
+        FloatVectorValues values,
+        DocIdSetIterator filterIterator,
+        float[] target,
+        KnnCollector knnCollector
+    ) throws IOException {
+        if (values instanceof BulkScorableFloatVectorValues bulkScorable) {
+            BulkScorableVectorValues.BulkVectorScorer vectorReScorer = bulkScorable.bulkScorer(target);
+            var iterator = vectorReScorer.iterator();
+            BulkScorableVectorValues.BulkVectorScorer.BulkScorer bulkScorer = vectorReScorer.bulkScore(filterIterator);
+            DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
+            while (iterator.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                // iterator already takes live docs into account
+                bulkScorer.nextDocsAndScores(64, null, buffer);
+                for (int i = 0; i < buffer.size; i++) {
+                    float score = buffer.features[i];
+                    int doc = buffer.docs[i];
+                    knnCollector.collect(doc, score);
+                }
+            }
+            return;
+        }
+        VectorScorer scorer = values.scorer(target);
+        int doc;
+        DocIdSetIterator knnVectorIterator = scorer.iterator();
+        var conjunction = filterIterator == null ?
+            knnVectorIterator :
+            ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
+        while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            assert doc == knnVectorIterator.docID();
+            float score = scorer.score();
+            knnCollector.collect(doc, score);
         }
     }
 

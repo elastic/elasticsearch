@@ -67,7 +67,7 @@ tasks.register("checkVec", JavaExec) {
 
       // MacOS implementation of async-profiler does not support wall clock profiling with another event.
       // Wall clock times can be obtained separately invoking this task with `-DasyncProfiler.event=wall`
-      jvmArgs "-agentpath:${asyncProfilerAgent}=start,event=${asyncProfilerEvent},interval=10ms,file=${layout.buildDirectory.asFile.get()}/tmp/elasticsearch-0_%t_%p.jfr"
+      jvmArgs "-agentpath:${asyncProfilerAgent}=start,event=${asyncProfilerEvent},interval=10ms,file=${layout.buildDirectory.asFile.get()}/tmp/elasticsearch-0_%t_%p.html"
     } else if (OS.current().equals(OS.LINUX)) {
       // Linux implementation of async-profiler uses perf_event, which allows wall clock profiling with another event (cpu)
       def additionalWallInterval = asyncProfilerEvent.equals("cpu") ? ",wall=50ms" : ""

@@ -8,14 +8,12 @@
  */
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.VectorScorer;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -98,16 +96,5 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
         TopDocs results = knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
-    }
-
-    @Override
-    VectorScorer createVectorScorer(LeafReaderContext context, FieldInfo fi) throws IOException {
-        LeafReader reader = context.reader();
-        FloatVectorValues vectorValues = reader.getFloatVectorValues(field);
-        if (vectorValues == null) {
-            FloatVectorValues.checkField(reader, field);
-            return null;
-        }
-        return vectorValues.scorer(query);
     }
 }

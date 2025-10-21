@@ -27,6 +27,10 @@ if (GradleVersion.current() < GradleVersion.version('2.13')) {
   throw new GradleException('Gradle 2.13+ is required to build elasticsearch')
 }
 
+if (GradleVersion.current() > GradleVersion.version('3.5')) {
+  logger.warn('This build has been tested with Gradle 2.13-3.5. You are using Gradle ' + GradleVersion.current().version + '. Build may not work as expected.')
+}
+
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
   // won't wipe out the buildscript jar
@@ -83,13 +87,13 @@ dependencies {
   compile("junit:junit:${props.getProperty('junit')}") {
     transitive = false
   }
-  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
-  compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
-  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.1.0'
+  compile 'com.netflix.nebula:nebula-publishing-plugin:5.1.4'
+  compile 'com.netflix.nebula:gradle-info-plugin:3.6.0'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:4.6.0.201612231935-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.2'
-  compile 'org.apache.rat:apache-rat:0.11'
+  compile 'de.thetaphi:forbiddenapis:2.3'
+  compile 'org.apache.rat:apache-rat:0.12'
 }
 
 // Gradle version-specific options (allows build to run with Gradle 2.13 as well as 2.14+/3.+)

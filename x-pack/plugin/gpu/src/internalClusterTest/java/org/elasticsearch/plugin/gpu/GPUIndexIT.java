@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -191,11 +192,11 @@ public class GPUIndexIT extends ESIntegTestCase {
         // Attempt to index a document and expect it to fail
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomFloatVector(dims)).get()
+            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomNormalizedVector(dims)).get()
         );
         assertThat(
             ex.getMessage(),
-            containsString("GPU vector indexing does not support DOT_PRODUCT similarity for [int8_hnsw] index type.")
+            containsString("GPU vector indexing does not support [dot_product] similarity for [int8_hnsw] index type.")
         );
     }
 

@@ -46,8 +46,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +82,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
 
+    private final TransportFieldCapabilitiesAction fieldCapsAction;
+
     @Inject
     public EsqlResolveFieldsAction(
         TransportService transportService,
@@ -92,7 +92,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ActionFilters actionFilters,
         IndicesService indicesService,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransportFieldCapabilitiesAction fieldCapsAction
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -105,11 +106,16 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
+        this.fieldCapsAction = fieldCapsAction;
     }
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        executeRequest(task, request, listener);
+        fieldCapsAction.executeRequest(
+            task,
+            request,
+            listener.map(resp -> new EsqlResolveFieldsResponse(resp, TransportVersion.current()))
+        );
     }
 
     public void executeRequest(Task task, FieldCapabilitiesRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {
@@ -148,12 +154,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
             // No indices at all!
-            listener.onResponse(
-                new EsqlResolveFieldsResponse(
-                    new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()),
-                    minTransportVersion.get()
-                )
-            );
+            listener.onResponse(new EsqlResolveFieldsResponse(FieldCapabilitiesResponse.empty(), minTransportVersion.get()));
             return;
         }
 
@@ -335,7 +336,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
         if (indexResponses.isEmpty() == false) {
-            listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
+            listener.onResponse(
+                FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses.values()).withFailures(failures).build()
+            );
         } else {
             // we have no responses at all, maybe because of errors
             if (indexFailures.isEmpty() == false) {
@@ -348,13 +351,13 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                         failure -> failure.getException() instanceof IllegalStateException ise
                             && ise.getCause() instanceof ElasticsearchTimeoutException
                     )) {
-                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
+                    listener.onResponse(FieldCapabilitiesResponse.builder().withFailures(failures).build());
                 } else {
                     // throw back the first exception
                     listener.onFailure(failures.get(0).getException());
                 }
             } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+                listener.onResponse(FieldCapabilitiesResponse.empty());
             }
         }
     }

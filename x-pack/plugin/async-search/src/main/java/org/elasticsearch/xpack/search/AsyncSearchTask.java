@@ -392,17 +392,22 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         if (mutableSearchResponse.tryIncRef() == false) {
             store.getResponse(searchId, restoreResponseHeaders, ActionListener.wrap(resp -> {
                 if (resp.tryIncRef() == false) {
-                    listener.onFailure(new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE));
+                    listener.onFailure(new ElasticsearchStatusException("Async search: result no longer available", RestStatus.GONE));
                     return;
                 }
                 ActionListener.respondAndRelease(listener, resp);
             }, e -> {
                 final Exception unwrapped = (Exception) ExceptionsHelper.unwrapCause(e);
-                listener.onFailure(new ElasticsearchStatusException("async-search result no longer available", RestStatus.GONE, unwrapped));
+                listener.onFailure(
+                    new ElasticsearchStatusException("Async search: result no longer available", RestStatus.GONE, unwrapped)
+                );
             }));
             return;
         }
 
+        // At this point we successfully incremented the ref on the MutableSearchResponse.
+        // This guarantees that the underlying SearchResponse it wraps will not be closed
+        // while we are using it, so calling toAsyncSearchResponse(..) is safe.
         try {
             AsyncSearchResponse asyncSearchResponse;
             try {

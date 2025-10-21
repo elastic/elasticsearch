@@ -18,10 +18,14 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 public final class TypeResolutions {
 
@@ -69,6 +73,37 @@ public final class TypeResolutions {
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == DATETIME, operationName, paramOrd, "datetime");
+    }
+
+    /**
+     * @see DataType#isRepresentable(DataType)
+     */
+    public static TypeResolution isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
+        return isType(
+            e,
+            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE,
+            operationName,
+            paramOrd,
+            "any type except counter types, dense_vector, or aggregate_metric_double"
+        );
+    }
+
+    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
+        return isType(
+            e,
+            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR && t != AGGREGATE_METRIC_DOUBLE,
+            operationName,
+            paramOrd,
+            "any type except counter, spatial types, dense_vector, or aggregate_metric_double"
+        );
     }
 
     public static TypeResolution isExact(Expression e, String message) {
@@ -131,36 +166,6 @@ public final class TypeResolutions {
             );
         }
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    /**
-     * Is this {@link Expression#foldable()} and not {@code null}.
-     *
-     * @deprecated instead of calling this, check for a {@link Literal} containing
-     *             {@code null}. Foldable expressions will be folded by other rules,
-     *             eventually, to a {@link Literal}.
-     */
-    @Deprecated
-    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
-
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (e.dataType() == DataType.NULL || e.fold(FoldContext.small()) == null) {
-            resolution = new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] cannot be null, received [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-
-        return resolution;
     }
 
     public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {

@@ -22,7 +22,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ## 9.1.0 [elasticsearch-9.1.0-release-notes]
 ```{applies_to}
-stack: coming 9.1.0
+stack: ga 9.1.0
 ```
 
 ### Highlights [elasticsearch-9.1.0-highlights]
@@ -47,9 +47,10 @@ Search:
 *  [#52](https://github.com/elastic/elasticsearch/pull/52)
 
 
+
 ## 9.0.10 [elasticsearch-9.0.10-release-notes]
 ```{applies_to}
-stack: coming 9.0.10
+stack: ga 9.0.10
 ```
 
 ### Features and enhancements [elasticsearch-9.0.10-features-enhancements]
@@ -57,6 +58,7 @@ stack: coming 9.0.10
 Search:
 * Test changelog entry 10_0 [#10000](https://github.com/elastic/elasticsearch/pull/10000) (issue: [#10001](https://github.com/elastic/elasticsearch/issues/10001))
 * Test changelog entry 10_1 [#10002](https://github.com/elastic/elasticsearch/pull/10002) (issues: [#10003](https://github.com/elastic/elasticsearch/issues/10003), [#10004](https://github.com/elastic/elasticsearch/issues/10004))
+
 
 
 ## 9.0.9 [elasticsearch-9.0.9-release-notes]
@@ -68,6 +70,7 @@ Mappings:
 * Test changelog entry 9_1 [#9002](https://github.com/elastic/elasticsearch/pull/9002) (issues: [#9003](https://github.com/elastic/elasticsearch/issues/9003), [#9004](https://github.com/elastic/elasticsearch/issues/9004))
 
 
+
 ## 9.0.8 [elasticsearch-9.0.8-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.8-features-enhancements]
@@ -75,6 +78,7 @@ Mappings:
 Indices:
 * Test changelog entry 8_0 [#8000](https://github.com/elastic/elasticsearch/pull/8000) (issue: [#8001](https://github.com/elastic/elasticsearch/issues/8001))
 * Test changelog entry 8_1 [#8002](https://github.com/elastic/elasticsearch/pull/8002) (issues: [#8003](https://github.com/elastic/elasticsearch/issues/8003), [#8004](https://github.com/elastic/elasticsearch/issues/8004))
+
 
 
 ## 9.0.7 [elasticsearch-9.0.7-release-notes]
@@ -86,6 +90,7 @@ Cluster:
 * Test changelog entry 7_1 [#7002](https://github.com/elastic/elasticsearch/pull/7002) (issues: [#7003](https://github.com/elastic/elasticsearch/issues/7003), [#7004](https://github.com/elastic/elasticsearch/issues/7004))
 
 
+
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.6-features-enhancements]
@@ -95,6 +100,7 @@ Aggregation:
 * Test changelog entry 6_1 [#6002](https://github.com/elastic/elasticsearch/pull/6002) (issues: [#6003](https://github.com/elastic/elasticsearch/issues/6003), [#6004](https://github.com/elastic/elasticsearch/issues/6004))
 
 
+
 ## 9.0.5 [elasticsearch-9.0.5-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.5-features-enhancements]
@@ -102,6 +108,7 @@ Aggregation:
 Security:
 * Test changelog entry 5_0 [#5000](https://github.com/elastic/elasticsearch/pull/5000) (issue: [#5001](https://github.com/elastic/elasticsearch/issues/5001))
 * Test changelog entry 5_1 [#5002](https://github.com/elastic/elasticsearch/pull/5002) (issues: [#5003](https://github.com/elastic/elasticsearch/issues/5003), [#5004](https://github.com/elastic/elasticsearch/issues/5004))
+
 
 
 ## 9.0.4 [elasticsearch-9.0.4-release-notes]
@@ -116,6 +123,7 @@ Mappings:
 * Test changelog entry 3_1 [#3002](https://github.com/elastic/elasticsearch/pull/3002) (issues: [#3003](https://github.com/elastic/elasticsearch/issues/3003), [#3004](https://github.com/elastic/elasticsearch/issues/3004))
 
 
+
 ## 9.0.2 [elasticsearch-9.0.2-release-notes]
 
 ### Fixes [elasticsearch-9.0.2-fixes]
@@ -123,6 +131,7 @@ Mappings:
 Indices:
 * Test changelog entry 2_0 [#2000](https://github.com/elastic/elasticsearch/pull/2000) (issue: [#2001](https://github.com/elastic/elasticsearch/issues/2001))
 * Test changelog entry 2_1 [#2002](https://github.com/elastic/elasticsearch/pull/2002) (issues: [#2003](https://github.com/elastic/elasticsearch/issues/2003), [#2004](https://github.com/elastic/elasticsearch/issues/2004))
+
 
 
 ## 9.0.1 [elasticsearch-9.0.1-release-notes]

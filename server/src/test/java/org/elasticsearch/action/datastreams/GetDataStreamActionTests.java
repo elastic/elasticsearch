@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
 import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomSettings;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,6 +66,8 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
             Map<String, Map<String, Object>> settingsMap = (Map<String, Map<String, Object>>) resultMap.get("settings");
             assertThat(Settings.builder().loadFromMap(settingsMap).build(), equalTo(dataStreamInfo.getDataStream().getSettings()));
+            Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
+            assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
         }
     }
 
@@ -105,6 +109,7 @@ public class GetDataStreamActionTests extends ESTestCase {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null);
         Settings settings = randomSettings();
+        CompressedXContent mappings = randomMappings();
         return DataStream.builder(randomAlphaOfLength(50), indices)
             .setGeneration(randomLongBetween(1, 1000))
             .setMetadata(Map.of())
@@ -113,6 +118,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             .setReplicated(randomBoolean())
             .setLifecycle(lifecycle)
             .setSettings(settings)
+            .setMappings(mappings)
             .build();
     }
 }

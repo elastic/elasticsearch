@@ -27,6 +27,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -45,6 +46,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
 
     private final InferenceAuditor auditor;
     private final IngestService ingestService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteTrainedModelAliasAction(
@@ -53,7 +55,8 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ThreadPool threadPool,
         ActionFilters actionFilters,
         InferenceAuditor auditor,
-        IngestService ingestService
+        IngestService ingestService,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteTrainedModelAliasAction.NAME,
@@ -66,6 +69,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         );
         this.auditor = auditor;
         this.ingestService = ingestService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -128,6 +132,6 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
 
     @Override
     protected ClusterBlockException checkBlock(DeleteTrainedModelAliasAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

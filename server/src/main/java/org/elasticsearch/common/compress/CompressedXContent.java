@@ -10,7 +10,6 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -135,7 +134,7 @@ public final class CompressedXContent implements Writeable {
      * that may already be compressed.
      */
     public CompressedXContent(BytesReference data) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
@@ -148,7 +147,7 @@ public final class CompressedXContent implements Writeable {
     }
 
     private void assertConsistent() {
-        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert CompressorFactory.compressorForUnknownXContentType(new BytesArray(bytes)) != null;
         assert this.sha256.equals(sha256(uncompressed()));
         assert this.sha256.equals(sha256FromCompressed(bytes));
     }
@@ -202,27 +201,14 @@ public final class CompressedXContent implements Writeable {
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
-        final String sha256;
-        final byte[] compressedData;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            sha256 = in.readString();
-            compressedData = in.readByteArray();
-        } else {
-            int crc32 = in.readInt();
-            compressedData = in.readByteArray();
-            sha256 = sha256FromCompressed(compressedData);
-        }
+        String sha256 = in.readString();
+        byte[] compressedData = in.readByteArray();
         return new CompressedXContent(compressedData, sha256);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeString(sha256);
-        } else {
-            int crc32 = crc32FromCompressed(bytes);
-            out.writeInt(crc32);
-        }
+        out.writeString(sha256);
         out.writeByteArray(bytes);
     }
 

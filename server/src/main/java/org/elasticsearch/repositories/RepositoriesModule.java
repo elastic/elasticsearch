@@ -48,7 +48,8 @@ public final class RepositoriesModule {
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        SnapshotMetrics snapshotMetrics
     ) {
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
@@ -72,7 +73,8 @@ public final class RepositoriesModule {
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                repositoriesMetrics
+                repositoriesMetrics,
+                snapshotMetrics
             );
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {
@@ -135,7 +137,8 @@ public final class RepositoriesModule {
             internalRepositoryTypes,
             threadPool,
             client,
-            preRestoreChecks
+            preRestoreChecks,
+            snapshotMetrics
         );
     }
 

@@ -28,7 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     implements
@@ -75,12 +75,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
         uri = createUri(in.readString());
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -133,10 +128,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

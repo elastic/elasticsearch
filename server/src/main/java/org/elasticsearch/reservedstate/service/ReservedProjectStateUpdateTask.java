@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -64,13 +65,24 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
         ProjectMetadata currentProject = ReservedClusterStateService.getPotentiallyNewProject(currentState, projectId);
         var result = execute(
             ClusterState.builder(currentState).putProjectMetadata(currentProject).build(),
-            currentProject.reservedStateMetadata()
+            ProjectStateRegistry.get(currentState).reservedStateMetadata(projectId)
         );
         if (result == null) {
             return currentState;
         }
 
-        ProjectMetadata updatedProject = result.v1().getMetadata().getProject(projectId);
-        return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(updatedProject).put(result.v2())).build();
+        ClusterState updatedClusterState = result.v1();
+        ProjectStateRegistry updatedProjectStateRegistry = updatedClusterState.custom(
+            ProjectStateRegistry.TYPE,
+            ProjectStateRegistry.EMPTY
+        );
+        ProjectMetadata updatedProjectMetadata = updatedClusterState.getMetadata().getProject(projectId);
+        return ClusterState.builder(currentState)
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build()
+            )
+            .putProjectMetadata(updatedProjectMetadata)
+            .build();
     }
 }

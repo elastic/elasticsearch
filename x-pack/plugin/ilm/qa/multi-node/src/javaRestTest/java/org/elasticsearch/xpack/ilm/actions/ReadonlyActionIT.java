@@ -64,6 +64,7 @@ public class ReadonlyActionIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.getKey()), nullValue());
+            assertThat(settings.get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()), equalTo("true"));
         });
     }
 

@@ -49,7 +49,7 @@ public class MistralChatCompletionRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(4));
 
-        // We do not truncate for Hugging Face chat completions
+        // We do not truncate for Mistral chat completions
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));

@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -30,18 +34,23 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * This class is part of the planner. Data node level logical optimizations.  At this point we have access to
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
- * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}
+ * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators(boolean)}
+ * and {@link LogicalPlanOptimizer#cleanup()}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
+
+    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
     private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
         new Batch<>(
             "Local rewrite",
             Limiter.ONCE,
+            new IgnoreNullMetrics(),
             new ReplaceTopNWithLimitAndSort(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
-            new InferNonNullAggConstraint()
+            new InferNonNullAggConstraint(),
+            new ReplaceDateTruncBucketWithRoundTo()
         ),
         localOperators(),
         cleanup()
@@ -58,8 +67,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     @SuppressWarnings("unchecked")
     private static Batch<LogicalPlan> localOperators() {
-        var operators = operators();
-        var rules = operators().rules();
+        var operators = operators(true);
+        var rules = operators.rules();
         List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);
 
         // apply updates to existing rules that have different applicability locally
@@ -80,6 +89,12 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
-        return execute(plan);
+        LogicalPlan optimized = execute(plan);
+        Failures failures = verifier.verify(optimized, true, plan.output());
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+        return optimized;
     }
+
 }

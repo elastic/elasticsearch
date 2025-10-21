@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -77,14 +76,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new ProfilingIndexTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            NamedXContentRegistry.EMPTY,
-            TestProjectResolvers.mustExecuteFirst()
-        );
+        registry = new ProfilingIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
         registry.setTemplatesEnabled(true);
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -160,6 +161,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetMlComponentsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
@@ -270,6 +272,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
+import org.elasticsearch.xpack.ml.action.TransportResetMlComponentsAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
@@ -557,6 +560,8 @@ public class MachineLearning extends Plugin
         License.OperationMode.PLATINUM
     );
 
+    private static final FeatureFlag NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG = new FeatureFlag("new_ml_memory_computation");
+
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {
@@ -781,7 +786,6 @@ public class MachineLearning extends Plugin
     public static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MachineLearning.class);
 
     private final Settings settings;
     private final boolean enabled;
@@ -801,7 +805,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<LearningToRankService> learningToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
-    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
+    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
@@ -874,7 +878,12 @@ public class MachineLearning extends Plugin
                 machineMemoryAttrName,
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
-            addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+
+            long jvmSize = Runtime.getRuntime().maxMemory();
+            if (NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
+                jvmSize = JvmInfo.jvmInfo().getMem().getTotalMax().getBytes();
+            }
+            addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(jvmSize));
             addMlNodeAttribute(
                 additionalSettings,
                 deprecatedAllocatedProcessorsAttrName,
@@ -970,8 +979,7 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             machineLearningExtension.get().useIlm(),
-            xContentRegistry,
-            services.projectResolver()
+            xContentRegistry
         );
         registry.initialize();
 
@@ -1307,7 +1315,7 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool
         );
-        trainedModelAllocationClusterServiceSetOnce.set(
+        trainedModelAllocationClusterService.set(
             new TrainedModelAssignmentClusterService(
                 settings,
                 clusterService,
@@ -1383,7 +1391,8 @@ public class MachineLearning extends Plugin
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
-            trainedModelAllocationClusterServiceSetOnce.get(),
+            trainedModelAllocationClusterService.get(),
+            trainedModelStatsService,
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
@@ -1556,6 +1565,7 @@ public class MachineLearning extends Plugin
         actionHandlers.add(new ActionHandler(MlMemoryAction.INSTANCE, TransportMlMemoryAction.class));
         actionHandlers.add(new ActionHandler(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class));
         actionHandlers.add(new ActionHandler(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class));
+        actionHandlers.add(new ActionHandler(ResetMlComponentsAction.INSTANCE, TransportResetMlComponentsAction.class));
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
@@ -2035,8 +2045,8 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        boolean isAlreadyInUpgradeMode = MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
+    public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        boolean isAlreadyInUpgradeMode = MlMetadata.getMlMetadata(project).isUpgradeMode();
         if (isAlreadyInUpgradeMode) {
             // ML is already in upgrade mode, so nothing will write to the ML system indices during their upgrade
             listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", true));
@@ -2053,12 +2063,7 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public void indicesMigrationComplete(
-        Map<String, Object> preUpgradeMetadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
+    public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         boolean wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
         if (wasAlreadyInUpgradeMode) {
             // ML was already in upgrade mode before system indices upgrade started - we shouldn't disable it
@@ -2132,12 +2137,13 @@ public class MachineLearning extends Plugin
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client unwrappedClient,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         if (this.enabled == false) {
             // if ML is disabled, the custom cleanup can fail, but we can still clean up indices
             // by calling the superclass cleanup method
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, unwrappedClient, finalListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, unwrappedClient, masterNodeTimeout, finalListener);
             return;
         }
         logger.info("Starting machine learning feature reset");
@@ -2146,8 +2152,6 @@ public class MachineLearning extends Plugin
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
-            // reset the auditors as aliases used may be removed
-            resetAuditors();
 
             client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
                 finalListener.onResponse(success);
@@ -2173,8 +2177,24 @@ public class MachineLearning extends Plugin
             );
         });
 
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> resetAuditors = ActionListener.wrap(success -> {
+            // reset components, such as the auditors the trained model stats queue
+            client.execute(
+                ResetMlComponentsAction.INSTANCE,
+                ResetMlComponentsAction.Request.RESET_AUDITOR_REQUEST,
+                ActionListener.wrap(ignored -> unsetResetModeListener.onResponse(success), unsetResetModeListener::onFailure)
+            );
+        }, failure -> {
+            logger.error("failed to reset machine learning", failure);
+            client.execute(
+                ResetMlComponentsAction.INSTANCE,
+                ResetMlComponentsAction.Request.RESET_AUDITOR_REQUEST,
+                ActionListener.wrap(ignored -> unsetResetModeListener.onFailure(failure), unsetResetModeListener::onFailure)
+            );
+        });
+
         // Stop all model deployments
-        ActionListener<AcknowledgedResponse> pipelineValidation = unsetResetModeListener.<ListTasksResponse>delegateFailureAndWrap(
+        ActionListener<AcknowledgedResponse> pipelineValidation = resetAuditors.<ListTasksResponse>delegateFailureAndWrap(
             (delegate, listTasksResponse) -> {
                 listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
                 if (results.values().stream().allMatch(b -> b)) {
@@ -2186,6 +2206,7 @@ public class MachineLearning extends Plugin
                                         clusterService,
                                         projectResolver,
                                         client,
+                                        masterNodeTimeout,
                                         delegate
                                     ),
                                     clearFailed -> {
@@ -2193,14 +2214,20 @@ public class MachineLearning extends Plugin
                                             "failed to clear memory tracker cache via machine learning reset feature API",
                                             clearFailed
                                         );
-                                        SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, delegate);
+                                        SystemIndexPlugin.super.cleanUpFeature(
+                                            clusterService,
+                                            projectResolver,
+                                            client,
+                                            masterNodeTimeout,
+                                            delegate
+                                        );
                                     }
                                 )
                             );
                         return;
                     }
                     // Call into the original listener to clean up the indices and then clear ml memory cache
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, delegate);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, delegate);
                 } else {
                     final List<String> failedComponents = results.entrySet()
                         .stream()
@@ -2303,11 +2330,11 @@ public class MachineLearning extends Plugin
             );
             client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, delegate);
         }).delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
-            if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
+            if (trainedModelAllocationClusterService.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
                 delegate.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(delegate);
+            trainedModelAllocationClusterService.get().removeAllModelAssignments(delegate);
         });
 
         // validate no pipelines are using machine learning models
@@ -2327,18 +2354,6 @@ public class MachineLearning extends Plugin
 
         // Indicate that a reset is now in progress
         client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
-    }
-
-    private void resetAuditors() {
-        if (anomalyDetectionAuditor.get() != null) {
-            anomalyDetectionAuditor.get().reset();
-        }
-        if (dataFrameAnalyticsAuditor.get() != null) {
-            dataFrameAnalyticsAuditor.get().reset();
-        }
-        if (inferenceAuditor.get() != null) {
-            inferenceAuditor.get().reset();
-        }
     }
 
     @Override

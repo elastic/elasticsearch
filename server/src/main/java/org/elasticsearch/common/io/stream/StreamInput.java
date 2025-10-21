@@ -203,6 +203,14 @@ public abstract class StreamInput extends InputStream {
         return readBytesRef(length);
     }
 
+    public @Nullable BytesRef readBytesRefOrNullIfEmpty() throws IOException {
+        int length = readArraySize();
+        if (length == 0) {
+            return null;
+        }
+        return readBytesRef(length);
+    }
+
     public BytesRef readBytesRef(int length) throws IOException {
         if (length == 0) {
             return new BytesRef();
@@ -803,6 +811,28 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
+     *
+     * @param valueReader The value reader
+     * @param keyMapper function to create a key from a value
+     * @param constructor map constructor
+     * @return Never {@code null}.
+     */
+    public <K, V, M extends Map<K, V>> M readMapValues(
+        final Writeable.Reader<V> valueReader,
+        final Function<V, K> keyMapper,
+        final IntFunction<M> constructor
+    ) throws IOException {
+        final int size = readArraySize();
+        final M map = constructor.apply(size);
+        for (int i = 0; i < size; i++) {
+            V value = valueReader.read(this);
+            map.put(keyMapper.apply(value), value);
+        }
+        return map;
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     @Nullable
@@ -819,7 +849,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     * Read an optional {@link Map} using the given key and value readers. The returned Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map or null if not present
+     */
+    public <K, V> Map<K, V> readOptionalImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final boolean present = readBoolean();
+        return present ? readImmutableMap(keyReader, valueReader) : null;
+    }
+
+    /**
+     * Read a {@link Map} using the given key and value readers. The returned Map is immutable.
      *
      * @param keyReader Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.

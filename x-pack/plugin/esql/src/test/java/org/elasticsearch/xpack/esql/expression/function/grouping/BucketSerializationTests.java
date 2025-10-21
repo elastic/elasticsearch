@@ -16,6 +16,10 @@ import java.io.IOException;
 public class BucketSerializationTests extends AbstractExpressionSerializationTests<Bucket> {
     @Override
     protected Bucket createTestInstance() {
+        return createRandomBucket();
+    }
+
+    public static Bucket createRandomBucket() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression buckets = randomChild();

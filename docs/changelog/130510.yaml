@@ -1,0 +1,5 @@
+pr: 130510
+summary: Add fast path for single value in VALUES aggregator
+area: ES|QL
+type: enhancement
+issues: []

@@ -26,10 +26,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -245,15 +247,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      */
     private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
 
+    // HACK used to avoid chaining too many ref counting listeners, hence avoiding stack overflow exceptions
+    private int shardsClosedListenerChainLength = 0;
+    private volatile boolean closingMoreShards;
+
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
 
-    private ActionListener<Void> getShardsClosedListener() {
+    // protected for tests
+    protected ActionListener<Void> getShardsClosedListener() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (currentClusterStateShardsClosedListeners == null) {
             assert false : "not currently applying cluster state";
             return ActionListener.noop();
         } else {
+            closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
     }
@@ -272,15 +280,44 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         lastClusterStateShardsClosedListener = new SubscribableListener<>();
         currentClusterStateShardsClosedListeners = new RefCountingListener(lastClusterStateShardsClosedListener);
         try {
-            previousShardsClosedListener.addListener(currentClusterStateShardsClosedListeners.acquire());
+            // HACK: chain listeners but avoid too deep of a stack
+            {
+                if (previousShardsClosedListener.isDone()) {
+                    shardsClosedListenerChainLength = 0;
+                }
+                previousShardsClosedListener.addListener(
+                    currentClusterStateShardsClosedListeners.acquire(),
+                    // Sometimes fork the listener on a different thread.
+                    // Chaining too many listeners might trigger a stackoverflow exception on the thread that eventually gets to
+                    // execute them all (because the last thread that decreases the ref count to 0 of a {@link RefCountingListener}
+                    // also executes its listeners, which in turn might decrease the ref count to 0 of another
+                    // {@link RefCountingListerner}, again executing its listeners, etc...).
+                    shardsClosedListenerChainLength++ < 8 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
+                    null
+                );
+                if (shardsClosedListenerChainLength >= 8) {
+                    shardsClosedListenerChainLength = 0;
+                }
+                // reset the variable before applying the cluster state
+                closingMoreShards = false;
+            }
             doApplyClusterState(event);
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
+            // HACK
+            if (closingMoreShards == false) {
+                // avoids chaining when no shard has been closed after applying this cluster state
+                lastClusterStateShardsClosedListener = previousShardsClosedListener;
+                if (shardsClosedListenerChainLength > 0) {
+                    shardsClosedListenerChainLength--;
+                }
+            }
         }
     }
 
-    private void doApplyClusterState(final ClusterChangedEvent event) {
+    // protected for tests
+    protected void doApplyClusterState(final ClusterChangedEvent event) {
         if (lifecycle.started() == false) {
             return;
         }
@@ -701,6 +738,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
                     return;
                 }
+            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
+                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
+                if (sourceNode == null) {
+                    logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
+                    return;
+                }
             } else {
                 sourceNode = null;
             }
@@ -773,6 +817,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
+                originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
                 new RecoveryListener(shardRouting, primaryTerm),
@@ -984,6 +1029,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             throw new IllegalStateException(
                 "trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting
             );
+        }
+        return sourceNode;
+    }
+
+    private static DiscoveryNode findSourceNodeForReshardSplitRecovery(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        ShardId sourceShardId
+    ) {
+        ShardRouting sourceShardRouting = routingTable.shardRoutingTable(sourceShardId).primaryShard();
+
+        if (sourceShardRouting.active() == false) {
+            // Source shard is unassigned (likely due to failure), we will retry.
+            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting.shortSummary());
+            return null;
+        }
+
+        DiscoveryNode sourceNode = nodes.get(sourceShardRouting.currentNodeId());
+        if (sourceNode == null) {
+            assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
+            logger.trace(
+                "can't find reshard split source node because source shard {} is assigned to an unknown node.",
+                sourceShardRouting.shortSummary()
+            );
+            return null;
         }
         return sourceNode;
     }
@@ -1297,6 +1367,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Creates a shard for the specified shard routing and starts recovery.
          *
+         * @param projectId              the project for the shard
          * @param shardRouting           the shard routing
          * @param recoveryTargetService  recovery service for the target
          * @param recoveryListener       a callback when recovery changes state (finishes or fails)
@@ -1310,6 +1381,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         void createShard(
+            ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,

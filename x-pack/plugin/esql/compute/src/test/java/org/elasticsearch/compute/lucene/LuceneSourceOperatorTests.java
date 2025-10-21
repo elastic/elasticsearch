@@ -24,17 +24,19 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -52,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -62,8 +65,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
+public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
 
     @ParametersFactory(argumentFormatting = "%s %s")
@@ -94,6 +98,22 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             @Override
             int numResults(int numDocs) {
                 return numDocs;
+            }
+        },
+        MATCH_0 {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowExactQuery("s", 0), List.of()));
+            }
+
+            @Override
+            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+                assertThat(results, hasSize(both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(1))));
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return Math.min(numDocs, 1);
             }
         },
         MATCH_0_AND_1 {
@@ -220,9 +240,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
         return new LuceneSourceOperator.Factory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
+            DataPartitioning.AutoStrategy.DEFAULT,
             taskConcurrency,
             maxPageSize,
             limit,
@@ -371,6 +392,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         for (Page page : results) {
             assertThat(page.getPositionCount(), lessThanOrEqualTo(factory.maxPageSize()));
         }
+        assertAllRefCountedSameInstance(results);
 
         for (Page page : results) {
             LongBlock sBlock = page.getBlock(initialBlockIndex(page));
@@ -405,6 +427,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         private final int index;
         private final ContextIndexSearcher searcher;
 
+        // TODO Reuse this overload in the places that pass 0.
+        public MockShardContext(IndexReader reader) {
+            this(reader, 0);
+        }
+
         public MockShardContext(IndexReader reader, int index) {
             this.index = index;
             try {
@@ -431,7 +458,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         @Override
-        public SourceLoader newSourceLoader() {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
             return SourceLoader.FROM_STORED_SOURCE;
         }
 
@@ -457,6 +484,36 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public MappedFieldType fieldType(String name) {
             throw new UnsupportedOperationException();
+        }
+
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+    }
+
+    static void assertAllRefCountedSameInstance(List<Page> results) {
+        RefCounted firstRefCounted = null;
+        for (Page page : results) {
+            DocBlock docs = page.getBlock(0);
+            var refCounted = docs.asVector().shardRefCounted(docs.asVector().shards().getInt(0));
+            if (firstRefCounted == null) {
+                firstRefCounted = refCounted;
+            } else {
+                assertThat(refCounted, sameInstance(firstRefCounted));
+            }
         }
     }
 }

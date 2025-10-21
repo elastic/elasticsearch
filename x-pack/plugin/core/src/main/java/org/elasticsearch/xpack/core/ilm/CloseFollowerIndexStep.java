@@ -10,8 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
@@ -32,7 +32,7 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         String followerIndex = indexMetadata.getIndex().getName();
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
@@ -42,7 +42,7 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
 
         if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
             CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followerIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
-            getClient().admin().indices().close(closeIndexRequest, listener.delegateFailureAndWrap((l, r) -> {
+            getClient(currentProject.id()).admin().indices().close(closeIndexRequest, listener.delegateFailureAndWrap((l, r) -> {
                 if (r.isAcknowledged() == false) {
                     throw new ElasticsearchException("close index request failed to be acknowledged");
                 }

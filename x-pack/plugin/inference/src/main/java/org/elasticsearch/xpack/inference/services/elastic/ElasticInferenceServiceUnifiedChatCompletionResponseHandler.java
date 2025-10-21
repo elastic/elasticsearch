@@ -49,7 +49,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
             var restStatus = toRestStatus(responseStatusCode);
             return new UnifiedChatCompletionException(
                 restStatus,
-                errorMessage(message, request, result, errorResponse, responseStatusCode),
+                constructErrorMessage(message, request, errorResponse, responseStatusCode),
                 "error",
                 restStatus.name().toLowerCase(Locale.ROOT)
             );

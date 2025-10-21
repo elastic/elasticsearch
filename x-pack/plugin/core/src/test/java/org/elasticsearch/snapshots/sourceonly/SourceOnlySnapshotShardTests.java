@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -95,6 +96,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
+@FixForMultiProject(description = "Randomizing projectId once snapshot and restore support multiple projects, ES-10225, ES-10228")
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
@@ -123,7 +125,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        final var projectId = randomProjectIdOrDefault();
+        final var projectId = ProjectId.DEFAULT;
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
@@ -174,7 +176,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         recoverShardFromStore(shard);
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        final var projectId = randomProjectIdOrDefault();
+        final var projectId = ProjectId.DEFAULT;
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
@@ -215,7 +217,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
 
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        final var projectId = randomProjectIdOrDefault();
+        final var projectId = ProjectId.DEFAULT;
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
@@ -344,7 +346,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
-        final var projectId = randomProjectIdOrDefault();
+        final var projectId = ProjectId.DEFAULT;
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
@@ -373,6 +375,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     .build();
                 repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
+                        false,
                         new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                         ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
@@ -571,7 +574,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     private Repository createRepository(ProjectId projectId) {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final Repository repository = new FsRepository(
             projectId,
             repositoryMetadata,

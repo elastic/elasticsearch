@@ -14,7 +14,7 @@ mapped_pages:
 
 
 ::::{tip}
-The rule query is not supported for use alongside reranking. If you want to use query rules in conjunction with reranking, use the [rule retriever](/reference/elasticsearch/rest-apis/retrievers.md#rule-retriever) instead.
+The rule query is not supported for use alongside reranking. If you want to use query rules in conjunction with reranking, use the [rule retriever](/reference/elasticsearch/rest-apis/retrievers/rule-retriever.md) instead.
 
 ::::
 
@@ -29,6 +29,35 @@ To use the rule query, you first need a defined set of query rules. Use the [que
 
 ## Example request [_example_request_2]
 
+<!--
+```console
+PUT _query_rules/my-ruleset
+{
+  "rules": [
+    {
+      "rule_id": "my-rule1",
+      "type": "pinned",
+      "criteria": [
+        {
+          "type": "exact",
+          "metadata": "user_query",
+          "values": ["puggles"]
+        }
+      ],
+      "actions": {
+        "ids": [ "id1" ]
+      }
+    }
+  ]
+}
+```
+% TESTSETUP
+
+```console
+DELETE _query_rules/my-ruleset
+```
+% TEARDOWN
+-->
 ```console
 GET /_search
 {

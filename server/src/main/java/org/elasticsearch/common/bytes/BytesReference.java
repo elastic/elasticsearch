@@ -159,7 +159,10 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     BytesReference slice(int from, int length);
 
     /**
-     * The amount of memory used by this BytesReference
+     * The amount of memory used by this BytesReference.
+     * <p>
+     * Note that this is not always the same as length and can vary by implementation.
+     * </p>
      */
     long ramBytesUsed();
 

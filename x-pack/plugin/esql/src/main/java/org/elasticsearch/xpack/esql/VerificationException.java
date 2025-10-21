@@ -25,4 +25,8 @@ public class VerificationException extends EsqlClientException {
         super(failures.toString());
     }
 
+    public VerificationException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }

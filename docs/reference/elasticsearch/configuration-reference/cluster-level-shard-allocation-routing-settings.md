@@ -254,6 +254,7 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[skip:TODO]
 
 ### Cluster routing settings [cluster-routing-settings]
 
@@ -304,9 +305,9 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[skip:TODO]
 
+## Node allocation stats cache [node-allocation-stats-cache]
 
-## Node Allocation Stats Cache [node-allocation-stats-cache]
-
-`cluster.routing.allocation.stats.cache.ttl`
+`cluster.routing.allocation.stats.cache.ttl` {applies_to}`stack: ga 9.1`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Calculating the node allocation stats for a [Get node statistics API call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-stats) can become expensive on the master for clusters with a high number of nodes. To prevent overloading the master the node allocation stats are cached on the master for 1 minute `1m` by default.  This setting can be used to adjust the cache time to live value, if necessary, keeping in mind the tradeoff between the freshness of the statistics and the processing costs on the master.  The cache can be disabled (not recommended) by setting the value to `0s` (the minimum value). The maximum value is 10 minutes `10m`.

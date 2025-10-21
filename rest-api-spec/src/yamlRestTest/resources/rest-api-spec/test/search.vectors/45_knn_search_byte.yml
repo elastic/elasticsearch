@@ -310,4 +310,98 @@ setup:
   - match: { hits.hits.0._score: $knn_score0 }
   - match: { hits.hits.1._score: $knn_score1 }
   - match: { hits.hits.2._score: $knn_score2 }
+---
+"Nested flat search":
+  - do:
+      indices.create:
+        index: flat_nested
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    element_type: byte
+                    dims: 5
+                    index: true
+                    similarity: l2_norm
+                    index_options:
+                      type: flat
+  - do:
+      index:
+        index: flat_nested
+        id: "1"
+        body:
+          name: cow.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [-26, 44, -34, 15, 56]
+            - paragraph_id: 1
+              vector: [-26, 44, -3, 1, -20]
 
+  - do:
+      index:
+        index: flat_nested
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [0, 100, -13, 14, 100]
+            - paragraph_id: 2
+              vector: [0, 100, 0, 14, 100]
+            - paragraph_id: 3
+              vector: [0, 1, 0, 1, -15]
+
+  - do:
+      index:
+        index: flat_nested
+        id: "3"
+        body:
+          name: rabbit.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [0, 111, 13, 14, -6]
+
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        index: flat_nested
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ 0, 90, -10, 14, 100 ]
+                  num_candidates: 3
+                  k: 2
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  - do:
+      search:
+        index: flat_nested
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [ 0, 90, 10, 14, -4 ]
+            num_candidates: 3
+            k: 2
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }

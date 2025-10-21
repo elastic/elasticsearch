@@ -97,16 +97,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         ThreadPool threadPool = services.threadPool();
 
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
-        registry.set(
-            new ProfilingIndexTemplateRegistry(
-                settings,
-                clusterService,
-                threadPool,
-                client,
-                services.xContentRegistry(),
-                services.projectResolver()
-            )
-        );
+        registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, services.xContentRegistry()));
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 

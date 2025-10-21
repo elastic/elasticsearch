@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
-    private static final boolean IS_SINGLE_PROCESSOR_TEST = Boolean.parseBoolean(
+    private static final boolean IS_SINGLE_PROCESSOR_TEST = Booleans.parseBoolean(
         System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
     );
 

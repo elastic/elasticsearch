@@ -20,6 +20,11 @@ subprojects {
     targetCompatibility = 21
   }
 
+  test {
+    // testing with entitlements doesn't work for example plugins ES-12453
+    systemProperty 'es.entitlement.enableForTests', 'false'
+  }
+
   repositories {
     // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
     if (gradle.includedBuilds.isEmpty()) {

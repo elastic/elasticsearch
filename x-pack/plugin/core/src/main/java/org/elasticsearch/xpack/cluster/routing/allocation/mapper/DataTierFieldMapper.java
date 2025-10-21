@@ -61,6 +61,11 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getTierPreference();
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             String tierPreference = context.getTierPreference();
             if (tierPreference == null) {

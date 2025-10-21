@@ -12,7 +12,6 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +30,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -114,8 +112,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
 
@@ -166,8 +163,7 @@ public class InboundHandlerTests extends ESTestCase {
             },
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
@@ -245,7 +241,7 @@ public class InboundHandlerTests extends ESTestCase {
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersionUtils.getFirstVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE)
+                TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible())
             );
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(

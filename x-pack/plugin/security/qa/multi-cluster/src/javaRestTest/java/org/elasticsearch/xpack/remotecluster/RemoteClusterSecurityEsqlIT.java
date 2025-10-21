@@ -42,12 +42,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -848,18 +845,18 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | ENRICH countries
             | STATS size=count(*) by country
             | SORT size DESC
-            | LIMIT 2"""));
+            | LIMIT 3"""));
         assertOK(response);
 
         Map<String, Object> responseAsMap = entityAsMap(response);
         List<?> columns = (List<?>) responseAsMap.get("columns");
         List<?> values = (List<?>) responseAsMap.get("values");
         assertEquals(2, columns.size());
-        assertEquals(2, values.size());
+        assertEquals(3, values.size());
         List<?> flatList = values.stream()
             .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
-        assertThat(flatList, containsInAnyOrder(1, 3, "usa", "germany"));
+        assertThat(flatList, containsInAnyOrder(1, 1, 3, "usa", "germany", "japan"));
     }
 
     private void createAliases() throws Exception {
@@ -986,16 +983,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
             ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            String expectedIndexExpressionInError = index.replace("*", "my_remote_cluster");
-            Pattern p = Pattern.compile("Unknown index \\[([^\\]]+)\\]");
-            Matcher m = p.matcher(error.getMessage());
-            assertTrue("Pattern matcher to parse error message did not find matching string: " + error.getMessage(), m.find());
-            String unknownIndexExpressionInErrorMessage = m.group(1);
-            Set<String> actualUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(
-                unknownIndexExpressionInErrorMessage
-            );
-            Set<String> expectedUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(expectedIndexExpressionInError);
-            assertThat(actualUnknownIndexes, equalTo(expectedUnknownIndexes));
+            assertThat(error.getMessage(), containsString("Unknown index [" + index + "]"));
         }
 
         for (var index : List.of(

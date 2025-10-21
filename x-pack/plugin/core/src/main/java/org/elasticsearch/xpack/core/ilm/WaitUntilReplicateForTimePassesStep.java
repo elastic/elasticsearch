@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
@@ -66,18 +65,15 @@ public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.getProject().index(index);
-        assert indexMetadata != null
-            : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
-
-        final LifecycleExecutionState executionState = metadata.getProject().index(index.getName()).getLifecycleExecutionState();
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        String indexName = indexMetadata.getIndex().getName();
+        final LifecycleExecutionState executionState = indexMetadata.getLifecycleExecutionState();
         assert executionState != null
-            : "the lifecycle execution state for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
+            : "the lifecycle execution state for index [" + indexName + "] must exist in the cluster state for step [" + NAME + "]";
 
         if (replicateFor == null) {
             // assert at dev-time, but treat this as a no-op at runtime if somehow this should happen (which it shouldn't)
-            assert false : "the replicate_for time value for index [" + index.getName() + "] must not be null for step [" + NAME + "]";
+            assert false : "the replicate_for time value for index [" + indexName + "] must not be null for step [" + NAME + "]";
             listener.onResponse(true, EmptyInfo.INSTANCE);
             return;
         }
@@ -97,7 +93,7 @@ public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
                         // balance between precision and efficiency.
                         approximateTimeRemaining(remaining),
                         this.replicateFor,
-                        index.getName()
+                        indexName
                     )
                 )
             );

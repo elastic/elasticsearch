@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -32,6 +33,7 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/clone");
     private final SnapshotsService snapshotsService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportCloneSnapshotAction(
@@ -39,7 +41,8 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
         ClusterService clusterService,
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -51,12 +54,13 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(CloneSnapshotRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -66,6 +70,6 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        snapshotsService.cloneSnapshot(request, listener.map(v -> AcknowledgedResponse.TRUE));
+        snapshotsService.cloneSnapshot(projectResolver.getProjectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

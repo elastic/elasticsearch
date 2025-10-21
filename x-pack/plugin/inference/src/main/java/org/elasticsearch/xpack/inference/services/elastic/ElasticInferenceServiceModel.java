@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
 
-public abstract class ElasticInferenceServiceModel extends Model {
+public abstract class ElasticInferenceServiceModel extends RateLimitGroupingModel {
 
     private final ElasticInferenceServiceRateLimitServiceSettings rateLimitServiceSettings;
 
@@ -35,12 +36,18 @@ public abstract class ElasticInferenceServiceModel extends Model {
     public ElasticInferenceServiceModel(ElasticInferenceServiceModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
-        this.rateLimitServiceSettings = model.rateLimitServiceSettings();
+        this.rateLimitServiceSettings = model.rateLimitServiceSettings;
         this.elasticInferenceServiceComponents = model.elasticInferenceServiceComponents();
     }
 
-    public ElasticInferenceServiceRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    @Override
+    public int rateLimitGroupingHash() {
+        // We only have one model for rerank
+        return Objects.hash(this.getServiceSettings().modelId());
+    }
+
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
     }
 
     public ElasticInferenceServiceComponents elasticInferenceServiceComponents() {

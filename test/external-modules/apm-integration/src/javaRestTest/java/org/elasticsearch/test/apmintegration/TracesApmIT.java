@@ -91,7 +91,8 @@ public class TracesApmIT extends ESRestTestCase {
 
         client().performRequest(nodeStatsRequest);
 
-        finished.await(30, TimeUnit.SECONDS);
+        var completed = finished.await(30, TimeUnit.SECONDS);
+        assertTrue("Timeout when waiting for assertions to complete", completed);
         assertThat(assertions, equalTo(Collections.emptySet()));
     }
 
@@ -143,5 +144,4 @@ public class TracesApmIT extends ESRestTestCase {
             return Collections.emptyMap();
         }
     }
-
 }

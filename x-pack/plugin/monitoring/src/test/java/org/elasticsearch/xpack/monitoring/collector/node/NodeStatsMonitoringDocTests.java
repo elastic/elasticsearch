@@ -357,7 +357,23 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         indicesCommonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no, no, no);
+        final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
+            ++iota,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            Double.valueOf(no)
+        );
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
@@ -397,7 +413,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[] { new FsInfo.Path(null, null, ++iota, ++iota, ++iota) });
 
         // Os
-        final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota });
+        final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota }, (int) no);
         final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(
             BigInteger.valueOf(++iota),
             BigInteger.valueOf(++iota),

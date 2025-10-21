@@ -600,7 +600,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         var projectId = randomProjectIdOrDefault();
-        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null, projectId);
+        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null, projectId, nodeFeature -> true);
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
 
         assertValidation(

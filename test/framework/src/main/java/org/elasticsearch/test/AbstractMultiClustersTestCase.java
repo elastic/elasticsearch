@@ -23,7 +23,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
+    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractMultiClustersTestCase.class);
 
@@ -127,7 +127,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 0,
                 clusterName + "-",
                 mockPlugins,
-                Function.identity()
+                Function.identity(),
+                TEST_ENTITLEMENTS::addEntitledNodePaths
             );
             try {
                 cluster.beforeTest(random());

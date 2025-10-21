@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -32,6 +33,7 @@ import java.util.Map;
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataStreamLifecycleUsageTransportAction(
@@ -39,10 +41,12 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
         this.globalRetentionSettings = globalRetentionSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -52,7 +56,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Collection<DataStream> dataStreams = state.metadata().getProject().dataStreams().values();
+        final Collection<DataStream> dataStreams = projectResolver.getProjectMetadata(state).dataStreams().values();
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),

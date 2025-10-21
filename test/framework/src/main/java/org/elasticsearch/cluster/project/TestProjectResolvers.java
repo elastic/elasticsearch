@@ -19,13 +19,14 @@ import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * An implementation of {@link ProjectResolver} that handles multiple projects for testing purposes. Not usable in production
  */
 public final class TestProjectResolvers {
 
-    public static final ProjectResolver DEFAULT_PROJECT_ONLY = singleProject(Metadata.DEFAULT_PROJECT_ID, true);
+    public static final ProjectResolver DEFAULT_PROJECT_ONLY = singleProject(() -> Metadata.DEFAULT_PROJECT_ID, true);
 
     /**
      * @return a ProjectResolver that must only be used in a cluster context. It throws in single project related methods.
@@ -131,6 +132,14 @@ public final class TestProjectResolvers {
      * The ProjectResolver can work with cluster state containing multiple projects and its supportsMultipleProjects returns true.
      */
     public static ProjectResolver singleProject(ProjectId projectId) {
+        return singleProject(() -> projectId, false);
+    }
+
+    /**
+     * This method returns a ProjectResolver that gives back the specified project-id when its getProjectId method is called.
+     * The ProjectResolver can work with cluster state containing multiple projects and its supportsMultipleProjects returns true.
+     */
+    public static ProjectResolver singleProject(Supplier<ProjectId> projectId) {
         return singleProject(projectId, false);
     }
 
@@ -140,11 +149,11 @@ public final class TestProjectResolvers {
      * In addition, the ProjectResolvers returns false for supportsMultipleProjects.
      */
     public static ProjectResolver singleProjectOnly(ProjectId projectId) {
-        return singleProject(projectId, true);
+        return singleProject(() -> projectId, true);
     }
 
-    private static ProjectResolver singleProject(ProjectId projectId, boolean only) {
-        Objects.requireNonNull(projectId);
+    private static ProjectResolver singleProject(Supplier<ProjectId> projectIdSupplier, boolean only) {
+        Objects.requireNonNull(projectIdSupplier);
         return new ProjectResolver() {
 
             @Override
@@ -157,7 +166,7 @@ public final class TestProjectResolvers {
 
             @Override
             public ProjectId getProjectId() {
-                return projectId;
+                return projectIdSupplier.get();
             }
 
             @Override
@@ -170,6 +179,7 @@ public final class TestProjectResolvers {
 
             @Override
             public <E extends Exception> void executeOnProject(ProjectId otherProjectId, CheckedRunnable<E> body) throws E {
+                final ProjectId projectId = projectIdSupplier.get();
                 if (projectId.equals(otherProjectId)) {
                     body.run();
                 } else {

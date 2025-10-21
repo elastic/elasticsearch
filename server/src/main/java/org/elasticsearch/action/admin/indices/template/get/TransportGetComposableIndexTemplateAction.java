@@ -74,7 +74,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportLocalPro
 
     @Override
     protected ClusterBlockException checkBlock(GetComposableIndexTemplateAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

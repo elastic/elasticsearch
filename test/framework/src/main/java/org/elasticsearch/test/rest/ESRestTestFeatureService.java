@@ -10,6 +10,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -109,7 +110,7 @@ class ESRestTestFeatureService implements TestFeatureService {
     }
 
     private static boolean isRestApiCompatibilityTest() {
-        return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
+        return Booleans.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     public static boolean hasFeatureMetadata() {

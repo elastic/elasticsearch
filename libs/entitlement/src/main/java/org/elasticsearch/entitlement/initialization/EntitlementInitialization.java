@@ -16,11 +16,14 @@ import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
 
@@ -32,15 +35,24 @@ import static java.util.Objects.requireNonNull;
  * to begin injecting our instrumentation.
  */
 public class EntitlementInitialization {
+    private static final Logger logger = LogManager.getLogger(EntitlementInitialization.class);
 
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     public static InitializeArgs initializeArgs;
     private static ElasticsearchEntitlementChecker checker;
+    private static AtomicReference<RuntimeException> error = new AtomicReference<>();
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
         return checker;
+    }
+
+    /**
+     * Return any exception that occurred during initialization
+     */
+    public static RuntimeException getError() {
+        return error.get();
     }
 
     /**
@@ -62,10 +74,16 @@ public class EntitlementInitialization {
      *
      * @param inst the JVM instrumentation class instance
      */
-    public static void initialize(Instrumentation inst) throws Exception {
-        // the checker _MUST_ be set before _any_ instrumentation is done
-        checker = initChecker(initializeArgs.policyManager());
-        initInstrumentation(inst);
+    public static void initialize(Instrumentation inst) {
+        try {
+            // the checker _MUST_ be set before _any_ instrumentation is done
+            checker = initChecker(initializeArgs.policyManager());
+            initInstrumentation(inst);
+        } catch (Exception e) {
+            // exceptions thrown within the agent will be swallowed, so capture it here
+            // instead so that it can be retrieved by bootstrap
+            error.set(new RuntimeException("Failed to initialize entitlements", e));
+        }
     }
 
     /**

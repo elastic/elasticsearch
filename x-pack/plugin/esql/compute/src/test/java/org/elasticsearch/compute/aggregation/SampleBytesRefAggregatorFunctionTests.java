@@ -54,8 +54,8 @@ public class SampleBytesRefAggregatorFunctionTests extends AggregatorFunctionTes
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Set<BytesRef> inputValues = input.stream().flatMap(AggregatorFunctionTestCase::allBytesRefs).collect(Collectors.toSet());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Set<BytesRef> inputValues = input.stream().flatMap(p -> allBytesRefs(p.getBlock(0))).collect(Collectors.toSet());
         BytesRef[] resultValues = AggregatorFunctionTestCase.allBytesRefs(result).toArray(BytesRef[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
         assertThat(inputValues, hasItems(resultValues));

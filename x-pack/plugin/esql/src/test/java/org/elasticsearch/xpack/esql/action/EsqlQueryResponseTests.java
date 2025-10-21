@@ -33,14 +33,19 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -53,6 +58,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
@@ -63,6 +69,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -187,7 +194,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
                 || t == DataType.PARTIAL_AGG
-                || t == DataType.AGGREGATE_METRIC_DOUBLE,
+                || t == DataType.AGGREGATE_METRIC_DOUBLE
+                || t == DataType.TSID_DATA_TYPE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -231,6 +239,22 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
+                case GEOHASH -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(
+                        Geohash.longEncode(p.getX(), p.getY(), randomIntBetween(1, Geohash.PRECISION))
+                    );
+                }
+                case GEOTILE -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(
+                        GeoTileUtils.longEncode(p.getX(), p.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM))
+                    );
+                }
+                case GEOHEX -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(H3.geoToH3(p.getLat(), p.getLon(), randomIntBetween(1, H3.MAX_H3_RES)));
+                }
                 case AGGREGATE_METRIC_DOUBLE -> {
                     BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
                     aggBuilder.min().appendDouble(randomDouble());
@@ -261,6 +285,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         floatBuilder.appendFloat(randomFloat());
                     }
                     floatBuilder.endPositionEntry();
+                }
+                case TSID_DATA_TYPE -> {
+                    BytesRef tsIdValue = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+                    ((BytesRefBlock.Builder) builder).appendBytesRef(tsIdValue);
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -311,7 +339,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             default -> throw new IllegalArgumentException();
         }
-        ;
         return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, executionInfo);
     }
 
@@ -973,7 +1000,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             List.of(new OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
-                    )
+                    ),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree"))
                 ),
                 false,
                 false,
@@ -1027,6 +1055,14 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "first" : [ ],
                           "last" : [ ]
                         }
+                      }
+                    ],
+                    "plans" : [
+                      {
+                        "description" : "test",
+                        "cluster_name" : "elasticsearch",
+                        "node_name" : "node-1",
+                        "plan" : "plan tree"
                       }
                     ]
                   }
@@ -1197,6 +1233,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
+                    case GEOHASH -> ((LongBlock.Builder) builder).appendLong(Geohash.longEncode(value.toString()));
+                    case GEOTILE -> ((LongBlock.Builder) builder).appendLong(GeoTileUtils.longEncode(value.toString()));
+                    case GEOHEX -> ((LongBlock.Builder) builder).appendLong(H3.stringToH3(value.toString()));
                     case AGGREGATE_METRIC_DOUBLE -> {
                         BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
                         aggBuilder.min().appendDouble(((Number) value).doubleValue());
@@ -1217,6 +1256,11 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             }
                         }
                         floatBuilder.endPositionEntry();
+                    }
+                    case TSID_DATA_TYPE -> {
+                        // This has been added just to test a round trip. In reality, TSID should never be taken from XContent
+                        byte[] decode = Base64.getUrlDecoder().decode(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(decode));
                     }
                 }
             }

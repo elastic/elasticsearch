@@ -60,13 +60,15 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> start master node (1)");
         final String masterNodeName = internalCluster().startMasterOnlyNode();
-        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
-        awaitMasterNode(internalCluster().getMasterName(), masterNodeName);
+        for (var nodeName : internalCluster().getNodeNames()) {
+            awaitMasterNode(nodeName, masterNodeName);
+        }
 
         logger.info("--> start master node (2)");
         final String nextMasterEligableNodeName = internalCluster().startMasterOnlyNode();
-        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNodeName);
-        awaitMasterNode(internalCluster().getMasterName(), masterNodeName);
+        for (var nodeName : internalCluster().getNodeNames()) {
+            awaitMasterNode(nodeName, masterNodeName);
+        }
 
         logger.info("--> closing master node (1)");
         client().execute(
@@ -74,12 +76,14 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, masterNodeName)
         ).get();
         // removing the master from the voting configuration immediately triggers the master to step down
-        awaitMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligableNodeName);
-        awaitMasterNode(internalCluster().getMasterName(), nextMasterEligableNodeName);
+        for (var nodeName : internalCluster().getNodeNames()) {
+            awaitMasterNode(nodeName, nextMasterEligableNodeName);
+        }
 
         internalCluster().stopNode(masterNodeName);
-        awaitMasterNode(internalCluster().getNonMasterNodeName(), nextMasterEligableNodeName);
-        awaitMasterNode(internalCluster().getMasterName(), nextMasterEligableNodeName);
+        for (var nodeName : internalCluster().getNodeNames()) {
+            awaitMasterNode(nodeName, nextMasterEligableNodeName);
+        }
     }
 
     public void testAliasFilterValidation() {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,6 +49,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
     private final XPackLicenseState licenseState;
     private final AnalysisRegistry analysisRegistry;
     private final SecurityContext securityContext;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutJobAction(
@@ -59,7 +61,8 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
         ActionFilters actionFilters,
         JobManager jobManager,
         DatafeedManager datafeedManager,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             PutJobAction.NAME,
@@ -78,6 +81,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -133,7 +137,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
 
     @Override
     protected ClusterBlockException checkBlock(PutJobAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

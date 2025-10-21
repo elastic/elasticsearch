@@ -202,7 +202,7 @@ public class RRFRankBuilder extends RankBuilder {
         for (int i = 0; i < source.subSearches().size(); i++) {
             RetrieverBuilder standardRetriever = new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder());
             standardRetriever.retrieverName(source.subSearches().get(i).getQueryBuilder().queryName());
-            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null));
+            retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever));
         }
         for (int i = 0; i < source.knnSearch().size(); i++) {
             KnnSearchBuilder knnSearchBuilder = source.knnSearch().get(i);
@@ -212,11 +212,12 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getQueryVectorBuilder(),
                 knnSearchBuilder.k(),
                 knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getVisitPercentage(),
                 knnSearchBuilder.getRescoreVectorBuilder(),
                 knnSearchBuilder.getSimilarity()
             );
             knnRetriever.retrieverName(knnSearchBuilder.queryName());
-            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null));
+            retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever));
         }
         return new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant());
     }

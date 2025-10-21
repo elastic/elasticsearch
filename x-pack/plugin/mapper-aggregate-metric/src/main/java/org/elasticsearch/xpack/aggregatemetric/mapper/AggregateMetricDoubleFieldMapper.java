@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -307,7 +308,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }
 
         public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, IndexType.points(true, true), false, meta);
             this.metricType = metricType;
         }
 
@@ -330,6 +331,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
@@ -571,20 +577,24 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     }
 
                     @Override
-                    public Block read(BlockFactory factory, Docs docs) throws IOException {
-                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count())) {
-                            copyDoubleValuesToBuilder(docs, builder.min(), minValues);
-                            copyDoubleValuesToBuilder(docs, builder.max(), maxValues);
-                            copyDoubleValuesToBuilder(docs, builder.sum(), sumValues);
-                            copyIntValuesToBuilder(docs, builder.count(), valueCountValues);
+                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count() - offset)) {
+                            copyDoubleValuesToBuilder(docs, offset, builder.min(), minValues);
+                            copyDoubleValuesToBuilder(docs, offset, builder.max(), maxValues);
+                            copyDoubleValuesToBuilder(docs, offset, builder.sum(), sumValues);
+                            copyIntValuesToBuilder(docs, offset, builder.count(), valueCountValues);
                             return builder.build();
                         }
                     }
 
-                    private void copyDoubleValuesToBuilder(Docs docs, BlockLoader.DoubleBuilder builder, NumericDocValues values)
-                        throws IOException {
+                    private void copyDoubleValuesToBuilder(
+                        Docs docs,
+                        int offset,
+                        BlockLoader.DoubleBuilder builder,
+                        NumericDocValues values
+                    ) throws IOException {
                         int lastDoc = -1;
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             int doc = docs.get(i);
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");
@@ -600,10 +610,10 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         }
                     }
 
-                    private void copyIntValuesToBuilder(Docs docs, BlockLoader.IntBuilder builder, NumericDocValues values)
+                    private void copyIntValuesToBuilder(Docs docs, int offset, BlockLoader.IntBuilder builder, NumericDocValues values)
                         throws IOException {
                         int lastDoc = -1;
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             int doc = docs.get(i);
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");

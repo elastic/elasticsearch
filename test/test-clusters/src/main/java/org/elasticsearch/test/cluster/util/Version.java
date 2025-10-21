@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,6 +33,7 @@ public class Version implements Comparable<Version>, Serializable {
     private final int revision;
     private final int id;
     private final String qualifier;
+    private final boolean detached;
 
     static {
         Properties versionProperties = new Properties();
@@ -64,6 +66,10 @@ public class Version implements Comparable<Version>, Serializable {
     }
 
     public Version(int major, int minor, int revision, String qualifier) {
+        this(major, minor, revision, qualifier, false);
+    }
+
+    protected Version(int major, int minor, int revision, String qualifier, boolean detached) {
         this.major = major;
         this.minor = minor;
         this.revision = revision;
@@ -72,6 +78,7 @@ public class Version implements Comparable<Version>, Serializable {
         this.id = major * 10000000 + minor * 100000 + revision * 1000;
 
         this.qualifier = qualifier;
+        this.detached = detached;
     }
 
     public static Version fromString(final String s) {
@@ -79,6 +86,14 @@ public class Version implements Comparable<Version>, Serializable {
     }
 
     public static Version fromString(final String s, final Mode mode) {
+        return fromString(s, mode, false);
+    }
+
+    public static Version fromString(final String s, final boolean detached) {
+        return fromString(s, Mode.STRICT, detached);
+    }
+
+    private static Version fromString(final String s, final Mode mode, final boolean detached) {
         Objects.requireNonNull(s);
         Matcher matcher = mode == Mode.STRICT ? pattern.matcher(s) : relaxedPattern.matcher(s);
         if (matcher.matches() == false) {
@@ -93,7 +108,30 @@ public class Version implements Comparable<Version>, Serializable {
         String revision = matcher.group(3);
         String qualifier = matcher.group(4);
 
-        return new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier);
+        return new Version(
+            Integer.parseInt(major),
+            Integer.parseInt(minor),
+            revision == null ? 0 : Integer.parseInt(revision),
+            qualifier,
+            detached
+        );
+    }
+
+    public static Optional<Version> tryParse(final String s) {
+        Objects.requireNonNull(s);
+        Matcher matcher = pattern.matcher(s);
+        if (matcher.matches() == false) {
+            return Optional.empty();
+        }
+
+        String major = matcher.group(1);
+        String minor = matcher.group(2);
+        String revision = matcher.group(3);
+        String qualifier = matcher.group(4);
+
+        return Optional.of(
+            new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier)
+        );
     }
 
     @Override
@@ -142,12 +180,12 @@ public class Version implements Comparable<Version>, Serializable {
             return false;
         }
         Version version = (Version) o;
-        return major == version.major && minor == version.minor && revision == version.revision;
+        return major == version.major && minor == version.minor && revision == version.revision && detached == version.detached;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(major, minor, revision, id);
+        return Objects.hash(major, minor, revision, id, detached);
     }
 
     public int getMajor() {
@@ -168,6 +206,15 @@ public class Version implements Comparable<Version>, Serializable {
 
     public String getQualifier() {
         return qualifier;
+    }
+
+    /**
+     * Informs if the version is not tied to any Elasticsearch release and is a custom build.
+     * This is true when the distribution is not from HEAD but also not any known released version.
+     * In that case the detached source build needs to be prepared by `usedBwcDistributionFromRef(ref, version)`.
+     */
+    public boolean isDetached() {
+        return detached;
     }
 
     @Override

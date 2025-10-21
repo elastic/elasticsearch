@@ -38,7 +38,7 @@ public abstract class BinarySearcher {
     /**
      * @return the index who's underlying value is closest to the value being searched for.
      */
-    private int getClosestIndex(int index1, int index2) {
+    protected int getClosestIndex(int index1, int index2) {
         if (distance(index1) < distance(index2)) {
             return index1;
         } else {

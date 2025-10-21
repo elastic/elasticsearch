@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -232,7 +231,7 @@ final class TransportHandshaker {
                 return localTransportVersion;
             }
             final var bestKnownVersion = remoteTransportVersion.bestKnownVersion();
-            if (bestKnownVersion.equals(TransportVersions.ZERO) == false) {
+            if (bestKnownVersion.equals(TransportVersion.zero()) == false) {
                 if (bestKnownVersion.equals(remoteTransportVersion) == false) {
                     // Remote is semantically older than us (i.e. has a lower transport protocol version), but we do not know its exact
                     // transport protocol version so it must be chronologically newer. We recommend not doing this, it implies an upgrade
@@ -241,8 +240,8 @@ final class TransportHandshaker {
                     logger.warn(
                         """
                             Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
-                            from a chronologically-older release with a numerically-newer version compared to this node's version [{}/{}]. \
-                            Upgrading to a chronologically-older release may not work reliably and is not recommended. \
+                            from a chronologically-newer release with a numerically-older version compared to this node's version [{}/{}]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
                             Falling back to transport protocol version [{}].""",
                         releaseVersion,
                         remoteTransportVersion,

@@ -10,6 +10,7 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutEntitlements // CLI tools don't run with entitlements enforced
 public class TerminalTests extends ESTestCase {
 
     public void testSystemTerminalIfRedirected() {

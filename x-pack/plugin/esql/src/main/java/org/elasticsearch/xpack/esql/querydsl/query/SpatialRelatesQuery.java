@@ -86,6 +86,11 @@ public class SpatialRelatesQuery extends Query {
         };
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     /**
      * This class is a minimal implementation of the QueryBuilder interface.
      * We only need the toQuery method, but ESQL makes extensive use of QueryBuilder and trimming that interface down for ESQL only would
@@ -226,7 +231,7 @@ public class SpatialRelatesQuery extends Query {
         ) {
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -244,7 +249,7 @@ public class SpatialRelatesQuery extends Query {
             }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }

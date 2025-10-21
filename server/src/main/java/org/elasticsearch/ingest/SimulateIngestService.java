@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -28,6 +29,8 @@ public class SimulateIngestService extends IngestService {
         if (request instanceof SimulateBulkRequest simulateBulkRequest) {
             try {
                 pipelineSubstitutions = getPipelineSubstitutions(simulateBulkRequest.getPipelineSubstitutions(), ingestService);
+            } catch (ElasticsearchException elasticEx) {
+                throw elasticEx;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -53,12 +56,18 @@ public class SimulateIngestService extends IngestService {
         if (rawPipelineSubstitutions != null) {
             for (Map.Entry<String, Map<String, Object>> entry : rawPipelineSubstitutions.entrySet()) {
                 String pipelineId = entry.getKey();
+                Map<String, Object> pipelineConfig = entry.getValue();
+
+                IngestService.validateNoSystemPropertiesInPipelineConfig(pipelineConfig);
+
                 Pipeline pipeline = Pipeline.create(
                     pipelineId,
-                    entry.getValue(),
+                    pipelineConfig,
                     ingestService.getProcessorFactories(),
                     ingestService.getScriptService(),
-                    ingestService.getProjectResolver().getProjectId()
+                    ingestService.getProjectResolver().getProjectId(),
+                    (nodeFeature) -> ingestService.getFeatureService()
+                        .clusterHasFeature(ingestService.getClusterService().state(), nodeFeature)
                 );
                 parsedPipelineSubstitutions.put(pipelineId, pipeline);
             }

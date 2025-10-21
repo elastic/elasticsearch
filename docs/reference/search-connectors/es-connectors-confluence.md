@@ -55,6 +55,7 @@ PUT _connector/my-confluence-connector
   "service_type": "confluence"
 }
 ```
+%  TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -204,6 +205,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+%  NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -241,13 +243,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -308,6 +310,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
+%  NOTCONSOLE
 
 **Example 2**: Queries for indexing data based on `created` and `lastmodified` time.
 
@@ -321,6 +324,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
+%  NOTCONSOLE
 
 **Example 3**: Query for indexing only given types in a **Space** with key *SD*.
 
@@ -331,6 +335,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
+%  NOTCONSOLE
 
 ::::{note}
 Syncing recently created/updated items in Confluence may be delayed when using advanced sync rules, because the search endpoint used for CQL queries returns stale results in the response. For more details refer to the following issue in the [Confluence documentation](https://jira.atlassian.com/browse/CONFCLOUD-73997).

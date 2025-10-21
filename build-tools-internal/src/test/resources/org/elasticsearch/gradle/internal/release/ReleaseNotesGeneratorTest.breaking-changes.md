@@ -13,54 +13,54 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
 ```{applies_to}
-stack: coming 9.1.0
+stack: ga 9.1.0
 ```
 ## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ```{applies_to}
-stack: coming 9.0.10
+stack: ga 9.0.10
 ```
 ## 9.0.10 [elasticsearch-9.0.10-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.9 [elasticsearch-9.0.9-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.8 [elasticsearch-9.0.8-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.7 [elasticsearch-9.0.7-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.6 [elasticsearch-9.0.6-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.3 [elasticsearch-9.0.3-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.2 [elasticsearch-9.0.2-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.1 [elasticsearch-9.0.1-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.0 [elasticsearch-900-breaking-changes]
 

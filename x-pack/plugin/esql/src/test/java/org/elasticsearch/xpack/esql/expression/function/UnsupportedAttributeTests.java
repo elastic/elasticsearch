@@ -19,25 +19,28 @@ public class UnsupportedAttributeTests extends AbstractAttributeTestCase<Unsuppo
     }
 
     public static UnsupportedAttribute randomUnsupportedAttribute() {
+        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
         UnsupportedEsField field = UnsupportedEsFieldTests.randomUnsupportedEsField(4);
         String customMessage = randomBoolean() ? null : randomAlphaOfLength(9);
         NameId id = new NameId();
-        return new UnsupportedAttribute(Source.EMPTY, name, field, customMessage, id);
+        return new UnsupportedAttribute(Source.EMPTY, qualifier, name, field, customMessage, id);
     }
 
     @Override
     protected UnsupportedAttribute mutate(UnsupportedAttribute instance) {
         Source source = instance.source();
+        String qualifier = instance.qualifier();
         String name = instance.name();
         UnsupportedEsField field = instance.field();
         String customMessage = instance.hasCustomMessage() ? instance.unresolvedMessage() : null;
-        switch (between(0, 2)) {
-            case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> field = randomValueOtherThan(field, () -> UnsupportedEsFieldTests.randomUnsupportedEsField(4));
-            case 2 -> customMessage = randomValueOtherThan(customMessage, () -> randomBoolean() ? null : randomAlphaOfLength(9));
+        switch (between(0, 3)) {
+            case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
+            case 1 -> name = randomAlphaOfLength(name.length() + 1);
+            case 2 -> field = randomValueOtherThan(field, () -> UnsupportedEsFieldTests.randomUnsupportedEsField(4));
+            case 3 -> customMessage = randomValueOtherThan(customMessage, () -> randomBoolean() ? null : randomAlphaOfLength(9));
             default -> throw new IllegalArgumentException();
         }
-        return new UnsupportedAttribute(source, name, field, customMessage, new NameId());
+        return new UnsupportedAttribute(source, qualifier, name, field, customMessage, new NameId());
     }
 }

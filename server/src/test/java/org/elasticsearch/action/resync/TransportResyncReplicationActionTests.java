@@ -123,7 +123,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     NOOP_TRANSPORT_INTERCEPTOR,
                     x -> clusterService.localNode(),
                     null,
-                    Collections.emptySet()
+                    Collections.emptySet(),
+                    clusterService.localNode().getId()
                 );
                 transportService.start();
                 transportService.acceptIncomingRequests();

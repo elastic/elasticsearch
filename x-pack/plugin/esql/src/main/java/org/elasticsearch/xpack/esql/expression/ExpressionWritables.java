@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
@@ -23,9 +24,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
@@ -35,6 +40,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -61,14 +69,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohashToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToLong;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -82,9 +84,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
-import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -118,6 +122,12 @@ public class ExpressionWritables {
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
         entries.addAll(vector());
+        return entries;
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        List<SearchPlugin.GenericNamedWriteableSpec> entries = new ArrayList<>();
+        entries.addAll(literals());
         return entries;
     }
 
@@ -181,6 +191,7 @@ public class ExpressionWritables {
         entries.add(Neg.ENTRY);
         entries.add(Not.ENTRY);
         entries.add(RLike.ENTRY);
+        entries.add(RLikeList.ENTRY);
         entries.add(RTrim.ENTRY);
         entries.add(Scalb.ENTRY);
         entries.add(Signum.ENTRY);
@@ -204,10 +215,14 @@ public class ExpressionWritables {
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDegrees.ENTRY);
+        entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
         entries.add(ToGeoPoint.ENTRY);
+        entries.add(ToGeohash.ENTRY);
+        entries.add(ToGeotile.ENTRY);
+        entries.add(ToGeohex.ENTRY);
         entries.add(ToIpLeadingZerosDecimal.ENTRY);
         entries.add(ToIpLeadingZerosOctal.ENTRY);
         entries.add(ToIpLeadingZerosRejected.ENTRY);
@@ -219,7 +234,11 @@ public class ExpressionWritables {
         entries.add(ToVersion.ENTRY);
         entries.add(Trim.ENTRY);
         entries.add(WildcardLike.ENTRY);
+        entries.add(WildcardLikeList.ENTRY);
         entries.add(Delay.ENTRY);
+        entries.add(UrlEncode.ENTRY);
+        entries.add(UrlEncodeComponent.ENTRY);
+        entries.add(UrlDecode.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());
         return entries;
@@ -233,14 +252,8 @@ public class ExpressionWritables {
             SpatialWithin.ENTRY,
             StDistance.ENTRY,
             StGeohash.ENTRY,
-            StGeohashToString.ENTRY,
-            StGeohashToLong.ENTRY,
             StGeotile.ENTRY,
-            StGeotileToString.ENTRY,
-            StGeotileToLong.ENTRY,
-            StGeohex.ENTRY,
-            StGeohexToString.ENTRY,
-            StGeohexToLong.ENTRY
+            StGeohex.ENTRY
         );
     }
 
@@ -248,7 +261,7 @@ public class ExpressionWritables {
         return List.of(Add.ENTRY, Div.ENTRY, Mod.ENTRY, Mul.ENTRY, Sub.ENTRY);
     }
 
-    private static List<NamedWriteableRegistry.Entry> binaryComparisons() {
+    public static List<NamedWriteableRegistry.Entry> binaryComparisons() {
         return List.of(Equals.ENTRY, GreaterThan.ENTRY, GreaterThanOrEqual.ENTRY, LessThan.ENTRY, LessThanOrEqual.ENTRY, NotEquals.ENTRY);
     }
 
@@ -257,9 +270,15 @@ public class ExpressionWritables {
     }
 
     private static List<NamedWriteableRegistry.Entry> vector() {
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            return List.of(Knn.ENTRY);
-        }
-        return List.of();
+        return VectorWritables.getNamedWritables();
+    }
+
+    public static List<SearchPlugin.GenericNamedWriteableSpec> literals() {
+        return List.of(
+            new SearchPlugin.GenericNamedWriteableSpec(
+                "AggregateMetricDoubleLiteral",
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
+            )
+        );
     }
 }

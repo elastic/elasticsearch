@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -91,7 +92,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         securityIndex = mockHealthySecurityIndex();
     }

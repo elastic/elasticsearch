@@ -20,7 +20,9 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -58,13 +60,15 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
     };
 
     private final MasterServiceTaskQueue<UpdateDatabaseConfigurationTask> updateDatabaseConfigurationTaskQueue;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutDatabaseConfigurationAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             PutDatabaseConfigurationAction.NAME,
@@ -81,6 +85,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             Priority.NORMAL,
             UPDATE_TASK_EXECUTOR
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,7 +94,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),
-            new UpdateDatabaseConfigurationTask(listener, request.getDatabase()),
+            new UpdateDatabaseConfigurationTask(projectResolver.getProjectId(), listener, request.getDatabase()),
             null
         );
     }
@@ -105,9 +110,9 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         }
     }
 
-    static void validatePrerequisites(DatabaseConfiguration database, ClusterState state) {
+    static void validatePrerequisites(ProjectId projectId, DatabaseConfiguration database, ClusterState state) {
         // we need to verify that the database represents a unique file (name) among the various databases for this same provider
-        IngestGeoIpMetadata geoIpMeta = state.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = state.metadata().getProject(projectId).custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         Optional<DatabaseConfiguration> sameName = geoIpMeta.getDatabases()
             .values()
@@ -125,12 +130,14 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         });
     }
 
-    private record UpdateDatabaseConfigurationTask(ActionListener<AcknowledgedResponse> listener, DatabaseConfiguration database)
-        implements
-            ClusterStateTaskListener {
+    private record UpdateDatabaseConfigurationTask(
+        ProjectId projectId,
+        ActionListener<AcknowledgedResponse> listener,
+        DatabaseConfiguration database
+    ) implements ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            final var project = currentState.metadata().getProject();
+            final var project = currentState.metadata().getProject(projectId);
             IngestGeoIpMetadata geoIpMeta = project.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             String id = database.id();
@@ -140,7 +147,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
                 return currentState;
             }
 
-            validatePrerequisites(database, currentState);
+            validatePrerequisites(projectId, database, currentState);
 
             Map<String, DatabaseConfigurationMetadata> databases = new HashMap<>(geoIpMeta.getDatabases());
             databases.put(

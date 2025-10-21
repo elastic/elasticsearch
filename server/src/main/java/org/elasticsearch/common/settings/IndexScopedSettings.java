@@ -159,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
+                DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
@@ -167,6 +168,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
@@ -178,6 +180,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
+                FsDirectoryFactory.ASYNC_PREFETCH_LIMIT,
                 EngineConfig.INDEX_CODEC_SETTING,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
@@ -222,6 +225,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // TSDB index settings
                 IndexSettings.MODE,
                 IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_DIMENSIONS,
+                IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
@@ -240,6 +245,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
         }
+        settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };
 

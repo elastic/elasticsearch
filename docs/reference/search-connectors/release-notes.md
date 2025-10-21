@@ -13,6 +13,69 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.1.5 [connectors-9.1.5-release-notes]
+
+### Features and enhancements [connectors-9.1.5-features-enhancements]
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.1.4 [connectors-9.1.4-release-notes]
+
+### Features and enhancements [connectors-9.1.4-features-enhancements]
+* Reduced API calls during field validation with caching, improving sync performance in Salesforce connector. [#3668](https://github.com/elastic/connectors/pull/3668).
+
+## 9.1.3 [connectors-9.1.3-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.2 [connectors-9.1.2-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.1 [connectors-9.1.1-release-notes]
+
+### Fixes [connectors-9.1.1-fixes]
+
+:::{dropdown} Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+
+Permissions granted to the `Everyone Except External Users` group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+[#3577](https://github.com/elastic/connectors/pull/3577) resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+:::
+
+## 9.1.0 [connectors-9.1.0-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.0.8 [connectors-9.0.8-release-notes]
+
+### Features and enhancements [connectors-9.0.8-features-enhancements]
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.0.7 [connectors-9.0.7-release-notes]
+
+### Features and enhancements [connectors-9.0.7-features-enhancements]
+* Reduced API calls during field validation with caching, improving sync performance in Salesforce connector. [#3668](https://github.com/elastic/connectors/pull/3668).
+
+## 9.0.6 [connectors-9.0.6-release-notes]
+No changes since 9.0.5
+
+## 9.0.5 [connectors-9.0.5-release-notes]
+
+### Fixes [connectors-9.0.5-fixes]
+
+:::{dropdown} Resolves missing access control for `Everyone Except External Users` in SharePoint connector
+Permissions granted to the `Everyone Except External Users` group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format. [#3577](https://github.com/elastic/connectors/pull/3577) resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+:::
+
+## 9.0.4 [connectors-9.0.4-release-notes]
+No changes since 9.0.3
+
+## 9.0.3 [connectors-9.0.3-release-notes]
+
+### Features and enhancements [connectors-9.0.3-features-enhancements]
+
+Improve UUID handling by correctly parsing type 4 UUIDs and skipping unsupported type 3 with a warning. See [#3459](https://github.com/elastic/connectors/pull/3459).
+
 ## 9.0.2 [connectors-9.0.2-release-notes]
 No changes since 9.0.1
 

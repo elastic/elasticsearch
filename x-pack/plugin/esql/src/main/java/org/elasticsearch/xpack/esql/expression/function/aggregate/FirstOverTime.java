@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeFloatAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -21,6 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -32,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class FirstOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
@@ -43,16 +47,23 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     private final Expression timestamp;
 
+    // TODO: support all types
     @FunctionInfo(
-        returnType = { "int", "double", "integer", "long" },
-        description = "Collect the first occurrence value of a time-series in the specified interval. Available with TS command only",
-        type = FunctionType.AGGREGATE
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        returnType = { "long", "integer", "double" },
+        description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries", tag = "first_over_time") }
     )
     public FirstOverTime(
         Source source,
-        @Param(name = "field", type = { "long|int|double|float" }, description = "field") Expression field,
-        Expression timestamp
+        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double" }) Expression field
     ) {
+        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+    }
+
+    public FirstOverTime(Source source, Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
 
@@ -80,10 +91,6 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         return ENTRY.name;
     }
 
-    public static FirstOverTime withUnresolvedTimestamp(Source source, Expression field) {
-        return new FirstOverTime(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
     @Override
     protected NodeInfo<FirstOverTime> info() {
         return NodeInfo.create(this, FirstOverTime::new, field(), timestamp);
@@ -105,22 +112,32 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noCounter();
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long");
+        return isType(
+            field(),
+            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        ).and(
+            isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
+        );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        // TODO: When processing TSDB data_streams they are sorted by `_tsid` and timestamp in descending order,
+        // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new FirstOverTimeLongAggregatorFunctionSupplier();
-            case INTEGER -> new FirstOverTimeIntAggregatorFunctionSupplier();
-            case DOUBLE -> new FirstOverTimeDoubleAggregatorFunctionSupplier();
-            case FLOAT -> new FirstOverTimeFloatAggregatorFunctionSupplier();
+            case LONG, COUNTER_LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
+            case INTEGER, COUNTER_INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE, COUNTER_DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
+            case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

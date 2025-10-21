@@ -220,6 +220,27 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
     }
 
+    /**
+     * Declare a field that is an array of objects or null. Used to avoid calling the consumer when used with
+     * {@link #optionalConstructorArg()} or {@link #constructorArg()}.
+     * @param consumer Consumer that will be passed as is to the {@link #declareField(BiConsumer, ContextParser, ParseField, ValueType)}.
+     * @param objectParser Parser that will parse the objects in the array, checking for nulls.
+     * @param field Field to declare.
+     */
+    @Override
+    public <T> void declareObjectArrayOrNull(
+        BiConsumer<Value, List<T>> consumer,
+        ContextParser<Context, T> objectParser,
+        ParseField field
+    ) {
+        declareField(
+            consumer,
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),
+            field,
+            ValueType.OBJECT_ARRAY_OR_NULL
+        );
+    }
+
     @Override
     public <T> void declareNamedObject(
         BiConsumer<Value, T> consumer,

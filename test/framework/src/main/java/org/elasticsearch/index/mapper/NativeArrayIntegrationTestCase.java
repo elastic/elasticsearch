@@ -228,7 +228,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var reader = searcher.getDirectoryReader();
             var document = reader.storedFields().document(0);
             Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-            assertThat(storedFieldNames, contains("_ignored_source"));
+            assertThat(storedFieldNames, contains(IgnoredSourceFieldMapper.NAME));
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -368,7 +368,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", "_ignored_source"));
+                assertThat(storedFieldNames, contains("_id", IgnoredSourceFieldMapper.NAME));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();

@@ -17,7 +17,8 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -43,7 +44,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof Project
                 || unary instanceof RegexExtract
                 || unary instanceof Enrich
-                || unary instanceof Completion) {
+                || unary instanceof InferencePlan<?>) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
@@ -64,9 +65,11 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     }
                 }
             }
-        } else if (limit.child() instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+        } else if (limit.child() instanceof Join join && join.config().type() == JoinTypes.LEFT && join instanceof InlineJoin == false) {
             // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
             // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
+            // The InlineJoin is currently excluded, as its right-hand side uses as data source a StubRelation that points to the entire
+            // left-hand side, so adding a limit in there would lead to the right-hand side work on incomplete data.
             // To avoid repeating this infinitely, we have to set duplicated = true.
             return duplicateLimitAsFirstGrandchild(limit);
         }

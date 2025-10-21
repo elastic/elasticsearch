@@ -619,6 +619,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             shardSizesBuilder.build(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
         );
 

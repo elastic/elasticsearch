@@ -30,7 +30,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -61,6 +60,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
@@ -364,12 +364,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService != ALL_FEATURES;
     }
 
+    /**
+     * Whether the old cluster version is not of the released versions, but a detached build.
+     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
+     */
+    protected static boolean isOldClusterDetachedVersion() {
+        return System.getProperty("tests.bwc.refspec.main") != null;
+    }
+
     @BeforeClass
     public static void initializeProjectIds() {
         // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
-        multiProjectEnabled = Boolean.parseBoolean(System.getProperty("tests.multi_project.enabled"));
+        multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
     }
 
     @Before
@@ -1056,7 +1064,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteAllNodeShutdownMetadata();
     }
 
-    private void waitForClusterUpdates() throws Exception {
+    public void waitForClusterUpdates() throws Exception {
         logger.info("Waiting for all cluster updates up to this moment to be processed");
 
         try {
@@ -1227,7 +1235,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
-                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
             );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
@@ -1608,6 +1616,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (System.getProperty("tests.rest.project.id") != null) {
             final var projectId = System.getProperty("tests.rest.project.id");
             builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
+        }
+        if (System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT) != null) {
+            builder.put(CLIENT_SOCKET_TIMEOUT, System.getProperty("tests." + CLIENT_SOCKET_TIMEOUT));
         }
         return builder.build();
     }
@@ -2087,6 +2098,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(client(), index, request -> request.addParameter("timeout", timeout.toString()));
     }
 
+    protected static void awaitIndexDoesNotExist(String index) throws Exception {
+        awaitIndexDoesNotExist(index, TimeValue.timeValueSeconds(10));
+    }
+
     protected static void awaitIndexDoesNotExist(String index, TimeValue timeout) throws Exception {
         assertBusy(() -> assertFalse(indexExists(index)), timeout.millis(), TimeUnit.MILLISECONDS);
     }
@@ -2362,7 +2377,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return switch (id) {
             case "logs-default-pipeline", "logs@default-pipeline", "logs@json-message", "logs@json-pipeline" -> true;
-            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline" -> true;
+            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline", "logs-apm@pipeline" -> true;
             case "behavioral_analytics-events-final_pipeline", "ent-search-generic-ingestion", "search-default-ingestion" -> true;
             case "reindex-data-stream-pipeline" -> true;
             default -> false;
@@ -2529,7 +2544,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             var transportVersion = getTransportVersionWithFallback(
                 objectPath.evaluate("nodes." + id + ".version"),
                 objectPath.evaluate("nodes." + id + ".transport_version"),
-                () -> TransportVersions.MINIMUM_COMPATIBLE
+                () -> TransportVersion.minimumCompatible()
             );
             if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
                 minTransportVersion = transportVersion;
@@ -2713,21 +2728,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static MapMatcher getProfileMatcher() {
-        return matchesMap().entry("query", instanceOf(Map.class))
+        return matchesMap() //
+            .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
-            .entry("drivers", instanceOf(List.class));
+            .entry("drivers", instanceOf(List.class))
+            .entry("plans", instanceOf(List.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
-        if (includeMetadata) {
-            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-        }
+        mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         // Older version may not have is_partial
         if (includePartial) {
             mapMatcher = mapMatcher.entry("is_partial", false);
@@ -2739,7 +2754,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"), result.containsKey("documents_found"));
+        return getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found"));
     }
 
     /**

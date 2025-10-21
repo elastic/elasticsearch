@@ -1,0 +1,3 @@
+steps:
+  - label: ":pipeline: Generate steps"
+    command: bash .buildkite/scripts/generate-pr-performance-benchmark.sh | buildkite-agent pipeline upload

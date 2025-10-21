@@ -19,10 +19,10 @@ import java.util.BitSet;
 
 public class BlockFactory {
     public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(4);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(8);
 
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(16);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(512);
 
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
@@ -436,33 +436,49 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
-    public final Block newConstantAggregateMetricDoubleBlock(
+    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions
     ) {
         try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
-            if (value.min() != null) {
-                builder.min().appendDouble(value.min());
-            } else {
-                builder.min().appendNull();
-            }
-            if (value.max() != null) {
-                builder.max().appendDouble(value.max());
-            } else {
-                builder.max().appendNull();
-            }
-            if (value.sum() != null) {
-                builder.sum().appendDouble(value.sum());
-            } else {
-                builder.sum().appendNull();
-            }
-            if (value.count() != null) {
-                builder.count().appendInt(value.count());
-            } else {
-                builder.count().appendNull();
+            for (int i = 0; i < positions; i++) {
+                if (value.min() != null) {
+                    builder.min().appendDouble(value.min());
+                } else {
+                    builder.min().appendNull();
+                }
+                if (value.max() != null) {
+                    builder.max().appendDouble(value.max());
+                } else {
+                    builder.max().appendNull();
+                }
+                if (value.sum() != null) {
+                    builder.sum().appendDouble(value.sum());
+                } else {
+                    builder.sum().appendNull();
+                }
+                if (value.count() != null) {
+                    builder.count().appendInt(value.count());
+                } else {
+                    builder.count().appendNull();
+                }
             }
             return builder.build();
         }
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        double[] minValues,
+        double[] maxValues,
+        double[] sumValues,
+        int[] countValues,
+        int positions
+    ) {
+        DoubleBlock min = newDoubleArrayVector(minValues, positions).asBlock();
+        DoubleBlock max = newDoubleArrayVector(maxValues, positions).asBlock();
+        DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
+        IntBlock count = newIntArrayVector(countValues, positions).asBlock();
+        return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
     /**

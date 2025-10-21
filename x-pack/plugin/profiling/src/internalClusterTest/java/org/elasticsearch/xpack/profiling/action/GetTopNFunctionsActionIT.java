@@ -29,7 +29,7 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetTopNFunctionsResponse response = client().execute(GetTopNFunctionsAction.INSTANCE, request).get();
-        assertEquals(747, response.getTopN().size());
+        assertEquals(671, response.getTopN().size());
     }
 
     public void testGetTopNFunctionsGroupedByServiceName() throws Exception {
@@ -76,6 +76,6 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
             null
         );
         GetTopNFunctionsResponse response = client().execute(GetTopNFunctionsAction.INSTANCE, request).get();
-        assertEquals(45, response.getTopN().size());
+        assertEquals(42, response.getTopN().size());
     }
 }

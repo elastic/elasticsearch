@@ -42,7 +42,7 @@ public class StXMinTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXMinTests::valueOfCartesian, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StXMinTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StXMinTests::valueOfCartesian, List.of());
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static double valueOfGeo(BytesRef wkb) {

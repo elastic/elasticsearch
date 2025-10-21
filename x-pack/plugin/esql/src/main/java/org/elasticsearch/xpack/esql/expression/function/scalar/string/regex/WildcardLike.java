@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -53,6 +55,16 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+
+        ```{applies_to}
+        stack: ga 9.1
+        serverless: ga
+        ```
+        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+        the expression will return true if any of the patterns match.
+
+        <<load-esql-example, file=where-like tag=likeListDocExample>>
+
         """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
@@ -112,11 +124,26 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+        return translateField(
+            handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
+            pushdownPredicates.flags().stringLikeOnIndex()
+        );
     }
 
     // TODO: see whether escaping is needed
-    private Query translateField(String targetFieldName) {
-        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive());
+    private Query translateField(String targetFieldName, boolean forceStringMatch) {
+        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
+    }
+
+    /**
+     * Pushes down string casing optimization for a single pattern using the provided predicate.
+     * Returns a new WildcardLike with case insensitivity or a Literal.FALSE if not matched.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        if (matchesCaseFn.test(pattern().pattern()) == false) {
+            return Literal.of(this, Boolean.FALSE);
+        }
+        return new WildcardLike(source(), unwrappedField, pattern(), true);
     }
 }

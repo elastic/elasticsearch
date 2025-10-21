@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Booleans;
@@ -44,6 +45,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<Reader, IOException> loader;
+    private final ProjectId projectId;
     final SetOnce<Reader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
@@ -57,7 +59,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     // than calling it on every call to cache.putIfAbsent that it makes the slight additional internal complication worth it
     private final String cachedDatabasePathToString;
 
-    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
+    DatabaseReaderLazyLoader(ProjectId projectId, GeoIpCache cache, Path databasePath, String md5) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
         this.md5 = md5;
@@ -65,6 +67,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
         this.buildDate = new SetOnce<>();
+        this.projectId = projectId;
 
         // cache the toString on construction
         this.cachedDatabasePathToString = databasePath.toString();
@@ -88,6 +91,13 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
         return databaseType.get();
     }
 
+    /**
+     * Prepares the database for lookup by incrementing the usage count.
+     * If the usage count is already negative, it indicates that the database is being closed,
+     * and this method will return false to indicate that no lookup should be performed.
+     *
+     * @return true if the database is ready for lookup, false if it is being closed
+     */
     boolean preLookup() {
         return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
     }
@@ -106,7 +116,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     @Override
     @Nullable
     public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-        return cache.putIfAbsent(ipAddress, cachedDatabasePathToString, ip -> {
+        return cache.putIfAbsent(projectId, ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);
             } catch (Exception e) {
@@ -145,7 +155,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     // Visible for Testing
     protected void doShutdown() throws IOException {
         IOUtils.close(databaseReader.get());
-        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
+        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(projectId, databasePath);
         logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
         if (deleteDatabaseFileOnShutdown) {
             logger.info("deleting [{}]", databasePath);

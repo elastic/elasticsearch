@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -44,7 +44,7 @@ public class RolloverStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -55,7 +55,7 @@ public class RolloverStep extends AsyncActionStep {
             listener.onResponse(null);
             return;
         }
-        IndexAbstraction indexAbstraction = currentClusterState.metadata().getProject().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
         final boolean targetFailureStore;
@@ -128,14 +128,16 @@ public class RolloverStep extends AsyncActionStep {
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
-        getClient().admin().indices().rolloverIndex(rolloverRequest, listener.delegateFailureAndWrap((l, response) -> {
-            assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
-            if (response.isRolledOver()) {
-                l.onResponse(null);
-            } else {
-                l.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
-            }
-        }));
+        getClient(currentState.projectId()).admin()
+            .indices()
+            .rolloverIndex(rolloverRequest, listener.delegateFailureAndWrap((l, response) -> {
+                assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
+                if (response.isRolledOver()) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                }
+            }));
     }
 
     @Override

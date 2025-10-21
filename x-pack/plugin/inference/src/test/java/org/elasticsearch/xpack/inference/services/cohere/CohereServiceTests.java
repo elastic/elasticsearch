@@ -23,14 +23,15 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,14 +39,14 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -68,15 +69,16 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
@@ -86,13 +88,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class CohereServiceTests extends ESTestCase {
+public class CohereServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -101,7 +104,7 @@ public class CohereServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -263,11 +266,10 @@ public class CohereServiceTests extends ESTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createCohereService()) {
-            var config = getRequestConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
-                getTaskSettingsMapEmpty(),
-                getSecretSettingsMap("secret")
-            );
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
+            serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
+
+            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap("secret"));
             config.put("extra_key", "value");
 
             var failureListener = getModelListenerForException(
@@ -318,11 +320,9 @@ public class CohereServiceTests extends ESTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", null, null),
-                getTaskSettingsMapEmpty(),
-                secretSettingsMap
-            );
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
+            serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
+            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), secretSettingsMap);
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
@@ -343,14 +343,12 @@ public class CohereServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, (e) -> fail("Model parsing should have succeeded " + e.getMessage()));
 
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
+            serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null),
-                    getTaskSettingsMapEmpty(),
-                    getSecretSettingsMap("secret")
-                ),
+                getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap("secret")),
                 modelListener
             );
 
@@ -453,10 +451,8 @@ public class CohereServiceTests extends ESTestCase {
                 )
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [cohere] service"));
+            assertThat(thrownException.getMessage(), containsString("The [cohere] service does not support task type [sparse_embedding]"));
         }
     }
 
@@ -690,10 +686,8 @@ public class CohereServiceTests extends ESTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [cohere] service, please delete and add the service again")
-            );
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [cohere] service"));
+            assertThat(thrownException.getMessage(), containsString("The [cohere] service does not support task type [sparse_embedding]"));
         }
     }
 
@@ -777,14 +771,14 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotCohereModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new CohereService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -806,7 +800,7 @@ public class CohereServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -817,7 +811,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_SendsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -891,7 +885,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = CohereCompletionModelTests.createModel(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
             assertThrows(
                 ElasticsearchStatusException.class,
@@ -911,7 +905,7 @@ public class CohereServiceTests extends ESTestCase {
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var embeddingSize = randomNonNegativeInt();
             var embeddingType = randomFrom(CohereEmbeddingType.values());
             var model = CohereEmbeddingsModelTests.createModel(
@@ -938,7 +932,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -953,7 +947,7 @@ public class CohereServiceTests extends ESTestCase {
                 CohereEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                null,
+                "coheremodel",
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -980,7 +974,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_SetsInputTypeToIngest_FromInferParameter_WhenTaskSettingsAreEmpty() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1056,7 +1050,7 @@ public class CohereServiceTests extends ESTestCase {
         throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1127,10 +1121,10 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
-    public void testInfer_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
+    public void testInfer_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest_v1API() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1166,7 +1160,8 @@ public class CohereServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "model",
-                null
+                null,
+                CohereServiceSettings.CohereApiVersion.V1
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1197,6 +1192,73 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float")))
+            );
+        }
+    }
+
+    public void testInfer_DefaultsInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest_v2API() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            String responseJson = """
+                {
+                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
+                    "texts": [
+                        "hello"
+                    ],
+                    "embeddings": {
+                        "float": [
+                            [
+                                0.123,
+                                -0.123
+                            ]
+                        ]
+                    },
+                    "meta": {
+                        "api_version": {
+                            "version": "1"
+                        },
+                        "billed_units": {
+                            "input_tokens": 1
+                        }
+                    },
+                    "response_type": "embeddings_by_type"
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = CohereEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                "secret",
+                new CohereEmbeddingsTaskSettings(null, null),
+                1024,
+                1024,
+                "model",
+                null,
+                CohereServiceSettings.CohereApiVersion.V2
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            listener.actionGet(TIMEOUT);
+
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float"), "input_type", "search_query"))
             );
         }
     }
@@ -1234,7 +1296,7 @@ public class CohereServiceTests extends ESTestCase {
     private void testChunkedInfer(CohereEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             // Batching will call the service with 2 inputs
             String responseJson = """
@@ -1289,7 +1351,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1300,7 +1362,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1316,7 +1378,7 @@ public class CohereServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("float")))
+                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("float"), "input_type", "search_query"))
             );
         }
     }
@@ -1324,7 +1386,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testChunkedInfer_BatchesCalls_Bytes() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             // Batching will call the service with 2 inputs
             String responseJson = """
@@ -1386,10 +1448,10 @@ public class CohereServiceTests extends ESTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingByteResults.Embedding.class));
                 assertArrayEquals(
                     new byte[] { 23, -23 },
-                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                    ((DenseEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
                 );
             }
             {
@@ -1397,10 +1459,10 @@ public class CohereServiceTests extends ESTestCase {
                 var byteResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(byteResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), byteResult.chunks().get(0).offset());
-                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingByteResults.Embedding.class));
+                assertThat(byteResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingByteResults.Embedding.class));
                 assertArrayEquals(
                     new byte[] { 24, -24 },
-                    ((TextEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
+                    ((DenseEmbeddingByteResults.Embedding) byteResult.chunks().get(0).embedding()).values()
                 );
             }
 
@@ -1415,7 +1477,7 @@ public class CohereServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("int8")))
+                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("int8"), "input_type", "search_query"))
             );
         }
     }
@@ -1444,7 +1506,7 @@ public class CohereServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1494,7 +1556,7 @@ public class CohereServiceTests extends ESTestCase {
                             "model_id": {
                                 "description": "The name of the model to use for the inference task.",
                                 "label": "Model ID",
-                                "required": false,
+                                "required": true,
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "str",
@@ -1528,7 +1590,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new CohereService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new CohereService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1569,7 +1631,16 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     private CohereService createCohereService() {
-        return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
+    @Override
+    public InferenceService createInferenceService() {
+        return createCohereService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(2800));
+    }
 }

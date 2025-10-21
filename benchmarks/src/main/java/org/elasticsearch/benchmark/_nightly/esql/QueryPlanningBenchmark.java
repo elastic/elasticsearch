@@ -9,14 +9,12 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.*;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -29,7 +27,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -70,34 +67,40 @@ public class QueryPlanningBenchmark {
     private EsqlParser defaultParser;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
+    private Configuration config;
 
     @Setup
     public void setup() {
-
-        var config = new Configuration(
+        this.config = new Configuration(
             DateUtils.UTC,
             Locale.US,
             null,
             null,
-            new QueryPragmas(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            QueryPragmas.EMPTY,
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
             false,
             Map.of(),
             System.nanoTime(),
-            false
+            false,
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY)
         );
 
         var fields = 10_000;
         var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
         for (int i = 0; i < fields; i++) {
-            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true));
+            // We're creating a standard index, so none of these fields should be marked as dimensions.
+            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
 
         var functionRegistry = new EsqlFunctionRegistry();
+
+        // Assume all nodes are on the current version for the benchmark.
+        TransportVersion minimumVersion = TransportVersion.current();
 
         telemetry = new PlanTelemetry(functionRegistry);
         defaultParser = new EsqlParser();
@@ -108,11 +111,12 @@ public class QueryPlanningBenchmark {
                 IndexResolution.valid(esIndex),
                 Map.of(),
                 new EnrichResolution(),
-                InferenceResolution.EMPTY
+                InferenceResolution.EMPTY,
+                minimumVersion
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );
-        defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
+        defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {

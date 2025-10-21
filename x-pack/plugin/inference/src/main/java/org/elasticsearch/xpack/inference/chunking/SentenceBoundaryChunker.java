@@ -11,6 +11,7 @@ import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ public class SentenceBoundaryChunker implements Chunker {
     @Override
     public List<ChunkOffset> chunk(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings instanceof SentenceBoundaryChunkingSettings sentenceBoundaryChunkingSettings) {
-            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize, sentenceBoundaryChunkingSettings.sentenceOverlap > 0);
+            return chunk(input, sentenceBoundaryChunkingSettings.maxChunkSize(), sentenceBoundaryChunkingSettings.sentenceOverlap() > 0);
         } else {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -211,26 +212,7 @@ public class SentenceBoundaryChunker implements Chunker {
     }
 
     private int countWords(int start, int end) {
-        return countWords(start, end, this.wordIterator);
-    }
-
-    // Exposed for testing. wordIterator should have had
-    // setText() applied before using this function.
-    static int countWords(int start, int end, BreakIterator wordIterator) {
-        assert start < end;
-        wordIterator.preceding(start); // start of the current word
-
-        int boundary = wordIterator.current();
-        int wordCount = 0;
-        while (boundary != BreakIterator.DONE && boundary <= end) {
-            int wordStatus = wordIterator.getRuleStatus();
-            if (wordStatus != BreakIterator.WORD_NONE) {
-                wordCount++;
-            }
-            boundary = wordIterator.next();
-        }
-
-        return wordCount;
+        return ChunkerUtils.countWords(start, end, this.wordIterator);
     }
 
     private static int overlapForChunkSize(int chunkSize) {

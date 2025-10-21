@@ -41,6 +41,7 @@ PUT _connector/my-outlook-connector
   "service_type": "outlook"
 }
 ```
+%  TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -194,6 +195,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+%  NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -231,13 +233,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

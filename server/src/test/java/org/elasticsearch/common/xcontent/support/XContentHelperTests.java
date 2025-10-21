@@ -12,12 +12,14 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -420,5 +422,20 @@ public class XContentHelperTests extends ESTestCase {
         }, new BytesArray(json), XContentType.JSON, null).v2();
 
         assertThat(names, equalTo(Set.of("a", "c")));
+    }
+
+    public void testGetParserWithInvalidInput() throws IOException {
+        assertThrows(
+            "Should detect bad JSON",
+            NotXContentException.class,
+            () -> XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray("not actually XContent"))
+        );
+        XContentParser parser = XContentHelper.createParser(
+            XContentParserConfiguration.EMPTY,
+            new BytesArray("not actually XContent"),
+            XContentType.JSON
+        );
+        assertNotNull("Should not detect bad JSON", parser); // This is more like assertNotThrows
+        assertThrows("Should detect bad JSON at parse time", XContentParseException.class, parser::numberValue);
     }
 }

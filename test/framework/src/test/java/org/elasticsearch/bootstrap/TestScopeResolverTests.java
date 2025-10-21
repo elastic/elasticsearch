@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
@@ -23,7 +24,7 @@ public class TestScopeResolverTests extends ESTestCase {
             "server",
             List.of(new TestBuildInfoLocation("org/elasticsearch/Build.class", "org.elasticsearch.server"))
         );
-        var resolver = TestScopeResolver.createScopeResolver(testBuildInfo, List.of());
+        var resolver = TestScopeResolver.createScopeResolver(testBuildInfo, List.of(), Set.of());
 
         var scope = resolver.apply(Plugin.class);
         assertThat(scope.componentName(), is("(server)"));
@@ -39,7 +40,7 @@ public class TestScopeResolverTests extends ESTestCase {
             "test-component",
             List.of(new TestBuildInfoLocation("org/elasticsearch/bootstrap/TestBuildInfoParserTests.class", "test-module-name"))
         );
-        var resolver = TestScopeResolver.createScopeResolver(testBuildInfo, List.of(testOwnBuildInfo));
+        var resolver = TestScopeResolver.createScopeResolver(testBuildInfo, List.of(testOwnBuildInfo), Set.of("test-component"));
 
         var scope = resolver.apply(this.getClass());
         assertThat(scope.componentName(), is("test-component"));

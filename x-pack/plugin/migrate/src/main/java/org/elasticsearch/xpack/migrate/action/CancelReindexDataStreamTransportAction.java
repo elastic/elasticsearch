@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -22,27 +24,31 @@ import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction.Requ
 
 public class CancelReindexDataStreamTransportAction extends HandledTransportAction<Request, AcknowledgedResponse> {
     private final PersistentTasksService persistentTasksService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public CancelReindexDataStreamTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ProjectResolver projectResolver
     ) {
         super(CancelReindexDataStreamAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.persistentTasksService = persistentTasksService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
         String index = request.getIndex();
+        ProjectId projectId = projectResolver.getProjectId();
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
         /*
          * This removes the persistent task from the cluster state and results in the running task being cancelled (but not removed from
          * the task manager). The running task is removed from the task manager in ReindexDataStreamTask::onCancelled, which is called as
          * as result of this.
          */
-        persistentTasksService.sendRemoveRequest(persistentTaskId, TimeValue.MAX_VALUE, new ActionListener<>() {
+        persistentTasksService.sendProjectRemoveRequest(projectId, persistentTaskId, TimeValue.MAX_VALUE, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                 listener.onResponse(AcknowledgedResponse.TRUE);

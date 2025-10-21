@@ -118,4 +118,9 @@ public class RangeQuery extends Query {
     protected String innerToString() {
         return field + ":" + (includeLower ? "[" : "(") + lower + ", " + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

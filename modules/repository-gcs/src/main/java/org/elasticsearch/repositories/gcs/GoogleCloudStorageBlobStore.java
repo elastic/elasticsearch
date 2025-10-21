@@ -23,6 +23,7 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -104,6 +106,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
+    @Nullable // for cluster level object store in MP
+    private final ProjectId projectId;
     private final String bucketName;
     private final String clientName;
     private final String repositoryName;
@@ -114,6 +118,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final BackoffPolicy casBackoffPolicy;
 
     GoogleCloudStorageBlobStore(
+        ProjectId projectId,
         String bucketName,
         String clientName,
         String repositoryName,
@@ -123,6 +128,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BackoffPolicy casBackoffPolicy,
         GcsRepositoryStatsCollector statsCollector
     ) {
+        this.projectId = projectId;
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
@@ -134,7 +140,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     private MeteredStorage client() throws IOException {
-        return storageService.client(clientName, repositoryName, statsCollector);
+        return storageService.client(projectId, clientName, repositoryName, statsCollector);
     }
 
     @Override
@@ -144,7 +150,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public void close() {
-        storageService.closeRepositoryClients(repositoryName);
+        storageService.closeRepositoryClients(projectId, repositoryName);
     }
 
     /**

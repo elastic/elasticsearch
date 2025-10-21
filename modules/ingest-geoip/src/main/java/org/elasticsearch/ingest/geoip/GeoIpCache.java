@@ -10,13 +10,14 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NodeCache;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -41,10 +42,10 @@ public final class GeoIpCache {
         }
     };
 
-    private final LongSupplier relativeNanoTimeProvider;
     private final Cache<CacheKey, Object> cache;
-    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
-    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
+    private final LongSupplier relativeNanoTimeProvider;
+    private final LongAdder hitsTimeInNanos = new LongAdder();
+    private final LongAdder missesTimeInNanos = new LongAdder();
 
     // package private for testing
     GeoIpCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
@@ -60,9 +61,9 @@ public final class GeoIpCache {
     }
 
     @SuppressWarnings("unchecked")
-    <RESPONSE> RESPONSE putIfAbsent(String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
+    <RESPONSE> RESPONSE putIfAbsent(ProjectId projectId, String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
-        CacheKey cacheKey = new CacheKey(ip, databasePath);
+        CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         Object response = cache.get(cacheKey);
@@ -79,9 +80,9 @@ public final class GeoIpCache {
             // store the result or no-result in the cache
             cache.put(cacheKey, response);
             long databaseRequestAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestAndCachePutTime);
+            missesTimeInNanos.add(cacheRequestTime + databaseRequestAndCachePutTime);
         } else {
-            hitsTimeInNanos.addAndGet(cacheRequestTime);
+            hitsTimeInNanos.add(cacheRequestTime);
         }
 
         if (response == NO_RESULT) {
@@ -92,16 +93,16 @@ public final class GeoIpCache {
     }
 
     // only useful for testing
-    Object get(String ip, String databasePath) {
-        CacheKey cacheKey = new CacheKey(ip, databasePath);
+    Object get(ProjectId projectId, String ip, String databasePath) {
+        CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
         return cache.get(cacheKey);
     }
 
-    public int purgeCacheEntriesForDatabase(Path databaseFile) {
+    public int purgeCacheEntriesForDatabase(ProjectId projectId, Path databaseFile) {
         String databasePath = databaseFile.toString();
         int counter = 0;
         for (CacheKey key : cache.keys()) {
-            if (key.databasePath.equals(databasePath)) {
+            if (key.projectId.equals(projectId) && key.databasePath.equals(databasePath)) {
                 cache.invalidate(key);
                 counter++;
             }
@@ -119,14 +120,14 @@ public final class GeoIpCache {
      * @return Current stats about this cache
      */
     public CacheStats getCacheStats() {
-        Cache.CacheStats stats = cache.stats();
+        Cache.Stats stats = cache.stats();
         return new CacheStats(
             cache.count(),
             stats.getHits(),
             stats.getMisses(),
             stats.getEvictions(),
-            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
-            TimeValue.nsecToMSec(missesTimeInNanos.get())
+            TimeValue.nsecToMSec(hitsTimeInNanos.sum()),
+            TimeValue.nsecToMSec(missesTimeInNanos.sum())
         );
     }
 
@@ -135,5 +136,5 @@ public final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private record CacheKey(String ip, String databasePath) {}
+    private record CacheKey(ProjectId projectId, String ip, String databasePath) {}
 }

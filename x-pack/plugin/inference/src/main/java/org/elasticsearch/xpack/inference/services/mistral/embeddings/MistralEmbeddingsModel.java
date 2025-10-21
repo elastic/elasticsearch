@@ -12,7 +12,6 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -37,7 +36,6 @@ public class MistralEmbeddingsModel extends MistralModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
@@ -47,7 +45,6 @@ public class MistralEmbeddingsModel extends MistralModel {
             taskType,
             service,
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,    // no task settings for Mistral embeddings
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
@@ -59,7 +56,6 @@ public class MistralEmbeddingsModel extends MistralModel {
     }
 
     private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
-        this.model = serviceSettings.modelId();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
     }
@@ -77,12 +73,11 @@ public class MistralEmbeddingsModel extends MistralModel {
         TaskType taskType,
         String service,
         MistralEmbeddingsServiceSettings serviceSettings,
-        TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);
@@ -93,7 +88,8 @@ public class MistralEmbeddingsModel extends MistralModel {
         return (MistralEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
-    public ExecutableAction accept(MistralActionVisitor creator, Map<String, Object> taskSettings) {
-        return creator.create(this, taskSettings);
+    @Override
+    public ExecutableAction accept(MistralActionVisitor creator) {
+        return creator.create(this);
     }
 }

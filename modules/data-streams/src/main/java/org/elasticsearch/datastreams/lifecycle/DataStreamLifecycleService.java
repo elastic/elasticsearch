@@ -54,7 +54,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedEx
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -169,7 +168,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<Tuple<ProjectId, String>, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
-    private final ProjectResolver projectResolver;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -218,8 +216,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
-        ProjectResolver projectResolver
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this.settings = settings;
         this.client = client;
@@ -231,7 +228,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
         this.globalRetentionSettings = globalRetentionSettings;
-        this.projectResolver = projectResolver;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
@@ -1074,7 +1070,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             rolloverRequest.indicesOptions()
         );
         logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverRequest.getRolloverTarget());
-        projectResolver.projectClient(client, projectId).admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
+        client.projectClient(projectId).admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
                 // Log only when the conditions were met and the index was rolled over.
@@ -1137,7 +1133,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             updateSettingsRequest.settings().keySet(),
             targetIndex
         );
-        projectResolver.projectClient(client, projectId).admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
+        client.projectClient(projectId).admin().indices().updateSettings(updateSettingsRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info(
@@ -1173,7 +1169,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             addIndexBlockRequest.getBlock(),
             targetIndex
         );
-        projectResolver.projectClient(client, projectId).admin().indices().addBlock(addIndexBlockRequest, new ActionListener<>() {
+        client.projectClient(projectId).admin().indices().addBlock(addIndexBlockRequest, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
                 if (addIndexBlockResponse.isAcknowledged()) {
@@ -1252,7 +1248,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
         logger.trace("Data stream lifecycle issues request to delete index [{}]", targetIndex);
-        projectResolver.projectClient(client, projectId).admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
+        client.projectClient(projectId).admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
@@ -1293,7 +1289,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         String sourceIndex = request.getSourceIndex();
         String downsampleIndex = request.getTargetIndex();
         logger.info("Data stream lifecycle issuing request to downsample index [{}] to index [{}]", sourceIndex, downsampleIndex);
-        projectResolver.projectClient(client, projectId).execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
+        client.projectClient(projectId).execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 assert acknowledgedResponse.isAcknowledged() : "the downsample response is always acknowledged";
@@ -1318,7 +1314,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             : "Data stream lifecycle force merges one index at a time";
         final String targetIndex = forceMergeRequest.indices()[0];
         logger.info("Data stream lifecycle is issuing a request to force merge index [{}]", targetIndex);
-        projectResolver.projectClient(client, projectId).admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
+        client.projectClient(projectId).admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(BroadcastResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {

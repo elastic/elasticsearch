@@ -67,18 +67,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            XContentParser.Token token = p.currentToken();
-            if (token == XContentParser.Token.VALUE_STRING) {
-                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                return new CompressedXContent(p.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + token);
-            }
-        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> { return parseMappings(p); },
+            MAPPINGS,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             XContentParser.Token token;
@@ -102,6 +96,19 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             ResettableValue.reset(),
             DATA_STREAM_OPTIONS
         );
+    }
+
+    public static CompressedXContent parseMappings(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new CompressedXContent(Base64.getDecoder().decode(parser.text()));
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return new CompressedXContent(parser.binaryValue());
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     @Nullable
@@ -178,7 +185,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.lifecycle = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
         } else {
             // We default to no data stream options since failure store is behind a feature flag up to this version
@@ -244,7 +251,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
                 out.writeOptionalWriteable(lifecycle);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
         }
     }

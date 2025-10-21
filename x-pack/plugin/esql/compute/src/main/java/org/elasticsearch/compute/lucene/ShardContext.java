@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -18,11 +19,12 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Context of each shard we're operating against.
  */
-public interface ShardContext {
+public interface ShardContext extends RefCounted {
     /**
      * The index of this shard in the list of shards being processed.
      */
@@ -47,7 +49,7 @@ public interface ShardContext {
     /**
      * Build something to load source {@code _source}.
      */
-    SourceLoader newSourceLoader();
+    SourceLoader newSourceLoader(Set<String> sourcePaths);
 
     /**
      * Returns something to load values from this field into a {@link Block}.

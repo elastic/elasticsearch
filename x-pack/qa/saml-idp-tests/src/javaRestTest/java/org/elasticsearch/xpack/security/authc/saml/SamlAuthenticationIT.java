@@ -86,7 +86,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -122,6 +124,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.saml.shibboleth.attributes.name", "urn:oid:2.5.4.3")
         .setting("xpack.security.authc.realms.saml.shibboleth.signing.key", "sp-signing.key")
         .setting("xpack.security.authc.realms.saml.shibboleth.signing.certificate", "sp-signing.crt")
+        .setting("xpack.security.authc.realms.saml.shibboleth.private_attributes", "mail")
         // SAML realm 2 (uses authorization_realms)
         .setting("xpack.security.authc.realms.saml.shibboleth_native.order", "2")
         .setting("xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id", "https://test.shibboleth.elastic.local/")
@@ -307,6 +310,13 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             assertThat(authentication, notNullValue());
             assertThat(authentication, instanceOf(Map.class));
             assertEquals("thor", ((Map) authentication).get("username"));
+
+            // "mail" attribute should be treated as private
+            // and not returned as part of user's metadata
+            final Object metadata = ((Map) authentication).get("metadata");
+            assertThat(metadata, notNullValue());
+            assertThat(metadata, instanceOf(Map.class));
+            assertThat(((Map) metadata).get("saml_mail"), is(nullValue()));
 
             return new Tuple<>((String) accessToken, (String) refreshToken);
         }

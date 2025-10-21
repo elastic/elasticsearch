@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.rollup.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.injection.guice.Inject;
@@ -25,14 +27,18 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public RollupUsageTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.ROLLUP.name(), transportService, clusterService, threadPool, actionFilters);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -42,14 +48,14 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        int numberOfRollupJobs = findNumberOfRollupJobs(state);
+        int numberOfRollupJobs = findNumberOfRollupJobs(projectResolver.getProjectMetadata(state));
         RollupFeatureSetUsage usage = new RollupFeatureSetUsage(numberOfRollupJobs);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 
-    static int findNumberOfRollupJobs(ClusterState state) {
+    static int findNumberOfRollupJobs(ProjectMetadata project) {
         int numberOfRollupJobs = 0;
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = project.custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks != null) {
             numberOfRollupJobs = persistentTasks.findTasks(RollupJob.NAME, Predicates.always()).size();
         }

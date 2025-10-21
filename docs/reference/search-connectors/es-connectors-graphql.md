@@ -45,6 +45,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -82,13 +83,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -145,6 +146,7 @@ Note the following configuration fields:
         }
     }
     ```
+    %  NOTCONSOLE
 
 
 `graphql_variables`
@@ -170,6 +172,7 @@ Note the following configuration fields:
         "organization.users": "user_id"
     }
     ```
+    %  NOTCONSOLE
 
     In this example `user_id` is unique in every user document. Therefore, we set `user_id` as the value for `organization.users`.
 
@@ -187,6 +190,7 @@ Note the following configuration fields:
         "content-type": "Application/json"
     }
     ```
+    %  NOTCONSOLE
 
 
 `pagination_model` (required)
@@ -213,6 +217,7 @@ Note the following configuration fields:
         }
     }
     ```
+    %  NOTCONSOLE
 
     The value of `pagination_key` is `sampleData.users` so it must contain:
 

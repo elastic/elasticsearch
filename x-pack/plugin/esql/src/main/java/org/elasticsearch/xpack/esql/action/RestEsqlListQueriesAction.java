@@ -15,9 +15,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -37,7 +36,7 @@ public class RestEsqlListQueriesAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return restChannelConsumer(request, client);
     }
 
@@ -46,7 +45,7 @@ public class RestEsqlListQueriesAction extends BaseRestHandler {
 
         String id = request.param("id");
         var action = id != null ? EsqlGetQueryAction.INSTANCE : EsqlListQueriesAction.INSTANCE;
-        var actionRequest = id != null ? new EsqlGetQueryRequest(new TaskId(id)) : new EsqlListQueriesRequest();
+        var actionRequest = id != null ? new EsqlGetQueryRequest(AsyncExecutionId.decode(id)) : new EsqlListQueriesRequest();
 
         return channel -> client.execute(action, actionRequest, new RestToXContentListener<>(channel));
     }

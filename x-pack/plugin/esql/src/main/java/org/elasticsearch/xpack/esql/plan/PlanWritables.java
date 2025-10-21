@@ -28,12 +28,14 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -65,6 +67,7 @@ public class PlanWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(logical());
         entries.addAll(physical());
+        entries.addAll(others());
         return entries;
     }
 
@@ -101,7 +104,6 @@ public class PlanWritables {
             CompletionExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
-            EsQueryExec.ENTRY,
             EsSourceExec.ENTRY,
             EvalExec.ENTRY,
             ExchangeExec.ENTRY,
@@ -123,5 +125,9 @@ public class PlanWritables {
             TimeSeriesAggregateExec.ENTRY,
             TopNExec.ENTRY
         );
+    }
+
+    public static List<NamedWriteableRegistry.Entry> others() {
+        return List.of(CopyingLocalSupplier.ENTRY, ImmediateLocalSupplier.ENTRY, EmptyLocalSupplier.ENTRY);
     }
 }

@@ -292,9 +292,9 @@ public class CompoundProcessor implements Processor {
     }
 
     private static void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
-        List<String> processorTypeHeader = cause.getHeader(PROCESSOR_TYPE_EXCEPTION_HEADER);
-        List<String> processorTagHeader = cause.getHeader(PROCESSOR_TAG_EXCEPTION_HEADER);
-        List<String> processorOriginHeader = cause.getHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
+        List<String> processorTypeHeader = cause.getBodyHeader(PROCESSOR_TYPE_EXCEPTION_HEADER);
+        List<String> processorTagHeader = cause.getBodyHeader(PROCESSOR_TAG_EXCEPTION_HEADER);
+        List<String> processorOriginHeader = cause.getBodyHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
         String failedProcessorType = (processorTypeHeader != null) ? processorTypeHeader.get(0) : null;
         String failedProcessorTag = (processorTagHeader != null) ? processorTagHeader.get(0) : null;
         String failedPipelineId = (processorOriginHeader != null) ? processorOriginHeader.get(0) : null;
@@ -316,7 +316,7 @@ public class CompoundProcessor implements Processor {
     }
 
     static IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
-        if (e instanceof IngestProcessorException ipe && ipe.getHeader(PROCESSOR_TYPE_EXCEPTION_HEADER) != null) {
+        if (e instanceof IngestProcessorException ipe && ipe.getBodyHeader(PROCESSOR_TYPE_EXCEPTION_HEADER) != null) {
             return ipe;
         }
 
@@ -324,16 +324,16 @@ public class CompoundProcessor implements Processor {
 
         String processorType = processor.getType();
         if (processorType != null) {
-            exception.addHeader(PROCESSOR_TYPE_EXCEPTION_HEADER, processorType);
+            exception.addBodyHeader(PROCESSOR_TYPE_EXCEPTION_HEADER, processorType);
         }
         String processorTag = processor.getTag();
         if (processorTag != null) {
-            exception.addHeader(PROCESSOR_TAG_EXCEPTION_HEADER, processorTag);
+            exception.addBodyHeader(PROCESSOR_TAG_EXCEPTION_HEADER, processorTag);
         }
         if (document != null) {
             List<String> pipelineStack = document.getPipelineStack();
             if (pipelineStack.isEmpty() == false) {
-                exception.addHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER, pipelineStack);
+                exception.addBodyHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER, pipelineStack);
             }
         }
 

@@ -358,7 +358,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -599,7 +599,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }
         }
-        return context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+        if (indexFieldData instanceof IndexGeoPointFieldData) {
+            return (IndexGeoPointFieldData) indexFieldData;
+        }
+        throw new IllegalArgumentException(
+            "unable to apply geo distance sort to field [" + fieldName + "] of type [" + fieldType.typeName() + "]"
+        );
     }
 
     private Nested nested(SearchExecutionContext context) throws IOException {

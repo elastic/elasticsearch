@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -29,9 +30,9 @@ import java.util.Map;
  * becomes
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
  * and
- * {@code INLINESTATS SUM(a + 1) BY x % 2}
+ * {@code INLINE STATS SUM(a + 1) BY x % 2}
  * becomes
- * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINESTATS SUM(`a+1`_ref) BY `x % 2`_ref}
+ * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
@@ -137,13 +138,13 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         List<Expression> newChildren = new ArrayList<>(gf.children().size());
 
         for (Expression ex : gf.children()) {
-            if (ex instanceof Attribute == false) { // TODO: foldables shouldn't require eval'ing either
+            if (ex instanceof Attribute || ex instanceof MapExpression) {
+                newChildren.add(ex);
+            } else { // TODO: foldables shouldn't require eval'ing either
                 var alias = new Alias(ex.source(), syntheticName(ex, gf, counter++), ex, null, true);
                 evals.add(alias);
                 newChildren.add(alias.toAttribute());
                 childrenChanged = true;
-            } else {
-                newChildren.add(ex);
             }
         }
 

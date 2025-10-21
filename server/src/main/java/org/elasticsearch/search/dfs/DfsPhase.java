@@ -177,7 +177,7 @@ public class DfsPhase {
         return null;
     };
 
-    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
+    static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
@@ -195,11 +195,24 @@ public class DfsPhase {
             }
         }
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
-        for (int i = 0; i < knnSearch.size(); i++) {
-            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
-            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-            Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+        final long afterQueryTime;
+        final long beforeQueryTime = System.nanoTime();
+        var opsListener = context.indexShard().getSearchOperationListener();
+        opsListener.onPreQueryPhase(context);
+        try {
+            for (int i = 0; i < knnSearch.size(); i++) {
+                String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+                String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
+                Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+                knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+            }
+            afterQueryTime = System.nanoTime();
+            opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
+            opsListener = null;
+        } finally {
+            if (opsListener != null) {
+                opsListener.onFailedQueryPhase(context);
+            }
         }
         context.dfsResult().knnResults(knnResults);
     }

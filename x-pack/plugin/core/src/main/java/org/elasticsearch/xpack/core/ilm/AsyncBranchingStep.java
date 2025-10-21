@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.TriConsumer;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
  * This step changes its {@link #getNextStepKey()} depending on the
@@ -26,14 +27,14 @@ public class AsyncBranchingStep extends AsyncActionStep {
 
     private final StepKey nextStepKeyOnFalse;
     private final StepKey nextStepKeyOnTrue;
-    private final BiConsumer<IndexMetadata, ActionListener<Boolean>> asyncPredicate;
+    private final TriConsumer<ProjectId, IndexMetadata, ActionListener<Boolean>> asyncPredicate;
     private final SetOnce<Boolean> predicateValue;
 
     public AsyncBranchingStep(
         StepKey key,
         StepKey nextStepKeyOnFalse,
         StepKey nextStepKeyOnTrue,
-        BiConsumer<IndexMetadata, ActionListener<Boolean>> asyncPredicate,
+        TriConsumer<ProjectId, IndexMetadata, ActionListener<Boolean>> asyncPredicate,
         Client client
     ) {
         // super.nextStepKey is set to null since it is not used by this step
@@ -52,11 +53,11 @@ public class AsyncBranchingStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        asyncPredicate.accept(indexMetadata, listener.safeMap(value -> {
+        asyncPredicate.apply(currentState.projectId(), indexMetadata, listener.safeMap(value -> {
             predicateValue.set(value);
             return null;
         }));
@@ -87,7 +88,7 @@ public class AsyncBranchingStep extends AsyncActionStep {
     /**
      * @return the next step if {@code predicate} is true
      */
-    final BiConsumer<IndexMetadata, ActionListener<Boolean>> getAsyncPredicate() {
+    final TriConsumer<ProjectId, IndexMetadata, ActionListener<Boolean>> getAsyncPredicate() {
         return asyncPredicate;
     }
 

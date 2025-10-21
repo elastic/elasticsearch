@@ -55,6 +55,12 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public ConstantNullVector deepCopy(BlockFactory blockFactory) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public ConstantNullBlock keepMask(BooleanVector mask) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");

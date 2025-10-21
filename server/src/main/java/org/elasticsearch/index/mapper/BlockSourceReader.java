@@ -107,7 +107,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
+            return fetcher.storedFieldsSpec();
         }
 
         @Override
@@ -469,7 +469,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     /**
      * Convert a {@link String} into a utf-8 {@link BytesRef}.
      */
-    static BytesRef toBytesRef(BytesRef scratch, String v) {
+    public static BytesRef toBytesRef(BytesRef scratch, String v) {
         int len = UnicodeUtil.maxUTF8Length(v.length());
         if (scratch.bytes.length < len) {
             scratch.bytes = new byte[len];
@@ -479,7 +479,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
-     * Build a {@link LeafIteratorLookup} which checks for norms of a text field.
+     * Build a {@link LeafIteratorLookup} which matches all documents in a segment
      */
     public static LeafIteratorLookup lookupMatchingAll() {
         return new LeafIteratorLookup() {

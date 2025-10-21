@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -82,7 +83,13 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            Downsample.class,
+            AggregateMetricMapperPlugin.class,
+            EsqlPlugin.class
+        );
     }
 
     /**
@@ -256,6 +263,8 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
         final MapperService mapperService = getMapperServiceForIndex(sourceIndex);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+
+        assertThat(downsampleIndexMappings.get("_meta"), equalTo(sourceIndexMappings.get("_meta")));
 
         // Collect expected mappings for fields and dimensions
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();

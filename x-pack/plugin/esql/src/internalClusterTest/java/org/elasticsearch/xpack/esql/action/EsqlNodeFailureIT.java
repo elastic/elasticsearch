@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -98,38 +100,30 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
 
     public void testPartialResults() throws Exception {
         Set<String> okIds = populateIndices();
-        {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("FROM fail,ok | LIMIT 100");
-            request.allowPartialResults(true);
-            request.pragmas(randomPragmas());
-            try (EsqlQueryResponse resp = run(request)) {
-                assertTrue(resp.isPartial());
-                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-                assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM fail,ok METADATA _id | KEEP _id, fail_me | LIMIT 100");
+        request.allowPartialResults(true);
+        // have to run one shard at a time to avoid failing all shards
+        QueryPragmas pragma = new QueryPragmas(
+            Settings.builder().put(randomPragmas().getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        request.pragmas(pragma);
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows.size(), equalTo(okIds.size()));
+            Set<String> actualIds = new HashSet<>();
+            for (List<Object> row : rows) {
+                assertThat(row.size(), equalTo(2));
+                String id = (String) row.getFirst();
+                assertThat(id, in(okIds));
+                assertTrue(actualIds.add(id));
             }
-        }
-        {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("FROM fail,ok METADATA _id | KEEP _id, fail_me | LIMIT 100");
-            request.allowPartialResults(true);
-            request.pragmas(randomPragmas());
-            try (EsqlQueryResponse resp = run(request)) {
-                assertTrue(resp.isPartial());
-                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-                assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
-                Set<String> actualIds = new HashSet<>();
-                for (List<Object> row : rows) {
-                    assertThat(row.size(), equalTo(2));
-                    String id = (String) row.getFirst();
-                    assertThat(id, in(okIds));
-                    assertTrue(actualIds.add(id));
-                }
-                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
-                assertThat(localInfo.getFailures(), not(empty()));
-                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-                assertThat(localInfo.getFailures().get(0).reason(), containsString("Accessing failing field"));
-            }
+            EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(localInfo.getFailures(), not(empty()));
+            assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertThat(localInfo.getFailures().get(0).reason(), containsString("Accessing failing field"));
         }
     }
 
@@ -147,6 +141,15 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
                 EsqlQueryRequest request = new EsqlQueryRequest();
                 request.query("FROM fail,ok | LIMIT 100");
                 request.pragmas(randomPragmas());
+                // have to run one shard at a time to avoid failing all shards
+                QueryPragmas pragma = new QueryPragmas(
+                    Settings.builder()
+                        .put(randomPragmas().getSettings())
+                        .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
+                        .build()
+                );
+                request.pragmas(pragma);
+                request.acceptedPragmaRisks(true);
                 if (randomBoolean()) {
                     request.allowPartialResults(true);
                 }
@@ -154,6 +157,7 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
                     assertTrue(resp.isPartial());
                     List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
                     assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
+                    assertThat(rows.size(), greaterThan(0));
                 }
             }
             // allow_partial_results = false

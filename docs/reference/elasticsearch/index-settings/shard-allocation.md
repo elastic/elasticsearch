@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/shard-allocation-filtering.html
 navigation_title: Shard allocation
+applies_to:
+  stack: all
 ---
 
 # Index-level shard allocation settings [shard-allocation-filtering]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 You can use shard allocation filters to control where {{es}} allocates shards of a particular index. These per-index filters are applied in conjunction with [cluster-wide allocation filtering](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-shard-allocation-filtering) and [allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md).
 
@@ -39,6 +44,7 @@ To filter based on a custom node attribute:
       "index.routing.allocation.include.size": "big,medium"
     }
     ```
+    % TEST[s/^/PUT test\n/]
 
     If you specify multiple filters the following conditions must be satisfied simultaneously by a node in order for shards to be relocated to it:
 
@@ -55,7 +61,7 @@ To filter based on a custom node attribute:
       "index.routing.allocation.require.rack": "rack1"
     }
     ```
-
+    % TEST[s/^/PUT test\n/]
 
 
 ## Index allocation filter settings [index-allocation-settings]
@@ -105,4 +111,4 @@ PUT test/_settings
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ```
-
+% TEST[skip:indexes don’t assign]

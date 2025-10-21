@@ -60,7 +60,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Wait for all nodes to be upgraded to ensure that the
         // newly created index will be of the latest version.
-        return minTransportVersion.onOrAfter(TransportVersions.ML_ROLLOVER_LEGACY_INDICES);
+        return minTransportVersion.supports(TransportVersions.V_8_18_0);
     }
 
     @Override

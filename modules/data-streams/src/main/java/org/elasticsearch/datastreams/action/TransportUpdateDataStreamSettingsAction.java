@@ -54,7 +54,12 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
     UpdateDataStreamSettingsAction.Request,
     UpdateDataStreamSettingsAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDataStreamSettingsAction.class);
-    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of("index.lifecycle.name", IndexSettings.PREFER_ILM);
+    private static final Set<String> APPLY_TO_WRITE_INDEX = Set.of("index.number_of_replicas");
+    private static final Set<String> APPLY_TO_ALL_BACKING_INDICES = Set.of(
+        "index.lifecycle.name",
+        IndexSettings.PREFER_ILM,
+        "index.refresh_interval"
+    );
     private static final Set<String> APPLY_TO_DATA_STREAM_ONLY = Set.of("index.number_of_shards");
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final MetadataUpdateSettingsService updateSettingsService;
@@ -131,7 +136,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
                             dataStreamName,
                             false,
-                            e.getMessage(),
+                            Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
                             EMPTY,
                             EMPTY,
                             UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
@@ -154,7 +159,9 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         logger.debug("updating settings for {}", dataStreamName);
         Set<String> settingsToReject = new HashSet<>();
         for (String settingName : settingsOverrides.keySet()) {
-            if (APPLY_TO_BACKING_INDICES.contains(settingName) == false && APPLY_TO_DATA_STREAM_ONLY.contains(settingName) == false) {
+            if (APPLY_TO_WRITE_INDEX.contains(settingName) == false
+                && APPLY_TO_ALL_BACKING_INDICES.contains(settingName) == false
+                && APPLY_TO_DATA_STREAM_ONLY.contains(settingName) == false) {
                 settingsToReject.add(settingName);
             }
         }
@@ -219,18 +226,26 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         TimeValue ackTimeout,
         ActionListener<UpdateDataStreamSettingsAction.DataStreamSettingsResponse> listener
     ) {
-        Map<String, Object> settingsToApply = new HashMap<>();
+        Map<String, Object> settingsToApplyToNonWriteIndices = new HashMap<>();
+        Map<String, Object> settingsToApplyToWriteIndex = new HashMap<>();
         List<String> appliedToDataStreamOnly = new ArrayList<>();
+        List<String> appliedToDataStreamAndWriteIndexOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndBackingIndices = new ArrayList<>();
+        Settings effectiveSettings = dataStream.getEffectiveSettings(projectResolver.getProjectMetadata(clusterService.state()));
         for (String settingName : requestSettings.keySet()) {
-            if (APPLY_TO_BACKING_INDICES.contains(settingName)) {
-                settingsToApply.put(settingName, requestSettings.get(settingName));
+            if (APPLY_TO_WRITE_INDEX.contains(settingName)) {
+                settingsToApplyToWriteIndex.put(settingName, effectiveSettings.get(settingName));
+                appliedToDataStreamAndWriteIndexOnly.add(settingName);
+            } else if (APPLY_TO_ALL_BACKING_INDICES.contains(settingName)) {
+                settingsToApplyToWriteIndex.put(settingName, effectiveSettings.get(settingName));
+                settingsToApplyToNonWriteIndices.put(settingName, effectiveSettings.get(settingName));
                 appliedToDataStreamAndBackingIndices.add(settingName);
             } else if (APPLY_TO_DATA_STREAM_ONLY.contains(settingName)) {
                 appliedToDataStreamOnly.add(settingName);
             }
         }
         final List<Index> concreteIndices = dataStream.getIndices();
+        final Index writeIndex = dataStream.getWriteIndex();
         final List<UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndexSettingError> indexSettingErrors = new ArrayList<>();
 
         CountDownActionListener indexCountDownListener = new CountDownActionListener(
@@ -242,11 +257,10 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         true,
                         null,
                         settingsFilter.filter(dataStream.getSettings()),
-                        settingsFilter.filter(
-                            dataStream.getEffectiveSettings(clusterService.state().projectState(projectResolver.getProjectId()).metadata())
-                        ),
+                        settingsFilter.filter(effectiveSettings),
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult(
                             appliedToDataStreamOnly,
+                            appliedToDataStreamAndWriteIndexOnly,
                             appliedToDataStreamAndBackingIndices,
                             indexSettingErrors
                         )
@@ -256,11 +270,13 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         );
 
         indexCountDownListener.onResponse(null); // handles the case where there were zero indices
-        Settings applyToIndexSettings = builder().loadFromMap(settingsToApply).build();
+        Settings applyToNonWriteIndexSettings = builder().loadFromMap(settingsToApplyToNonWriteIndices).build();
+        Settings applyToWriteIndexSettings = builder().loadFromMap(settingsToApplyToWriteIndex).build();
         for (Index index : concreteIndices) {
+            Settings settings = index.equals(writeIndex) ? applyToWriteIndexSettings : applyToNonWriteIndexSettings;
             updateSettingsOnSingleIndex(
                 index,
-                applyToIndexSettings,
+                settings,
                 dryRun,
                 masterNodeTimeout,
                 ackTimeout,
@@ -339,6 +355,6 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
 
     @Override
     protected ClusterBlockException checkBlock(UpdateDataStreamSettingsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

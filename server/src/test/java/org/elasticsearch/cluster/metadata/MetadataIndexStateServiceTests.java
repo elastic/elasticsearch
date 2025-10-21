@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -451,7 +452,11 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             );
         }
 
-        final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        final Snapshot snapshot = new Snapshot(
+            projectId,
+            randomAlphaOfLength(10),
+            new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5))
+        );
         final SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
             snapshot,
             randomBoolean(),
@@ -584,5 +589,112 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             return state;
         }
         return ClusterState.builder(state).putProjectMetadata(ProjectMetadata.builder(projectId)).build();
+    }
+
+    public void testRemoveWriteBlockRemovesVerifiedSetting() {
+        ClusterState state = stateWithProject("testRemoveWriteBlockRemovesVerifiedSetting", projectId);
+
+        // Add an index with write block and VERIFIED_READ_ONLY_SETTING
+        final String indexName = "test-index";
+        final Settings.Builder indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexMetadata.APIBlock.WRITE.settingName(),
+            true
+        ).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .state(IndexMetadata.State.OPEN)
+            .creationDate(randomNonNegativeLong())
+            .settings(indexSettings)
+            .build();
+
+        state = ClusterState.builder(state)
+            .putProjectMetadata(ProjectMetadata.builder(state.metadata().getProject(projectId)).put(indexMetadata, true))
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(projectId, indexName, IndexMetadata.APIBlock.WRITE.block))
+            .build();
+
+        // Remove the write block
+        final Index index = state.metadata().getProject(projectId).index(indexName).getIndex();
+        final Tuple<ClusterState, List<RemoveIndexBlockResponse.RemoveBlockResult>> result = MetadataIndexStateService.removeIndexBlock(
+            state.projectState(projectId),
+            new Index[] { index },
+            IndexMetadata.APIBlock.WRITE
+        );
+
+        final ClusterState updatedState = result.v1();
+
+        // Verify that both write block setting and VERIFIED_READ_ONLY_SETTING are removed
+        final IndexMetadata updatedIndexMetadata = updatedState.metadata().getProject(projectId).index(indexName);
+        assertThat(
+            "Write block setting should be removed",
+            IndexMetadata.APIBlock.WRITE.setting().get(updatedIndexMetadata.getSettings()),
+            is(false)
+        );
+        assertThat(
+            "VERIFIED_READ_ONLY_SETTING should be removed",
+            MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(updatedIndexMetadata.getSettings()),
+            is(false)
+        );
+        assertThat(
+            "Write block should be removed from cluster state",
+            updatedState.blocks().hasIndexBlock(projectId, indexName, IndexMetadata.APIBlock.WRITE.block),
+            is(false)
+        );
+    }
+
+    public void testRemoveWriteBlockKeepsVerifiedWhenOtherBlocks() {
+        ClusterState state = stateWithProject("testRemoveWriteBlockKeepsVerifiedWhenOtherBlocks", projectId);
+
+        // Add an index with multiple write blocks and VERIFIED_READ_ONLY_SETTING
+        final String indexName = "test-index";
+        final Settings.Builder indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexMetadata.APIBlock.WRITE.settingName(),
+            true
+        )
+            .put(IndexMetadata.APIBlock.READ_ONLY.settingName(), true)  // read_only also blocks writes
+            .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .state(IndexMetadata.State.OPEN)
+            .creationDate(randomNonNegativeLong())
+            .settings(indexSettings)
+            .build();
+
+        state = ClusterState.builder(state)
+            .putProjectMetadata(ProjectMetadata.builder(state.metadata().getProject(projectId)).put(indexMetadata, true))
+            .blocks(
+                ClusterBlocks.builder()
+                    .blocks(state.blocks())
+                    .addIndexBlock(projectId, indexName, IndexMetadata.APIBlock.WRITE.block)
+                    .addIndexBlock(projectId, indexName, IndexMetadata.APIBlock.READ_ONLY.block)
+            )
+            .build();
+
+        // Remove only the write block (read_only block still exists and blocks writes)
+        final Index index = state.metadata().getProject(projectId).index(indexName).getIndex();
+        final Tuple<ClusterState, List<RemoveIndexBlockResponse.RemoveBlockResult>> result = MetadataIndexStateService.removeIndexBlock(
+            state.projectState(projectId),
+            new Index[] { index },
+            IndexMetadata.APIBlock.WRITE
+        );
+
+        final ClusterState updatedState = result.v1();
+
+        // Verify that VERIFIED_READ_ONLY_SETTING is kept because read_only block still blocks writes
+        final IndexMetadata updatedIndexMetadata = updatedState.metadata().getProject(projectId).index(indexName);
+        assertThat(
+            "Write block setting should be removed",
+            IndexMetadata.APIBlock.WRITE.setting().get(updatedIndexMetadata.getSettings()),
+            is(false)
+        );
+        assertThat(
+            "VERIFIED_READ_ONLY_SETTING should be kept because read_only block still exists",
+            MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(updatedIndexMetadata.getSettings()),
+            is(true)
+        );
+        assertThat(
+            "Read-only block should still exist",
+            updatedState.blocks().hasIndexBlock(projectId, indexName, IndexMetadata.APIBlock.READ_ONLY.block),
+            is(true)
+        );
     }
 }

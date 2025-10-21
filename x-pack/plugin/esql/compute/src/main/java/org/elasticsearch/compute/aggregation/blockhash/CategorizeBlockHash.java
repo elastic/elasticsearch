@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,13 +46,13 @@ import java.util.Objects;
  */
 public class CategorizeBlockHash extends BlockHash {
 
-    private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(
-        List.of()
-    );
+    private static final CategorizationAnalyzerConfig DEFAULT_ANALYZER_CONFIG = CategorizationAnalyzerConfig
+        .buildStandardEsqlCategorizationAnalyzer();
     private static final int NULL_ORD = 0;
 
     private final int channel;
     private final AggregatorMode aggregatorMode;
+    private final CategorizeDef categorizeDef;
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
     private final CategorizeEvaluator evaluator;
 
@@ -66,28 +64,38 @@ public class CategorizeBlockHash extends BlockHash {
      */
     private boolean seenNull = false;
 
-    CategorizeBlockHash(BlockFactory blockFactory, int channel, AggregatorMode aggregatorMode, AnalysisRegistry analysisRegistry) {
+    CategorizeBlockHash(
+        BlockFactory blockFactory,
+        int channel,
+        AggregatorMode aggregatorMode,
+        CategorizeDef categorizeDef,
+        AnalysisRegistry analysisRegistry
+    ) {
         super(blockFactory);
 
         this.channel = channel;
         this.aggregatorMode = aggregatorMode;
+        this.categorizeDef = categorizeDef;
 
         this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
             CategorizationPartOfSpeechDictionary.getInstance(),
-            0.70f
+            categorizeDef.similarityThreshold() / 100.0f
         );
 
         if (aggregatorMode.isInputPartial() == false) {
-            CategorizationAnalyzer analyzer;
+            CategorizationAnalyzer categorizationAnalyzer;
             try {
                 Objects.requireNonNull(analysisRegistry);
-                analyzer = new CategorizationAnalyzer(analysisRegistry, ANALYZER_CONFIG);
-            } catch (Exception e) {
+                CategorizationAnalyzerConfig config = categorizeDef.analyzer() == null
+                    ? DEFAULT_ANALYZER_CONFIG
+                    : new CategorizationAnalyzerConfig.Builder().setAnalyzer(categorizeDef.analyzer()).build();
+                categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, config);
+            } catch (IOException e) {
                 categorizer.close();
                 throw new RuntimeException(e);
             }
-            this.evaluator = new CategorizeEvaluator(analyzer);
+            this.evaluator = new CategorizeEvaluator(categorizationAnalyzer);
         } else {
             this.evaluator = null;
         }
@@ -116,7 +124,7 @@ public class CategorizeBlockHash extends BlockHash {
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(categorizer.getCategoryCount() + 1)).seenGroupIds(bigArrays);
+        return new Range(seenNull ? 0 : 1, Math.toIntExact(categorizer.getCategoryCount() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override
@@ -224,7 +232,7 @@ public class CategorizeBlockHash extends BlockHash {
             try (BytesRefBlock.Builder result = blockFactory.newBytesRefBlockBuilder(categorizer.getCategoryCount())) {
                 result.appendNull();
                 for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                    scratch.copyChars(category.getRegex());
+                    scratch.copyChars(getKeyString(category));
                     result.appendBytesRef(scratch.get());
                     scratch.clear();
                 }
@@ -234,12 +242,19 @@ public class CategorizeBlockHash extends BlockHash {
 
         try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                scratch.copyChars(category.getRegex());
+                scratch.copyChars(getKeyString(category));
                 result.appendBytesRef(scratch.get());
                 scratch.clear();
             }
             return result.build().asBlock();
         }
+    }
+
+    private String getKeyString(SerializableTokenListCategory category) {
+        return switch (categorizeDef.outputFormat()) {
+            case REGEX -> category.getRegex();
+            case TOKENS -> category.getKeyTokensString();
+        };
     }
 
     /**

@@ -36,4 +36,6 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.aggregation.table;
     exports org.elasticsearch.compute.data.sort;
     exports org.elasticsearch.compute.querydsl.query;
+    exports org.elasticsearch.compute.lucene.read;
+    exports org.elasticsearch.compute.operator.fuse;
 }

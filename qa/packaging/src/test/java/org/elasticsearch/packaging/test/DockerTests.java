@@ -205,7 +205,7 @@ public class DockerTests extends PackagingTestCase {
 
         listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
-        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(16));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasItems(containsString(plugin)));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -1176,23 +1176,6 @@ public class DockerTests extends PackagingTestCase {
         final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout();
         final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout();
         assertThat(ubiLicense, equalTo(distroLicense));
-    }
-
-    /**
-     * Check that the Iron Bank image doesn't define extra labels
-     */
-    public void test310IronBankImageHasNoAdditionalLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
-
-        final Map<String, String> labels = getImageLabels(distribution);
-
-        final Set<String> labelKeys = labels.keySet();
-
-        // We can't just assert that the labels map is empty, because it can inherit labels from its base.
-        // This is certainly the case when we build the Iron Bank image using a UBI base. It is unknown
-        // if that is true for genuine Iron Bank builds.
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
     }
 
     /**

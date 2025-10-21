@@ -3,6 +3,9 @@
   "id" : 5326,
   "type" : "transport",
   "action" : "indices:data/read/esql",
+  "status" : {
+    "request_id" : "Ks5ApyqMTtWj5LrKigmCjQ"
+  },
   "description" : "FROM test | STATS MAX(d) by a, b",  <1>
   "start_time" : "2023-07-31T15:46:32.328Z",
   "start_time_in_millis" : 1690818392328,

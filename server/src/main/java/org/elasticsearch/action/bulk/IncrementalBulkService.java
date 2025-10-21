@@ -22,17 +22,22 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
+    public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -44,19 +49,32 @@ public class IncrementalBulkService {
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure) {
+    /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
+    private final LongHistogram chunkWaitTimeMillisHistogram;
+
+    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry) {
         this.client = client;
         this.indexingPressure = indexingPressure;
+        this.chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
+            CHUNK_WAIT_TIME_HISTOGRAM_NAME,
+            "Total time in millis spent waiting for next chunk of a bulk request",
+            "ms"
+        );
     }
 
     public Handler newBulkRequest() {
         ensureEnabled();
-        return newBulkRequest(null, null, null);
+        return newBulkRequest(null, null, null, emptySet());
     }
 
-    public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
+    public Handler newBulkRequest(
+        @Nullable String waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh,
+        Set<String> paramsUsed
+    ) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh);
+        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
     }
 
     private void ensureEnabled() {
@@ -94,11 +112,14 @@ public class IncrementalBulkService {
         private final Client client;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
+        private final Set<String> paramsUsed;
         private final String refresh;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
         private final IndexingPressure.Incremental incrementalOperation;
+        // Ideally this should be in RestBulkAction, but it's harder to inject the metric registry there
+        private final LongHistogram chunkWaitTimeMillisHistogram;
         private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
@@ -111,18 +132,26 @@ public class IncrementalBulkService {
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
-            @Nullable String refresh
+            @Nullable String refresh,
+            LongHistogram chunkWaitTimeMillisHistogram,
+            Set<String> paramsUsed
         ) {
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
+            this.paramsUsed = paramsUsed;
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
             return incrementalOperation;
+        }
+
+        public void updateWaitForChunkMetrics(long chunkWaitTimeInMillis) {
+            chunkWaitTimeMillisHistogram.record(chunkWaitTimeInMillis);
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
@@ -191,7 +220,7 @@ public class IncrementalBulkService {
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
                             handleBulkSuccess(bulkResponse);
-                            listener.onResponse(combineResponses());
+                            listener.onResponse(BulkResponse.combine(responses));
                         }
 
                         @Override
@@ -233,7 +262,7 @@ public class IncrementalBulkService {
             if (globalFailure) {
                 listener.onFailure(bulkActionLevelFailure);
             } else {
-                listener.onResponse(combineResponses());
+                listener.onResponse(BulkResponse.combine(responses));
             }
         }
 
@@ -291,26 +320,7 @@ public class IncrementalBulkService {
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);
             }
-        }
-
-        private BulkResponse combineResponses() {
-            long tookInMillis = 0;
-            long ingestTookInMillis = 0;
-            int itemResponseCount = 0;
-            for (BulkResponse response : responses) {
-                tookInMillis += response.getTookInMillis();
-                ingestTookInMillis += response.getIngestTookInMillis();
-                itemResponseCount += response.getItems().length;
-            }
-            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemResponseCount];
-            int i = 0;
-            for (BulkResponse response : responses) {
-                for (BulkItemResponse itemResponse : response.getItems()) {
-                    bulkItemResponses[i++] = itemResponse;
-                }
-            }
-
-            return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
+            bulkRequest.requestParamsUsed(paramsUsed);
         }
     }
 }

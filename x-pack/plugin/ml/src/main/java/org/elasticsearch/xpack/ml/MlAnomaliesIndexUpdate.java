@@ -65,7 +65,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.onOrAfter(TransportVersions.ML_ROLLOVER_LEGACY_INDICES);
+        return minTransportVersion.supports(TransportVersions.V_8_18_0);
     }
 
     @Override

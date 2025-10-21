@@ -11,11 +11,12 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -132,7 +133,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -214,6 +215,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         private static final TimeValue THIRTY_DAYS = TimeValue.timeValueDays(30);
         private static final long THIRTY_DAYS_MILLIS = THIRTY_DAYS.millis();
 
+        @FixForMultiProject(description = "Replace caller from cluster settings to project settings")
         public boolean isNewEnough(Settings settings) {
             // micro optimization: this looks a little silly, but the expected case is that database_validity is only used in tests.
             // we run this code on every document, though, so the argument checking and other bits that getAsTime does is enough
@@ -253,15 +255,16 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
     }
 
     /**
-     * Retrieves the geoip downloader's task state from the cluster state. This may return null in some circumstances,
+     * Retrieves the geoip downloader's task state from the project metadata. This may return null in some circumstances,
      * for example if the geoip downloader task hasn't been created yet (which it wouldn't be if it's disabled).
      *
-     * @param state the cluster state to read the task state from
+     * @param projectMetadata the project metatdata to read the task state from.
+     * @param taskId the task ID of the geoip downloader task to read the state for.
      * @return the geoip downloader's task state or null if there is not a state to read
      */
     @Nullable
-    static GeoIpTaskState getGeoIpTaskState(ClusterState state) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+    static GeoIpTaskState getGeoIpTaskState(ProjectMetadata projectMetadata, String taskId) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(projectMetadata, taskId);
         return (task == null) ? null : (GeoIpTaskState) task.getState();
     }
 

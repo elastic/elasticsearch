@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -51,6 +53,8 @@ public class StEnvelope extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Determines the minimum bounding box of the supplied geometry.",
         examples = @Example(file = "spatial_shapes", tag = "st_envelope")
     )

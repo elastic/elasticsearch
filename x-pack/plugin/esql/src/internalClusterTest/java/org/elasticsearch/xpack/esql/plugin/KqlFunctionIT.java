@@ -75,12 +75,12 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
     public void testInvalidKqlQueryEof() {
         var query = """
             FROM test
-            | WHERE kql("content: ((((dog")
+            | WHERE kql("content: (dog")
             """;
 
         var error = expectThrows(QueryShardException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("Failed to parse KQL query [content: ((((dog]"));
-        assertThat(error.getRootCause().getMessage(), containsString("line 1:11: mismatched input '('"));
+        assertThat(error.getMessage(), containsString("Failed to parse KQL query [content: (dog]"));
+        assertThat(error.getRootCause().getMessage(), containsString("line 1:14: missing ')' at '<EOF>'"));
     }
 
     public void testInvalidKqlQueryLexicalError() {

@@ -51,7 +51,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() > 1) {
+            if (stats.size() != 1) {
                 return aggregateExec;
             }
 
@@ -97,7 +97,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                 if (target instanceof FieldAttribute fa) {
                                     var fName = fa.fieldName();
                                     if (context.searchStats().isSingleValue(fName)) {
-                                        fieldName = fName;
+                                        fieldName = fName.string();
                                         query = QueryBuilders.existsQuery(fieldName);
                                     }
                                 }

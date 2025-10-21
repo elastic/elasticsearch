@@ -1,6 +1,0 @@
-pr: 127968
-summary: "Enable sort optimization on int, short and byte fields"
-area: Search
-type: enhancement
-issues:
- - 127965

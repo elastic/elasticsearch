@@ -35,8 +35,12 @@ public class Murmur3HasherTests extends ESTestCase {
         expected.h2 = upper;
 
         byte[] bytes = inputString.getBytes(StandardCharsets.UTF_8);
+        int padding = randomInt(8);
+        int offset = randomInt(padding);
+        byte[] paddedBytes = new byte[bytes.length + padding];
+        System.arraycopy(bytes, 0, paddedBytes, offset, bytes.length);
         Murmur3Hasher mh = new Murmur3Hasher(seed);
-        mh.update(bytes);
+        mh.update(paddedBytes, offset, bytes.length);
         MurmurHash3.Hash128 actual = mh.digestHash();
         assertHash(expected, actual);
     }

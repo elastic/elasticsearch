@@ -193,7 +193,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
                         for (int i = 0; i < hits.getHits().length; i++) {
                             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                            rankFeatureDocs[i].featureData(hits.getHits()[i].field(field).getValue().toString());
+                            rankFeatureDocs[i].featureData(List.of(hits.getHits()[i].field(field).getValue().toString()));
                         }
                         return new RankFeatureShardResult(rankFeatureDocs);
                     } catch (Exception ex) {
@@ -210,7 +210,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
                 protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                     float[] scores = new float[featureDocs.length];
                     for (int i = 0; i < featureDocs.length; i++) {
-                        scores[i] = Float.parseFloat(featureDocs[i].featureData);
+                        scores[i] = Float.parseFloat(featureDocs[i].featureData.get(0));
                     }
                     scoreListener.onResponse(scores);
                 }

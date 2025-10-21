@@ -12,6 +12,9 @@ import org.elasticsearch.inference.TaskType;
 
 public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
 
+    // Ensure that inference endpoints based on E5 small don't go past its window size
+    public static final int E5_SMALL_MAX_WINDOW_SIZE = 300;
+
     public MultilingualE5SmallModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -20,6 +23,15 @@ public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
         ChunkingSettings chunkingSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
+        if (chunkingSettings != null && chunkingSettings.maxChunkSize() != null) {
+            if (chunkingSettings.maxChunkSize() > E5_SMALL_MAX_WINDOW_SIZE) throw new IllegalArgumentException(
+                serviceSettings.modelId()
+                    + " does not support chunk sizes larger than "
+                    + E5_SMALL_MAX_WINDOW_SIZE
+                    + ". Requested chunk size: "
+                    + chunkingSettings.maxChunkSize()
+            );
+        }
     }
 
     @Override

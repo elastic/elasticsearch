@@ -1,9 +1,14 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/allocation-total-shards.html
+applies_to:
+  stack: all
 ---
 
 # Total shards per node [allocation-total-shards]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 The cluster-level shard allocator tries to spread the shards of a single index across as many nodes as possible. However, depending on how many shards and indices you have, and how big they are, it may not always be possible to spread shards evenly.
 

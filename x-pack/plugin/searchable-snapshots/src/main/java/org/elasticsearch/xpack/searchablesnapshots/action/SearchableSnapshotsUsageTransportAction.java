@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,6 +29,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final XPackLicenseState licenseState;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public SearchableSnapshotsUsageTransportAction(
@@ -35,10 +37,12 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -50,7 +54,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
     ) {
         int numFullCopySnapIndices = 0;
         int numSharedCacheSnapIndices = 0;
-        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
+        for (IndexMetadata indexMetadata : projectResolver.getProjectMetadata(state)) {
             if (indexMetadata.isSearchableSnapshot()) {
                 if (indexMetadata.isPartialSearchableSnapshot()) {
                     numSharedCacheSnapIndices++;

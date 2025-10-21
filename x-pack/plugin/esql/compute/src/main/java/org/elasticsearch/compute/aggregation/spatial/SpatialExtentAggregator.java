@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -26,11 +27,7 @@ abstract class SpatialExtentAggregator {
         return state.toBlock(driverContext);
     }
 
-    public static Block evaluateFinal(SpatialExtentGroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
-    }
-
-    public static void combineStates(SpatialExtentGroupingState current, int groupId, SpatialExtentGroupingState inState, int inPosition) {
-        current.add(groupId, inState, inPosition);
+    public static Block evaluateFinal(SpatialExtentGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(selected, ctx.driverContext());
     }
 }

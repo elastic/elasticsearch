@@ -296,3 +296,50 @@ ROW a="keyword", b=5, c=null
 a:integer
 5
 ;
+
+useAssignmentOnly
+required_capability: rename_allow_assignment
+
+ROW a = 1, b = "two"
+| RENAME aa = a, bb = b
+;
+
+aa:integer | bb:keyword
+1          | two
+;
+
+useAssignmentAndASKeyword
+required_capability: rename_allow_assignment
+
+ROW a = 1, b = "two", c = null
+| RENAME aa = a, b AS bb, cc = c
+;
+
+aa:integer | bb:keyword | cc:null
+1          | two        | null
+;
+
+shadowWithAssignment
+required_capability: rename_allow_assignment
+
+ROW a = 1, b = "two"
+| RENAME a = b
+;
+
+a:keyword
+two
+;
+
+multipleRenamesWithAssignment
+required_capability: rename_sequential_processing
+required_capability: rename_allow_assignment
+
+ROW a="keyword", b=5, c=null
+| RENAME c = a, a = b
+| RENAME b = c
+| RENAME b = a, a = b
+;
+
+a:integer
+5
+;

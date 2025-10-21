@@ -24,8 +24,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
@@ -183,10 +185,11 @@ public class TriggeredWatchStore {
         return triggeredWatches;
     }
 
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     public static boolean validate(ClusterState state) {
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME, state.metadata());
         return indexMetadata == null
             || (indexMetadata.getState() == IndexMetadata.State.OPEN
-                && state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+                && state.routingTable(ProjectId.DEFAULT).index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 }

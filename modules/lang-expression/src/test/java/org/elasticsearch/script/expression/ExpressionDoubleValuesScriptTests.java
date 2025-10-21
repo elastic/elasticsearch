@@ -13,6 +13,7 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.Script;
@@ -39,7 +40,13 @@ public class ExpressionDoubleValuesScriptTests extends ESTestCase {
         super.setUp();
 
         engine = new ExpressionScriptEngine();
-        scriptService = new ScriptService(Settings.EMPTY, Map.of("expression", engine), ScriptModule.CORE_CONTEXTS, () -> 1L);
+        scriptService = new ScriptService(
+            Settings.EMPTY,
+            Map.of("expression", engine),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @SuppressWarnings("unchecked")

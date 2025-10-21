@@ -38,9 +38,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 
 public class SpatialRelatesUtils {
+
+    /** Converts a {@link Expression} into a {@link Long}. */
+    static Long asLong(FoldContext ctx, Expression expression) {
+        Object value = valueOf(ctx, expression);
+        if (value instanceof Long longValue) {
+            return longValue;
+        } else if (value instanceof Integer intValue) {
+            return intValue.longValue();
+        } else {
+            throw new IllegalArgumentException(
+                "Unsupported combination of literal [" + value.getClass().getSimpleName() + "] of type [" + expression.dataType() + "]"
+            );
+        }
+    }
 
     /** Converts a {@link Expression} into a {@link Component2D}. */
     static Component2D asLuceneComponent2D(FoldContext ctx, BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
@@ -153,7 +168,7 @@ public class SpatialRelatesUtils {
         return asGeometryDocValueReader(encoder, shapeIndexer, asGeometry(valueBlock, position));
     }
 
-    private static Geometry asGeometry(BytesRefBlock valueBlock, int position) {
+    static Geometry asGeometry(BytesRefBlock valueBlock, int position) {
         final BytesRef scratch = new BytesRef();
         final int firstValueIndex = valueBlock.getFirstValueIndex(position);
         final int valueCount = valueBlock.getValueCount(position);
@@ -168,11 +183,18 @@ public class SpatialRelatesUtils {
     }
 
     /**
-     * This function is used in two places, when evaluating a spatial constant in the SpatialRelatesFunction, as well as when
-     * we do lucene-pushdown of spatial functions.
+     * This function is used when evaluating a spatial constant in the SpatialRelatesFunction
      */
     public static Geometry makeGeometryFromLiteral(FoldContext ctx, Expression expr) {
         return makeGeometryFromLiteralValue(valueOf(ctx, expr), expr.dataType());
+    }
+
+    /**
+     * This function is used when we do lucene-pushdown of spatial functions.
+     * The expression is expected to be folded already and a literal
+     */
+    public static Geometry makeGeometryFromLiteral(Expression expr) {
+        return makeGeometryFromLiteralValue(literalValueOf(expr), expr.dataType());
     }
 
     private static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {

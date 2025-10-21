@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -72,6 +73,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final Client client;
     private final TransformAuditor auditor;
     private final Settings destIndexSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartTransformAction(
@@ -83,7 +85,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         this(
             StartTransformAction.NAME,
@@ -95,7 +98,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             transformServices,
             persistentTasksService,
             client,
-            transformExtensionHolder
+            transformExtensionHolder,
+            projectResolver
         );
     }
 
@@ -109,7 +113,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             name,
@@ -127,6 +132,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.client = client;
         this.auditor = transformServices.auditor();
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -300,7 +306,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
     @Override
     protected ClusterBlockException checkBlock(StartTransformAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {

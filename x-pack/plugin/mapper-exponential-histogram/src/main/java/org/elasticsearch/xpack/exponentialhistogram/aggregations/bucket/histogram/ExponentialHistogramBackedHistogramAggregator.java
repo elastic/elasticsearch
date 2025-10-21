@@ -10,7 +10,13 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations.bucket.histogr
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;

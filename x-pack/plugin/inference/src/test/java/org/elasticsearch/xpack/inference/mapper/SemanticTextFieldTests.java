@@ -28,10 +28,10 @@ import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
@@ -211,7 +211,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             }
             chunks.add(
                 new EmbeddingResults.Chunk(
-                    new TextEmbeddingByteResults.Embedding(values),
+                    new DenseEmbeddingByteResults.Embedding(values),
                     new ChunkedInference.TextOffset(0, input.length())
                 )
             );
@@ -233,7 +233,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             }
             chunks.add(
                 new EmbeddingResults.Chunk(
-                    new TextEmbeddingFloatResults.Embedding(values),
+                    new DenseEmbeddingFloatResults.Embedding(values),
                     new ChunkedInference.TextOffset(0, input.length())
                 )
             );
@@ -415,8 +415,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, entryChunk, matchedText);
                         double[] values = parseDenseVector(entryChunk.rawEmbeddings(), embeddingLength, field.contentType());
                         EmbeddingResults.Embedding<?> embedding = switch (elementType) {
-                            case FLOAT -> new TextEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
-                            case BYTE, BIT -> new TextEmbeddingByteResults.Embedding(byteArrayOf(values));
+                            case FLOAT -> new DenseEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
+                            case BYTE, BIT -> new DenseEmbeddingByteResults.Embedding(byteArrayOf(values));
                         };
                         chunks.add(new EmbeddingResults.Chunk(embedding, offset));
                     }

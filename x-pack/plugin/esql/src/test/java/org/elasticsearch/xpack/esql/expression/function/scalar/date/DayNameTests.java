@@ -66,7 +66,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static List<TestCaseSupplier> generateTest(String dateTime, String expectedWeekDay) {

@@ -42,12 +42,12 @@ fi
 
 set -e
 GRADLE_FLAGS=" -S --max-workers=${MAX_WORKERS}"
-if [[ $CONTINUE_GRADLE_ON_FAIL == "true" ]]; then
+if [[ $CONTINUE_GRADLE_ON_FAIL == true ]]; then
   # Reference: https://docs.gradle.org/current/userguide/command_line_interface.html#sec:continue_build_on_failure
   # When executed with --continue, Gradle executes every task in the build if all the dependencies for that task
   # are completed without failure.
   GRADLE_FLAGS="${GRADLE_FLAGS} --continue "
 fi
 
-$GRADLEW ${GRADLE_FLAGS} "$@"
+$GRADLEW "${GRADLE_FLAGS}" "$@"
 

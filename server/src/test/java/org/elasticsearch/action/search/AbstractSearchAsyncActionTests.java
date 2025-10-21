@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.AbstractSearchAsyncAction.PitShardToUpdate;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -300,6 +301,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         {
             // case 1, result shard ids are identical to original PIT ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
+            Set<PitShardToUpdate> pitsToUpdate = new HashSet<>();
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
                 results.add(
@@ -308,10 +310,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                         new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
                     )
                 );
+                pitsToUpdate.add(new PitShardToUpdate(shardId, searchContextIdForNode.getClusterAlias()));
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
                 results,
+                pitsToUpdate,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 TransportVersionUtils.randomCompatibleVersion(random()),
                 searchTransportService,
@@ -325,6 +329,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         {
             // case 2, some results are from different nodes but have same context Ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
+            Set<PitShardToUpdate> pitsToUpdate = new HashSet<>();
             Set<ShardId> shardsWithSwappedNodes = new HashSet<>();
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
@@ -336,7 +341,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                         new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias())
                     );
                     results.add(otherNode);
-                    shardsWithSwappedNodes.add(shardId);
+                    // only add some of the shard ids for results where node changed to the pitsToUpdate set.
+                    // This would normally happen when we retry a SearchContextMissingException in
+                    // AbstractSearchAsyncAction#onShardResult
+                    if (randomBoolean()) {
+                        pitsToUpdate.add(new PitShardToUpdate(shardId, searchContextIdForNode.getClusterAlias()));
+                        shardsWithSwappedNodes.add(shardId);
+                    }
                 } else {
                     results.add(
                         new PhaseResult(
@@ -349,19 +360,23 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
                 results,
+                pitsToUpdate,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 TransportVersionUtils.randomCompatibleVersion(random()),
                 searchTransportService,
                 nodes,
                 logger
             );
-            assertNotSame(reEncodedId, pointInTimeBuilder.getEncodedId());
+            if (pitsToUpdate.isEmpty() == false) {
+                assertNotSame(reEncodedId, pointInTimeBuilder.getEncodedId());
+            } else {
+                assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
+            }
             SearchContextId reEncodedPit = SearchContextId.decode(
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 reEncodedId
             );
             assertEquals(originalShardIdMap.size(), reEncodedPit.shards().size());
-            logger.info(freedContexts);
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode original = originalShardIdMap.get(shardId);
                 SearchContextIdForNode reEncoded = reEncodedPit.shards().get(shardId);
@@ -378,8 +393,9 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
         freedContexts.clear();
         {
-            // case 3, result shard ids are identical to original PIT id but some are missing. Stay with original PIT id in this case
+            // case 3, result shard ids are identical to original PIT id but some are missing. Stay with original PIT id in those cases
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
+            Set<PitShardToUpdate> pitsToUpdate = new HashSet<>();
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
                 if (randomBoolean()) {
@@ -389,11 +405,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                             new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
                         )
                     );
+                    pitsToUpdate.add(new PitShardToUpdate(shardId, searchContextIdForNode.getClusterAlias()));
                 }
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
                 results,
+                pitsToUpdate,
                 new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                 TransportVersionUtils.randomCompatibleVersion(random()),
                 searchTransportService,

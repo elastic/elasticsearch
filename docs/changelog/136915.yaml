@@ -1,0 +1,12 @@
+pr: 136915
+summary: Implement native synthetic source for normalized keywords
+area: Mapping
+type: breaking
+issues: []
+breaking:
+  title: Implement native synthetic source for normalized keywords
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

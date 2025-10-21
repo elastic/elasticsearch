@@ -120,7 +120,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     public static @Nullable Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
         for (Attribute attribute : plan.outputSet()) {
-            if (EsQueryExec.isSourceAttribute(attribute)) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
                 return attribute;
             }
         }

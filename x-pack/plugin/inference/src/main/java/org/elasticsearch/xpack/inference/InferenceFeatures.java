@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.S
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
@@ -52,6 +53,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
+    public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -92,11 +94,13 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
                 SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
+                SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
-                ModelStats.SEMANTIC_TEXT_USAGE
+                ModelStats.SEMANTIC_TEXT_USAGE,
+                SEARCH_USAGE_EXTENDED_DATA
             )
         );
         testFeatures.addAll(getFeatures());

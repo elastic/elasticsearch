@@ -422,6 +422,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
+            if (rewritten.indicesOptions().resolveCrossProjectIndexExpression()) {
+                IndicesOptions indicesOptions = IndicesOptions.builder(rewritten.indicesOptions())
+                    .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
+                    .build();
+                rewritten.indicesOptions(indicesOptions);
+            }
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {
@@ -1688,7 +1694,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusterState,
                         task,
                         clusters,
-                        client
+                        client,
+                        searchResponseMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1709,7 +1716,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        searchService.batchQueryPhase()
+                        searchService.batchQueryPhase(),
+                        searchResponseMetrics
                     );
                 }
                 success = true;

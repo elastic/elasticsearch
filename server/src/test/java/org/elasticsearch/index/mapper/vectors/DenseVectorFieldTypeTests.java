@@ -96,6 +96,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public static DenseVectorFieldMapper.VectorSimilarity randomGPUSupportedSimilarity(
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions
+    ) {
+        if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
+            return randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.COSINE);
+        }
+        return randomFrom(VectorSimilarity.values());
+    }
+
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
         List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(
             Arrays.asList(

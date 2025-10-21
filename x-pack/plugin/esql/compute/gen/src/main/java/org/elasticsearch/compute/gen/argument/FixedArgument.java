@@ -109,11 +109,6 @@ public record FixedArgument(TypeName type, String name, boolean includeInToStrin
     }
 
     @Override
-    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
-        // nothing to do
-    }
-
-    @Override
     public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
         pattern.append("this.$L");
         args.add(name);

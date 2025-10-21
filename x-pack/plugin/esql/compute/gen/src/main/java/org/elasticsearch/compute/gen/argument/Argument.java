@@ -24,6 +24,7 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
+import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
 
@@ -186,7 +187,16 @@ public interface Argument {
      */
     void read(MethodSpec.Builder builder, boolean blockStyle);
 
-    void read(MethodSpec.Builder builder, String accessor, String firstParam);
+    /**
+     * Read the value of this parameter to a local variable, by calling the accessor's typed get method and passing necessary params.
+     */
+    default void read(MethodSpec.Builder builder, String accessor, String firstParam) {
+        String params = firstParam;
+        if (isBytesRef()) {
+            params += ", " + scratchName();
+        }
+        builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);
+    }
 
     /**
      * Build the invocation of the process method for this parameter.

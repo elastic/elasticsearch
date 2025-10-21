@@ -99,11 +99,6 @@ public record PositionArgument() implements Argument {
     }
 
     @Override
-    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
-        // nothing to do
-    }
-
-    @Override
     public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
         pattern.append("p");
     }

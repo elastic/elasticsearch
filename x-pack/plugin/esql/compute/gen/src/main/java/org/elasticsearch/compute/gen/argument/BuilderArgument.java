@@ -87,11 +87,6 @@ public record BuilderArgument(ClassName type, String name) implements Argument {
     }
 
     @Override
-    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
-        // nothing to do
-    }
-
-    @Override
     public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
         pattern.append("$L");
         args.add("result");

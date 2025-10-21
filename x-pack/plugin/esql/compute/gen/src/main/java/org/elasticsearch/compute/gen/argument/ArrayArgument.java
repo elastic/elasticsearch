@@ -104,7 +104,7 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
     @Override
     public void createScratch(MethodSpec.Builder builder) {
         builder.addStatement("$T[] $LValues = new $T[$L.length]", type, name, type, name);
-        if (type.equals(BYTES_REF)) {
+        if (isBytesRef()) {
             builder.addStatement("$T[] $LScratch = new $T[$L.length]", type, name, type, name);
             builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
             builder.addStatement("$LScratch[i] = new $T()", name, BYTES_REF);
@@ -135,17 +135,12 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
         } else {
             lookupVar = "p";
         }
-        if (type.equals(BYTES_REF)) {
+        if (isBytesRef()) {
             builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
         } else {
             builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(type), lookupVar);
         }
         builder.endControlFlow();
-    }
-
-    @Override
-    public void read(MethodSpec.Builder builder, String accessor, String firstParam) {
-        // nothing to do
     }
 
     @Override

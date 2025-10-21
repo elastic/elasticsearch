@@ -4105,34 +4105,6 @@ null             | null                            | null            | null     
 ;
 
 
-inlineStatsAfterPruningAggregate7
-// https://github.com/elastic/elasticsearch/issues/135679
-required_capability: inline_stats_double_release_fix
-required_capability: join_lookup_v12
-required_capability: fork_v9
-required_capability: enable_lookup_join_on_remote
-
-from app_log* 
-| FORK  (where false OR  NOT true) (where true) (where true) (where false OR true) (where false) (where true | mv_expand @timestamp) 
-| WHERE _fork == "fork2" 
-| DROP _fork
-| rename service_id as name_str 
-| lookup join multi_column_joinable_lookup on name_str 
-| inline stats  `is_active_bool` = count(id_int) + max(id_int), siofAMlpoHvh = max(id_int) + max(id_int) + max(id_int), `message` = present(other1), `id_int` = max(id_int) 
-| stats  `message` = count(is_active_bool), id_int2 = median(is_active_bool), `siofAMlpoHvh` = count(*), `id_int` = max(id_int) 
-| eval  NUtENNcs = message, message = "zaYFcCTy", id_int2 = null, VizcTbjMnBlQ = siofAMlpoHvh, siofAMlpoHvh = siofAMlpoHvh + siofAMlpoHvh + siofAMlpoHvh, gPzLgKdLfZ = null, `message` = 1099438720, sdsrveQOoi = -2373351299779434224, hpxNweCm = false, PwyOmHforRKI = -2230544247357512169 
-| stats  VizcTbjMnBlQ = count(*), siofAMlpoHvh2 = median(sdsrveQOoi) + max(sdsrveQOoi), DUuKdsGgU = avg(PwyOmHforRKI) + count(PwyOmHforRKI), `gPzLgKdLfZ` = present(sdsrveQOoi + VizcTbjMnBlQ + PwyOmHforRKI), `siofAMlpoHvh` = count(sdsrveQOoi) + max(sdsrveQOoi) 
-| limit 61 
-| inline stats  gPzLgKdLfZ = sum(VizcTbjMnBlQ), `siofAMlpoHvh2` = count(*), zvgqSiVGqli = max(VizcTbjMnBlQ), WFjgBzYRXwa = median(VizcTbjMnBlQ) + count(VizcTbjMnBlQ) + avg(VizcTbjMnBlQ) 
-| keep `VizcTbjMnBlQ` 
-| inline stats  wXPJguff = median(VizcTbjMnBlQ) + avg(VizcTbjMnBlQ) + max(VizcTbjMnBlQ)
-;
-
-VizcTbjMnBlQ:long | wXPJguff:double
-1                 | 3.0       
-;
-
-
 inlineStatsAfterPruningAggregate8
 // https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix

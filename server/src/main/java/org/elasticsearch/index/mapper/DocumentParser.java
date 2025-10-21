@@ -678,9 +678,29 @@ public final class DocumentParser {
                         throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
                     }
                 }
-                context.addIgnoredField(currentFieldName);
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
                 return;
             }
+
+            if (context.indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()
+                && currentFieldName.length() > context.indexSettings().getMappingFieldNameLengthLimit()) {
+                if (context.canAddIgnoredField()) {
+                    try {
+                        context.addIgnoredField(
+                            IgnoredSourceFieldMapper.NameValue.fromContext(
+                                context,
+                                context.path().pathAsText(currentFieldName),
+                                context.encodeFlattenedToken()
+                            )
+                        );
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
+                    }
+                }
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
+                return;
+            }
+
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
             if (parsesArrayValue(objectMapperFromTemplate)) {
@@ -954,7 +974,7 @@ public final class DocumentParser {
     private static FieldMapper noopFieldMapper(String path) {
         return new FieldMapper(
             NOOP_FIELD_MAPPER_NAME,
-            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, false, false, false, Collections.emptyMap()) {
+            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, IndexType.NONE, false, Collections.emptyMap()) {
                 @Override
                 public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();

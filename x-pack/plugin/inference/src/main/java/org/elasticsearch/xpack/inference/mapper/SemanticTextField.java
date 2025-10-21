@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,8 +81,6 @@ public record SemanticTextField(
     ) {}
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
-
-    public record Offset(String sourceFieldName, int startOffset, int endOffset) {}
 
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;

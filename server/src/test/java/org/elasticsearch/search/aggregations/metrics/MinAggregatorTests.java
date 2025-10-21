@@ -261,7 +261,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     public void testUnsupportedType() {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("not_a_number");
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
+        MappedFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name("not_a_number").build();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));

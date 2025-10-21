@@ -1024,7 +1024,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         private static final String FIELD_NAME = "_test";
 
         protected TestMetadataMapper() {
-            super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+            super(KeywordFieldMapper.KeywordFieldType.builder().name(FIELD_NAME).build());
         }
 
         @Override

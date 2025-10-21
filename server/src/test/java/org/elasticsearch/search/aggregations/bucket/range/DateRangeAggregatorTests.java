@@ -332,7 +332,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range").field("not_a_number")
             .addRange("2015-11-13", "2015-11-14");
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
+        MappedFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name("not_a_number").build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

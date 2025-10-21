@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -249,12 +249,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
         // given
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
-            "child",
-            true,
-            true,
-            Collections.emptyMap()
-        );
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = KeywordFieldMapper.KeywordFieldType.builder().name("child").build();
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",
@@ -291,16 +286,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
         builder.ignoreAbove(123);
-
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
-            "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",
@@ -340,16 +326,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
-
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
-            "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",

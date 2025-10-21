@@ -674,7 +674,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchNoDocsQuery() throws Exception {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name("string").isIndexed(randomBoolean()).build();
         SignificantTermsAggregationBuilder aggregationBuilder = new SignificantTermsAggregationBuilder("_name").field("string");
         CheckedConsumer<RandomIndexWriter, IOException> createIndex = iw -> {
             iw.addDocument(doc(fieldType, "a", "b"));

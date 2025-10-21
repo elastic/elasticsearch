@@ -113,7 +113,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
-        InternalFilters response = searchAndReduce(indexReader, new AggTestConfig(builder, new KeywordFieldType("field")));
+        InternalFilters response = searchAndReduce(
+            indexReader,
+            new AggTestConfig(builder, KeywordFieldType.builder().name("field").build())
+        );
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
@@ -209,7 +212,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", keys);
         builder.otherBucket(true);
         builder.otherBucketKey("other");
-        final InternalFilters filters = searchAndReduce(indexReader, new AggTestConfig(builder, new KeywordFieldType("field")));
+        final InternalFilters filters = searchAndReduce(
+            indexReader,
+            new AggTestConfig(builder, KeywordFieldType.builder().name("field").build())
+        );
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
         assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
@@ -263,7 +269,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucket(true);
             builder.otherBucketKey("other");
 
-            final InternalFilters response = searchAndReduce(indexReader, new AggTestConfig(builder, new KeywordFieldType("field")));
+            final InternalFilters response = searchAndReduce(
+                indexReader,
+                new AggTestConfig(builder, KeywordFieldType.builder().name("field").build())
+            );
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
 
@@ -489,7 +498,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * matches it.
      */
     public void testNested() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("author");
+        KeywordFieldType ft = KeywordFieldType.builder().name("author").build();
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(
             NestedAggregatorTests.generateBook("test", new String[] { "foo", "bar" }, new int[] { 5, 10, 15, 20 })
         );
@@ -625,7 +634,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     )
                 );
             },
-            new KeywordFieldType("a")
+            KeywordFieldType.builder().name("a").build()
         );
     }
 
@@ -702,7 +711,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * {@code "segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size())}.
      */
     public void testTermOnFilteredIndex() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("foo");
+        KeywordFieldType ft = KeywordFieldType.builder().name("foo").build();
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("foo", "bar")));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -765,7 +774,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * always take the fast path in filter-by-filter.
      */
     public void testTermOnFilterWithMatchAll() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("foo");
+        KeywordFieldType ft = KeywordFieldType.builder().name("foo").build();
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("foo", "bar")));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -835,7 +844,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             null,
             Collections.emptyMap()
         );
-        MappedFieldType kft = new KeywordFieldType("kwd");
+        MappedFieldType kft = KeywordFieldType.builder().name("kwd").build();
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new RangeQueryBuilder("date").from("2020-01-01").to("2020-03-01").includeUpper(false))
@@ -953,7 +962,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTermFilter() throws IOException {
-        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, false, Collections.emptyMap());
+        KeywordFieldMapper.KeywordFieldType ft = KeywordFieldType.builder().name("f").hasDocValues(false).build();
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchQueryBuilder("f", "0")));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
@@ -992,7 +1001,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTermTopLevel() throws IOException {
-        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, false, Collections.emptyMap());
+        KeywordFieldMapper.KeywordFieldType ft = KeywordFieldType.builder().name("f").hasDocValues(false).build();
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
@@ -1496,7 +1505,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesFieldExistsForKeyword() throws IOException {
-        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of());
+        KeywordFieldMapper.KeywordFieldType ft = KeywordFieldType.builder().name("f").build();
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             BytesRef text = new BytesRef(randomAlphaOfLength(5));
             return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE));
@@ -1504,7 +1513,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesFieldExistsForKeywordWithoutData() throws IOException {
-        docValuesFieldExistsNoDataTestCase(new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of()));
+        docValuesFieldExistsNoDataTestCase(KeywordFieldType.builder().name("f").build());
     }
 
     private void docValuesFieldExistsTestCase(

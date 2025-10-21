@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.script.ScriptCompiler;
 
@@ -304,12 +302,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
         // given
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
-            "child",
-            true,
-            true,
-            Collections.emptyMap()
-        );
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = KeywordFieldMapper.KeywordFieldType.builder().name("child").build();
 
         TextFieldType ft = new TextFieldType(
             "parent",
@@ -350,16 +343,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
         builder.ignoreAbove(123);
-
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
-            "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         TextFieldType ft = new TextFieldType(
             "parent",
@@ -401,16 +385,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
-
-        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
-            "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         TextFieldType ft = new TextFieldType(
             "parent",

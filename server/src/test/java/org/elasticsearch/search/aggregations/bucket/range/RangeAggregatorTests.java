@@ -482,7 +482,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testUnsupportedType() {
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field("not_a_number").addRange(-2d, 5d);
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
+        MappedFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name("not_a_number").build();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));

@@ -213,7 +213,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     public void testUnsupportedType() {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("not_a_number");
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
+        MappedFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name("not_a_number").build();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));

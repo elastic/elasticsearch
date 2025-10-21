@@ -490,7 +490,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Operator> operators = new ArrayList<>();
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         FieldCase testCase = new FieldCase(
-            new KeywordFieldMapper.KeywordFieldType("kwd"),
+            KeywordFieldMapper.KeywordFieldType.builder().name("kwd").build(),
             ElementType.BYTES_REF,
             checks::tags,
             StatusChecks::keywordsFromDocValues
@@ -877,7 +877,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(
             new FieldCase(
-                textFieldWithDelegate("text_with_delegate", new KeywordFieldMapper.KeywordFieldType("kwd")),
+                textFieldWithDelegate("text_with_delegate", KeywordFieldMapper.KeywordFieldType.builder().name("kwd").build()),
                 ElementType.BYTES_REF,
                 checks::tags,
                 StatusChecks::textWithDelegate
@@ -885,7 +885,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(
             new FieldCase(
-                textFieldWithDelegate("mv_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("mv_kwd")),
+                textFieldWithDelegate("mv_text_with_delegate", KeywordFieldMapper.KeywordFieldType.builder().name("mv_kwd").build()),
                 ElementType.BYTES_REF,
                 checks::mvStringsFromDocValues,
                 StatusChecks::mvTextWithDelegate
@@ -893,7 +893,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(
             new FieldCase(
-                textFieldWithDelegate("missing_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("missing_kwd")),
+                textFieldWithDelegate(
+                    "missing_text_with_delegate",
+                    KeywordFieldMapper.KeywordFieldType.builder().name("missing_kwd").build()
+                ),
                 ElementType.BYTES_REF,
                 checks::constantNulls,
                 StatusChecks::constantNullTextWithDelegate
@@ -1480,7 +1483,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         MappedFieldType intFt = mapperService.fieldType("i");
         MappedFieldType longFt = mapperService.fieldType("j");
         MappedFieldType doubleFt = mapperService.fieldType("d");
-        MappedFieldType kwFt = new KeywordFieldMapper.KeywordFieldType("kw");
+        MappedFieldType kwFt = KeywordFieldMapper.KeywordFieldType.builder().name("kw").build();
 
         NumericDocValuesField intField = new NumericDocValuesField(intFt.name(), 0);
         NumericDocValuesField longField = new NumericDocValuesField(longFt.name(), 0);

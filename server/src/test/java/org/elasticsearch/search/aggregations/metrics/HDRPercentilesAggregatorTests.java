@@ -67,7 +67,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
      */
     public void testStringField() throws IOException {
         final String fieldName = "string";
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        MappedFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name(fieldName).build();
         expectThrows(IllegalArgumentException.class, () -> testCase(new FieldExistsQuery(fieldName), iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("zwomp"))));

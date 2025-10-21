@@ -304,13 +304,13 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         boolean wrongB = wrongA == false || randomBoolean(); // at least one of the fields should have unsupported type
         MappedFieldType fieldType1;
         if (wrongA) {
-            fieldType1 = new KeywordFieldMapper.KeywordFieldType("a");
+            fieldType1 = KeywordFieldMapper.KeywordFieldType.builder().name("a").build();
         } else {
             fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
         }
         MappedFieldType fieldType2;
         if (wrongB) {
-            fieldType2 = new KeywordFieldMapper.KeywordFieldType("b");
+            fieldType2 = KeywordFieldMapper.KeywordFieldType.builder().name("b").build();
         } else {
             fieldType2 = new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER);
         }

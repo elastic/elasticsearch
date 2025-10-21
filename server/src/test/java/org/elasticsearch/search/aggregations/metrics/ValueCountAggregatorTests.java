@@ -396,7 +396,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {
         return switch (valueType) {
             case BOOLEAN -> new BooleanFieldMapper.BooleanFieldType(name);
-            case STRING -> new KeywordFieldMapper.KeywordFieldType(name);
+            case STRING -> KeywordFieldMapper.KeywordFieldType.builder().name(name).build();
             case DOUBLE -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
             case NUMBER, NUMERIC, LONG -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
             case DATE -> new DateFieldMapper.DateFieldType(name);

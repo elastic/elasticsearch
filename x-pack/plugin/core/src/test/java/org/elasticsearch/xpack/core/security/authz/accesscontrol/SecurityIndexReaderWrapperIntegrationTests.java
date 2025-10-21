@@ -79,7 +79,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MappingLookup mappingLookup = createMappingLookup(List.of(new KeywordFieldType("field")));
+        MappingLookup mappingLookup = createMappingLookup(List.of(KeywordFieldType.builder().name("field").build()));
         ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -212,7 +212,11 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MappingLookup mappingLookup = createMappingLookup(
-            List.of(new KeywordFieldType("field"), new KeywordFieldType("f1"), new KeywordFieldType("f2"))
+            List.of(
+                KeywordFieldType.builder().name("field").build(),
+                KeywordFieldType.builder().name("f1").build(),
+                KeywordFieldType.builder().name("f2").build()
+            )
         );
         ScriptService scriptService = mock(ScriptService.class);
 

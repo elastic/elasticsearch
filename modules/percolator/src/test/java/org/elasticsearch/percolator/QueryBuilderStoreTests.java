@@ -92,7 +92,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             );
             when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
-                return new KeywordFieldMapper.KeywordFieldType(fieldName);
+                return KeywordFieldMapper.KeywordFieldType.builder().name(fieldName).build();
             });
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), searchExecutionContext);
 

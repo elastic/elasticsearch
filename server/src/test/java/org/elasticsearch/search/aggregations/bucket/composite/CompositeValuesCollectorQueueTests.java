@@ -390,7 +390,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType createKeyword(String name) {
-        return new KeywordFieldMapper.KeywordFieldType(name);
+        return KeywordFieldMapper.KeywordFieldType.builder().name(name).build();
     }
 
     private static int compareKey(CompositeKey key1, CompositeKey key2) {

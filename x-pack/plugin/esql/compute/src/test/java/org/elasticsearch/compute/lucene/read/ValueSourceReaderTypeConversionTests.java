@@ -494,7 +494,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<Operator> operators = new ArrayList<>();
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         FieldCase testCase = new FieldCase(
-            new KeywordFieldMapper.KeywordFieldType("kwd"),
+            KeywordFieldMapper.KeywordFieldType.builder().name("kwd").build(),
             ElementType.BYTES_REF,
             checks::tags,
             StatusChecks::keywordsFromDocValues
@@ -1301,7 +1301,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MappedFieldType intFt = mapperService(indexKey).fieldType("i");
         MappedFieldType longFt = mapperService(indexKey).fieldType("j");
         MappedFieldType doubleFt = mapperService(indexKey).fieldType("d");
-        MappedFieldType kwFt = new KeywordFieldMapper.KeywordFieldType("kw");
+        MappedFieldType kwFt = KeywordFieldMapper.KeywordFieldType.builder().name("kw").build();
 
         NumericDocValuesField intField = new NumericDocValuesField(intFt.name(), 0);
         NumericDocValuesField longField = new NumericDocValuesField(longFt.name(), 0);

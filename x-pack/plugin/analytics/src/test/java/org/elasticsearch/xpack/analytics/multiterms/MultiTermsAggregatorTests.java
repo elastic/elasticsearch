@@ -659,7 +659,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType intType = new NumberFieldMapper.NumberFieldType(INT_FIELD, NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType floatType = new NumberFieldMapper.NumberFieldType(FLOAT_FIELD, NumberFieldMapper.NumberType.FLOAT);
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD);
+        MappedFieldType keywordType = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD).build();
         MultiTermsAggregationBuilder builder = new MultiTermsAggregationBuilder("my_terms");
         builder.terms(terms);
         if (builderSetup != null) {

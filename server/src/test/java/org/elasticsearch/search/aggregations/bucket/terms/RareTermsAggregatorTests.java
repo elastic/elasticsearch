@@ -233,7 +233,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedDocValuesField("string", new BytesRef("a")));
                 document.add(new NumericDocValuesField("long", 0L));
                 indexWriter.addDocument(document);
-                MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("another_string");
+                MappedFieldType fieldType1 = KeywordFieldMapper.KeywordFieldType.builder().name("another_string").build();
                 MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("another_long", NumberFieldMapper.NumberType.LONG);
 
                 try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {

@@ -164,7 +164,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSortingAgainstAliases() {
         IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
-        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
+        MappedFieldType aliased = KeywordFieldMapper.KeywordFieldType.builder().name("aliased").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, Map.of("field", aliased)));
         assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
     }
@@ -173,7 +173,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexSettings indexSettings = indexSettings(
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
         );
-        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
+        MappedFieldType aliased = KeywordFieldMapper.KeywordFieldType.builder().name("aliased").build();
         Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
         assertThat(sort.getSort(), arrayWithSize(1));
         assertThat(sort.getSort()[0].getField(), equalTo("aliased"));

@@ -110,7 +110,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         int minimumSetSize = randomIntBetween(2, 5);
         int size = randomIntBetween(1, 100);
         Query query = new MatchAllDocsQuery();
-        MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
+        MappedFieldType keywordType = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD1).build();
 
         List<FrequentItemSet> expectedResults = List.of(
             new FrequentItemSet(Map.of(KEYWORD_FIELD1, List.of("item-1", "item-3")), 7, 0.7),
@@ -289,9 +289,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         int size = randomIntBetween(1, 100);
 
         Query query = new MatchAllDocsQuery();
-        MappedFieldType keywordType1 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
-        MappedFieldType keywordType2 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD2);
-        MappedFieldType keywordType3 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD3);
+        MappedFieldType keywordType1 = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD1).build();
+        MappedFieldType keywordType2 = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD2).build();
+        MappedFieldType keywordType3 = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD3).build();
         MappedFieldType intType = new NumberFieldMapper.NumberFieldType(INT_FIELD, NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType floatType = new NumberFieldMapper.NumberFieldType(FLOAT_FIELD, NumberFieldMapper.NumberType.FLOAT);
         MappedFieldType ipType = new IpFieldMapper.IpFieldType(IP_FIELD);
@@ -482,9 +482,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         int size = randomIntBetween(1, 100);
 
         Query query = new MatchAllDocsQuery();
-        MappedFieldType keywordType1 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
-        MappedFieldType keywordType2 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD2);
-        MappedFieldType keywordType3 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD3);
+        MappedFieldType keywordType1 = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD1).build();
+        MappedFieldType keywordType2 = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD2).build();
+        MappedFieldType keywordType3 = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD3).build();
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
 
         // mix in an ip field, which we do not analyze

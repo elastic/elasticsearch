@@ -114,7 +114,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
 
-    private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");
+    private static final MappedFieldType STRING_FIELD_TYPE = KeywordFieldMapper.KeywordFieldType.builder().name("string").build();
 
     private Aggregation testCase(Query query, AggregationBuilder builder) throws IOException {
         Directory directory = newDirectory();

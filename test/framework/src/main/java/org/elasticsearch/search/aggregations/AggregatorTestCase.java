@@ -1465,7 +1465,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected KeywordFieldMapper.KeywordFieldType keywordField(String name) {
-        return new KeywordFieldMapper.KeywordFieldType(name);
+        return KeywordFieldMapper.KeywordFieldType.builder().name(name).build();
     }
 
     /**

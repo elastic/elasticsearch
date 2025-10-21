@@ -173,7 +173,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 return randomFrom(
-                    new KeywordFieldMapper.KeywordFieldType(name),
+                    KeywordFieldMapper.KeywordFieldType.builder().name(name).build(),
                     new NumberFieldMapper.NumberFieldType(name, randomFrom(NumberFieldMapper.NumberType.values()))
                 );
             }

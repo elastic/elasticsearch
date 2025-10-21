@@ -85,7 +85,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             );
             var inputTerms = makeTermsBlock(List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of()))
         ) {
-            MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
+            MappedFieldType uidField = KeywordFieldMapper.KeywordFieldType.builder().name("uid").build();
             QueryList queryList = QueryList.rawTermQueryList(uidField, directoryData.searchExecutionContext, AliasFilter.EMPTY, inputTerms);
             assertThat(queryList.getPositionCount(), equalTo(6));
             assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
@@ -278,7 +278,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             var directoryReader = DirectoryReader.open(writer);
             var indexSearcher = newSearcher(directoryReader);
             var searchExecutionContext = mock(SearchExecutionContext.class);
-            var field = new KeywordFieldMapper.KeywordFieldType("uid");
+            var field = KeywordFieldMapper.KeywordFieldType.builder().name("uid").build();
             var fieldDataContext = FieldDataContext.noRuntimeFields("test");
             var indexFieldData = field.fielddataBuilder(fieldDataContext)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());

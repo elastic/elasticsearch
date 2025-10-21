@@ -118,7 +118,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     }
 
     public void testParentChildAsSubAgg() throws IOException {
-        MappedFieldType kwd = new KeywordFieldMapper.KeywordFieldType("kwd", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType kwd = KeywordFieldMapper.KeywordFieldType.builder().name("kwd").isIndexed(randomBoolean()).build();
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
 
@@ -192,7 +192,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     aggregationBuilder.subAggregation(termsAggregationBuilder);
 
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-                    var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
+                    var fieldType2 = KeywordFieldMapper.KeywordFieldType.builder().name("string_field").isIndexed(false).build();
                     var e = expectThrows(RuntimeException.class, () -> {
                         searchAndReduce(
                             indexReader,
@@ -223,7 +223,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     aggregationBuilder.subAggregation(termsAggregationBuilder);
 
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-                    var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
+                    var fieldType2 = KeywordFieldMapper.KeywordFieldType.builder().name("string_field").isIndexed(false).build();
                     InternalChildren result = searchAndReduce(
                         indexReader,
                         new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(

@@ -3284,7 +3284,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             private static final String FIELD_NAME = "_mock_metadata";
 
             protected MockMetadataMapper() {
-                super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+                super(KeywordFieldMapper.KeywordFieldType.builder().name(FIELD_NAME).build());
             }
 
             @Override

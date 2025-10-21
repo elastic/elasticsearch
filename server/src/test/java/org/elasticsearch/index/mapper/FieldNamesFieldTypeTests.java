@@ -28,7 +28,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
         FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
+        KeywordFieldMapper.KeywordFieldType fieldType = KeywordFieldMapper.KeywordFieldType.builder().name("field_name").build();
 
         Settings settings = settings(IndexVersion.current()).build();
         IndexSettings indexSettings = new IndexSettings(

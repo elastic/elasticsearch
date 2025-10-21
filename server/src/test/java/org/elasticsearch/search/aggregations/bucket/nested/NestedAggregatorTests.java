@@ -413,7 +413,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("num_pages", NumberFieldMapper.NumberType.LONG);
-                MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("author");
+                MappedFieldType fieldType2 = KeywordFieldMapper.KeywordFieldType.builder().name("author").build();
 
                 TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(ValueType.STRING)
                     .field("author")
@@ -547,7 +547,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             });
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("num_pages", NumberFieldMapper.NumberType.LONG);
-                MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("author");
+                MappedFieldType fieldType2 = KeywordFieldMapper.KeywordFieldType.builder().name("author").build();
 
                 TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(ValueType.STRING)
                     .size(books.size())
@@ -651,8 +651,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 FilterAggregationBuilder filterAggregationBuilder = new FilterAggregationBuilder("filterAgg", new MatchAllQueryBuilder());
                 filterAggregationBuilder.subAggregation(nestedBuilder);
 
-                MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("key");
-                MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("value");
+                MappedFieldType fieldType1 = KeywordFieldMapper.KeywordFieldType.builder().name("key").build();
+                MappedFieldType fieldType2 = KeywordFieldMapper.KeywordFieldType.builder().name("value").build();
 
                 SingleBucketAggregation filter = searchAndReduce(
                     indexReader,

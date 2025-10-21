@@ -203,7 +203,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final DummyEnumType restrictedEnumField;
 
         protected TestMapper(String simpleName, String fullName, BuilderParams builderParams, ParametrizedMapperTests.Builder builder) {
-            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), builderParams);
+            super(simpleName, KeywordFieldMapper.KeywordFieldType.builder().name(fullName).build(), builderParams);
             this.fixed = builder.fixed.getValue();
             this.fixed2 = builder.fixed2.getValue();
             this.variable = builder.variable.getValue();

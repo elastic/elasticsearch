@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 
 public class SingleDimensionValuesSourceTests extends ESTestCase {
     public void testBinarySorted() {
-        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
+        MappedFieldType keyword = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
         BinaryValuesSource source = new BinaryValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             (b) -> {},
@@ -94,7 +94,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
     }
 
     public void testGlobalOrdinalsSorted() {
-        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType keyword = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
         GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
             keyword,

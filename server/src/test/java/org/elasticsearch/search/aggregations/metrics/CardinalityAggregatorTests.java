@@ -274,7 +274,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testSingleValuedString() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
@@ -290,7 +290,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testIndexedSingleValuedString() throws IOException {
         // Indexing enables dynamic pruning optimizations
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(
@@ -352,7 +352,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         // aggregation with minimum precision so we don't need to generate too many distinct values
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value")
             .precisionThreshold(1);
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         // range big enough that will force force promotion to HHL the time to time
         final BytesRef[] differentValues = new BytesRef[randomIntBetween(10, 30)];
@@ -434,7 +434,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testSingleValuedStringValueScript() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
@@ -451,7 +451,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").script(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, "doc['str_value'].value", emptyMap())
         );
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
@@ -468,7 +468,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").script(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, "doc['str_values']", emptyMap())
         );
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_values").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
@@ -510,7 +510,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testMultiValuedStringValueScript() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_values").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
@@ -551,7 +551,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testMultiValuedString() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_values").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
@@ -593,7 +593,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testIndexedMultiValuedString() throws IOException {
         // Indexing enables dynamic pruning optimizations
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_values").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(
@@ -670,7 +670,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testIndexedAllDifferentValues() throws IOException {
         // Indexing enables testing of ordinal values
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_values").build();
         int docs = randomIntBetween(50, 100);
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
 
@@ -852,7 +852,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testAsSubAggregation() throws IOException {
         final MappedFieldType mappedFieldTypes[] = {
-            new KeywordFieldMapper.KeywordFieldType("str_value"),
+            KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build(),
             new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG) };
 
         final AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").field("str_value")
@@ -895,7 +895,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     public void testIndexedWithMissingValues() throws IOException {
         // Indexing enables dynamic pruning optimizations
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(Collections.emptySet());
@@ -940,7 +940,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         // Indexing enables dynamic pruning optimizations
         // Fields with more than 128 unique values exercise slightly different code paths
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final MappedFieldType mappedFieldTypes = KeywordFieldMapper.KeywordFieldType.builder().name("str_value").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 200; ++i) {

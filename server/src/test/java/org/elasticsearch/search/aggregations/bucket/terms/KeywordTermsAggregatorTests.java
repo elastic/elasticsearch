@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -98,7 +97,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         ValueType valueType
     ) throws IOException {
         boolean indexed = randomBoolean();
-        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, indexed, true, Collections.emptyMap());
+        MappedFieldType keywordFieldType = KeywordFieldMapper.KeywordFieldType.builder().name(KEYWORD_FIELD).isIndexed(indexed).build();
         FieldType luceneFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
         if (indexed == false) {
             luceneFieldType.setIndexOptions(IndexOptions.NONE);

@@ -70,7 +70,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                 }
             }
             Map<String, Integer> counts = new HashMap<>();
-            var keywordField = new KeywordFieldMapper.KeywordFieldType("f");
+            var keywordField = KeywordFieldMapper.KeywordFieldType.builder().name("f").build();
             var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
             var blockFactory = new ComputeBlockLoaderFactory(factory);
             try (IndexReader reader = indexWriter.getReader()) {
@@ -220,7 +220,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             for (int i = 0; i < values.length; i++) {
                 starts[i + 1] = starts[i] + counts[i];
             }
-            var keywordField = new KeywordFieldMapper.KeywordFieldType("f");
+            var keywordField = KeywordFieldMapper.KeywordFieldType.builder().name("f").build();
             var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
             var blockFactory = new ComputeBlockLoaderFactory(blockFactory());
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {

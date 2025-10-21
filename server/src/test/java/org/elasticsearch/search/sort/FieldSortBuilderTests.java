@@ -343,11 +343,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(MAPPED_STRING_FIELDNAME)) {
-            return new KeywordFieldMapper.KeywordFieldType(name);
+            return KeywordFieldMapper.KeywordFieldType.builder().name(name).build();
         } else if (name.startsWith("custom-")) {
             final MappedFieldType fieldType;
             if (name.startsWith("custom-keyword")) {
-                fieldType = new KeywordFieldMapper.KeywordFieldType(name);
+                fieldType = KeywordFieldMapper.KeywordFieldType.builder().name(name).build();
             } else if (name.startsWith("custom-date")) {
                 fieldType = new DateFieldMapper.DateFieldType(name);
             } else {

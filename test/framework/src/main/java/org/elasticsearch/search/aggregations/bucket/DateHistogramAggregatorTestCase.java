@@ -90,8 +90,8 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex,
         Consumer<R> verify
     ) throws IOException {
-        KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType("k1");
-        KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
+        KeywordFieldMapper.KeywordFieldType k1ft = KeywordFieldMapper.KeywordFieldType.builder().name("k1").build();
+        KeywordFieldMapper.KeywordFieldType k2ft = KeywordFieldMapper.KeywordFieldType.builder().name("k2").build();
         NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
         testCase(iw -> buildIndex.accept(iw, dft), verify, new AggTestConfig(builder, k1ft, k2ft, nft, dft));

@@ -148,7 +148,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static TextSearchInfo textSearchInfo(
+    public static TextSearchInfo textSearchInfo(
         FieldType fieldType,
         @Nullable SimilarityProvider similarity,
         NamedAnalyzer searchAnalyzer,
@@ -442,15 +442,25 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension(true);
             }
-            return new KeywordFieldType(
-                context.buildFullName(leafName()),
-                fieldType,
-                normalizer,
-                searchAnalyzer,
-                quoteAnalyzer,
-                this,
-                context.isSourceSynthetic()
-            );
+
+            return KeywordFieldType.builder()
+                .name(context.buildFullName(leafName()))
+                .isIndexed(fieldType.indexOptions() != IndexOptions.NONE && indexCreatedVersion.isLegacyIndexVersion() == false)
+                .isStored(fieldType.stored())
+                .hasDocValues(hasDocValues.getValue())
+                .textSearchInfo(textSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, quoteAnalyzer))
+                .meta(meta.getValue())
+                .isSyntheticSourceEnabled(context.isSourceSynthetic())
+                .isWithinMultiField(isWithinMultiField)
+                .eagerGlobalOrdinals(eagerGlobalOrdinals.getValue())
+                .normalizer(normalizer)
+                .ignoreAbove(new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion))
+                .nullValue(nullValue.getValue())
+                .scriptValues(scriptValues())
+                .isDimension(dimension.getValue())
+                .indexSortConfig(indexSortConfig)
+                .hasDocValuesSkipper(DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false)
+                .build();
         }
 
         @Override
@@ -544,8 +554,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends TextFamilyFieldType {
 
-        private static final IgnoreAbove IGNORE_ABOVE_DEFAULT = new IgnoreAbove(null, IndexMode.STANDARD);
-
         private final IgnoreAbove ignoreAbove;
         private final String nullValue;
         private final NamedAnalyzer normalizer;
@@ -555,13 +563,44 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexSortConfig indexSortConfig;
         private final boolean hasDocValuesSkipper;
 
+        private KeywordFieldType(
+            String name,
+            boolean isIndexed,
+            boolean isStored,
+            boolean hasDocValues,
+            TextSearchInfo textSearchInfo,
+            Map<String, String> meta,
+            boolean isSyntheticSourceEnabled,
+            boolean isWithinMultiField,
+            IgnoreAbove ignoreAbove,
+            String nullValue,
+            NamedAnalyzer normalizer,
+            boolean eagerGlobalOrdinals,
+            FieldValues<String> scriptValues,
+            boolean isDimension,
+            IndexSortConfig indexSortConfig,
+            boolean hasDocValuesSkipper
+        ) {
+            super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta, isSyntheticSourceEnabled, isWithinMultiField);
+            this.ignoreAbove = ignoreAbove;
+            this.nullValue = nullValue;
+            this.normalizer = normalizer;
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            this.scriptValues = scriptValues;
+            this.isDimension = isDimension;
+            this.indexSortConfig = indexSortConfig;
+            this.hasDocValuesSkipper = hasDocValuesSkipper;
+        }
+
+        // this constructor shouldn't be used, and is only kept around for BWC sake as removing it is too difficult
+        // going forward, use KeywordFieldType.Builder
         public KeywordFieldType(
             String name,
             FieldType fieldType,
             NamedAnalyzer normalizer,
             NamedAnalyzer searchAnalyzer,
             NamedAnalyzer quoteAnalyzer,
-            Builder builder,
+            KeywordFieldMapper.Builder builder,
             boolean isSyntheticSource
         ) {
             super(
@@ -582,64 +621,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = builder.dimension.getValue();
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
-        }
-
-        public KeywordFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
-        }
-
-        public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta, false, false);
-            this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
-            this.nullValue = null;
-            this.eagerGlobalOrdinals = false;
-            this.scriptValues = null;
-            this.isDimension = false;
-            this.indexSortConfig = null;
-            this.hasDocValuesSkipper = false;
-        }
-
-        public KeywordFieldType(String name, FieldType fieldType) {
-            super(
-                name,
-                fieldType.indexOptions() != IndexOptions.NONE,
-                false,
-                false,
-                textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Collections.emptyMap(),
-                false,
-                false
-            );
-            this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
-            this.nullValue = null;
-            this.eagerGlobalOrdinals = false;
-            this.scriptValues = null;
-            this.isDimension = false;
-            this.indexSortConfig = null;
-            this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
-        }
-
-        public KeywordFieldType(String name, NamedAnalyzer analyzer) {
-            super(
-                name,
-                true,
-                false,
-                true,
-                textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer),
-                Collections.emptyMap(),
-                false,
-                false
-            );
-            this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
-            this.nullValue = null;
-            this.eagerGlobalOrdinals = false;
-            this.scriptValues = null;
-            this.isDimension = false;
-            this.indexSortConfig = null;
-            this.hasDocValuesSkipper = false;
         }
 
         @Override
@@ -1102,6 +1083,152 @@ public final class KeywordFieldMapper extends FieldMapper {
             String description
         ) {
             return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+
+            // fields that are passed into super()
+            private String name;
+            private boolean isIndexed = true;
+            private boolean isStored = false;
+            private boolean hasDocValues = true;
+            private TextSearchInfo textSearchInfo = TextSearchInfo.SIMPLE_MATCH_ONLY;
+            private Map<String, String> meta = Collections.emptyMap();
+            private boolean isSyntheticSourceEnabled = false;
+            private boolean isWithinMultiField = false;
+
+            // fields defined in KeywordFieldType
+            private IgnoreAbove ignoreAbove = new IgnoreAbove(null, IndexMode.STANDARD);
+            private NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
+            private String nullValue = null;
+            private boolean eagerGlobalOrdinals = false;
+            private FieldValues<String> scriptValues = null;
+            private boolean isDimension = false;
+            private IndexSortConfig indexSortConfig = null;
+            private boolean hasDocValuesSkipper = false;
+
+            private Builder() {}
+
+            public Builder name(String name) {
+                this.name = name;
+                return this;
+            }
+
+            public Builder isIndexed(boolean isIndexed) {
+                this.isIndexed = isIndexed;
+                return this;
+            }
+
+            public Builder isStored(boolean isStored) {
+                this.isStored = isStored;
+                return this;
+            }
+
+            public Builder hasDocValues(boolean hasDocValues) {
+                this.hasDocValues = hasDocValues;
+                return this;
+            }
+
+            public Builder textSearchInfo(TextSearchInfo textSearchInfo) {
+                this.textSearchInfo = textSearchInfo;
+                return this;
+            }
+
+            public Builder meta(Map<String, String> meta) {
+                this.meta = meta;
+                return this;
+            }
+
+            // bwc for tests, hence reduced visibility
+            Builder analyzer(NamedAnalyzer analyzer) {
+                this.textSearchInfo = KeywordFieldMapper.textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer);
+                return this;
+            }
+
+            // bwc for tests, hence reduced visibility
+            Builder fieldType(FieldType fieldType) {
+                this.isIndexed = fieldType.indexOptions() != IndexOptions.NONE;
+                this.hasDocValues = false;
+                this.textSearchInfo = KeywordFieldMapper.textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+                return this;
+            }
+
+            public Builder isSyntheticSourceEnabled(boolean isSyntheticSourceEnabled) {
+                this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+                return this;
+            }
+
+            public Builder isWithinMultiField(boolean isWithinMultiField) {
+                this.isWithinMultiField = isWithinMultiField;
+                return this;
+            }
+
+            public Builder ignoreAbove(IgnoreAbove ignoreAbove) {
+                this.ignoreAbove = ignoreAbove;
+                return this;
+            }
+
+            public Builder nullValue(String nullValue) {
+                this.nullValue = nullValue;
+                return this;
+            }
+
+            public Builder normalizer(NamedAnalyzer normalizer) {
+                this.normalizer = normalizer;
+                return this;
+            }
+
+            public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+                this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+                return this;
+            }
+
+            public Builder scriptValues(FieldValues<String> scriptValues) {
+                this.scriptValues = scriptValues;
+                return this;
+            }
+
+            public Builder isDimension(boolean isDimension) {
+                this.isDimension = isDimension;
+                return this;
+            }
+
+            public Builder indexSortConfig(IndexSortConfig indexSortConfig) {
+                this.indexSortConfig = indexSortConfig;
+                return this;
+            }
+
+            public Builder hasDocValuesSkipper(boolean hasDocValuesSkipper) {
+                this.hasDocValuesSkipper = hasDocValuesSkipper;
+                return this;
+            }
+
+            public KeywordFieldType build() {
+                Objects.requireNonNull(name);
+                return new KeywordFieldType(
+                    name,
+                    isIndexed,
+                    isStored,
+                    hasDocValues,
+                    textSearchInfo,
+                    meta,
+                    isSyntheticSourceEnabled,
+                    isWithinMultiField,
+                    ignoreAbove,
+                    nullValue,
+                    normalizer,
+                    eagerGlobalOrdinals,
+                    scriptValues,
+                    isDimension,
+                    indexSortConfig,
+                    hasDocValuesSkipper
+                );
+            }
+
         }
     }
 

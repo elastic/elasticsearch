@@ -182,18 +182,18 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`"
             );
 
-            MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field");
+            MappedFieldType keywordFieldType = KeywordFieldMapper.KeywordFieldType.builder().name("field").build();
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
             CollapseBuilder kbuilder = new CollapseBuilder("field");
             collapseContext = kbuilder.build(searchExecutionContext);
             assertEquals(collapseContext.getFieldType(), keywordFieldType);
 
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", true, false, Collections.emptyMap());
+            keywordFieldType = KeywordFieldMapper.KeywordFieldType.builder().name("field").hasDocValues(false).build();
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
             exc = expectThrows(IllegalArgumentException.class, () -> kbuilder.build(searchExecutionContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
+            keywordFieldType = KeywordFieldMapper.KeywordFieldType.builder().name("field").isIndexed(false).build();
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
             kbuilder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));

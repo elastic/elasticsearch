@@ -136,12 +136,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void setUp() throws Exception {
         super.setUp();
         FIELD_TYPES = new MappedFieldType[9];
-        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
+        FIELD_TYPES[0] = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
         FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
         FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
         FIELD_TYPES[3] = new DateFieldMapper.DateFieldType("date", DateFormatter.forPattern("yyyy-MM-dd||epoch_millis"));
         FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
-        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
+        FIELD_TYPES[5] = KeywordFieldMapper.KeywordFieldType.builder().name("terms").build();
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
         FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
         FIELD_TYPES[8] = TimeSeriesIdFieldMapper.FIELD_TYPE;
@@ -824,7 +824,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 builder,
-                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+                KeywordFieldMapper.KeywordFieldType.builder().name(nestedPath + "." + leafNameField).build(),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
             ).withLogDocMergePolicy()
         );
@@ -879,7 +879,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         },
             new AggTestConfig(
                 builder,
-                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+                KeywordFieldMapper.KeywordFieldType.builder().name(nestedPath + "." + leafNameField).build(),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
             ).withLogDocMergePolicy()
         );
@@ -3289,8 +3289,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             "name",
             List.of(new TermsValuesSourceBuilder("leading").field("keyword").missingBucket(true))
         ).size(2);
-        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
-        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+        final MappedFieldType keywordMapping = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
+        final MappedFieldType fooMapping = KeywordFieldMapper.KeywordFieldType.builder().name("foo").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 1; i <= 100; i++) {
@@ -3329,8 +3329,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             "name",
             List.of(new TermsValuesSourceBuilder("leading").field("keyword").missingBucket(true))
         ).size(13); // We need a size that is more than 1/8 of the total count.
-        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
-        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+        final MappedFieldType keywordMapping = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
+        final MappedFieldType fooMapping = KeywordFieldMapper.KeywordFieldType.builder().name("foo").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 1; i <= 100; i++) {
@@ -3364,8 +3364,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             "name",
             List.of(new TermsValuesSourceBuilder("leading").field("keyword"))
         ).size(2);
-        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
-        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+        final MappedFieldType keywordMapping = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
+        final MappedFieldType fooMapping = KeywordFieldMapper.KeywordFieldType.builder().name("foo").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 1; i <= 100; i++) {
@@ -3432,8 +3432,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             "name",
             List.of(new TermsValuesSourceBuilder("leading").field("keyword").order(SortOrder.DESC))
         ).size(2);
-        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
-        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+        final MappedFieldType keywordMapping = KeywordFieldMapper.KeywordFieldType.builder().name("keyword").build();
+        final MappedFieldType fooMapping = KeywordFieldMapper.KeywordFieldType.builder().name("foo").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 1; i <= 100; i++) {
@@ -3504,9 +3504,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 new TermsValuesSourceBuilder("secondary_keyword").field("secondary_keyword")
             )
         ).size(2);
-        final MappedFieldType leadingKeywordMapping = new KeywordFieldMapper.KeywordFieldType("leading_keyword");
-        final MappedFieldType secondaryKeywordMapping = new KeywordFieldMapper.KeywordFieldType("secondary_keyword");
-        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+        final MappedFieldType leadingKeywordMapping = KeywordFieldMapper.KeywordFieldType.builder().name("leading_keyword").build();
+        final MappedFieldType secondaryKeywordMapping = KeywordFieldMapper.KeywordFieldType.builder().name("secondary_keyword").build();
+        final MappedFieldType fooMapping = KeywordFieldMapper.KeywordFieldType.builder().name("foo").build();
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 1; i <= 100; i++) {

@@ -70,7 +70,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
 
     public void testScript() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number_field", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("the_field");
+        MappedFieldType fieldType1 = KeywordFieldMapper.KeywordFieldType.builder().name("the_field").build();
 
         FiltersAggregationBuilder filters = new FiltersAggregationBuilder("placeholder", new MatchAllQueryBuilder()).subAggregation(
             new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
@@ -106,7 +106,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
 
     public void testNonMultiBucketParent() {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number_field", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("the_field");
+        MappedFieldType fieldType1 = KeywordFieldMapper.KeywordFieldType.builder().name("the_field").build();
 
         FilterAggregationBuilder filter = new FilterAggregationBuilder("placeholder", new MatchAllQueryBuilder()).subAggregation(
             new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)

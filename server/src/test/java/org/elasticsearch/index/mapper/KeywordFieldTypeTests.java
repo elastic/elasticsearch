@@ -58,7 +58,6 @@ import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -68,7 +67,7 @@ import static org.mockito.Mockito.mock;
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType("field", randomBoolean(), randomBoolean(), Map.of());
+        KeywordFieldType ft = KeywordFieldType.builder().name("field").isIndexed(randomBoolean()).hasDocValues(randomBoolean()).build();
         // current impl ignores args and should always return INTERSECTS
         assertEquals(
             Relation.INTERSECTS,
@@ -86,13 +85,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_CONTEXT));
 
-        MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
+        MappedFieldType ft2 = KeywordFieldType.builder().name("field").isIndexed(false).build();
         assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = KeywordFieldType.builder().name("field").isIndexed(false).hasDocValues(false).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
@@ -111,19 +110,22 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                 return new LowerCaseFilter(in);
             }
         };
-        MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
+        MappedFieldType ft = KeywordFieldType.builder()
+            .name("field")
+            .analyzer(new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer))
+            .build();
         assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", MOCK_CONTEXT));
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         List<BytesRef> terms = List.of(new BytesRef("foo"), new BytesRef("bar"));
         assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
-        MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
+        MappedFieldType ft2 = KeywordFieldType.builder().name("field").isIndexed(false).build();
         assertEquals(SortedSetDocValuesField.newSlowSetQuery("field", terms), ft2.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = KeywordFieldType.builder().name("field").isIndexed(false).hasDocValues(false).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT)
@@ -133,35 +135,35 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testExistsQuery() {
         {
-            KeywordFieldType ft = new KeywordFieldType("field");
+            KeywordFieldType ft = KeywordFieldType.builder().name("field").build();
             assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
         }
         {
-            KeywordFieldType ft = new KeywordFieldType("field", false, true, Map.of());
+            KeywordFieldType ft = KeywordFieldType.builder().name("field").isIndexed(false).build();
             assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
+            KeywordFieldType ft = KeywordFieldType.builder().name("field").fieldType(fieldType).build();
             // updated in #130531 so that a field that is neither indexed nor has doc values will generate a TermQuery
             // to avoid ISE from FieldExistsQuery
             assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
         }
         {
-            KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+            KeywordFieldType ft = KeywordFieldType.builder().name("field").hasDocValues(false).build();
             assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
         }
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         assertEquals(
             new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
             ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 
-        MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
+        MappedFieldType ft2 = KeywordFieldType.builder().name("field").isIndexed(false).build();
         assertEquals(
             SortedSetDocValuesField.newSlowRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
             ft2.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
@@ -178,10 +180,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = KeywordFieldType.builder().name("field").isIndexed(false).hasDocValues(false).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
@@ -196,13 +198,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         assertEquals(
             new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        MappedFieldType unsearchable = KeywordFieldType.builder().name("field").isIndexed(false).hasDocValues(false).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
@@ -224,9 +226,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testNormalizeQueries() {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
-        ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
+
+        ft = KeywordFieldType.builder().name("field").analyzer(Lucene.STANDARD_ANALYZER).build();
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
     }
 
@@ -267,7 +270,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testGetTerms() throws IOException {
-        MappedFieldType ft = new KeywordFieldType("field");
+        MappedFieldType ft = KeywordFieldType.builder().name("field").build();
         try (Directory dir = newDirectory()) {
             RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
             for (int i = 0; i < 20; i++) {
@@ -314,16 +317,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
-
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertTrue(fieldType.ignoreAbove().isSet());
@@ -347,15 +341,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
         builder.ignoreAbove(123);
 
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertTrue(fieldType.ignoreAbove().isSet());
@@ -377,16 +363,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
-
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertFalse(fieldType.ignoreAbove().isSet());
@@ -410,15 +387,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
         builder.ignoreAbove(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE);
 
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertFalse(fieldType.ignoreAbove().isSet());
@@ -442,15 +411,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
         builder.ignoreAbove(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES);
 
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertFalse(fieldType.ignoreAbove().isSet());
@@ -474,15 +435,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
         builder.ignoreAbove(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES);
 
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertTrue(fieldType.ignoreAbove().isSet());
@@ -506,15 +459,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", mappingParserContext);
 
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
-            "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
-            builder,
-            true
-        );
+        KeywordFieldMapper.KeywordFieldType fieldType = builder.build(MapperBuilderContext.root(true, false)).fieldType();
 
         // when/then
         assertTrue(fieldType.ignoreAbove().isSet());
@@ -523,16 +468,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIgnoreAboveIsSetReturnsFalseForNonPrimaryConstructor() {
         // given
-        KeywordFieldType fieldType1 = new KeywordFieldType("field");
-        KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class));
-        KeywordFieldType fieldType3 = new KeywordFieldType("field", true, true, Collections.emptyMap());
-        KeywordFieldType fieldType4 = new KeywordFieldType("field", mock(NamedAnalyzer.class));
+        KeywordFieldType fieldType1 = KeywordFieldType.builder().name("field").build();
+        KeywordFieldType fieldType2 = KeywordFieldType.builder().name("field").fieldType(mock(FieldType.class)).build();
+        KeywordFieldType fieldType3 = KeywordFieldType.builder().name("field").analyzer(mock(NamedAnalyzer.class)).build();
 
         // when/then
         assertFalse(fieldType1.ignoreAbove().isSet());
         assertFalse(fieldType2.ignoreAbove().isSet());
         assertFalse(fieldType3.ignoreAbove().isSet());
-        assertFalse(fieldType4.ignoreAbove().isSet());
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {

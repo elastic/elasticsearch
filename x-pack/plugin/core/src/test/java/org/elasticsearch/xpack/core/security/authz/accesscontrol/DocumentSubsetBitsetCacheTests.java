@@ -629,9 +629,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         List<FieldMapper> types = new ArrayList<>();
         for (int i = 0; i < 11; i++) { // the tests use fields 1 to 10.
             // This field has a value.
-            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("field-" + i)));
+            types.add(new MockFieldMapper(KeywordFieldMapper.KeywordFieldType.builder().name("field-" + i).build()));
             // This field never has a value
-            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
+            types.add(new MockFieldMapper(KeywordFieldMapper.KeywordFieldType.builder().name("dne-" + i).build()));
         }
 
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of());

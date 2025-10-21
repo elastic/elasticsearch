@@ -86,6 +86,12 @@ public class ExponentialHistogramQuantile {
      * @return the number of elements less than (or less-or-equal, if {@code inclusive} is true) the given value
      */
     public static long estimateRank(ExponentialHistogram histo, double value, boolean inclusive) {
+        if (value < histo.min()) {
+            return 0;
+        }
+        if (value > histo.max()) {
+            return 1;
+        }
         if (value >= 0) {
             long rank = histo.negativeBuckets().valueCount();
             if (value > 0 || inclusive) {

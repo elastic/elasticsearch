@@ -579,6 +579,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
   method: testEvalWithScoreImplicitLimit
   issue: https://github.com/elastic/elasticsearch/issues/136921
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/136061
 
 # Examples:
 #

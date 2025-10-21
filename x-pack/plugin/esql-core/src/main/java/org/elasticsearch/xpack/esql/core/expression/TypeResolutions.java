@@ -213,6 +213,18 @@ public final class TypeResolutions {
         boolean allowUnionTypes,
         String... acceptedTypes
     ) {
+        return isType(e, predicate, null, operationName, paramOrd, allowUnionTypes, acceptedTypes);
+    }
+
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String errorMessagePrefix,
+        String operationName,
+        ParamOrdinal paramOrd,
+        boolean allowUnionTypes,
+        String... acceptedTypes
+    ) {
         if (predicate.test(e.dataType()) || e.dataType() == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
@@ -226,11 +238,12 @@ public final class TypeResolutions {
         }
 
         return new TypeResolution(
-            errorStringIncompatibleTypes(operationName, paramOrd, name(e), e.dataType(), acceptedTypesForErrorMsg(acceptedTypes))
+            errorStringIncompatibleTypes(errorMessagePrefix, operationName, paramOrd, name(e), e.dataType(), acceptedTypesForErrorMsg(acceptedTypes))
         );
     }
 
     private static String errorStringIncompatibleTypes(
+        String errorMessagePrefix,
         String operationName,
         ParamOrdinal paramOrd,
         String argumentName,
@@ -238,7 +251,7 @@ public final class TypeResolutions {
         String... acceptedTypes
     ) {
         return format(
-            null,
+            errorMessagePrefix,
             "{}argument of [{}] must be [{}], found value [{}] type [{}]",
             paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
             operationName,

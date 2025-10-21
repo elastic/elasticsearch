@@ -77,7 +77,7 @@ public class DownsampleConfigTests extends AbstractXContentSerializingTestCase<D
     }
 
     public void testEmptyTimezone() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         assertEquals("UTC", config.getTimeZone());
     }
 

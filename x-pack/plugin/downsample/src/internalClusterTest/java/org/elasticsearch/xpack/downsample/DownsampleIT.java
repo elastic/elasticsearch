@@ -277,7 +277,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
         );
 
-        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval));
+        DownsampleConfig downsampleConfig = new DownsampleConfig(new DateHistogramInterval(interval), randomSamplingMethod());
         assertAcked(
             client().execute(
                 DownsampleAction.INSTANCE,
@@ -353,7 +353,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                         new ColumnInfoImpl("@timestamp", "date", null),
                         new ColumnInfoImpl("host", "keyword", null),
                         new ColumnInfoImpl("cluster", "keyword", null),
-                        new ColumnInfoImpl("cpu", "unsupported", List.of("aggregate_metric_double", "double")),
+                        downsampleConfig.getSamplingMethodOrDefault() == DownsampleConfig.SamplingMethod.LAST_VALUE
+                            ? new ColumnInfoImpl("cpu", "double", null)
+                            : new ColumnInfoImpl("cpu", "unsupported", List.of("aggregate_metric_double", "double")),
                         new ColumnInfoImpl("request", "counter_double", null)
                     )
                 )

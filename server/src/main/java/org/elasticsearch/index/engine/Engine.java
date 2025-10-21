@@ -1548,7 +1548,9 @@ public abstract class Engine implements Closeable {
 
     /**
      * Checks whether any segments would be merged with the specified {@code maxNumSegments} and {@code onlyExpungeDeletes}.
-     * Returns true if no segments would be merged and a force-merge request can be considered a no-op.
+     * Returns {@code true} if no segments would be merged and a force-merge request can be considered a no-op.
+     * It is optimistic in the sense that it only returns {@code true} under "trivial" conditions (i.e. no concurrent merges or incoming
+     * docs) where it can guarantee that no segments would be merged. In all other cases it returns {@code false}.
      */
     public abstract boolean isForceMergeOptimisticallyNoOp(int maxNumSegments, boolean onlyExpungeDeletes) throws IOException;
 

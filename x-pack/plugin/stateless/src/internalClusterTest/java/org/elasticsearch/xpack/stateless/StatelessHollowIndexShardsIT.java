@@ -100,6 +100,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -2237,7 +2238,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 5) // so that relocations are fast in case of replaying translog
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
-        String searchNode = startSearchNode();
+        startSearchNode();
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(numOfShards, 1).build());
@@ -2245,7 +2246,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var index = resolveIndex(indexName);
 
         int docs0 = randomIntBetween(16, 128);
-        indexDocs(indexName, docs0);
+        final var docIdNumber = new AtomicLong(0);
+        final Supplier<String> docIdSupplier = () -> "doc-" + docIdNumber.getAndIncrement();
+        indexDocs(indexName, docs0, docIdSupplier);
         flush(indexName);
 
         var threads = new ArrayList<Thread>();
@@ -2344,7 +2347,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             logger.info("exiting");
         }, "RelocDriver"));
 
-        Queue<String> insertedDocs = new ConcurrentLinkedQueue<>();
+        Queue<String> subetOfInsertedDocs = new ConcurrentLinkedQueue<>();
         int numIndexingThreads = randomIntBetween(2, 4);
         var insertedDocsCount = new AtomicLong(docs0);
         for (int i = 0; i < numIndexingThreads; i++) {
@@ -2354,13 +2357,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     // shards to become hollowable.
                     safeSleep(randomLongBetween(10, 100));
                     int docs = numOfShards / numIndexingThreads;
-                    var bulkResponse = indexDocs(indexName, docs);
+                    var bulkResponse = indexDocs(indexName, docs, docIdSupplier);
                     insertedDocsCount.addAndGet(Arrays.stream(bulkResponse.getItems()).filter(r -> r.isFailed() == false).count());
                     final var validIds = Arrays.stream(bulkResponse.getItems())
                         .filter(r -> r.isFailed() == false)
                         .map(e -> e.getId())
                         .toList();
-                    insertedDocs.addAll(randomSubsetOf(validIds));
+                    final var someInsertedDocs = randomSubsetOf(validIds);
+                    subetOfInsertedDocs.addAll(someInsertedDocs);
                     switch (randomInt(2)) {
                         case 0:
                             try {
@@ -2419,10 +2423,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             threads.add(new Thread(() -> {
                 while (stopThreads.get() == false) {
                     safeSleep(randomLongBetween(0, 100));
-                    if (insertedDocs.isEmpty()) {
+                    if (subetOfInsertedDocs.isEmpty()) {
                         continue;
                     }
-                    List<String> docIds = randomSubsetOf(Math.min(8, insertedDocs.size()), insertedDocs);
+                    List<String> docIds = randomSubsetOf(Math.min(8, subetOfInsertedDocs.size()), subetOfInsertedDocs);
                     try {
                         if (randomBoolean()) {
                             var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
@@ -2453,10 +2457,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         threads.add(new Thread(() -> {
             while (stopThreads.get() == false) {
                 safeSleep(randomLongBetween(0, 100));
-                if (insertedDocs.isEmpty()) {
+                if (subetOfInsertedDocs.isEmpty()) {
                     continue;
                 }
-                List<String> docIds = randomSubsetOf(Math.min(insertedDocs.size(), 64), insertedDocs);
+                List<String> docIds = randomSubsetOf(Math.min(subetOfInsertedDocs.size(), 64), subetOfInsertedDocs);
                 if (docIds.isEmpty()) {
                     continue;
                 }
@@ -2556,6 +2560,13 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         doTestStress(false, false);
     }
 
+    @TestLogging(
+        reason = "https://github.com/elastic/elasticsearch-serverless/issues/4715",
+        value = "co.elastic.elasticsearch.stateless.commits.HollowShardsService:trace,"
+            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:trace,"
+            + "org.elasticsearch.index.shard.IndexShard:trace,"
+            + "org.elasticsearch.index.engine.InternalEngine:trace"
+    )
     public void testStressWithRelocationFailures() throws Exception {
         doTestStress(true, false);
     }

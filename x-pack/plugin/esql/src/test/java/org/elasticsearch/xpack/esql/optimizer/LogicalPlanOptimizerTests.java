@@ -209,6 +209,44 @@ import static org.hamcrest.Matchers.startsWith;
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
+
+    public void testPruneColumnsWhenFork(){
+        var query = """
+                FROM employees
+                | KEEP first_name
+                | EVAL x = 1.0
+                | DROP x
+            """;
+//        var plan = plan(query);
+
+        var query2 = """
+            FROM employees
+            | KEEP first_name
+            | EVAL x = 1.0
+            | DROP x
+            | FORK (WHERE true) (WHERE true)
+            | WHERE _fork == "fork1"
+            | DROP _fork
+            """;
+//        var plan2 = plan(query2);
+
+        var query3 = """
+            FROM employees
+            | EVAL z = 1
+            | WHERE z == 1
+            | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | WHERE z - 1 == 0)
+                   (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL a = "x" )
+                   (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no) | EVAL a = "y" )
+                   (STATS x = COUNT(*), y = MIN(emp_no))
+            | WHERE _fork == "fork2" OR a == "y"
+            | KEEP _fork, emp_no, x, y, z
+            | SORT _fork, emp_no
+            """;
+        var plan3 = plan(query3);
+        assertEquals(query, query2);
+
+    }
+
     public void testEmptyProjections() {
         var plan = plan("""
             from test

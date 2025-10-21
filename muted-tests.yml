@@ -573,6 +573,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTextFieldWithKeywordSubfield {STORED}
   issue: https://github.com/elastic/elasticsearch/issues/136918
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
+  method: testEvalWithScoreExplicitLimit
+  issue: https://github.com/elastic/elasticsearch/issues/136920
 
 # Examples:
 #

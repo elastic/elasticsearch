@@ -149,6 +149,7 @@ will be normalized into the following form:
       }
     ]
   },
+  "severity_text": "INFO",
   "body": {
     "text": "Hello, world!"
   },

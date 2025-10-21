@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.chunking;
+package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -16,11 +16,10 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.Chunker.ChunkOffset;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
-import org.elasticsearch.xpack.inference.chunking.Chunker.ChunkOffset;
 
 import java.util.ArrayList;
 import java.util.List;

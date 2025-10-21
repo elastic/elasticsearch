@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
@@ -33,7 +32,6 @@ import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.hamcrest.Matcher;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,7 +42,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseHnswVectorsFormatTestCase {
+public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -68,41 +66,6 @@ public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseHnswVect
     @Override
     protected Codec getCodec() {
         return TestUtil.alwaysKnnVectorsFormat(format);
-    }
-
-    @Override
-    protected VectorEncoding randomVectorEncoding() {
-        return VectorEncoding.FLOAT32;
-    }
-
-    @Override
-    public void testEmptyByteVectorData() throws Exception {
-        throw new AssumptionViolatedException("No bytes");
-    }
-
-    @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
-        throw new AssumptionViolatedException("No bytes");
-    }
-
-    @Override
-    public void testByteVectorScorerIteration() throws Exception {
-        throw new AssumptionViolatedException("No bytes");
-    }
-
-    @Override
-    public void testSortedIndexBytes() throws Exception {
-        throw new AssumptionViolatedException("No bytes");
-    }
-
-    @Override
-    public void testMismatchedFields() throws Exception {
-        throw new AssumptionViolatedException("No bytes");
-    }
-
-    @Override
-    public void testRandomBytes() throws Exception {
-        throw new AssumptionViolatedException("No bytes");
     }
 
     public void testLimits() {
@@ -132,11 +95,7 @@ public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseHnswVect
                     KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
                     assertThat(vectorValues.size(), equalTo(1));
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
-                        assertArrayEquals(
-                            vector,
-                            vectorValues.vectorValue(docIndexIterator.index()),
-                            BaseBFloat16KnnVectorsFormatTestCase.calculateDelta(vector)
-                        );
+                        assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), calculateDelta(vector));
                     }
                     float[] randomVector = randomVector(vector.length);
                     if (similarityFunction == VectorSimilarityFunction.COSINE) {
@@ -183,29 +142,5 @@ public abstract class BaseHnswBFloat16VectorsFormatTestCase extends BaseHnswVect
                 }
             }
         }
-    }
-
-    public void testWriterRamEstimate() throws Exception {
-        BaseBFloat16KnnVectorsFormatTestCase.testWriterRamEstimateImpl();
-    }
-
-    public void testRandom() throws Exception {
-        BaseBFloat16KnnVectorsFormatTestCase.testRandomImpl(randomSimilarity());
-    }
-
-    public void testRandomWithUpdatesAndGraph() throws Exception {
-        BaseBFloat16KnnVectorsFormatTestCase.testRandomWithUpdatesAndGraphImpl(this::assertOffHeapByteSize);
-    }
-
-    public void testSparseVectors() throws Exception {
-        BaseBFloat16KnnVectorsFormatTestCase.testSparseVectorsImpl(this::randomSimilarity, this::randomVectorEncoding);
-    }
-
-    public void testVectorValuesReportCorrectDocs() throws Exception {
-        BaseBFloat16KnnVectorsFormatTestCase.testVectorValuesReportCorrectDocsImpl(
-            randomVectorEncoding(),
-            randomSimilarity(),
-            this::assertOffHeapByteSize
-        );
     }
 }

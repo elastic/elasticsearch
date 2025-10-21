@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -74,7 +72,6 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
      * blocking iterator. This coordinated overlap exercises the window where the task
      * is closing and some status calls may return {@code 410 GONE}.
      */
-    @Repeat(iterations = 1000)
     public void testConcurrentStatusFetchWhileTaskCloses() throws Exception {
         final TimeValue timeout = TimeValue.timeValueSeconds(3);
         final String aggName = "terms";

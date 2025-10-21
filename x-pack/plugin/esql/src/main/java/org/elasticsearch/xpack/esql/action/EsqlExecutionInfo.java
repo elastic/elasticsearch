@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.Iterators;
@@ -62,6 +63,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
+    private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
+
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
     // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
@@ -82,6 +85,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient TimeSpan overallTimeSpan;
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
     private TimeValue overallTook;
+
+    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
+    private transient boolean inSubplan = false;
 
     // This is only used is tests.
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
@@ -112,12 +118,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public EsqlExecutionInfo(StreamInput in) throws IOException {
         this.overallTook = in.readOptionalTimeValue();
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
-        this.includeCCSMetadata = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readBoolean() : false;
-        this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) ? in.readBoolean() : false;
+        this.includeCCSMetadata = in.readBoolean();
+        this.isPartial = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readBoolean() : false;
         this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
             this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
         }
@@ -131,17 +136,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeBoolean(includeCCSMetadata);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
+        out.writeBoolean(includeCCSMetadata);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(isPartial);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);
         }
+        assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
 
     public boolean includeCCSMetadata() {
@@ -150,7 +153,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     /**
      * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
-     * Note this is currently only built for a single phase planning/execution model. When INLINESTATS
+     * Note this is currently only built for a single phase planning/execution model. When INLINE STATS
      * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
      */
     public void markEndPlanning() {
@@ -168,8 +171,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
-        overallTimeSpan = relativeStart.stop();
-        overallTook = overallTimeSpan.toTimeValue();
+        if (isMainPlan()) {
+            overallTimeSpan = relativeStart.stop();
+            overallTook = overallTimeSpan.toTimeValue();
+        }
     }
 
     // for testing only - use markEndQuery in production code
@@ -315,6 +320,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status);
     }
 
+    public Stream<String> getRunningClusterAliases() {
+        return getClusterStates(Cluster.Status.RUNNING).map(Cluster::getClusterAlias);
+    }
+
     @Override
     public String toString() {
         return "EsqlExecutionInfo{"
@@ -356,6 +365,18 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {
         this.clusterInfoInitializing = clusterInfoInitializing;
+    }
+
+    public boolean isMainPlan() {
+        return inSubplan == false;
+    }
+
+    public void startSubPlans() {
+        this.inSubplan = true;
+    }
+
+    public void finishSubPlans() {
+        this.inSubplan = false;
     }
 
     /**
@@ -463,11 +484,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.failedShards = in.readOptionalInt();
             this.took = in.readOptionalTimeValue();
             this.skipUnavailable = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            } else {
-                this.failures = Collections.emptyList();
-            }
+            this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
         }
 
         @Override
@@ -481,9 +498,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalInt(failedShards);
             out.writeOptionalTimeValue(took);
             out.writeBoolean(skipUnavailable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                out.writeCollection(failures);
-            }
+            out.writeCollection(failures);
         }
 
         /**

@@ -58,6 +58,8 @@ public class ConfigurationTestUtils {
         var clusterName = randomAlphaOfLengthBetween(3, 10);
         var truncation = randomNonNegativeInt();
         var defaultTruncation = randomNonNegativeInt();
+        var tsTruncation = truncation + randomNonNegativeInt();
+        var defaultTsTruncation = defaultTruncation + randomNonNegativeInt();
         boolean profile = randomBoolean();
 
         return new Configuration(
@@ -72,7 +74,9 @@ public class ConfigurationTestUtils {
             profile,
             tables,
             System.nanoTime(),
-            false
+            false,
+            tsTruncation,
+            defaultTsTruncation
         );
     }
 

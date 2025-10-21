@@ -40,6 +40,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         EsField.TimeSeriesFieldType.NONE
     );
 
+    public static final List<EsField> TIME_SERIES_SOURCE_FIELDS = List.of(
+        new EsField("_ts_slice_index", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+        new EsField("_ts_future_max_timestamp", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+    );
+
     private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
@@ -165,8 +170,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    public static boolean isSourceAttribute(Attribute attr) {
-        return DOC_ID_FIELD.getName().equals(attr.name());
+    public static boolean isDocAttribute(Attribute attr) {
+        // While the user can create columns with the same name as DOC_ID_FIELD, they cannot create a field with the DOC_DATA_TYPE.
+        return attr.typeResolved().resolved() && attr.dataType() == DataType.DOC_DATA_TYPE;
     }
 
     public boolean hasScoring() {

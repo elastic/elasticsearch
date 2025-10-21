@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +46,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private String query;
     private boolean columnar;
     private boolean profile;
-    private boolean includeCCSMetadata;
+    private Boolean includeCCSMetadata;
+    private Boolean includeExecutionMetadata;
+    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -86,6 +89,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         }
 
         if (onSnapshotBuild == false) {
+            if (timeZone != null) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TIME_ZONE_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
             if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
@@ -134,12 +143,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.profile = profile;
     }
 
-    public void includeCCSMetadata(boolean include) {
+    public void includeCCSMetadata(Boolean include) {
         this.includeCCSMetadata = include;
     }
 
-    public boolean includeCCSMetadata() {
+    public Boolean includeCCSMetadata() {
         return includeCCSMetadata;
+    }
+
+    public void includeExecutionMetadata(Boolean include) {
+        this.includeExecutionMetadata = include;
+    }
+
+    public Boolean includeExecutionMetadata() {
+        return includeExecutionMetadata;
     }
 
     /**
@@ -147,6 +164,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public boolean profile() {
         return profile;
+    }
+
+    public void timeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public ZoneId timeZone() {
+        return timeZone;
     }
 
     public void locale(Locale locale) {

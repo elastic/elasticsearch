@@ -35,7 +35,6 @@ import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -108,13 +107,6 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
             )
             .build();
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
-        boolean otlpEndpointEnabled = false;
-        try {
-            otlpEndpointEnabled = RestStatus.isSuccessful(
-                client().performRequest(new Request("POST", "/_otlp/v1/metrics")).getStatusLine().getStatusCode()
-            );
-        } catch (Exception ignore) {}
-        assumeTrue("Requires otlp_metrics feature flag to be enabled", otlpEndpointEnabled);
     }
 
     @Override

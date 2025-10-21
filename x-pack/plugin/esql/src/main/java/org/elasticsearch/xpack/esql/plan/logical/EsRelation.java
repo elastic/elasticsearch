@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,8 +27,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
 
 public class EsRelation extends LeafPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -65,7 +62,7 @@ public class EsRelation extends LeafPlan {
         Source source = Source.readFrom((PlanStreamInput) in);
         String indexPattern;
         Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             indexPattern = in.readString();
             indexNameWithModes = in.readMap(IndexMode::readFrom);
         } else {
@@ -74,14 +71,8 @@ public class EsRelation extends LeafPlan {
             indexNameWithModes = index.indexNameWithModes();
         }
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
-        if (supportingEsSourceOptions(in.getTransportVersion())) {
-            // We don't do anything with these strings
-            in.readOptionalString();
-            in.readOptionalString();
-            in.readOptionalString();
-        }
-        IndexMode indexMode = readIndexMode(in);
-        if (in.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+        IndexMode indexMode = IndexMode.fromString(in.readString());
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             in.readBoolean();
         }
         return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
@@ -90,27 +81,17 @@ public class EsRelation extends LeafPlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeString(indexPattern);
             out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         } else {
             new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
         }
         out.writeNamedWriteableCollection(attrs);
-        if (supportingEsSourceOptions(out.getTransportVersion())) {
-            // write (null) string fillers expected by remote
-            out.writeOptionalString(null);
-            out.writeOptionalString(null);
-            out.writeOptionalString(null);
-        }
-        writeIndexMode(out, indexMode);
-        if (out.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+        out.writeString(indexMode.getName());
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             out.writeBoolean(false);
         }
-    }
-
-    private static boolean supportingEsSourceOptions(TransportVersion version) {
-        return version.between(TransportVersions.V_8_14_0, TransportVersions.V_8_15_0);
     }
 
     @Override
@@ -210,22 +191,6 @@ public class EsRelation extends LeafPlan {
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
             + NodeUtils.limitedToString(attrs);
-    }
-
-    public static IndexMode readIndexMode(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            return IndexMode.fromString(in.readString());
-        } else {
-            return IndexMode.STANDARD;
-        }
-    }
-
-    public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeString(indexMode.getName());
-        } else if (indexMode != IndexMode.STANDARD) {
-            throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
-        }
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

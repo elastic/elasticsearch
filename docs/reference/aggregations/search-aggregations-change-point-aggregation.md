@@ -2,15 +2,12 @@
 navigation_title: "Change point"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-change-point-aggregation.html
+applies_to:
+  stack: preview 9.0, ga 9.2
+  serverless: ga 
 ---
 
 # Change point aggregation [search-aggregations-change-point-aggregation]
-
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 A sibling pipeline that detects, spikes, dips, and change points in a metric. Given a distribution of values provided by the sibling multi-bucket aggregation, this aggregation indicates the bucket of any spike or dip and/or the bucket at which the largest change in the distribution of values, if they are statistically significant.
 
@@ -18,12 +15,10 @@ A sibling pipeline that detects, spikes, dips, and change points in a metric. Gi
 It is recommended to use the change point aggregation to detect changes in time-based data, however, you can use any metric to create buckets.
 ::::
 
-
 ## Parameters [change-point-agg-syntax]
 
 `buckets_path`
 :   (Required, string) Path to the buckets that contain one set of values in which to detect a change point. There must be at least 22 bucketed values. Fewer than 1,000 is preferred. For syntax, see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax).
-
 
 ## Syntax [_syntax_11]
 
@@ -36,10 +31,9 @@ A `change_point` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 1. The buckets containing the values to test against.
-
-
 
 ## Response body [change-point-agg-response]
 
@@ -54,7 +48,6 @@ A `change_point` aggregation looks like this in isolation:
     `doc_count`
     :   (number) The document count of the bucket.
 
-
 `type`
 :   (object) The found change point type and its related values. Possible types:
 
@@ -65,7 +58,6 @@ A `change_point` aggregation looks like this in isolation:
     * `stationary`: no change point found
     * `step_change`: the change indicates a statistically significant step up or down in value distribution
     * `trend_change`: there is an overall trend change occurring at this point
-
 
 
 ## Example [_example_7]
@@ -97,12 +89,12 @@ GET kibana_sample_data_logs/_search
   }
 }
 ```
+% NOTCONSOLE
 
 1. A date histogram aggregation that creates buckets with one day long interval.
 2. A sibling aggregation of the `date` aggregation that calculates the average value of the `bytes` field within every bucket.
 3. The change point detection aggregation configuration object.
 4. The path of the aggregation values to detect change points. In this case, the input of the change point aggregation is the value of `avg` which is a sibling aggregation of `date`.
-
 
 The request returns a response that is similar to the following:
 
@@ -123,6 +115,7 @@ The request returns a response that is similar to the following:
       }
     }
 ```
+% NOTCONSOLE
 
 1. The bucket key that is the change point.
 2. The number of documents in that bucket.
@@ -130,6 +123,3 @@ The request returns a response that is similar to the following:
 4. Type of change found.
 5. The `p_value` indicates how extreme the change is; lower values indicate greater change.
 6. The specific bucket where the change occurs (indexing starts at `0`).
-
-
-

@@ -300,6 +300,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
+
     }
 
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)

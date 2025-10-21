@@ -36,6 +36,7 @@ public final class AppendProcessor extends AbstractProcessor {
     private final ValueSource value;
     private final String copyFrom;
     private final boolean allowDuplicates;
+    private final boolean ignoreEmptyValues;
 
     AppendProcessor(
         String tag,
@@ -43,13 +44,15 @@ public final class AppendProcessor extends AbstractProcessor {
         TemplateScript.Factory field,
         ValueSource value,
         String copyFrom,
-        boolean allowDuplicates
+        boolean allowDuplicates,
+        boolean ignoreEmptyValues
     ) {
         super(tag, description);
         this.field = field;
         this.value = value;
         this.copyFrom = copyFrom;
         this.allowDuplicates = allowDuplicates;
+        this.ignoreEmptyValues = ignoreEmptyValues;
     }
 
     public TemplateScript.Factory getField() {
@@ -68,10 +71,10 @@ public final class AppendProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) throws Exception {
         String path = document.renderTemplate(field);
         if (copyFrom != null) {
-            Object fieldValue = document.getFieldValue(copyFrom, Object.class);
-            document.appendFieldValue(path, IngestDocument.deepCopy(fieldValue), allowDuplicates);
+            Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValues);
+            document.appendFieldValue(path, IngestDocument.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
         } else {
-            document.appendFieldValue(path, value, allowDuplicates);
+            document.appendFieldValue(path, value, allowDuplicates, ignoreEmptyValues);
         }
         return document;
     }
@@ -116,9 +119,17 @@ public final class AppendProcessor extends AbstractProcessor {
                 }
             }
             boolean allowDuplicates = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicates", true);
+            boolean ignoreEmptyValues = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_values", false);
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
-
-            return new AppendProcessor(processorTag, description, compiledTemplate, valueSource, copyFrom, allowDuplicates);
+            return new AppendProcessor(
+                processorTag,
+                description,
+                compiledTemplate,
+                valueSource,
+                copyFrom,
+                allowDuplicates,
+                ignoreEmptyValues
+            );
         }
     }
 }

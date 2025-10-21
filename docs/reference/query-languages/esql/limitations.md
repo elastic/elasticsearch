@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Limitations"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-limitations.html
@@ -35,7 +38,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * `long`
 * `null`
 * `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
-* [preview] `unsigned_long`
+* {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long`
 * `version`
 * Spatial types
 
@@ -64,7 +67,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
     * `binary`
     * `completion`
-    * `dense_vector`
     * `double_range`
     * `flattened`
     * `float_range`
@@ -94,6 +96,10 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 
 In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+
+* `dense_vector` field type is partially supported. [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) queries will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when the `KNN` function is not used.
+
+This means that `FROM test` will not retrieve `dense_vector` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` will retrieve data.
 
 
 ## _source availability [esql-_source-availability]
@@ -242,6 +248,13 @@ Work around this limitation by converting the field to single value with one of 
 {{esql}} only supports the UTC timezone.
 
 
+## INLINE STATS limitations [esql-limitations-inlinestats]
+
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+
+Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+
+
 ## Kibana limitations [esql-limitations-kibana]
 
 * The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
@@ -249,6 +262,10 @@ Work around this limitation by converting the field to single value with one of 
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
+
+## Cross-cluster search limitations [esql-ccs-limitations]
+
+{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

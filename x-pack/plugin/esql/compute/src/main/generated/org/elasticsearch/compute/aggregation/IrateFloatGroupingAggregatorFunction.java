@@ -36,16 +36,20 @@ public final class IrateFloatGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
+  private final boolean isDelta;
+
   public IrateFloatGroupingAggregatorFunction(List<Integer> channels,
-      IrateFloatAggregator.FloatIrateGroupingState state, DriverContext driverContext) {
+      IrateFloatAggregator.FloatIrateGroupingState state, DriverContext driverContext,
+      boolean isDelta) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.isDelta = isDelta;
   }
 
   public static IrateFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new IrateFloatGroupingAggregatorFunction(channels, IrateFloatAggregator.initGrouping(driverContext), driverContext);
+      DriverContext driverContext, boolean isDelta) {
+    return new IrateFloatGroupingAggregatorFunction(channels, IrateFloatAggregator.initGrouping(driverContext, isDelta), driverContext, isDelta);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

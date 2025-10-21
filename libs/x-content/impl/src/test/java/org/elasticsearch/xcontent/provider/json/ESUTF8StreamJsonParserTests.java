@@ -13,14 +13,23 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ESUTF8StreamJsonParserTests extends ESTestCase {
 
@@ -57,14 +66,30 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
         });
 
-        testParseJson("{\"foo\": \"bar\\\"baz\\\"\"}", parser -> {
+        testParseJson("{\"foo\": [\"bar\\\"baz\\\"\", \"foobar\"]}", parser -> {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.START_ARRAY));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-            var text = parser.getValueAsText();
-            assertThat(text, Matchers.notNullValue());
-            assertTextRef(text.bytes(), "bar\"baz\"");
+            var firstText = parser.getValueAsText();
+            assertThat(firstText, Matchers.notNullValue());
+            assertTextRef(firstText.bytes(), "bar\"baz\"");
+            // Retrieve the value for a second time to ensure the last value is available
+            firstText = parser.getValueAsText();
+            assertThat(firstText, Matchers.notNullValue());
+            assertTextRef(firstText.bytes(), "bar\"baz\"");
+
+            // Ensure values lastOptimisedValue is reset
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var secondTest = parser.getValueAsText();
+            assertThat(secondTest, Matchers.notNullValue());
+            assertTextRef(secondTest.bytes(), "foobar");
+            secondTest = parser.getValueAsText();
+            assertThat(secondTest, Matchers.notNullValue());
+            assertTextRef(secondTest.bytes(), "foobar");
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.END_ARRAY));
         });
 
         testParseJson("{\"foo\": \"b\\u00e5r\"}", parser -> {
@@ -256,7 +281,20 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                     var text = parser.getValueAsText();
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
+                    // Retrieve it a second time
+                    text = parser.getValueAsText();
+                    assertThat(text, Matchers.notNullValue());
+                    assertTextRef(text.bytes(), currVal);
+                    assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
+                    // Use getText()
+                    assertThat(parser.getText(), Matchers.equalTo(text.string()));
+                    // After retrieving it with getText() we do not use the optimised value anymore.
+                    assertThat(parser.getValueAsText(), Matchers.nullValue());
                 } else {
+                    assertThat(parser.getText(), Matchers.notNullValue());
+                    assertThat(parser.getValueAsText(), Matchers.nullValue());
+                    assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
+                    // Retrieve it twice to ensure it works as expected
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
                     assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
                 }
@@ -264,4 +302,97 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
         });
     }
 
+    /**
+     * This test compares the retrieval of an optimised text against the baseline.
+     */
+    public void testOptimisedParser() throws Exception {
+        for (int i = 0; i < 200; i++) {
+            String json = randomJsonInput(randomIntBetween(1, 6));
+            try (
+                var baselineParser = XContentHelper.createParser(
+                    XContentParserConfiguration.EMPTY,
+                    new BytesArray(json),
+                    XContentType.JSON
+                );
+                var optimisedParser = TestXContentParser.create(json)
+            ) {
+                var expected = baselineParser.mapOrdered();
+                var actual = optimisedParser.mapOrdered();
+                assertThat(expected, Matchers.equalTo(actual));
+            }
+        }
+    }
+
+    private String randomJsonInput(int depth) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        int numberOfFields = randomIntBetween(1, 10);
+        for (int i = 0; i < numberOfFields; i++) {
+            sb.append("\"k-").append(randomAlphanumericOfLength(10)).append("\":");
+            if (depth == 0 || randomBoolean()) {
+                if (randomIntBetween(0, 9) == 0) {
+                    sb.append(
+                        IntStream.range(0, randomIntBetween(1, 10))
+                            .mapToObj(ignored -> randomUTF8Value())
+                            .collect(Collectors.joining(",", "[", "]"))
+                    );
+                } else {
+                    sb.append(randomUTF8Value());
+                }
+            } else {
+                sb.append(randomJsonInput(depth - 1));
+            }
+            if (i < numberOfFields - 1) {
+                sb.append(',');
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String randomUTF8Value() {
+        return "\"" + buildRandomInput(randomIntBetween(10, 50)).input + "\"";
+    }
+
+    /**
+     * This XContentParser introduces a random mix of getText() and getOptimisedText()
+     * to simulate different access patterns for optimised fields.
+     */
+    private static class TestXContentParser extends FilterXContentParserWrapper {
+
+        TestXContentParser(XContentParser delegate) {
+            super(delegate);
+        }
+
+        static TestXContentParser create(String input) throws IOException {
+            JsonFactory factory = new ESJsonFactoryBuilder().build();
+            assertThat(factory, Matchers.instanceOf(ESJsonFactory.class));
+
+            JsonParser parser = factory.createParser(StandardCharsets.UTF_8.encode(input).array());
+            assertThat(parser, Matchers.instanceOf(ESUTF8StreamJsonParser.class));
+            return new TestXContentParser(new JsonXContentParser(XContentParserConfigurationImpl.EMPTY, parser));
+        }
+
+        @Override
+        public String text() throws IOException {
+            if (randomIntBetween(0, 9) < 8) {
+                return super.text();
+            } else {
+                return super.optimizedText().string();
+            }
+        }
+
+        @Override
+        public XContentString optimizedText() throws IOException {
+            int extraCalls = randomIntBetween(0, 5);
+            for (int i = 0; i < extraCalls; i++) {
+                if (randomBoolean()) {
+                    super.optimizedText();
+                } else {
+                    super.text();
+                }
+            }
+            return super.optimizedText();
+        }
+    }
 }

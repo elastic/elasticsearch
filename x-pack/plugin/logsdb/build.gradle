@@ -24,7 +24,7 @@ base {
 
 restResources {
   restApi {
-    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities', 'esql.query', 'field_caps'
+    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities', 'esql.query', 'field_caps', 'get'
   }
 }
 
@@ -33,6 +33,7 @@ dependencies {
   implementation project(':modules:mapper-extras')
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation("commons-io:commons-io:2.15.1")
   javaRestTestImplementation(testArtifact(project(xpackModule('spatial'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
@@ -43,10 +44,4 @@ tasks.named("javaRestTest").configure {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Requires a bunch of xpack plugins")
-
-  if (buildParams.snapshotBuild == false) {
-    systemProperty 'tests.rest.blacklist', [
-      '20_ignored_source/*'
-    ].join(',')
-  }
 }

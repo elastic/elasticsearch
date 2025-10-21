@@ -8,12 +8,11 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Information about a field in an ES index with the {@code date} type
@@ -36,7 +35,7 @@ public class DateEsField extends EsField {
 
     protected DateEsField(StreamInput in) throws IOException {
         this(
-            readCachedStringWithVersionCheck(in),
+            ((PlanStreamInput) in).readCachedString(),
             DataType.DATETIME,
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
@@ -46,7 +45,7 @@ public class DateEsField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, getName());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         writeTimeSeriesFieldType(out);

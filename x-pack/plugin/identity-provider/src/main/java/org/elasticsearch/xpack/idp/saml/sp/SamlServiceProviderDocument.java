@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,9 +43,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST;
-import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19;
-
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
  */
@@ -53,6 +51,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public static final String SIGN_AUTHN = "authn";
     public static final String SIGN_LOGOUT = "logout";
     private static final Set<String> ALLOWED_SIGN_MESSAGES = Set.of(SIGN_AUTHN, SIGN_LOGOUT);
+
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
 
     public static class Privileges {
         public String resource;
@@ -277,8 +279,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         attributeNames.name = in.readOptionalString();
         attributeNames.roles = in.readOptionalString();
 
-        if (in.getTransportVersion().isPatchFrom(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
-            || in.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+        if (in.getTransportVersion().supports(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
             attributeNames.extensions = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
 
@@ -307,8 +308,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalString(attributeNames.name);
         out.writeOptionalString(attributeNames.roles);
 
-        if (out.getTransportVersion().isPatchFrom(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
-            || out.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+        if (out.getTransportVersion().supports(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
             out.writeStringCollection(attributeNames.extensions);
         }
 

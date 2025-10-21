@@ -72,18 +72,19 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (inputBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (inputBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (inputBlock.getValueCount(p) != 1) {
-          if (inputBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch)));
+        BytesRef input = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch);
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
       }
       return result.build();
     }
@@ -93,7 +94,8 @@ public final class HashConstantEvaluator implements EvalOperator.ExpressionEvalu
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, inputVector.getBytesRef(p, inputScratch)));
+        BytesRef input = inputVector.getBytesRef(p, inputScratch);
+        result.appendBytesRef(Hash.processConstant(this.scratch, this.algorithm, input));
       }
       return result.build();
     }

@@ -64,18 +64,19 @@ public final class RoundToDouble1Evaluator implements EvalOperator.ExpressionEva
   public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldBlock.getValueCount(p) != 1) {
-          if (fieldBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(RoundToDouble.process(fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p)), this.p0));
+        double field = fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p));
+        result.appendDouble(RoundToDouble.process(field, this.p0));
       }
       return result.build();
     }
@@ -84,7 +85,8 @@ public final class RoundToDouble1Evaluator implements EvalOperator.ExpressionEva
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, RoundToDouble.process(fieldVector.getDouble(p), this.p0));
+        double field = fieldVector.getDouble(p);
+        result.appendDouble(p, RoundToDouble.process(field, this.p0));
       }
       return result.build();
     }

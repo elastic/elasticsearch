@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -44,14 +44,19 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
-        // Set up template
-        putTSDBIndexTemplate("my-template", List.of("metrics-foo"), null, """
+        String mapping = """
             {
               "properties": {
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
-                  "time_series_dimension": true
+                  "time_series_dimension": true,
+                  "properties": {
+                    "os.name": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
                 },
                 "metrics.cpu_usage": {
                   "type": "double",
@@ -59,7 +64,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 }
               }
             }
-            """, null, null);
+            """;
 
         // Create data stream by indexing documents
         final Instant now = Instant.now();
@@ -70,12 +75,67 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .startObject()
                     .field("@timestamp", ts)
                     .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+    }
+
+    public void testDownsamplingPassthroughMetrics() throws Exception {
+        String dataStreamName = "metrics-foo";
+        String mapping = """
+            {
+              "properties": {
+                "attributes.os.name": {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                },
+                "metrics": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "properties": {
+                    "cpu_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        // Create data stream by indexing documents
+        final Instant now = Instant.now();
+        Supplier<XContentBuilder> sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("@timestamp", ts)
+                    .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
+                    .field("metrics.cpu_usage", randomDouble())
+                    .field("metrics.memory_usage", randomDouble())
+                    .endObject();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier);
+    }
+
+    /**
+     * Create a data stream with the provided mapping and downsampled the first backing index of this data stream. After downsampling has
+     *  completed, it asserts if the downsampled index is as expected.
+     */
+    private void downsampleAndAssert(String dataStreamName, String mapping, Supplier<XContentBuilder> sourceSupplier) throws Exception {
+        // Set up template
+        putTSDBIndexTemplate("my-template", List.of(dataStreamName), null, mapping, null, null);
+
+        // Create data stream by indexing documents
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // Rollover to ensure the index we will downsample is not the write index
         assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)));
@@ -225,11 +285,13 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         };
         bulkIndex(dataStreamName, nextSourceSupplier, 100);
 
-        // check that TS command is available
+        // check that aggregate metric double is available
         var response = clusterAdmin().nodesCapabilities(
-            new NodesCapabilitiesRequest().method(RestRequest.Method.POST).path("/_query").capabilities(METRICS_COMMAND.capabilityName())
+            new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
+                .path("/_query")
+                .capabilities(AGGREGATE_METRIC_DOUBLE_V0.capabilityName())
         ).actionGet();
-        assumeTrue("TS command must be available for this test", response.isSupported().orElse(Boolean.FALSE));
+        assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
 
         // Since the downsampled field (cpu) is downsampled in one index and not in the other, we want to confirm
         // first that the field is unsupported and has 2 original types - double and aggregate_metric_double

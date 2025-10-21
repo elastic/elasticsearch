@@ -45,6 +45,6 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestVectorTileAction(restController.getSearchUsageHolder()));
+        return List.of(new RestVectorTileAction(restController.getSearchUsageHolder(), settings));
     }
 }

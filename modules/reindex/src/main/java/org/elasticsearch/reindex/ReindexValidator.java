@@ -101,15 +101,6 @@ public class ReindexValidator {
         }
         Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
         automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        if (Operations.isTotal(automaton)) {
-            throw new IllegalArgumentException(
-                "Refusing to start because whitelist "
-                    + whitelist
-                    + " accepts all addresses. "
-                    + "This would allow users to reindex-from-remote any URL they like effectively having Elasticsearch make HTTP GETs "
-                    + "for them."
-            );
-        }
         return new CharacterRunAutomaton(automaton);
     }
 

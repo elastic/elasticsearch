@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.index.PointValues.IntersectVisitor;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
@@ -32,8 +30,7 @@ import java.io.IOException;
  *
  * <p>It is copied from the BKD implementation.
  */
-final class DocIdsWriter {
-    public static final int DEFAULT_MAX_POINTS_IN_LEAF_NODE = 512;
+public final class DocIdsWriter {
 
     private static final byte CONTINUOUS_IDS = (byte) -2;
     private static final byte DELTA_BPV_16 = (byte) 16;
@@ -43,23 +40,7 @@ final class DocIdsWriter {
 
     private int[] scratch = new int[0];
 
-    /**
-     * IntsRef to be used to iterate over the scratch buffer. A single instance is reused to avoid
-     * re-allocating the object. The ints and length fields need to be reset each use.
-     *
-     * <p>The main reason for existing is to be able to call the {@link
-     * IntersectVisitor#visit(IntsRef)} method rather than the {@link IntersectVisitor#visit(int)}
-     * method. This seems to make a difference in performance, probably due to fewer virtual calls
-     * then happening (once per read call rather than once per doc).
-     */
-    private final IntsRef scratchIntsRef = new IntsRef();
-
-    {
-        // This is here to not rely on the default constructor of IntsRef to set offset to 0
-        scratchIntsRef.offset = 0;
-    }
-
-    DocIdsWriter() {}
+    public DocIdsWriter() {}
 
     /**
      * Calculate the best encoding that will be used to write blocks of doc ids of blockSize.
@@ -70,7 +51,7 @@ final class DocIdsWriter {
      * @param blockSize the block size
      * @return the byte encoding to use for the blocks
      */
-    byte calculateBlockEncoding(IntToIntFunction docIds, int count, int blockSize) {
+    public byte calculateBlockEncoding(IntToIntFunction docIds, int count, int blockSize) {
         if (count == 0) {
             return CONTINUOUS_IDS;
         }
@@ -109,7 +90,7 @@ final class DocIdsWriter {
         }
     }
 
-    void writeDocIds(IntToIntFunction docIds, int count, byte encoding, DataOutput out) throws IOException {
+    public void writeDocIds(IntToIntFunction docIds, int count, byte encoding, DataOutput out) throws IOException {
         if (count == 0) {
             return;
         }
@@ -122,23 +103,12 @@ final class DocIdsWriter {
             min = Math.min(min, current);
         }
         switch (encoding) {
-            case CONTINUOUS_IDS:
-                writeContinuousIds(docIds, count, out);
-                break;
-            case DELTA_BPV_16:
-                writeDelta16(docIds, count, min, out);
-                break;
-            case BPV_21:
-                write21(docIds, count, min, out);
-                break;
-            case BPV_24:
-                write24(docIds, count, min, out);
-                break;
-            case BPV_32:
-                write32(docIds, count, min, out);
-                break;
-            default:
-                throw new IOException("Unsupported number of bits per value: " + encoding);
+            case CONTINUOUS_IDS -> writeContinuousIds(docIds, count, out);
+            case DELTA_BPV_16 -> writeDelta16(docIds, count, min, out);
+            case BPV_21 -> write21(docIds, count, min, out);
+            case BPV_24 -> write24(docIds, count, min, out);
+            case BPV_32 -> write32(docIds, count, min, out);
+            default -> throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 
@@ -236,7 +206,7 @@ final class DocIdsWriter {
         return new int[] { (strictlySorted && min2max == count) ? 1 : 0, max, min2max };
     }
 
-    void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
+    public void writeDocIds(IntToIntFunction docIds, int count, DataOutput out) throws IOException {
         if (count == 0) {
             return;
         }
@@ -283,7 +253,7 @@ final class DocIdsWriter {
         }
     }
 
-    void readInts(IndexInput in, int count, byte encoding, int[] docIDs) throws IOException {
+    public void readInts(IndexInput in, int count, byte encoding, int[] docIDs) throws IOException {
         if (count == 0) {
             return;
         }
@@ -291,28 +261,17 @@ final class DocIdsWriter {
             scratch = new int[count];
         }
         switch (encoding) {
-            case CONTINUOUS_IDS:
-                readContinuousIds(in, count, docIDs);
-                break;
-            case DELTA_BPV_16:
-                readDelta16(in, count, docIDs);
-                break;
-            case BPV_21:
-                readInts21(in, count, docIDs);
-                break;
-            case BPV_24:
-                readInts24(in, count, docIDs);
-                break;
-            case BPV_32:
-                readInts32(in, count, docIDs);
-                break;
-            default:
-                throw new IOException("Unsupported number of bits per value: " + encoding);
+            case CONTINUOUS_IDS -> readContinuousIds(in, count, docIDs);
+            case DELTA_BPV_16 -> readDelta16(in, count, docIDs);
+            case BPV_21 -> readInts21(in, count, docIDs);
+            case BPV_24 -> readInts24(in, count, docIDs);
+            case BPV_32 -> readInts32(in, count, docIDs);
+            default -> throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 
     /** Read {@code count} integers into {@code docIDs}. */
-    void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
+    public void readInts(IndexInput in, int count, int[] docIDs) throws IOException {
         if (count == 0) {
             return;
         }
@@ -334,13 +293,7 @@ final class DocIdsWriter {
         final int min = in.readVInt();
         final int half = count >> 1;
         in.readInts(docIds, 0, half);
-        if (count == DEFAULT_MAX_POINTS_IN_LEAF_NODE) {
-            // Same format, but enabling the JVM to specialize the decoding logic for the default number
-            // of points per node proved to help on benchmarks
-            decode16(docIds, DEFAULT_MAX_POINTS_IN_LEAF_NODE / 2, min);
-        } else {
-            decode16(docIds, half, min);
-        }
+        decode16(docIds, half, min);
         // read the remaining doc if count is odd.
         for (int i = half << 1; i < count; i++) {
             docIds[i] = Short.toUnsignedInt(in.readShort()) + min;
@@ -364,18 +317,7 @@ final class DocIdsWriter {
         int oneThird = floorToMultipleOf16(count / 3);
         int numInts = oneThird << 1;
         in.readInts(scratch, 0, numInts);
-        if (count == DEFAULT_MAX_POINTS_IN_LEAF_NODE) {
-            // Same format, but enabling the JVM to specialize the decoding logic for the default number
-            // of points per node proved to help on benchmarks
-            decode21(
-                docIDs,
-                scratch,
-                floorToMultipleOf16(DEFAULT_MAX_POINTS_IN_LEAF_NODE / 3),
-                floorToMultipleOf16(DEFAULT_MAX_POINTS_IN_LEAF_NODE / 3) * 2
-            );
-        } else {
-            decode21(docIDs, scratch, oneThird, numInts);
-        }
+        decode21(docIDs, scratch, oneThird, numInts);
         int i = oneThird * 3;
         for (; i < count - 2; i += 3) {
             long l = in.readLong();
@@ -401,17 +343,7 @@ final class DocIdsWriter {
         int quarter = count >> 2;
         int numInts = quarter * 3;
         in.readInts(scratch, 0, numInts);
-        if (count == DEFAULT_MAX_POINTS_IN_LEAF_NODE) {
-            // Same format, but enabling the JVM to specialize the decoding logic for the default number
-            // of points per node proved to help on benchmarks
-            assert floorToMultipleOf16(quarter) == quarter
-                : "We are relying on the fact that quarter of DEFAULT_MAX_POINTS_IN_LEAF_NODE"
-                    + " is a multiple of 16 to vectorize the decoding loop,"
-                    + " please check performance issue if you want to break this assumption.";
-            decode24(docIDs, scratch, DEFAULT_MAX_POINTS_IN_LEAF_NODE / 4, DEFAULT_MAX_POINTS_IN_LEAF_NODE / 4 * 3);
-        } else {
-            decode24(docIDs, scratch, quarter, numInts);
-        }
+        decode24(docIDs, scratch, quarter, numInts);
         // Now read the remaining 0, 1, 2 or 3 values
         for (int i = quarter << 2; i < count; ++i) {
             docIDs[i] = (in.readShort() & 0xFFFF) | (in.readByte() & 0xFF) << 16;

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
@@ -197,7 +196,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             false,
             ingestService,
             RestApiVersion.current(),
-            (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            (nodeFeature) -> true
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));
@@ -276,7 +275,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 false,
                 ingestService,
                 RestApiVersion.current(),
-                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+                (nodeFeature) -> true
             )
         );
         assertThat(e1.getMessage(), equalTo("must specify at least one document in [docs]"));
@@ -294,7 +293,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 false,
                 ingestService,
                 RestApiVersion.current(),
-                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+                (nodeFeature) -> true
             )
         );
         assertThat(e2.getMessage(), equalTo("malformed [docs] section, should include an inner object"));
@@ -310,7 +309,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                 false,
                 ingestService,
                 RestApiVersion.current(),
-                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+                (nodeFeature) -> true
             )
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
@@ -391,7 +390,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             false,
             ingestService,
             RestApiVersion.V_8,
-            (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            (nodeFeature) -> true
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));

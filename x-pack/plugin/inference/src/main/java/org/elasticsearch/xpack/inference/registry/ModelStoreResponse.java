@@ -18,11 +18,7 @@ import java.io.IOException;
 public record ModelStoreResponse(String inferenceId, RestStatus status, @Nullable Exception failureCause) implements Writeable {
 
     public ModelStoreResponse(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            RestStatus.readFrom(in),
-            in.readException()
-        );
+        this(in.readString(), RestStatus.readFrom(in), in.readException());
     }
 
     public boolean failed() {

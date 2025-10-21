@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openshiftai.request.rarank;
 
-import junit.framework.TestCase;
-
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -19,8 +18,9 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.hamcrest.Matchers.is;
 
-public class OpenShiftAIRerankRequestEntityTests extends TestCase {
+public class OpenShiftAIRerankRequestEntityTests extends ESTestCase {
     private static final String INPUT = "documents";
     private static final String QUERY = "query";
     private static final String MODEL = "model";
@@ -42,7 +42,7 @@ public class OpenShiftAIRerankRequestEntityTests extends TestCase {
                 "return_documents": true
             }
             """;
-        assertEquals(stripWhitespace(expected), result);
+        assertThat(stripWhitespace(expected), is(result));
     }
 
     public void testXContent_WritesMinimalFields() throws IOException {
@@ -57,7 +57,7 @@ public class OpenShiftAIRerankRequestEntityTests extends TestCase {
                 "documents": ["documents"]
             }
             """;
-        assertEquals(stripWhitespace(expected), result);
+        assertThat(stripWhitespace(expected), is(result));
     }
 
 }

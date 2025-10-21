@@ -305,7 +305,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParseRequestConfig_ThrowsException_WithoutModelId() throws IOException {
+    public void testParseRequestConfig_Success_WithoutModelId() throws IOException {
         var url = "url";
         var secret = "secret";
 
@@ -319,13 +319,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 assertNull(chatCompletionModel.getServiceSettings().modelId());
                 assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is("secret"));
 
-            }, exception -> {
-                assertThat(exception, instanceOf(ValidationException.class));
-                assertThat(
-                    exception.getMessage(),
-                    is("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
-                );
-            });
+            }, e -> fail("parse request should not fail " + e.getMessage()));
 
             service.parseRequestConfig(
                 "id",

@@ -543,6 +543,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testRerank
   issue: https://github.com/elastic/elasticsearch/issues/136872
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/136850
 
 # Examples:
 #

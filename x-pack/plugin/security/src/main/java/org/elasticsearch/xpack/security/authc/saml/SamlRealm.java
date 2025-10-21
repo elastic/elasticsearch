@@ -12,6 +12,7 @@ import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -123,8 +124,10 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.FORCE_AUTHN;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.GROUPS_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_ENTITY_ID;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_REFRESH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
@@ -705,6 +708,14 @@ public final class SamlRealm extends Realm implements Releasable {
         final SSLConnectionSocketFactory factory = sslProfile.connectionSocketFactory();
         builder.setSSLSocketFactory(factory);
 
+        TimeValue connectTimeout = config.getSetting(IDP_METADATA_HTTP_CONNECT_TIMEOUT);
+        TimeValue readTimeout = config.getSetting(IDP_METADATA_HTTP_READ_TIMEOUT);
+        RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectTimeout(Math.toIntExact(connectTimeout.millis()))
+            .setSocketTimeout(Math.toIntExact(readTimeout.millis()))
+            .build();
+        builder.setDefaultRequestConfig(requestConfig);
+
         TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
         TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);
         if (minRefresh.compareTo(maxRefresh) > 0) {
@@ -799,7 +810,13 @@ public final class SamlRealm extends Realm implements Releasable {
         final Path path = config.env().configDir().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
-        for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
+        for (var httpSetting : List.of(
+            IDP_METADATA_HTTP_REFRESH,
+            IDP_METADATA_HTTP_MIN_REFRESH,
+            IDP_METADATA_HTTP_FAIL_ON_ERROR,
+            IDP_METADATA_HTTP_CONNECT_TIMEOUT,
+            IDP_METADATA_HTTP_READ_TIMEOUT
+        )) {
             if (config.hasSetting(httpSetting.apply(config.type()))) {
                 logger.info(
                     "Ignoring setting [{}] because the IdP metadata is being loaded from a file",

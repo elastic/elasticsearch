@@ -13,12 +13,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSource;
-import org.elasticsearch.xpack.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;
@@ -28,7 +25,7 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
 
     private final ExponentialHistogramValuesSource.ExponentialHistogram valuesSource;
 
-    private ExponentialHistogramBackedHistogramAggregator(
+    public ExponentialHistogramBackedHistogramAggregator(
         String name,
         AggregatorFactories factories,
         double interval,
@@ -67,15 +64,6 @@ public final class ExponentialHistogramBackedHistogramAggregator extends Abstrac
         if (subAggregators().length > 0) {
             throw new IllegalArgumentException("Histogram aggregation on histogram fields does not support sub-aggregations");
         }
-    }
-
-    public static void registerAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            HistogramAggregationBuilder.REGISTRY_KEY,
-            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM,
-            ExponentialHistogramBackedHistogramAggregator::new,
-            true
-        );
     }
 
     @Override

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics;
+package org.elasticsearch.xpack.exponentialhistogram.aggregations;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.index.RandomIndexWriter;

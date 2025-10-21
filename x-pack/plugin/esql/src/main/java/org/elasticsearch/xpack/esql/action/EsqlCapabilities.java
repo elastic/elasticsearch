@@ -1540,8 +1540,7 @@ public class EsqlCapabilities {
         /**
          * Fix for ClassCastException in STATS
          */
-        FIX_STATS_CLASSCAST_EXCEPTION
-        ;
+        FIX_STATS_CLASSCAST_EXCEPTION;
 
         private final boolean enabled;
 

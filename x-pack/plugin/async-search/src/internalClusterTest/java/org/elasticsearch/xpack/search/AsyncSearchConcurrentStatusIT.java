@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -19,10 +21,8 @@ import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
@@ -31,8 +31,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -42,9 +42,6 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
     private static int numShards;
 
     private static int numKeywords;
-    private static Map<String, AtomicInteger> keywordFreqs;
-    private static float maxMetric = Float.NEGATIVE_INFINITY;
-    private static float minMetric = Float.POSITIVE_INFINITY;
 
     @Override
     public void setupSuiteScopeCluster() {
@@ -53,7 +50,6 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
         int numDocs = randomIntBetween(100, 1000);
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numShards).build());
         numKeywords = randomIntBetween(50, 100);
-        keywordFreqs = new HashMap<>();
         Set<String> keywordSet = new HashSet<>();
         for (int i = 0; i < numKeywords; i++) {
             keywordSet.add(randomAlphaOfLengthBetween(10, 20));
@@ -63,24 +59,19 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             float metric = randomFloat();
-            maxMetric = Math.max(metric, maxMetric);
-            minMetric = Math.min(metric, minMetric);
             String keyword = keywords[randomIntBetween(0, numKeywords - 1)];
-            keywordFreqs.compute(keyword, (k, v) -> {
-                if (v == null) {
-                    return new AtomicInteger(1);
-                }
-                v.incrementAndGet();
-                return v;
-            });
             reqs.add(prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
         }
         indexRandom(true, true, reqs);
     }
 
     /**
-     * Tests that concurrent async search status requests behave correctly
-     * while the underlying async search task is still executing and during its close/cleanup.
+     * The test spins up a set of poller threads that repeatedly call {@code _async_search/{d]}}
+     * but hold them behind a latch. Once all pollers are ready, the latch is released so they
+     * begin hammering the async search endpoint at the same time. In parallel, a consumer thread
+     * drives the async search to completion using the blocking iterator. This coordinated overlap
+     * ensures we exercise the window where the task is closing and some status calls may return
+     * {@code 410 GONE}.
      */
     public void testConcurrentStatusFetchWhileTaskCloses() throws Exception {
         final String aggName = "terms";
@@ -94,9 +85,10 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
 
             PollStats stats = new PollStats();
 
-            int statusThreads = randomIntBetween(1, Math.max(2, 4 * numShards));
-            StartableThreadGroup pollers = startGetStatusThreadsHot(id, statusThreads, aggName, stats);
-            pollers.startHotThreads.countDown(); // release pollers
+            // Pick a random number of status-poller threads, at least 1, up to (4×numShards)
+            int pollerThreads = randomIntBetween(1, 4 * numShards);
+            PollerGroup pollers = startGetStatusThreadsHot(id, pollerThreads, aggName, stats);
+            pollers.start(); // release pollers
 
             // Finish consumption on a separate thread and capture errors
             var consumerExec = Executors.newSingleThreadExecutor();
@@ -110,22 +102,42 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
             });
 
             Thread.sleep(randomIntBetween(100, 200));
-            pollers.stopAndAwait(TimeValue.timeValueMillis(randomIntBetween(500, 1000)));
+
+            TimeValue timeout = TimeValue.timeValueSeconds(3);
 
             // Join consumer & surface errors
             try {
-                consumer.get();
+                consumer.get(timeout.millis(), TimeUnit.MILLISECONDS);
+
+                if (consumerError.get() != null) {
+                    fail("consumeAllResponses failed: " + consumerError.get());
+                }
+            } catch (TimeoutException e) {
+                consumer.cancel(true);
+                fail(e, "Consumer thread did not finish within timeout");
             } catch (Exception ignored) {} finally {
+
+                try {
+                    pollers.stopAndAwait(timeout);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    fail("Interrupted while stopping pollers: " + e.getMessage());
+                }
+
                 consumerExec.shutdown();
+                try {
+                    consumerExec.awaitTermination(timeout.millis(), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
             }
 
-            assertNull(consumerError.get());
             assertNoWorkerFailures(pollers);
             assertStats(stats);
         }
     }
 
-    private void assertNoWorkerFailures(StartableThreadGroup pollers) {
+    private void assertNoWorkerFailures(PollerGroup pollers) {
         List<Throwable> failures = pollers.getFailures();
         assertTrue(
             "Unexpected worker failures:\n" + failures.stream().map(ExceptionsHelper::stackTrace).reduce("", (a, b) -> a + "\n---\n" + b),
@@ -161,15 +173,15 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
         }
     }
 
-    private StartableThreadGroup startGetStatusThreadsHot(String id, int threads, String aggName, PollStats stats) {
+    private PollerGroup startGetStatusThreadsHot(String id, int threads, String aggName, PollStats stats) {
         final ExecutorService exec = Executors.newFixedThreadPool(threads);
         final List<Future<?>> futures = new ArrayList<>(threads);
         final AtomicBoolean running = new AtomicBoolean(true);
-        final CountDownLatch start = new CountDownLatch(1);
+        final CountDownLatch startGate = new CountDownLatch(1);
 
         for (int i = 0; i < threads; i++) {
             futures.add(exec.submit(() -> {
-                start.await();
+                startGate.await();
                 while (running.get()) {
                     AsyncSearchResponse resp = null;
                     try {
@@ -208,7 +220,7 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
                 return null;
             }));
         }
-        return new StartableThreadGroup(exec, futures, running, start);
+        return new PollerGroup(exec, futures, running, startGate);
     }
 
     static final class PollStats {
@@ -219,25 +231,21 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
         final LongAdder gone410 = new LongAdder();
     }
 
-    static class StartableThreadGroup extends ThreadGroup {
-        private final CountDownLatch startHotThreads;
-
-        StartableThreadGroup(ExecutorService exec, List<Future<?>> futures, AtomicBoolean running, CountDownLatch startHotThreads) {
-            super(exec, futures, running);
-            this.startHotThreads = startHotThreads;
-        }
-    }
-
-    static class ThreadGroup {
+    static class PollerGroup {
         private final ExecutorService exec;
         private final List<Future<?>> futures;
+        // The threads are created right away, but they immediately block on the latch
         private final AtomicBoolean running;
+        private final CountDownLatch startGate;
 
-        private ThreadGroup(ExecutorService exec, List<Future<?>> futures, AtomicBoolean running) {
+        private PollerGroup(ExecutorService exec, List<Future<?>> futures, AtomicBoolean running, CountDownLatch startGate) {
             this.exec = exec;
             this.futures = futures;
             this.running = running;
+            this.startGate = startGate;
         }
+
+        void start() { startGate.countDown(); }
 
         void stopAndAwait(TimeValue timeout) throws InterruptedException {
             running.set(false);

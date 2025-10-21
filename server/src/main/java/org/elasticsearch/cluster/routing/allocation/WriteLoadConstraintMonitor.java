@@ -96,7 +96,7 @@ public class WriteLoadConstraintMonitor {
             logger.debug(
                 """
                     Nodes [{}] are above the queue latency threshold, but there are no nodes below the threshold. Cannot rebalance shards.""",
-                nodeIdsExceedingQueueLatencyThreshold
+                nodeSummary(nodeIdsExceedingQueueLatencyThreshold)
             );
             return;
         }

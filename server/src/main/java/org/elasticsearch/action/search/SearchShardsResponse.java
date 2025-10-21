@@ -63,7 +63,7 @@ public final class SearchShardsResponse extends ActionResponse {
         this.groups = in.readCollectionAsList(SearchShardsGroup::new);
         this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         this.aliasFilters = in.readMap(AliasFilter::readFrom);
-        if (in.getTransportVersion().onOrAfter(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
+        if (in.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
             this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
         } else {
             this.resolvedIndexExpressions = null;
@@ -75,7 +75,7 @@ public final class SearchShardsResponse extends ActionResponse {
         out.writeCollection(groups);
         out.writeCollection(nodes);
         out.writeMap(aliasFilters, StreamOutput::writeWriteable);
-        if (out.getTransportVersion().onOrAfter(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
+        if (out.getTransportVersion().supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS)) {
             out.writeOptionalWriteable(resolvedIndexExpressions);
         }
     }

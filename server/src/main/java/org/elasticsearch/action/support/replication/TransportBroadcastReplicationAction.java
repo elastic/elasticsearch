@@ -112,6 +112,7 @@ public abstract class TransportBroadcastReplicationAction<
                             task,
                             request,
                             shardId,
+                            project, // needed to calculate the correct SplitShardCountSummary down the stack
                             ActionListener.releaseAfter(new ReplicationResponseActionListener(shardId, indexMetadataByName), refs.acquire())
                         );
                     }
@@ -178,9 +179,14 @@ public abstract class TransportBroadcastReplicationAction<
         };
     }
 
-    protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
+    protected void shardExecute(
+        Task task,
+        Request request,
+        ShardId shardId,
+        ProjectMetadata project,
+        ActionListener<ShardResponse> shardActionListener) {
         assert Transports.assertNotTransportThread("may hit all the shards");
-        ShardRequest shardRequest = newShardRequest(request, shardId);
+        ShardRequest shardRequest = newShardRequest(request, shardId, project);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);
     }
@@ -204,7 +210,7 @@ public abstract class TransportBroadcastReplicationAction<
         return shardIds;
     }
 
-    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
+    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId, ProjectMetadata project);
 
     protected abstract Response newResponse(
         int successfulShards,

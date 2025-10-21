@@ -1230,11 +1230,11 @@ public class VerifierTests extends ESTestCase {
     public void testNotAllowRateOutsideMetrics() {
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
-            equalTo("1:24: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
             error("FROM tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:20: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:20: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
             error("FROM tests | STATS max_over_time(network.connections)", tsdb),
@@ -1242,14 +1242,17 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
-            equalTo("1:23: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside STATS command")
         );
     }
 
     public void testTimeseriesAggregate() {
         assertThat(
             error("TS tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:18: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo(
+                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
+                    + "and inside another aggregate function"
+            )
         );
         assertThat(
             error("TS tests | STATS avg_over_time(network.connections)", tsdb),
@@ -1260,18 +1263,30 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("TS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo("1:22: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo(
+                "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
         );
 
         assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:26: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped"""));
+            1:22: nested aggregations [avg(rate(network.bytes_in))] \
+            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside over-time aggregation function [rate(network.bytes_in)]"""));
 
         assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:26: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped"""));
+            1:22: nested aggregations [avg(rate(network.bytes_in))] \
+            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside over-time aggregation function [rate(network.bytes_in)]"""));
 
         assertThat(
             error("TS tests | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
-            equalTo("1:18: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo(
+                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
         );
         assertThat(
             error("TS tests | STATS COUNT(*)", tsdb),
@@ -2551,10 +2566,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testInvalidTBucketCalls() {
-        assertThat(
-            error("from test | stats max(emp_no) by tbucket(1 hour)"),
-            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
-        );
+        assertThat(error("from test | stats max(emp_no) by tbucket(1 hour)"), equalTo("1:34: Unknown column [@timestamp]"));
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
             equalTo("1:42: error building [tbucket]: expects exactly one argument")
@@ -2569,7 +2581,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
-            equalTo("1:42: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
         );
 
         /*
@@ -2578,7 +2590,9 @@ public class VerifierTests extends ESTestCase {
          */
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
-            equalTo("1:42: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo(
+                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+            )
         );
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
             assertThat(
@@ -2709,15 +2723,21 @@ public class VerifierTests extends ESTestCase {
     public void testNoMetricInStatsByClause() {
         assertThat(
             error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)", tsdb),
-            equalTo("1:21: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo(
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
         );
         assertThat(
             error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in", tsdb),
-            equalTo("1:21: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
         );
         assertThat(
             error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)", tsdb),
-            equalTo("1:21: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo(
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
         );
     }
 
@@ -2813,7 +2833,8 @@ public class VerifierTests extends ESTestCase {
             can only be used after STATS when used with TS command"""));
 
         assertThat(error("TS test | INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)", tsdb), equalTo("""
-            1:33: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped"""));
+            1:11: INLINE STATS [INLINE STATS max(60 * rate(network.bytes_in)), max(network.connections)] \
+            can only be used after STATS when used with TS command"""));
 
         assertThat(error("TS test METADATA _tsid | INLINE STATS cnt = count_distinct(_tsid) BY metricset, host", tsdb), equalTo("""
             1:26: INLINE STATS [INLINE STATS cnt = count_distinct(_tsid) BY metricset, host] \

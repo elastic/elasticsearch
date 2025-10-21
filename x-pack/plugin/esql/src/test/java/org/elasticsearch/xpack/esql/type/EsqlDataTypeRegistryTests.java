@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.List;
 import java.util.Map;
@@ -25,18 +25,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlDataTypeRegistryTests extends ESTestCase {
 
     public void testCounter() {
-        resolve("long", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_LONG);
-        resolve("integer", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_INTEGER);
-        resolve("double", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_DOUBLE);
+        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_LONG);
+        resolve("integer", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_INTEGER);
+        resolve("double", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_DOUBLE);
 
     }
 
     public void testGauge() {
-        resolve("long", TimeSeriesParams.MetricType.GAUGE, DataTypes.LONG);
+        resolve("long", TimeSeriesParams.MetricType.GAUGE, DataType.LONG);
     }
 
     public void testLong() {
-        resolve("long", null, DataTypes.LONG);
+        resolve("long", null, DataType.LONG);
     }
 
     private void resolve(String esTypeName, TimeSeriesParams.MetricType metricType, DataType expected) {
@@ -46,13 +46,15 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse(
                 idx,
                 idx,
-                Map.of(field, new IndexFieldCapabilities(field, esTypeName, false, true, true, false, metricType, Map.of())),
-                true
+                Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).metricType(metricType).build()),
+                true,
+                IndexMode.TIME_SERIES
             )
         );
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new EsqlIndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("idx-*", caps);
+        // IndexResolver uses EsqlDataTypeRegistry directly
+        IndexResolution resolution = IndexResolver.mergedMappings("idx-*", new IndexResolver.FieldsInfo(caps, true, true));
         EsField f = resolution.get().mapping().get(field);
         assertThat(f.getDataType(), equalTo(expected));
     }

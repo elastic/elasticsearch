@@ -7,18 +7,17 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Request to gather usage statistics
  */
-public class EsqlStatsRequest extends BaseNodesRequest<EsqlStatsRequest> {
+public class EsqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 
@@ -35,16 +34,11 @@ public class EsqlStatsRequest extends BaseNodesRequest<EsqlStatsRequest> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
-    @Override
     public String toString() {
         return "esql_stats";
     }
 
-    static class NodeStatsRequest extends TransportRequest {
+    static class NodeStatsRequest extends AbstractTransportRequest {
         boolean includeStats;
 
         NodeStatsRequest(StreamInput in) throws IOException {

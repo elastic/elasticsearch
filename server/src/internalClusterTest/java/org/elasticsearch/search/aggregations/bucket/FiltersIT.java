@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -28,8 +29,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -92,6 +95,57 @@ public class FiltersIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    public void testSimpleWithFilterQuery() throws Exception {
+        createIndex("filters_idx");
+        String fieldAName = "fieldA";
+        String fieldBName = "fieldB";
+
+        int totalItems = 1024;
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < totalItems; i++) {
+            XContentBuilder source = jsonBuilder().startObject().field(fieldAName, "0").field(fieldBName, "" + i % 2).endObject();
+            builders.add(prepareIndex("filters_idx").setId("" + i).setSource(source));
+        }
+        indexRandom(true, builders);
+        ensureSearchable();
+        assertNoFailuresAndResponse(
+            prepareSearch("filters_idx").setSize(0)
+                .setRequestCache(false)
+                .setTrackTotalHits(true)
+                .setQuery(boolQuery().filter(termsQuery(fieldAName + ".keyword", "0")))
+                .addAggregation(
+                    filters(
+                        "results",
+                        new KeyedFilter("zero", termQuery(fieldBName + ".keyword", "0")),
+                        new KeyedFilter("one", termQuery(fieldBName + ".keyword", "1"))
+                    ).otherBucket(false)
+                ),
+            searchResponse -> {
+                Filters filters = searchResponse.getAggregations().get("results");
+                assertThat(filters, notNullValue());
+                assertThat(filters.getName(), equalTo("results"));
+                assertThat(filters.getBuckets().size(), equalTo(2));
+                assertThat(filters.getBucketByKey("zero").getDocCount(), equalTo(512L));
+                assertThat(filters.getBucketByKey("one").getDocCount(), equalTo(512L));
+            }
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("filters_idx").setSize(0)
+                .setRequestCache(false)
+                .setTrackTotalHits(true)
+                .setQuery(boolQuery().filter(termsQuery(fieldAName + ".keyword", "0")))
+                .addAggregation(filters("results", new KeyedFilter("one", termQuery(fieldBName + ".keyword", "1"))).otherBucket(false)),
+            searchResponse -> {
+                Filters filters = searchResponse.getAggregations().get("results");
+                assertThat(filters, notNullValue());
+                assertThat(filters.getName(), equalTo("results"));
+                assertThat(filters.getBuckets().size(), equalTo(1));
+                assertThat(filters.getBucketByKey("one").getDocCount(), equalTo(512L));
+            }
+        );
     }
 
     public void testSimple() throws Exception {
@@ -246,7 +300,7 @@ public class FiltersIT extends ESIntegTestCase {
                         .subAggregation(filters("filters", new KeyedFilter("all", matchAllQuery())))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -454,7 +508,7 @@ public class FiltersIT extends ESIntegTestCase {
                         .subAggregation(filters("filters", new KeyedFilter("foo", matchAllQuery())).otherBucket(true).otherBucketKey("bar"))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);

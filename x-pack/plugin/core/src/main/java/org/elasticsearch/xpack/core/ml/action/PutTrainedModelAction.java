@@ -160,7 +160,6 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             trainedModelConfig = new TrainedModelConfig(in);
         }
 

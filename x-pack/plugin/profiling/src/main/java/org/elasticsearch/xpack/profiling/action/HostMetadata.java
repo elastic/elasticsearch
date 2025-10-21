@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,13 +25,15 @@ final class HostMetadata implements ToXContentObject {
     final int profilingNumCores; // number of cores on the profiling host machine
 
     HostMetadata(String hostID, InstanceType instanceType, String hostArchitecture, Integer profilingNumCores) {
-        this.hostID = hostID;
-        this.instanceType = instanceType;
-        this.hostArchitecture = hostArchitecture;
+        this.hostID = hostID != null ? hostID : "";
+        this.instanceType = instanceType != null ? instanceType : new InstanceType("", "", "");
+        this.hostArchitecture = hostArchitecture != null ? hostArchitecture : "";
         this.profilingNumCores = profilingNumCores != null ? profilingNumCores : DEFAULT_PROFILING_NUM_CORES;
     }
 
-    @UpdateForV9 // remove fallback to the "profiling.host.machine" field and remove it from the component template "profiling-hosts".
+    @UpdateForV10(owner = UpdateForV10.Owner.PROFILING)
+    // remove fallback to the "profiling.host.machine" field and remove it from the component template "profiling-hosts".
+    // still required for data that has been migrated from 8.x to 9.x
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -30,6 +32,12 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 @ServerlessScope(Scope.PUBLIC)
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
+    private final Settings settings;
+
+    public RestFieldCapabilitiesAction(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -47,6 +55,11 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
+
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
         fieldRequest.indices(indices);

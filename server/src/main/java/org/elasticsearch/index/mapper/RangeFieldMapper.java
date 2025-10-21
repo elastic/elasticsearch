@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -19,13 +21,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,13 +56,14 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
-    public static final NodeFeature NULL_VALUES_OFF_BY_ONE_FIX = new NodeFeature("mapper.range.null_values_off_by_one_fix");
+    public static final NodeFeature DATE_RANGE_INDEXING_FIX = new NodeFeature("mapper.range.date_range_indexing_fix");
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        public static final Locale LOCALE = DateFieldMapper.DEFAULT_LOCALE;
     }
 
     // this is private since it has a different default
@@ -81,7 +88,7 @@ public class RangeFieldMapper extends FieldMapper {
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
-            () -> Locale.ROOT,
+            () -> Defaults.LOCALE,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
             m -> toType(m).locale,
             (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
@@ -120,12 +127,12 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         protected RangeFieldType setupFieldType(MapperBuilderContext context) {
-            String fullName = context.buildFullName(name());
+            String fullName = context.buildFullName(leafName());
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException(
                         "field ["
-                            + name()
+                            + leafName()
                             + "] of type [range]"
                             + " should not define a dateTimeFormatter unless it is a "
                             + RangeType.DATE
@@ -134,9 +141,8 @@ public class RangeFieldMapper extends FieldMapper {
                 }
                 return new RangeFieldType(
                     fullName,
-                    index.getValue(),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
-                    hasDocValues.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
                     coerce.getValue().value(),
                     meta.getValue()
@@ -145,9 +151,8 @@ public class RangeFieldMapper extends FieldMapper {
             if (type == RangeType.DATE) {
                 return new RangeFieldType(
                     fullName,
-                    index.getValue(),
+                    IndexType.points(index.get(), hasDocValues.get()),
                     store.getValue(),
-                    hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER,
                     coerce.getValue().value(),
                     meta.getValue()
@@ -156,9 +161,8 @@ public class RangeFieldMapper extends FieldMapper {
             return new RangeFieldType(
                 fullName,
                 type,
-                index.getValue(),
+                IndexType.points(index.get(), hasDocValues.get()),
                 store.getValue(),
-                hasDocValues.getValue(),
                 coerce.getValue().value(),
                 meta.getValue()
             );
@@ -167,7 +171,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, type, this);
+            return new RangeFieldMapper(leafName(), ft, builderParams(this, context), type, this);
         }
     }
 
@@ -177,16 +181,8 @@ public class RangeFieldMapper extends FieldMapper {
         protected final DateMathParser dateMathParser;
         protected final boolean coerce;
 
-        public RangeFieldType(
-            String name,
-            RangeType type,
-            boolean indexed,
-            boolean stored,
-            boolean hasDocValues,
-            boolean coerce,
-            Map<String, String> meta
-        ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        public RangeFieldType(String name, RangeType type, IndexType indexType, boolean stored, boolean coerce, Map<String, String> meta) {
+            super(name, indexType, stored, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
@@ -195,19 +191,18 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, false, true, false, Collections.emptyMap());
+            this(name, type, IndexType.points(true, true), false, false, Collections.emptyMap());
         }
 
         public RangeFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             DateFormatter formatter,
             boolean coerce,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexType, stored, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
@@ -215,7 +210,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, false, true, formatter, false, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, formatter, false, Collections.emptyMap());
         }
 
         public RangeType rangeType() {
@@ -225,7 +220,27 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE) {
+                @Override
+                public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                    return new BinaryIndexFieldData(name(), CoreValuesSourceType.RANGE) {
+                        @Override
+                        public SortField sortField(
+                            @Nullable Object missingValue,
+                            MultiValueMode sortMode,
+                            XFieldComparatorSource.Nested nested,
+                            boolean reverse
+                        ) {
+                            throw new IllegalArgumentException("Sorting by range field [" + name() + "] is not supported");
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override
@@ -342,12 +357,11 @@ public class RangeFieldMapper extends FieldMapper {
     private RangeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         RangeType type,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         this.type = type;
         this.index = builder.index.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -364,7 +378,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, coerceByDefault).init(this);
+        return new Builder(leafName(), type, coerceByDefault).init(this);
     }
 
     @Override
@@ -390,7 +404,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         Range range = parseRange(parser);
-        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
+        context.doc().addAll(fieldType().rangeType.createFields(context, fullPath(), range, index, hasDocValues, store));
 
         if (hasDocValues == false && (index || store)) {
             context.addToFieldNames(fieldType().name());
@@ -406,7 +420,7 @@ public class RangeFieldMapper extends FieldMapper {
         if (start != XContentParser.Token.START_OBJECT) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
-                "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
+                "error parsing field [" + fullPath() + "], expected an object but got " + parser.currentName()
             );
         }
 
@@ -445,7 +459,7 @@ public class RangeFieldMapper extends FieldMapper {
                 } else {
                     throw new DocumentParsingException(
                         parser.getTokenLocation(),
-                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
                     );
                 }
             }
@@ -463,38 +477,32 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new BinaryDocValuesSyntheticFieldLoader(name()) {
-            @Override
-            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                List<Range> ranges = type.decodeRanges(value);
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            return new SyntheticSourceSupport.Native(() -> new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    List<Range> ranges = type.decodeRanges(value);
 
-                switch (ranges.size()) {
-                    case 0:
-                        return;
-                    case 1:
-                        b.field(simpleName());
-                        ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
-                        break;
-                    default:
-                        b.startArray(simpleName());
-                        for (var range : ranges) {
-                            range.toXContent(b, fieldType().dateTimeFormatter);
-                        }
-                        b.endArray();
+                    switch (ranges.size()) {
+                        case 0:
+                            return;
+                        case 1:
+                            b.field(leafName());
+                            ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
+                            break;
+                        default:
+                            b.startArray(leafName());
+                            for (var range : ranges) {
+                                range.toXContent(b, fieldType().dateTimeFormatter);
+                            }
+                            b.endArray();
+                    }
                 }
-            }
-        };
+            });
+        }
+
+        return super.syntheticSourceSupport();
     }
 
     /** Class defining a range */

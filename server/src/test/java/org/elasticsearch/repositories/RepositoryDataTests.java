@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -39,9 +41,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for the {@link RepositoryData} class.
@@ -114,7 +119,7 @@ public class RepositoryDataTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
             ),
-            shardGenerations,
+            new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
             indexLookup,
             indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
         );
@@ -214,7 +219,7 @@ public class RepositoryDataTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
             ),
-            ShardGenerations.EMPTY,
+            UpdatedShardGenerations.EMPTY,
             Collections.emptyMap(),
             Collections.emptyMap()
         );
@@ -396,7 +401,13 @@ public class RepositoryDataTests extends ESTestCase {
             randomNonNegativeLong(),
             randomAlphaOfLength(10)
         );
-        final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
+        final RepositoryData newRepoData = repositoryData.addSnapshot(
+            newSnapshot,
+            details,
+            new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
+            indexLookup,
+            newIdentifiers
+        );
         assertEquals(
             newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(newSnapshot)),
             newIndices.entrySet()
@@ -429,6 +440,19 @@ public class RepositoryDataTests extends ESTestCase {
         }
     }
 
+    public void testToString() {
+        final var repositoryData = generateRandomRepoData();
+        assertThat(
+            repositoryData.toString(),
+            allOf(
+                containsString("RepositoryData"),
+                containsString(repositoryData.getUuid()),
+                containsString(Long.toString(repositoryData.getGenId())),
+                not(containsString("@")) // not the default Object#toString which does a very expensive hashcode computation
+            )
+        );
+    }
+
     public static RepositoryData generateRandomRepoData() {
         final int numIndices = randomIntBetween(1, 30);
         final List<IndexId> indices = new ArrayList<>(numIndices);
@@ -459,7 +483,7 @@ public class RepositoryDataTests extends ESTestCase {
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
                 ),
-                builder.build(),
+                new UpdatedShardGenerations(builder.build(), ShardGenerations.EMPTY),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
             );

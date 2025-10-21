@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -38,12 +37,7 @@ public class RestGetRoleMappingsAction extends NativeRoleMappingBaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_security/role_mapping/").replaces(GET, "/_xpack/security/role_mapping/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/role_mapping/{name}")
-                .replaces(GET, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(GET, "/_security/role_mapping/"), new Route(GET, "/_security/role_mapping/{name}"));
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -39,7 +40,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     }
 
     public void testRootTarget() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("myField", "first=hello&second=world&second=universe");
         Processor processor = createKvProcessor("myField", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
@@ -48,7 +49,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     }
 
     public void testKeySameAsSourceField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("first", "first=hello");
         Processor processor = createKvProcessor("first", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
@@ -250,6 +251,6 @@ public class KeyValueProcessorTests extends ESTestCase {
         if (prefix != null) {
             config.put("prefix", prefix);
         }
-        return FACTORY.create(null, randomAlphaOfLength(10), null, config);
+        return FACTORY.create(null, randomAlphaOfLength(10), null, config, null);
     }
 }

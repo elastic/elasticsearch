@@ -1,0 +1,31 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name = 'x-pack-migrate'
+  description = 'Elasticsearch Expanded Pack Plugin - Index and Data Stream Migration'
+  classname = 'org.elasticsearch.xpack.migrate.MigratePlugin'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController =false
+  requiresKeystore =true
+}
+base {
+  archivesName = 'x-pack-migrate'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('ilm'))
+  testImplementation project(':modules:data-streams')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:ingest-common')
+  testImplementation project(path: ':modules:lang-painless')
+
+  internalClusterTestImplementation project(path: ':modules:lang-painless')
+  internalClusterTestImplementation project(path: ':modules:lang-painless:spi')
+  internalClusterTestImplementation project(path: ':modules:mapper-extras')
+}
+
+addQaCheckDependencies(project)

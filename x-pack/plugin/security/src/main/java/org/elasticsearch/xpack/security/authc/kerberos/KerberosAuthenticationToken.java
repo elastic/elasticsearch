@@ -124,7 +124,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
      */
     static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
-        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_SCHEME_NAME);
+        ese.addBodyHeader(WWW_AUTHENTICATE, NEGOTIATE_SCHEME_NAME);
         return ese;
     }
 
@@ -146,7 +146,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     static ElasticsearchSecurityException unauthorizedWithOutputToken(final ElasticsearchSecurityException ese, final String outToken) {
         assert ese.status() == RestStatus.UNAUTHORIZED;
         if (Strings.hasText(outToken)) {
-            ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
+            ese.addBodyHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
         }
         return ese;
     }

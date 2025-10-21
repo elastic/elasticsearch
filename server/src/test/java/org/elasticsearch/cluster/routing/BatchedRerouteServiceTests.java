@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing;
 
@@ -310,12 +311,10 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
             // Case 3: a NotMasterException
 
-            PlainActionFuture.<Void, RuntimeException>get(future -> {
-                clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
-                    final var state = clusterService.state();
-                    return ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)).build();
-                }, future);
-            }, 10, TimeUnit.SECONDS);
+            safeAwait((ActionListener<Void> listener) -> clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
+                final var state = clusterService.state();
+                return ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)).build();
+            }, listener));
 
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(

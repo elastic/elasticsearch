@@ -11,11 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -29,7 +28,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     public void testCreateIndexWithSemanticTextField() {
@@ -46,15 +45,20 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties": { "field": { "type": "semantic_text", "inference_id": "test_model" }}}""");
-        request.indices(new Index[] { indexService.index() });
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            """
+                { "properties": { "field": { "type": "semantic_text", "inference_id": "test_model" }}}""",
+            false,
+            indexService.index()
+        );
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
             putMappingExecutor,
             singleTask(request)
         );
-        assertEquals(resultingState.metadata().index("test").getInferenceFields().get("field").getInferenceId(), "test_model");
+        assertEquals(resultingState.metadata().getProject().index("test").getInferenceFields().get("field").getInferenceId(), "test_model");
     }
 
     public void testCopyToSemanticTextField() throws Exception {
@@ -63,31 +67,36 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            {
-              "properties": {
-                "semantic": {
-                  "type": "semantic_text",
-                  "inference_id": "test_model"
-                },
-                "copy_origin_1": {
-                  "type": "text",
-                  "copy_to": "semantic"
-                },
-                "copy_origin_2": {
-                  "type": "text",
-                  "copy_to": "semantic"
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            """
+                {
+                  "properties": {
+                    "semantic": {
+                      "type": "semantic_text",
+                      "inference_id": "test_model"
+                    },
+                    "copy_origin_1": {
+                      "type": "text",
+                      "copy_to": "semantic"
+                    },
+                    "copy_origin_2": {
+                      "type": "text",
+                      "copy_to": "semantic"
+                    }
+                  }
                 }
-              }
-            }
-            """);
-        request.indices(new Index[] { indexService.index() });
+                """,
+            false,
+            indexService.index()
+        );
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
             putMappingExecutor,
             singleTask(request)
         );
-        IndexMetadata indexMetadata = resultingState.metadata().index("test");
+        IndexMetadata indexMetadata = resultingState.metadata().getProject().index("test");
         InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get("semantic");
         assertThat(inferenceFieldMetadata.getInferenceId(), equalTo("test_model"));
         assertThat(

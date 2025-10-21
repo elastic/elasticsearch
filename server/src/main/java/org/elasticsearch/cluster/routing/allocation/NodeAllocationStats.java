@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -17,6 +18,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Point-in-time allocation stats for a particular node.
+ *
+ * @param shards count of shards on this node.
+ * @param undesiredShards count of shards that we want to move off of this node.
+ * @param forecastedIngestLoad the predicted near future total ingest load on this node.
+ * @param forecastedDiskUsage the predicted near future total disk usage on this node.
+ * @param currentDiskUsage the current total disk usage on this node.
+ */
 public record NodeAllocationStats(
     int shards,
     int undesiredShards,

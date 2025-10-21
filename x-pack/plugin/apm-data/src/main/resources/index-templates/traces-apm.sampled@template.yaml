@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 index_patterns: ["traces-apm.sampled-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:
@@ -11,12 +11,14 @@ composed_of:
 - traces@mappings
 - apm@mappings
 - apm@settings
+- traces-apm.sampled-fallback@ilm
 - traces@custom
 - traces-apm.sampled@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - traces@custom
 - traces-apm.sampled@custom
+- traces-apm.sampled-fallback@ilm
 template:
   lifecycle:
     data_retention: 1h

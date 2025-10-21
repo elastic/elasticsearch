@@ -1,5 +1,0 @@
-pr: 108518
-summary: Remove leading is_ prefix from Enterprise geoip docs
-area: Ingest Node
-type: bug
-issues: []

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
@@ -20,7 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The result of calling {@link #resolve(ClusterState, String[])} to resolve a description of some snapshot repositories (from a path
+ * The result of calling {@link #resolve(ProjectMetadata, String[])} to resolve a description of some snapshot repositories (from a path
  * component of a request to the get-repositories or get-snapshots APIs) against the known repositories in the cluster state: the
  * {@link RepositoryMetadata} for the extant repositories that match the description, together with a list of the parts of the description
  * that failed to match any known repository.
@@ -37,8 +38,8 @@ public record ResolvedRepositories(List<RepositoryMetadata> repositoryMetadata, 
             || (patterns.length == 1 && (ALL_PATTERN.equalsIgnoreCase(patterns[0]) || Regex.isMatchAllPattern(patterns[0])));
     }
 
-    public static ResolvedRepositories resolve(ClusterState state, String[] patterns) {
-        final var repositories = RepositoriesMetadata.get(state);
+    public static ResolvedRepositories resolve(ProjectMetadata projectMetadata, String[] patterns) {
+        final var repositories = RepositoriesMetadata.get(projectMetadata);
         if (isMatchAll(patterns)) {
             return new ResolvedRepositories(repositories.repositories(), List.of());
         }

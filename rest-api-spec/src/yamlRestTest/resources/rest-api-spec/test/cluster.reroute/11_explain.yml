@@ -13,12 +13,14 @@ setup:
 
 ---
 "Explain API with empty command list":
+  - requires:
+      cluster_features: ["cluster.reroute.ignores_metric_param"]
+      reason: requires this feature
 
   - do:
       cluster.reroute:
         explain: true
         dry_run: true
-        metric: none
         body:
           commands: []
 
@@ -26,6 +28,10 @@ setup:
 
 ---
 "Explain API for non-existent node & shard":
+  - requires:
+      cluster_features: ["cluster.reroute.ignores_metric_param"]
+      reason: requires this feature
+
   - skip:
       features: [arbitrary_key]
 
@@ -39,7 +45,6 @@ setup:
       cluster.reroute:
         explain: true
         dry_run: true
-        metric: none
         body:
           commands:
             - cancel:

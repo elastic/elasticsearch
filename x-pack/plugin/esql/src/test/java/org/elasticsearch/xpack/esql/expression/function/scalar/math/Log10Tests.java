@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
-public class Log10Tests extends AbstractFunctionTestCase {
+public class Log10Tests extends AbstractScalarFunctionTestCase {
     public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -37,7 +37,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "Log10IntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log10,
             1,
             Integer.MAX_VALUE,
@@ -46,7 +46,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "Log10LongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log10,
             1L,
             Long.MAX_VALUE,
@@ -55,7 +55,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Log10UnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             ul -> Math.log10(ul == null ? null : unsignedLongToDouble(bigIntegerToUnsignedLong(ul))),
             BigInteger.ONE,
             UNSIGNED_LONG_MAX,
@@ -64,7 +64,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "Log10DoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::log10,
             Double.MIN_VALUE,
             Double.POSITIVE_INFINITY,
@@ -78,53 +78,53 @@ public class Log10Tests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "Log10IntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Integer.MIN_VALUE,
             0,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "Log10LongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Long.MIN_VALUE,
             0L,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Log10UnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             BigInteger.ZERO,
             BigInteger.ZERO,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "Log10DoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             k -> null,
             Double.NEGATIVE_INFINITY,
             0d,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

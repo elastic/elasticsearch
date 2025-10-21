@@ -26,7 +26,6 @@ public class PostSecretResponse extends ActionResponse implements ToXContentObje
     }
 
     public PostSecretResponse(StreamInput in) throws IOException {
-        super(in);
         this.id = in.readString();
     }
 

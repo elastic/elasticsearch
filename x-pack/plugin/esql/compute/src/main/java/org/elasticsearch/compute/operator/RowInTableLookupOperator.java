@@ -40,6 +40,12 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
      * are never closed, so we need to build them from a non-tracking factory.
      */
     public record Factory(Key[] keys, int[] blockMapping) implements Operator.OperatorFactory {
+        public Factory {
+            if (keys.length < 1) {
+                throw new IllegalArgumentException("expected [keys] to be non-empty");
+            }
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new RowInTableLookupOperator(driverContext.blockFactory(), keys, blockMapping);
@@ -56,6 +62,9 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
     private final int[] blockMapping;
 
     public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
+        if (keys.length < 1) {
+            throw new IllegalArgumentException("expected [keys] to be non-empty");
+        }
         this.blockMapping = blockMapping;
         this.keys = new ArrayList<>(keys.length);
         Block[] blocks = new Block[keys.length];

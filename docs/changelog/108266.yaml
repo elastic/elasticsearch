@@ -1,5 +1,0 @@
-pr: 108266
-summary: Log details of non-green indicators in `HealthPeriodicLogger`
-area: Health
-type: enhancement
-issues: []

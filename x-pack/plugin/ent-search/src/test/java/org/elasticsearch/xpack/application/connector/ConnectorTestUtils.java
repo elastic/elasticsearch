@@ -99,23 +99,23 @@ public final class ConnectorTestUtils {
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomBoolean()),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15))
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomBoolean(),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
         );
     }
 
     public static PostConnectorAction.Request getRandomPostConnectorActionRequest() {
         return new PostConnectorAction.Request(
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomBoolean()),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15))
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomBoolean(),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
         );
     }
 
@@ -156,8 +156,6 @@ public final class ConnectorTestUtils {
 
     public static ConnectorFeatures getRandomConnectorFeatures() {
         return new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
-            .setFilteringRules(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setFilteringAdvancedConfig(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setIncrementalSyncEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setNativeConnectorAPIKeysEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setSyncRulesFeatures(randomBoolean() ? randomSyncRulesFeatures() : null)
@@ -345,6 +343,18 @@ public final class ConnectorTestUtils {
         return getRandomConnectorBuilder().setIndexName(null).build();
     }
 
+    public static Connector getRandomConnectorWithAttachedIndex(String indexName) {
+        return getRandomConnectorBuilder().setIndexName(indexName).build();
+    }
+
+    public static Connector getRandomSelfManagedConnector() {
+        return getRandomConnectorBuilder().setIsNative(false).build();
+    }
+
+    public static Connector getRandomElasticManagedConnector() {
+        return getRandomConnectorBuilder().setIsNative(true).build();
+    }
+
     public static Connector getRandomConnectorWithServiceTypeNotDefined() {
         return getRandomConnectorBuilder().setServiceType(null).build();
     }
@@ -373,7 +383,7 @@ public final class ConnectorTestUtils {
             .build();
     }
 
-    private static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
+    public static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
         return new ConnectorFeatures.FeatureEnabled(randomBoolean());
     }
 

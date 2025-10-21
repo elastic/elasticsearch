@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -29,7 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -56,7 +57,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE = byteSizeSetting(
         "http.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(
@@ -67,7 +68,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     private static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = byteSizeSetting(
         "transport.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(
@@ -90,7 +91,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
      */
     private static final ByteSizeValue MTU = ByteSizeValue.ofBytes(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
-    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
+    public static final Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
         SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
         (s) -> {
             ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
@@ -183,7 +184,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         HttpServerTransport.Dispatcher dispatcher,
         BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
@@ -195,7 +196,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
-                tracer,
+                telemetryProvider,
                 TLSConfig.noTLS(),
                 null,
                 null

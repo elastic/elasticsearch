@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,11 +31,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 public class HuggingFaceServiceSettings extends FilteredXContentObject implements ServiceSettings, HuggingFaceRateLimitServiceSettings {
     public static final String NAME = "hugging_face_service_settings";
@@ -43,25 +43,30 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     // 3000 requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
-    public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
+    public static HuggingFaceServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var uri = extractUri(map, URL, validationException);
 
         SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            HuggingFaceService.NAME,
+            context
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
         return new HuggingFaceServiceSettings(uri, similarityMeasure, dims, maxInputTokens, rateLimitSettings);
-    }
-
-    public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
-        String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
     private final URI uri;
@@ -98,28 +103,16 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            similarity = in.readOptionalEnum(SimilarityMeasure.class);
-            dimensions = in.readOptionalVInt();
-            maxInputTokens = in.readOptionalVInt();
-        } else {
-            similarity = null;
-            dimensions = null;
-            maxInputTokens = null;
-        }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        dimensions = in.readOptionalVInt();
+        maxInputTokens = in.readOptionalVInt();
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -136,6 +129,7 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }
@@ -153,15 +147,10 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
-            out.writeOptionalVInt(dimensions);
-            out.writeOptionalVInt(maxInputTokens);
-        }
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings.writeTo(out);
-        }
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalVInt(dimensions);
+        out.writeOptionalVInt(maxInputTokens);
+        rateLimitSettings.writeTo(out);
     }
 
     @Override
@@ -182,6 +171,11 @@ public class HuggingFaceServiceSettings extends FilteredXContentObject implement
     @Override
     public Integer dimensions() {
         return dimensions;
+    }
+
+    @Override
+    public String modelId() {
+        return null;
     }
 
     public Integer maxInputTokens() {

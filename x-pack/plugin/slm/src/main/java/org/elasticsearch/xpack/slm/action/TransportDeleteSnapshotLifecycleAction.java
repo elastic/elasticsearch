@@ -17,13 +17,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,8 +43,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             DeleteSnapshotLifecycleAction.NAME,
@@ -56,7 +52,6 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteSnapshotLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -84,17 +79,10 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
             this.request = request;
         }
 
-        /**
-         * Used by the {@link ReservedClusterStateHandler} for SLM
-         * {@link ReservedSnapshotAction}
-         */
-        DeleteSnapshotPolicyTask(String policyId) {
-            this(new DeleteSnapshotLifecycleAction.Request(policyId), null);
-        }
-
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            final var project = currentState.metadata().getProject();
+            SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE);
             if (snapMeta == null) {
                 throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
             }
@@ -113,20 +101,13 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
                 .filter(e -> e.getKey().equals(request.getLifecycleId()) == false)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            Metadata metadata = currentState.metadata();
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(metadata)
-                        .putCustom(
-                            SnapshotLifecycleMetadata.TYPE,
-                            new SnapshotLifecycleMetadata(
-                                newConfigs,
-                                currentMode,
-                                snapMeta.getStats().removePolicy(request.getLifecycleId())
-                            )
-                        )
+            return currentState.copyAndUpdateProject(
+                project.id(),
+                builder -> builder.putCustom(
+                    SnapshotLifecycleMetadata.TYPE,
+                    new SnapshotLifecycleMetadata(newConfigs, currentMode, snapMeta.getStats().removePolicy(request.getLifecycleId()))
                 )
-                .build();
+            );
         }
     }
 

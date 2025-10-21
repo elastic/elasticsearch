@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nodesinfo;
@@ -33,7 +34,10 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_1 = nodesNames.get(0);
         final String node_2 = nodesNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);
@@ -72,7 +76,10 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_1 = nodesNames.get(0);
         final String node_2 = nodesNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);
@@ -110,7 +117,10 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         final String node_1 = nodeNames.get(0);
         final String node_2 = nodeNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         String server1NodeId = getNodeId(node_1);

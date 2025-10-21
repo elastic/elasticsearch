@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,18 +18,26 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
+
+    private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName(
+        "esql_aggregate_metric_double_block"
+    );
 
     public void testConstantIntBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
@@ -36,6 +45,10 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     public void testConstantLongBlockLong() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantLongBlockWith(randomLong(), randomIntBetween(1, 8192)));
+    }
+
+    public void testConstantFloatBlock() throws IOException {
+        assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
     }
 
     public void testConstantDoubleBlock() throws IOException {
@@ -80,6 +93,17 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
     }
 
+    public void testEmptyFloatBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newFloatBlockBuilder(0).build());
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
+        }
+        assertEmptyBlock(blockFactory.newFloatVectorBuilder(0).build().asBlock());
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(0).appendFloat(randomFloat()).build()) {
+            assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
     public void testEmptyDoubleBlock() throws IOException {
         assertEmptyBlock(blockFactory.newDoubleBlockBuilder(0).build());
         try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(0).appendNull().build()) {
@@ -99,6 +123,13 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertEmptyBlock(blockFactory.newBytesRefVectorBuilder(0).build().asBlock());
         try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
             assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
+    public void testEmptyAggregateMetricDoubleBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
+        try (AggregateMetricDoubleBlock toFilter = blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
         }
     }
 
@@ -135,6 +166,22 @@ public class BlockSerializationTests extends SerializationTestCase {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
         try (LongVector toFilter = blockFactory.newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+        }
+    }
+
+    public void testFilterFloatBlock() throws IOException {
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(0).appendFloat(1).appendFloat(2).build()) {
+            assertFilterBlock(toFilter.filter(1));
+        }
+        try (FloatBlock toFilter = blockFactory.newFloatBlockBuilder(1).appendFloat(randomFloat()).appendNull().build()) {
+            assertFilterBlock(toFilter.filter(0));
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).build()) {
+            assertFilterBlock(toFilter.filter(0).asBlock());
+
+        }
+        try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
             assertFilterBlock(toFilter.filter(0).asBlock());
         }
     }
@@ -184,6 +231,35 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
     }
 
+    public void testFilterAggregateMetricDoubleBlock() throws IOException {
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
+        }
+
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.appendNull();
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
+        }
+    }
+
     private void assertFilterBlock(Block origBlock) throws IOException {
         assertThat(origBlock.getPositionCount(), is(1));
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
@@ -204,10 +280,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        var params = new Object[] {};
         var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
-        function.addRawInput(page);
+        try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
+            function.addRawInput(page, noMasking);
+        }
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
             function.evaluateIntermediate(blocks, 0, driverCtx);
@@ -332,6 +408,34 @@ public class BlockSerializationTests extends SerializationTestCase {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    public void testCompositeBlock() throws Exception {
+        final int numBlocks = randomIntBetween(1, 10);
+        final int positionCount = randomIntBetween(1, 1000);
+        final Block[] blocks = new Block[numBlocks];
+        for (int b = 0; b < numBlocks; b++) {
+            ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
+            blocks[b] = RandomBlock.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2)).block();
+        }
+        try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
+            assertThat(origBlock.getBlockCount(), equalTo(numBlocks));
+            for (int b = 0; b < numBlocks; b++) {
+                assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
+            }
+            try (
+                CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(random(), ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                )
+            ) {
+                assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
+                for (int b = 0; b < numBlocks; b++) {
+                    assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
+                }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -15,10 +16,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,14 +37,17 @@ import java.util.Set;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
+import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
 
 public final class RestResponse implements Releasable {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+    public static final Set<String> RESPONSE_PARAMS = Set.of("error_trace");
 
     static final String STATUS = "status";
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
     private final RestStatus status;
 
@@ -48,7 +55,7 @@ public final class RestResponse implements Releasable {
     private final BytesReference content;
 
     @Nullable
-    private final ChunkedRestResponseBody chunkedResponseBody;
+    private final ChunkedRestResponseBodyPart chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
@@ -84,8 +91,9 @@ public final class RestResponse implements Releasable {
         this(status, responseMediaType, content, null, releasable);
     }
 
-    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content, @Nullable Releasable releasable) {
-        if (content.isDone()) {
+    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBodyPart content, @Nullable Releasable releasable) {
+        if (content.isPartComplete()) {
+            assert content.isLastPart() : "response with continuations must have at least one (possibly-empty) chunk in each part";
             return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY, releasable);
         } else {
             return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content, releasable);
@@ -99,7 +107,7 @@ public final class RestResponse implements Releasable {
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,
-        @Nullable ChunkedRestResponseBody chunkedResponseBody,
+        @Nullable ChunkedRestResponseBodyPart chunkedResponseBody,
         @Nullable Releasable releasable
     ) {
         this.status = status;
@@ -136,9 +144,19 @@ public final class RestResponse implements Releasable {
         // switched in the xcontent rendering parameters.
         // For authorization problems (RestStatus.UNAUTHORIZED) we don't want to do this since this could
         // leak information to the caller who is unauthorized to make this call
-        if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
+        if (params.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
+
+        if (channel.request().getRestApiVersion() == RestApiVersion.V_8 && channel.detailedErrorsEnabled() == false) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "http_detailed_errors",
+                "The JSON format of non-detailed errors has changed in Elasticsearch 9.0 to match the JSON structure"
+                    + " used for detailed errors."
+            );
+        }
+
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
@@ -161,7 +179,7 @@ public final class RestResponse implements Releasable {
     }
 
     @Nullable
-    public ChunkedRestResponseBody chunkedContent() {
+    public ChunkedRestResponseBodyPart chunkedContent() {
         return chunkedResponseBody;
     }
 
@@ -194,12 +212,16 @@ public final class RestResponse implements Releasable {
     }
 
     public void copyHeaders(ElasticsearchException ex) {
-        Set<String> headerKeySet = ex.getHeaderKeys();
+        Set<String> bodyHeaderKeySet = ex.getBodyHeaderKeys();
+        Set<String> httpHeaderKeySet = ex.getHttpHeaderKeys();
         if (customHeaders == null) {
-            customHeaders = Maps.newMapWithExpectedSize(headerKeySet.size());
+            customHeaders = Maps.newMapWithExpectedSize(bodyHeaderKeySet.size() + httpHeaderKeySet.size());
         }
-        for (String key : headerKeySet) {
-            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getHeader(key));
+        for (String key : bodyHeaderKeySet) {
+            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getBodyHeader(key));
+        }
+        for (String key : httpHeaderKeySet) {
+            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getHttpHeader(key));
         }
     }
 

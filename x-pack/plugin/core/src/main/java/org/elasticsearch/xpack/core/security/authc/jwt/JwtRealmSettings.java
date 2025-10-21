@@ -25,11 +25,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyNonNullNotEmpty;
+import static org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil.verifyProxySettings;
 
 /**
  * Settings unique to each JWT realm.
@@ -194,7 +194,10 @@ public class JwtRealmSettings {
                 HTTP_CONNECTION_READ_TIMEOUT,
                 HTTP_SOCKET_TIMEOUT,
                 HTTP_MAX_CONNECTIONS,
-                HTTP_MAX_ENDPOINT_CONNECTIONS
+                HTTP_MAX_ENDPOINT_CONNECTIONS,
+                HTTP_PROXY_SCHEME,
+                HTTP_PROXY_HOST,
+                HTTP_PROXY_PORT
             )
         );
         // Standard TLS connection settings for outgoing connections to get JWT issuer jwkset_path
@@ -232,10 +235,9 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_SIGNATURE_ALGORITHMS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_signature_algorithms",
-        key -> Setting.listSetting(
+        key -> Setting.stringListSetting(
             key,
             DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS,
-            Function.identity(),
             values -> verifyNonNullNotEmpty(key, values, SUPPORTED_SIGNATURE_ALGORITHMS),
             Setting.Property.NodeScope
         )
@@ -481,6 +483,49 @@ public class JwtRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         "http.max_endpoint_connections",
         key -> Setting.intSetting(key, DEFAULT_HTTP_MAX_ENDPOINT_CONNECTIONS, MIN_HTTP_MAX_ENDPOINT_CONNECTIONS, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> HTTP_PROXY_HOST = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "http.proxy.host",
+        key -> Setting.simpleString(key, new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {
+                // There is no point in validating the hostname in itself without the scheme and port
+            }
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                verifyProxySettings(key, value, settings, HTTP_PROXY_HOST, HTTP_PROXY_SCHEME, HTTP_PROXY_PORT);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(
+                    HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace),
+                    HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace)
+                );
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
+    );
+    public static final Setting.AffixSetting<Integer> HTTP_PROXY_PORT = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "http.proxy.port",
+        key -> Setting.intSetting(key, 80, 1, 65535, Setting.Property.NodeScope),
+        () -> HTTP_PROXY_HOST
+    );
+    public static final Setting.AffixSetting<String> HTTP_PROXY_SCHEME = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "http.proxy.scheme",
+        key -> Setting.simpleString(
+            key,
+            "http",
+            // TODO allow HTTPS once https://github.com/elastic/elasticsearch/issues/100264 is fixed
+            value -> verifyNonNullNotEmpty(key, value, List.of("http")),
+            Setting.Property.NodeScope
+        )
     );
 
     // SSL Configuration settings

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.NonDynamicFieldMapperTests;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -21,12 +24,18 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
+        ModelRegistry modelRegistry = node().injector().getInstance(ModelRegistry.class);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(Utils.TestInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     @Override
@@ -39,6 +48,6 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
         return String.format(Locale.ROOT, """
             "type": "%s",
             "inference_id": "%s"
-            """, SemanticTextFieldMapper.CONTENT_TYPE, TestSparseInferenceServiceExtension.TestInferenceService.NAME);
+            """, SemanticTextFieldMapper.CONTENT_TYPE, "sparse-endpoint");
     }
 }

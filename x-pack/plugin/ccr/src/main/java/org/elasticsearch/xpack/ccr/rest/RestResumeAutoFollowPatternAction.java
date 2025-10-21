@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -32,8 +33,7 @@ public class RestResumeAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
-        Request request = new Request(restRequest.param("name"), true);
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        final var request = new Request(getMasterNodeTimeout(restRequest), TimeValue.THIRTY_SECONDS, restRequest.param("name"), true);
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

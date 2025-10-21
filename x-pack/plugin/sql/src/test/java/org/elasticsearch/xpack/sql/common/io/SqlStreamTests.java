@@ -69,7 +69,7 @@ public class SqlStreamTests extends ESTestCase {
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {
-        TransportVersion version = randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_7_2_1, TransportVersions.V_8_1_0);
+        TransportVersion version = TransportVersions.V_8_1_0;
         SqlStreamOutput out = SqlStreamOutput.create(version, randomZone());
         out.writeString("payload");
         out.close();

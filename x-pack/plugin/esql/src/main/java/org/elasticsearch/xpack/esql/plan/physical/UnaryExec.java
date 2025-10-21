@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.Objects;
 public abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
+    private AttributeSet lazyOutputSet;
 
     protected UnaryExec(Source source, PhysicalPlan child) {
         super(source, Collections.singletonList(child));
@@ -37,6 +39,21 @@ public abstract class UnaryExec extends PhysicalPlan {
     @Override
     public List<Attribute> output() {
         return child.output();
+    }
+
+    @Override
+    public AttributeSet outputSet() {
+        if (lazyOutputSet == null) {
+            List<Attribute> output = output();
+            lazyOutputSet = output == child.output() ? child.outputSet() : AttributeSet.of(output);
+            return lazyOutputSet;
+        }
+        return lazyOutputSet;
+    }
+
+    @Override
+    public AttributeSet inputSet() {
+        return child.outputSet();
     }
 
     @Override

@@ -22,7 +22,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -30,8 +29,10 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -358,13 +359,18 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
+        doAnswer(withMockConnection()).when(remoteClient1).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient2).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient3).getConnection(any(), any());
+
         GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 1L, 2L, 3L }));
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse)).when(remoteClient1)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -401,18 +407,25 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
+        doAnswer(withMockConnection()).when(remoteClient1).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient2).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient3).getConnection(any(), any());
+
         GetCheckpointAction.Response remoteCheckpointResponse1 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 1L, 2L, 3L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse1)).when(remoteClient1)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse2 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse2)).when(remoteClient2)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse3 = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 9L }));
-        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse3)).when(remoteClient3)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -454,7 +467,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         return new DefaultCheckpointProvider(
             clock,
             parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -480,6 +493,22 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         return invocationOnMock -> {
             ActionListener<Response> listener = invocationOnMock.getArgument(2);
             listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static <Response> Answer<Response> withRemoteResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = invocationOnMock.getArgument(3);
+            listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static Answer<Void> withMockConnection() {
+        return invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(mock(Transport.Connection.class));
             return null;
         };
     }

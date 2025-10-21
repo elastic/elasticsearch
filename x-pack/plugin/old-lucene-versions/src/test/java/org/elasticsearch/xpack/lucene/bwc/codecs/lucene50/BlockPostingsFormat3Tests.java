@@ -48,7 +48,9 @@ import org.apache.lucene.tests.util.English;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.test.ESTestCase;
 
@@ -187,7 +189,11 @@ public class BlockPostingsFormat3Tests extends ESTestCase {
             int numIntersections = atLeast(3);
             for (int i = 0; i < numIntersections; i++) {
                 String re = AutomatonTestUtil.randomRegexp(random());
-                CompiledAutomaton automaton = new CompiledAutomaton(new RegExp(re, RegExp.NONE).toAutomaton());
+                Automaton determinized = Operations.determinize(
+                    new RegExp(re, RegExp.NONE).toAutomaton(),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                );
+                CompiledAutomaton automaton = new CompiledAutomaton(determinized);
                 if (automaton.type == CompiledAutomaton.AUTOMATON_TYPE.NORMAL) {
                     // TODO: test start term too
                     TermsEnum leftIntersection = leftTerms.intersect(automaton, null);

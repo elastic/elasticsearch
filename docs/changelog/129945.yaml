@@ -1,0 +1,5 @@
+pr: 129945
+summary: "Enhancement: ILM sets `indexing_complete` to true from `ReadOnly` action"
+area: ILM+SLM
+type: enhancement
+issues: []

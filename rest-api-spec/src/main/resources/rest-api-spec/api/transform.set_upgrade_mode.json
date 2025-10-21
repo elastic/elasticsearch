@@ -1,0 +1,37 @@
+{
+  "transform.set_upgrade_mode": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-set-upgrade-mode",
+      "description": "Set upgrade_mode for transform indices"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_transform/set_upgrade_mode",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "enabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to enable upgrade_mode Transform setting or not. Defaults to false."
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Controls the time to wait before action times out. Defaults to 30 seconds"
+      }
+    }
+  }
+}

@@ -1,20 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PassThroughObjectMapperTests extends MapperServiceTestCase {
@@ -180,11 +185,60 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         PassThroughObjectMapper.checkForDuplicatePriorities(List.of());
     }
 
+    public void testMergingWithPassThrough() {
+        boolean isSourceSynthetic = randomBoolean();
+        var passThroughMapper = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10))
+            .build(MapperBuilderContext.root(isSourceSynthetic, true));
+        var objectMapper = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        RootObjectMapper merged = passThroughMapper.merge(
+            objectMapper,
+            MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+        );
+        assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
+
+        var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
+                new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
+            )
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> passThroughMapper.merge(
+                objectMapperWithSubObjectTrue,
+                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+            )
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
+        );
+
+        var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
+            new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
+        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+
+        error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PassThroughObjectMapper.Builder("metrics").setPriority(10)
+                .build(MapperBuilderContext.root(isSourceSynthetic, true))
+                .merge(rootObjectMapper, MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE))
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
+        );
+    }
+
     private PassThroughObjectMapper create(String name, int priority) {
         return new PassThroughObjectMapper(
             name,
             name,
             Explicit.EXPLICIT_TRUE,
+            Optional.empty(),
             ObjectMapper.Dynamic.FALSE,
             Map.of(),
             Explicit.EXPLICIT_FALSE,

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams.lifecycle;
@@ -40,7 +41,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 null,
-                new DataStreamLifecycle(),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 randomBoolean()
                     ? new ErrorEntry(
                         System.currentTimeMillis(),
@@ -58,7 +59,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 TimeValue.timeValueMillis(now + 100),
-                new DataStreamLifecycle(),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 randomBoolean()
                     ? new ErrorEntry(
                         System.currentTimeMillis(),
@@ -94,7 +95,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 now,
                 now + 80L, // rolled over in the future (clocks are funny that way)
                 TimeValue.timeValueMillis(now + 100L),
-                new DataStreamLifecycle(),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 null
             );
             assertThat(indexDataStreamLifecycle.getGenerationTime(() -> now), is(TimeValue.ZERO));
@@ -106,7 +107,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         {
             ExplainIndexDataStreamLifecycle randomIndexDataStreamLifecycleExplanation = createManagedIndexDataStreamLifecycleExplanation(
                 now,
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             );
             assertThat(
                 randomIndexDataStreamLifecycleExplanation.getTimeSinceIndexCreation(() -> now + 75L),
@@ -137,7 +138,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 now + 80L, // created in the future (clocks are funny that way)
                 null,
                 null,
-                new DataStreamLifecycle(),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 null
             );
             assertThat(indexDataStreamLifecycle.getTimeSinceIndexCreation(() -> now), is(TimeValue.ZERO));
@@ -149,7 +150,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         {
             ExplainIndexDataStreamLifecycle randomIndexDataStreamLifecycleExplanation = createManagedIndexDataStreamLifecycleExplanation(
                 now,
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             );
             if (randomIndexDataStreamLifecycleExplanation.getRolloverDate() == null) {
                 // age calculated since creation date
@@ -187,7 +188,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 now - 50L,
                 now + 100L, // rolled over in the future
                 TimeValue.timeValueMillis(now),
-                new DataStreamLifecycle(),
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
                 null
             );
             assertThat(indexDataStreamLifecycle.getTimeSinceRollover(() -> now), is(TimeValue.ZERO));
@@ -199,11 +200,7 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
         TimeValue configuredRetention = TimeValue.timeValueDays(100);
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
-        DataStreamLifecycle dataStreamLifecycle = new DataStreamLifecycle(
-            new DataStreamLifecycle.Retention(configuredRetention),
-            null,
-            null
-        );
+        DataStreamLifecycle dataStreamLifecycle = DataStreamLifecycle.createDataLifecycle(true, configuredRetention, null);
         {
             boolean isSystemDataStream = true;
             ExplainIndexDataStreamLifecycle explainIndexDataStreamLifecycle = createManagedIndexDataStreamLifecycleExplanation(
@@ -257,12 +254,18 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
 
     @Override
     protected ExplainIndexDataStreamLifecycle createTestInstance() {
-        return createManagedIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null);
+        return createManagedIndexDataStreamLifecycleExplanation(
+            System.nanoTime(),
+            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+        );
     }
 
     @Override
     protected ExplainIndexDataStreamLifecycle mutateInstance(ExplainIndexDataStreamLifecycle instance) throws IOException {
-        return createManagedIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null);
+        return createManagedIndexDataStreamLifecycleExplanation(
+            System.nanoTime(),
+            randomBoolean() ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : null
+        );
     }
 
     private static ExplainIndexDataStreamLifecycle createManagedIndexDataStreamLifecycleExplanation(

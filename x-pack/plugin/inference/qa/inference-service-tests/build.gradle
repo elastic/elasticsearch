@@ -1,11 +1,13 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  compileOnly project(':x-pack:plugin:core')
+  javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation project(path: xpackModule('inference'))
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  // Added this to have access to MockWebServer within the tests
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

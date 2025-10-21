@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.GeneralScriptException;
@@ -85,11 +85,12 @@ public class ScriptConditionTests extends ESTestCase {
             return total > threshold;
         });
 
-        scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts);
+        final var projectId = randomUniqueProjectId();
+        ClusterState cs = new ClusterState.Builder(ClusterName.DEFAULT).putProjectMetadata(
+            ProjectMetadata.builder(projectId).putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build())
+        ).build();
 
-        ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
-        clusterState.metadata(Metadata.builder().putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build()));
-        ClusterState cs = clusterState.build();
+        scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts, projectId);
         scriptService.applyClusterState(new ClusterChangedEvent("_source", cs, cs));
     }
 

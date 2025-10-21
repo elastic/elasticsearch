@@ -7,22 +7,19 @@
 
 package org.elasticsearch.xpack.core.esql.action;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
-public abstract class EsqlQueryRequest extends ActionRequest {
+public abstract class EsqlQueryRequest extends LegacyActionRequest {
 
     protected EsqlQueryRequest() {}
 
     protected EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
     }
-
-    // Use the unparsed version String, so we don't have to serialize a version object.
-    public abstract String esqlVersion();
 
     public abstract String query();
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -25,7 +26,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex("test-no-ilm-policy").build();
             Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
 
         {
@@ -36,7 +37,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             ).build();
             Metadata metadata = Metadata.builder().build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
 
         {
@@ -46,7 +47,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 Settings.builder().put("index.lifecycle.name", "metrics").build()
             ).build();
             Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(true));
         }
 
         {
@@ -65,11 +66,11 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 1,
                 null,
                 false,
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(true));
         }
 
         {
@@ -88,11 +89,11 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 1,
                 null,
                 false,
-                new DataStreamLifecycle()
+                DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
     }
 

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
@@ -195,7 +198,7 @@ public class NodeJoinTests extends ESTestCase {
                     );
                 } else if (action.equals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME)
                     || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
-                        handleResponse(requestId, TransportResponse.Empty.INSTANCE);
+                        handleResponse(requestId, ActionResponse.Empty.INSTANCE);
                     } else {
                         super.onSendRequest(requestId, action, request, destination);
                     }
@@ -210,8 +213,16 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings,
             Collections.emptySet()
         );
+        String nodeName = "test_node";
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+        ClusterService clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, Set.of())
+        );
         coordinator = new Coordinator(
-            "test_node",
+            nodeName,
             Settings.EMPTY,
             clusterSettings,
             transportService,
@@ -232,7 +243,8 @@ public class NodeJoinTests extends ESTestCase {
             LeaderHeartbeatService.NO_OP,
             StatefulPreVoteCollector::new,
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            clusterService
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -774,14 +786,14 @@ public class NodeJoinTests extends ESTestCase {
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             joinNode(joinRequest);
-        }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+        }, "TEST-process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {
                 // ignore - these requests are expected to fail
             }
-        }, "process " + joinRequest))).toList();
+        }, "TEST-process " + joinRequest))).toList();
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

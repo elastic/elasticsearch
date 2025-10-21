@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -19,7 +18,7 @@ import java.util.Objects;
  * Similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
  * and '*' wildcard for multiple characters (same as regex ".*")
  * <p>
- * Allows escaping based on a regular char
+ * Allows escaping based on a regular char.
  *
  */
 public class WildcardPattern extends AbstractStringPattern {
@@ -39,8 +38,7 @@ public class WildcardPattern extends AbstractStringPattern {
 
     @Override
     public Automaton createAutomaton() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

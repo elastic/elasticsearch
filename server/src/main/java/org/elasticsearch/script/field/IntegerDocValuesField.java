@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -22,7 +23,7 @@ public class IntegerDocValuesField extends AbstractScriptFieldFactory<Integer>
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Long> {
 
-    protected final SortedNumericDocValues input;
+    protected final SortedNumericLongValues input;
     protected final String name;
 
     protected int[] values = new int[0];
@@ -30,7 +31,7 @@ public class IntegerDocValuesField extends AbstractScriptFieldFactory<Integer>
 
     private ScriptDocValues.Longs longs = null;
 
-    public IntegerDocValuesField(SortedNumericDocValues input, String name) {
+    public IntegerDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }

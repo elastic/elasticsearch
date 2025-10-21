@@ -1,5 +1,0 @@
-pr: 108165
-summary: Add `BlockHash` for 3 `BytesRefs`
-area: ES|QL
-type: enhancement
-issues: []

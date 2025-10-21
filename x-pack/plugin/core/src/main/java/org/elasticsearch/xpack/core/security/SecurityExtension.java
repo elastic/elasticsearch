@@ -8,15 +8,21 @@ package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -56,6 +62,12 @@ public interface SecurityExtension {
 
         /** Provides support for mapping users' roles from groups and metadata */
         UserRoleMapper roleMapper();
+
+        /** Provides the ability to access project-scoped data from the global scope **/
+        ProjectResolver projectResolver();
+
+        /** Provides the ability to access the APM tracer and meter registry **/
+        TelemetryProvider telemetryProvider();
     }
 
     /**
@@ -111,6 +123,22 @@ public interface SecurityExtension {
     }
 
     /**
+     * Returns a {@link NodeLocalServiceAccountTokenStore} used to authenticate service account tokens.
+     * If {@code null} is returned, the default service account token stores will be used.
+     *
+     * Providing a custom {@link NodeLocalServiceAccountTokenStore} here overrides the default implementation.
+     *
+     * @param components Access to components that can be used to authenticate service account tokens
+     */
+    default ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+        return null;
+    }
+
+    default List<CustomAuthenticator> getCustomAuthenticators(SecurityComponents components) {
+        return null;
+    }
+
+    /**
      * Returns a authorization engine for authorizing requests, or null to use the default authorization mechanism.
      *
      * Only one installed extension may have an authorization engine. If more than
@@ -124,5 +152,9 @@ public interface SecurityExtension {
 
     default String extensionName() {
         return getClass().getName();
+    }
+
+    default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
+        return null;
     }
 }

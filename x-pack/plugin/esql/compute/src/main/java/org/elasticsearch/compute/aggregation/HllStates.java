@@ -7,9 +7,10 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -137,7 +138,8 @@ final class HllStates {
             this.hll = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.precisionFromThreshold(precision), bigArrays, 1);
         }
 
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // Nothing to do
         }
 
@@ -164,10 +166,6 @@ final class HllStates {
 
         long cardinality(int groupId) {
             return hll.cardinality(groupId);
-        }
-
-        void merge(int groupId, AbstractHyperLogLogPlusPlus other, int otherGroup) {
-            hll.merge(groupId, other, otherGroup);
         }
 
         void merge(int groupId, BytesRef other, int otherGroup) {

@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -19,7 +16,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
-import org.elasticsearch.xpack.core.transform.utils.TransformConfigVersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -94,23 +90,6 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
         }
 
         return dateHistogramGroupSource;
-    }
-
-    public void testBackwardsSerialization72() throws IOException {
-        // version 7.7 introduced scripts, so test before that
-        DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(
-            TransformConfigVersionUtils.randomVersionBetween(random(), TransformConfigVersion.V_7_3_0, TransformConfigVersion.V_7_6_2)
-        );
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersions.V_7_2_0);
-            groupSource.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersions.V_7_2_0);
-                DateHistogramGroupSource streamedGroupSource = new DateHistogramGroupSource(in);
-                assertEquals(groupSource, streamedGroupSource);
-            }
-        }
     }
 
     @Override

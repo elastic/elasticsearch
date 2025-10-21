@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.slice;
@@ -29,8 +30,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -133,14 +134,8 @@ public class SliceBuilderTests extends ESTestCase {
         String fieldName,
         DocValuesType dvType
     ) {
-        MappedFieldType fieldType = new MappedFieldType(
-            fieldName,
-            true,
-            false,
-            dvType != null,
-            TextSearchInfo.NONE,
-            Collections.emptyMap()
-        ) {
+        IndexType indexType = IndexType.terms(false, dvType != null);
+        MappedFieldType fieldType = new MappedFieldType(fieldName, indexType, false, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {

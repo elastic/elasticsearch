@@ -1,0 +1,6 @@
+height_range:double_range, description:keyword
+                 0.0..1.5, Very Short
+                 1.5..1.6, Short
+                 1.6..1.8, Medium Height
+                 1.8..2.0, Tall
+                 2.0..5.0, Very Tall

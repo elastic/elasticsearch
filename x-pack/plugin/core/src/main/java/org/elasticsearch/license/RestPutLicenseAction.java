@@ -8,7 +8,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -28,10 +27,7 @@ public class RestPutLicenseAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         // TODO: remove POST endpoint?
-        return List.of(
-            Route.builder(POST, "/_license").replaces(POST, "/_xpack/license", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_license").replaces(PUT, "/_xpack/license", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_license"), new Route(PUT, "/_license"));
     }
 
     @Override
@@ -44,11 +40,9 @@ public class RestPutLicenseAction extends BaseRestHandler {
         if (request.hasContent() == false) {
             throw new IllegalArgumentException("The license must be provided in the request body");
         }
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         putLicenseRequest.license(request.content(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        putLicenseRequest.ackTimeout(getAckTimeout(request));
-        putLicenseRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {
             throw new IllegalArgumentException(

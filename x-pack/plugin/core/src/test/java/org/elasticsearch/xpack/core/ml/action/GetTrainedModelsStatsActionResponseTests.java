@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTest
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,6 +32,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response createTestInstance() {
+        return createInstance();
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public static Response createInstance() {
         int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(listSize)
@@ -47,29 +58,31 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         return new Response(new QueryPage<>(trainedModelStats, randomLongBetween(listSize, 1000), RESULTS_FIELD));
     }
 
-    @Override
-    protected Response mutateInstance(Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
-    }
-
-    private IngestStats randomIngestStats() {
+    public static IngestStats randomIngestStats() {
         List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 10)).toList();
         return new IngestStats(
             new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-            pipelineIds.stream().map(id -> new IngestStats.PipelineStat(id, randomStats(), randomByteStats())).collect(Collectors.toList()),
-            pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats()))
+            pipelineIds.stream()
+                .map(id -> new IngestStats.PipelineStat(ProjectId.DEFAULT, id, randomStats(), randomByteStats()))
+                .collect(Collectors.toList()),
+            pipelineIds.isEmpty()
+                ? Map.of()
+                : Map.of(
+                    ProjectId.DEFAULT,
+                    pipelineIds.stream().collect(Collectors.toMap(Function.identity(), v -> randomProcessorStats()))
+                )
         );
     }
 
-    private IngestStats.Stats randomStats() {
+    private static IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private IngestStats.ByteStats randomByteStats() {
+    private static IngestStats.ByteStats randomByteStats() {
         return new IngestStats.ByteStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private List<IngestStats.ProcessorStat> randomProcessorStats() {
+    private static List<IngestStats.ProcessorStat> randomProcessorStats() {
         return Stream.generate(() -> randomAlphaOfLength(10))
             .limit(randomIntBetween(0, 10))
             .map(name -> new IngestStats.ProcessorStat(name, "inference", randomStats()))
@@ -100,9 +113,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -135,9 +149,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -152,6 +167,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         null,
                                         stats.getDeploymentStats().getStartTime(),
@@ -207,9 +223,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -224,6 +241,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         null,
                                         stats.getDeploymentStats().getStartTime(),
@@ -279,9 +297,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -296,6 +315,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         null,
                                         stats.getDeploymentStats().getStartTime(),
@@ -351,9 +371,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -368,6 +389,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),
@@ -424,9 +446,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -441,6 +464,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),
@@ -497,9 +521,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -514,6 +539,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),
@@ -552,7 +578,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(TransportVersions.NODE_STATS_INGEST_BYTES)) {
+        } else if (version.before(TransportVersions.V_8_15_0)) {
             // added ByteStats to IngestStats.PipelineStat
             return new Response(
                 new QueryPage<>(
@@ -570,9 +596,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -587,6 +614,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),

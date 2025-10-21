@@ -162,8 +162,8 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
         // only need to check if both "search" and "replication" are defined
         // no need to check for DLS if set of cluster privileges are not the set used pre 8.14
-        final String[] pre8_14ClusterPrivileges = { "cross_cluster_search", "cross_cluster_replication" };
-        final boolean hasBoth = Arrays.equals(clusterPrivileges, pre8_14ClusterPrivileges);
+        final String[] legacyClusterPrivileges = { "cross_cluster_search", "cross_cluster_replication" };
+        final boolean hasBoth = Arrays.equals(clusterPrivileges, legacyClusterPrivileges);
         if (false == hasBoth) {
             return;
         }
@@ -171,9 +171,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = roleDescriptor.getIndicesPrivileges();
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : indicesPrivileges) {
             final String[] privileges = indexPrivilege.getPrivileges();
-            final String[] pre8_14IndicesPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
+            final String[] legacyIndicesPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
             // find the "search" privilege, no need to check for DLS if set of index privileges are not the set used pre 8.14
-            if (Arrays.equals(privileges, pre8_14IndicesPrivileges)) {
+            if (Arrays.equals(privileges, legacyIndicesPrivileges)) {
                 if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
                     throw new IllegalArgumentException(
                         "Cross cluster API key ["

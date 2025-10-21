@@ -11,7 +11,6 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.function.Function;
 
 /**
  * Used on parameters on methods annotated with {@link Evaluator} to indicate
@@ -27,12 +26,23 @@ public @interface Fixed {
     boolean includeInToString() default true;
 
     /**
-     * Should the Evaluator's factory build this per evaluator with a
-     * {@code Function<DriverContext, T>} or just take fixed implementation?
-     * This is typically set to {@code true} to use the {@link Function}
-     * to make "scratch" objects which have to be isolated in a single thread.
-     * This is typically set to {@code false} when the parameter is simply
-     * immutable and can be shared.
+     * Defines the scope of the parameter.
+     * - SINGLETON (default) will build a single instance and share it across all evaluators
+     * - THREAD_LOCAL will build a new instance for each evaluator thread
      */
-    boolean build() default false;
+    Scope scope() default Scope.SINGLETON;
+
+    /**
+     * Defines the parameter scope
+     */
+    enum Scope {
+        /**
+         * Should be used for immutable parameters that can be shared across different threads
+         */
+        SINGLETON,
+        /**
+         * Should be used for mutable or not thread safe parameters
+         */
+        THREAD_LOCAL,
+    }
 }

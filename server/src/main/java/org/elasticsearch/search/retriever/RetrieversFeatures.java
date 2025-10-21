@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
@@ -18,13 +19,15 @@ import java.util.Set;
  * retrievers can be added individually with additional functionality.
  */
 public class RetrieversFeatures implements FeatureSpecification {
+    public static final NodeFeature NEGATIVE_RANK_WINDOW_SIZE_FIX = new NodeFeature("retriever.negative_rank_window_size_fix");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            RetrieverBuilder.RETRIEVERS_SUPPORTED,
-            StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED,
-            KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
-        );
+        return Set.of();
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(NEGATIVE_RANK_WINDOW_SIZE_FIX);
     }
 }

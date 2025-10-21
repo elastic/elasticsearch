@@ -1,0 +1,27 @@
+---
+"Test invalid name warnings":
+  - requires:
+      test_runner_features: [ "warnings" ]
+      reason: verifying deprecation warnings from 9.0 onwards for invalid pipeline names
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "Invalid*-pipeline:id"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "_value"
+                }
+              }]
+          }
+      warnings:
+        - "Pipeline name [Invalid*-pipeline:id] will be disallowed in a future version for the following reason: must not contain the following characters [' ','\"','*',',','/','<','>','?','\\','|']"
+  - match: { acknowledged: true }

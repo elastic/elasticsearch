@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -11,6 +12,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.ArrayList;
@@ -28,7 +30,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
-    private static final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("test");
+    private static final ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory("test");
     private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     private ExecutorService executor;

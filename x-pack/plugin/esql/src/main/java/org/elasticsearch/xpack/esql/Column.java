@@ -13,23 +13,27 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 
 /**
- * A column of data provided in the request.
+ * A "column" from a {@code table} provided in the request.
  */
 public record Column(DataType type, Block values) implements Releasable, Writeable {
+    public Column {
+        assert PlannerUtils.toElementType(type) == values.elementType();
+    }
+
     public Column(BlockStreamInput in) throws IOException {
-        this(EsqlDataTypes.fromTypeName(in.readString()), in.readNamedWriteable(Block.class));
+        this(DataType.fromTypeName(in.readString()), Block.readTypedBlock(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type.typeName());
-        out.writeNamedWriteable(values);
+        Block.writeTypedBlock(values, out);
     }
 
     @Override

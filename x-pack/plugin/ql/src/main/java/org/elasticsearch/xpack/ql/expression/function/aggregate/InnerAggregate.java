@@ -51,6 +51,12 @@ public class InnerAggregate extends AggregateFunction {
         throw new UnsupportedOperationException("can't be rewritten");
     }
 
+    @Override
+    protected Expression canonicalize() {
+        // we can't replace children (see above), so we can't canonicalize either.
+        return this;
+    }
+
     public AggregateFunction inner() {
         return inner;
     }

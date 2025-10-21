@@ -1,9 +1,12 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
 esplugin {
-  name 'x-pack-enrich'
-  description 'Elasticsearch Expanded Pack Plugin - Enrich'
-  classname 'org.elasticsearch.xpack.enrich.EnrichPlugin'
+  name = 'x-pack-enrich'
+  description = 'Elasticsearch Expanded Pack Plugin - Enrich'
+  classname = 'org.elasticsearch.xpack.enrich.EnrichPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {
@@ -19,6 +22,28 @@ dependencies {
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  internalClusterTestImplementation project(':modules:rest-root')
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:mapper-extras')
+
+  clusterModules project(xpackModule('monitoring'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('wildcard'))
 }
 
-addQaCheckDependencies(project)
+tasks.named('yamlRestTest') {
+  // single tests can be run using the same cluster configuration as used for Java REST tests, but cleanup inbetween tests fails
+  usesDefaultDistribution("cleanUpCluster fails if not using the default distribution")
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'indices', 'index', 'ingest.delete_pipeline', 'ingest.put_pipeline', 'enrich', 'get', 'capabilities'
+  }
+  restTests {
+    includeXpack 'enrich'
+  }
+}
+

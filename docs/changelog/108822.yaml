@@ -1,6 +1,0 @@
-pr: 108822
-summary: Update ASM to 9.7 for plugin scanner
-area: Infra/Plugins
-type: upgrade
-issues:
- - 108776

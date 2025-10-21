@@ -11,19 +11,18 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -49,12 +48,10 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -158,11 +155,13 @@ public class DownsampleActionIT extends ESRestTestCase {
         updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
     }
 
-    private void createIndex(String index, String alias, boolean isTimeSeries) throws IOException {
+    private void createIndex(String index, String alias, @Nullable String policy, boolean isTimeSeries) throws IOException {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        if (policy != null) {
+            settings.put(LifecycleSettings.LIFECYCLE_NAME, policy);
+        }
 
         if (isTimeSeries) {
             settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
@@ -192,13 +191,19 @@ public class DownsampleActionIT extends ESRestTestCase {
     }
 
     public void testRollupIndex() throws Exception {
-        createIndex(index, alias, true);
-        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
-
+        // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
-        updatePolicy(client(), index, policy);
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            phaseName,
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
+
+        // Create a time series index managed by the policy
+        createIndex(index, alias, policy, true);
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String rollupIndex = waitAndGetRollupIndexName(client(), index, fixedInterval);
         assertNotNull("Cannot retrieve rollup index name", rollupIndex);
@@ -221,17 +226,14 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
     }
 
-    public void testRollupIndexInTheHotPhase() throws Exception {
-        createIndex(index, alias, true);
-        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
-
+    public void testRollupIndexInTheHotPhaseWithoutRollover() {
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> createNewSingletonPolicy(
                 client(),
                 policy,
                 "hot",
-                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT)
+                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
             )
         );
         assertTrue(
@@ -249,7 +251,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             DownsampleAction.NAME,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT)
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -273,7 +275,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         client().performRequest(createTemplateRequest);
 
         // then create the index and index a document to trigger rollover
-        createIndex(originalIndex, alias, true);
+        createIndex(originalIndex, alias, policy, true);
         index(
             client(),
             originalIndex,
@@ -308,7 +310,12 @@ public class DownsampleActionIT extends ESRestTestCase {
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "warm",
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -319,7 +326,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -356,7 +363,12 @@ public class DownsampleActionIT extends ESRestTestCase {
     public void testILMWaitsForTimeSeriesEndTimeToLapse() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "warm",
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
@@ -366,7 +378,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
         index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -395,15 +407,20 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
-        createIndex(index, alias, false);
-        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
-
+        // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
-        updatePolicy(client(), index, policy);
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            phaseName,
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+        );
+
+        // Create a non TSDB managed index
+        createIndex(index, alias, policy, false);
+        index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         try {
             assertBusy(
@@ -460,7 +477,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStream).getFirst();
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
         assertBusy(
             () -> assertThat(
@@ -541,7 +558,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String firstBackingIndex = getBackingIndices(client(), dataStream).get(0);
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStream).getFirst();
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
         assertBusy(
             () -> assertThat(

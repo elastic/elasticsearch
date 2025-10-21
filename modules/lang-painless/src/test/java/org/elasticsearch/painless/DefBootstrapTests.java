@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -138,9 +139,11 @@ public class DefBootstrapTests extends ESTestCase {
         map.put("a", "b");
         assertEquals(2, (int) handle.invokeExact((Object) map));
 
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+        final PainlessWrappedException pwe = expectThrows(PainlessWrappedException.class, () -> {
             Integer.toString((int) handle.invokeExact(new Object()));
         });
+        assertTrue(pwe.getCause() instanceof IllegalArgumentException);
+        IllegalArgumentException iae = (IllegalArgumentException) pwe.getCause();
         assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
         assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
             return e.getMethodName().equals("computeValue") && e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");

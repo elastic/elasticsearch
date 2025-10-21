@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.slm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -123,11 +122,9 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         ClusterService clusterService = services.clusterService();
         ThreadPool threadPool = services.threadPool();
         final List<Object> components = new ArrayList<>();
-
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
-            services.featureService(),
             threadPool,
             client,
             services.xContentRegistry()
@@ -137,7 +134,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         snapshotLifecycleService.set(
             new SnapshotLifecycleService(
                 settings,
-                () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()),
+                projectId -> new SnapshotLifecycleTask(projectId, client, clusterService, snapshotHistoryStore.get()),
                 clusterService,
                 getClock()
             )
@@ -166,9 +163,14 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(RegisteredPolicySnapshots.TYPE),
+                RegisteredPolicySnapshots::parse
             )
         );
     }
@@ -205,25 +207,25 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var slmUsageAction = new ActionHandler<>(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
-        var slmInfoAction = new ActionHandler<>(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+    public List<ActionHandler> getActions() {
+        var slmUsageAction = new ActionHandler(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
+        var slmInfoAction = new ActionHandler(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
+        List<ActionHandler> actions = new ArrayList<>();
         actions.add(slmUsageAction);
         actions.add(slmInfoAction);
         actions.addAll(
             Arrays.asList(
                 // add SLM actions
-                new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
-                new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
-                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
-                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
-                new ActionHandler<>(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
-                new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
-                new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
-                new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
+                new ActionHandler(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
+                new ActionHandler(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
+                new ActionHandler(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
+                new ActionHandler(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
+                new ActionHandler(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
+                new ActionHandler(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler(TransportSLMGetExpiredSnapshotsAction.INSTANCE, TransportSLMGetExpiredSnapshotsAction.class),
+                new ActionHandler(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
+                new ActionHandler(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
+                new ActionHandler(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)
             )
         );
         return actions;

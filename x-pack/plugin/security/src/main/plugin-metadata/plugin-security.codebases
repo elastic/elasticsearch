@@ -1,2 +1,0 @@
-netty-common: io.netty.util.NettyRuntime
-netty-transport: io.netty.channel.Channel

@@ -1,0 +1,34 @@
+{
+  "esql.get_query": {
+    "documentation": {
+      "url": null,
+      "description": "Get a specific running ES|QL query information"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/queries/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The query ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

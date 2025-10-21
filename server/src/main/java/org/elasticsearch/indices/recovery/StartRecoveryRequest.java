@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -16,14 +17,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Represents a request for starting a peer recovery.
  */
-public class StartRecoveryRequest extends TransportRequest {
+public class StartRecoveryRequest extends AbstractTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
@@ -51,11 +52,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
-        if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            canDownloadSnapshotFiles = in.readBoolean();
-        } else {
-            canDownloadSnapshotFiles = true;
-        }
+        canDownloadSnapshotFiles = in.readBoolean();
     }
 
     /**
@@ -170,8 +167,28 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
-        if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            out.writeBoolean(canDownloadSnapshotFiles);
-        }
+        out.writeBoolean(canDownloadSnapshotFiles);
+    }
+
+    @Override
+    public String toString() {
+        return "StartRecoveryRequest{"
+            + "shardId="
+            + shardId
+            + ", targetNode="
+            + targetNode.descriptionWithoutAttributes()
+            + ", recoveryId="
+            + recoveryId
+            + ", targetAllocationId='"
+            + targetAllocationId
+            + "', clusterStateVersion="
+            + clusterStateVersion
+            + ", primaryRelocation="
+            + primaryRelocation
+            + ", startingSeqNo="
+            + startingSeqNo
+            + ", canDownloadSnapshotFiles="
+            + canDownloadSnapshotFiles
+            + '}';
     }
 }

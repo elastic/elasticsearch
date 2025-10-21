@@ -22,6 +22,9 @@ public final class AzureAiStudioProviderCapabilities {
     // these providers have chat completion inference (all providers at the moment)
     public static final List<AzureAiStudioProvider> chatCompletionProviders = List.of(AzureAiStudioProvider.values());
 
+    // these providers have rerank inference
+    public static final List<AzureAiStudioProvider> rerankProviders = List.of(AzureAiStudioProvider.COHERE);
+
     // these providers allow token ("pay as you go") embeddings endpoints
     public static final List<AzureAiStudioProvider> tokenEmbeddingsProviders = List.of(
         AzureAiStudioProvider.OPENAI,
@@ -30,6 +33,9 @@ public final class AzureAiStudioProviderCapabilities {
 
     // these providers allow realtime embeddings endpoints (none at the moment)
     public static final List<AzureAiStudioProvider> realtimeEmbeddingsProviders = List.of();
+
+    // these providers allow realtime rerank endpoints (none at the moment)
+    public static final List<AzureAiStudioProvider> realtimeRerankProviders = List.of();
 
     // these providers allow token ("pay as you go") chat completion endpoints
     public static final List<AzureAiStudioProvider> tokenChatCompletionProviders = List.of(
@@ -54,6 +60,9 @@ public final class AzureAiStudioProviderCapabilities {
             case TEXT_EMBEDDING -> {
                 return embeddingProviders.contains(provider);
             }
+            case RERANK -> {
+                return rerankProviders.contains(provider);
+            }
             default -> {
                 return false;
             }
@@ -75,6 +84,11 @@ public final class AzureAiStudioProviderCapabilities {
                 return (endpointType == AzureAiStudioEndpointType.TOKEN)
                     ? tokenEmbeddingsProviders.contains(provider)
                     : realtimeEmbeddingsProviders.contains(provider);
+            }
+            case RERANK -> {
+                return (endpointType == AzureAiStudioEndpointType.TOKEN)
+                    ? rerankProviders.contains(provider)
+                    : realtimeRerankProviders.contains(provider);
             }
             default -> {
                 return false;

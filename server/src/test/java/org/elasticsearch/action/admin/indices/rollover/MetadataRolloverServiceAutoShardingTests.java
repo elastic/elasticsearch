@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -19,7 +20,8 @@ import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -53,6 +55,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
 
+    private final ProjectId projectId = randomProjectIdOrDefault();
+
     public void testRolloverDataStreamWithoutExistingAutosharding() throws Exception {
         String dataStreamName = "no_preexising_autoshard_event_ds";
         DataStream dataStream = DataStreamTestHelper.newInstance(
@@ -76,14 +80,14 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
             // all indices have, by default 3 shards (using a value GT 1 so we can test decreasing the number of shards)
             .template(new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build(), null, null))
             .build();
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
             // all indices have, by default 3 shards (using a value GT 1 so we can test decreasing the number of shards)
             builder.put(getIndexMetadataBuilderForIndex(index, 3));
         }
         builder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
@@ -104,7 +108,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     case INCREASE_SHARDS -> {
                         List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(5));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -113,7 +117,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33),
+                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO),
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 5);
@@ -133,7 +137,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             // will be 1
                             List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                                clusterState,
+                                clusterState.projectState(projectId),
                                 dataStream.getName(),
                                 null,
                                 new CreateIndexRequest("_na_"),
@@ -142,7 +146,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO),
                                 false
                             );
                             assertRolloverResult(
@@ -169,7 +173,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             // configure the decrease shards recommendation
                             List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                                clusterState,
+                                clusterState.projectState(projectId),
                                 dataStream.getName(),
                                 null,
                                 new CreateIndexRequest("_na_"),
@@ -178,7 +182,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO),
                                 false
                             );
                             assertRolloverResult(
@@ -196,11 +200,10 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             COOLDOWN_PREVENTED_INCREASE,
                             3,
                             5,
-                            TimeValue.timeValueMinutes(10),
-                            64.33
+                            TimeValue.timeValueMinutes(10)
                         );
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -209,7 +212,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33),
+                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10)),
                             false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
@@ -226,7 +229,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     }
                     case COOLDOWN_PREVENTED_DECREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -235,7 +238,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10), 64.33),
+                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10)),
                             false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
@@ -253,7 +256,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     case NO_CHANGE_REQUIRED -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -262,7 +265,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO, 2.33),
+                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO),
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
@@ -280,7 +283,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     case NOT_APPLICABLE -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -289,7 +292,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE, null),
+                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE),
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
@@ -334,7 +337,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             // the index template does not configure any number of shards so we'll default to 1
             .build();
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put("template", template);
         int numberOfShards = 1;
         for (Index index : dataStream.getIndices()) {
@@ -345,7 +348,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
             builder.put(getIndexMetadataBuilderForIndex(index, numberOfShards));
         }
         builder.put(dataStream);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
@@ -366,7 +369,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     case INCREASE_SHARDS -> {
                         List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(3));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -375,7 +378,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33),
+                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO),
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 5);
@@ -395,7 +398,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             // will be 1
                             List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                                clusterState,
+                                clusterState.projectState(projectId),
                                 dataStream.getName(),
                                 null,
                                 new CreateIndexRequest("_na_"),
@@ -404,7 +407,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO),
                                 false
                             );
                             assertRolloverResult(
@@ -431,7 +434,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             // configure the decrease shards recommendation
                             List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                                clusterState,
+                                clusterState.projectState(projectId),
                                 dataStream.getName(),
                                 null,
                                 new CreateIndexRequest("_na_"),
@@ -440,7 +443,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO),
                                 false
                             );
                             assertRolloverResult(
@@ -455,7 +458,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     }
                     case COOLDOWN_PREVENTED_INCREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -464,7 +467,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33),
+                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10)),
                             false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
@@ -481,7 +484,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     }
                     case COOLDOWN_PREVENTED_DECREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -490,7 +493,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10), 64.33),
+                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10)),
                             false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
@@ -508,7 +511,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     case NO_CHANGE_REQUIRED -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -517,7 +520,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO, 2.33),
+                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO),
                             false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
@@ -535,7 +538,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                     case NOT_APPLICABLE -> {
                         List<Condition<?>> metConditions = List.of(new MaxDocsCondition(randomNonNegativeLong()));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
-                            clusterState,
+                            clusterState.projectState(projectId),
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
@@ -544,7 +547,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE, null),
+                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE),
                             false
                         );
                         // if the auto sharding is not applicable we just use whatever's in the index template (1 shard in this case)
@@ -567,7 +570,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
         }
     }
 
-    private static void assertRolloverResult(
+    private void assertRolloverResult(
         DataStream preRolloverDataStream,
         MetadataRolloverService.RolloverResult rolloverResult,
         long before,
@@ -575,17 +578,17 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
         List<Condition<?>> metConditions,
         int expectedNumberOfShards
     ) {
-        String sourceIndexName = DataStream.getDefaultBackingIndexName(
-            preRolloverDataStream.getName(),
-            preRolloverDataStream.getGeneration()
+        String sourceIndexName = rolloverResult.sourceIndexName();
+        assertThat(
+            sourceIndexName,
+            DataStreamTestHelper.backingIndexEqualTo(preRolloverDataStream.getName(), (int) preRolloverDataStream.getGeneration())
         );
-        String newIndexName = DataStream.getDefaultBackingIndexName(
-            preRolloverDataStream.getName(),
-            preRolloverDataStream.getGeneration() + 1
+        String newIndexName = rolloverResult.rolloverIndexName();
+        assertThat(
+            newIndexName,
+            DataStreamTestHelper.backingIndexEqualTo(preRolloverDataStream.getName(), (int) preRolloverDataStream.getGeneration() + 1)
         );
-        assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
-        assertEquals(newIndexName, rolloverResult.rolloverIndexName());
-        Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
+        ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
         assertEquals(preRolloverDataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
         IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
         // number of shards remained the same

@@ -39,7 +39,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
@@ -286,7 +285,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             TimeValue.ZERO,
             Map.of(migrateAction.getWriteableName(), migrateAction, shrinkAction.getWriteableName(), shrinkAction)
         );
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);

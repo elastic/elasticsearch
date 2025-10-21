@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -12,12 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -25,6 +27,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,23 +85,26 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             request,
             listener,
-            new GroupShardsIterator<>(Collections.singletonList(new SearchShardIterator(null, null, Collections.emptyList(), null))),
+            Collections.singletonList(
+                new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+            ),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
             results,
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            Mockito.mock(SearchResponseMetrics.class)
         ) {
             @Override
-            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+            protected SearchPhase getNextPhase() {
                 return null;
             }
 
             @Override
             protected void executePhaseOnShard(
                 final SearchShardIterator shardIt,
-                final SearchShardTarget shard,
+                final Transport.Connection shard,
                 final SearchActionListener<SearchPhaseResult> listener
             ) {}
 
@@ -109,11 +115,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendReleaseSearchContext(
-                ShardSearchContextId contextId,
-                Transport.Connection connection,
-                OriginalIndices originalIndices
-            ) {
+            public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
                 releasedContexts.add(contextId);
             }
 
@@ -157,7 +159,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 clusterAlias,
                 new ShardId(new Index("name", "foo"), 1),
                 Collections.emptyList(),
-                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand())
+                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand()),
+                SplitShardCountSummary.UNSET
             );
             ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
             assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
@@ -208,12 +211,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
-        action.onPhaseFailure(new SearchPhase("test") {
-            @Override
-            public void run() {
-
-            }
-        }, "message", null);
+        action.onPhaseFailure("test", "message", null);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("message", searchPhaseExecutionException.getMessage());
@@ -232,10 +230,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numShards);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         // skip one to avoid the "all shards failed" failure.
-        SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
-        skipIterator.skip(true);
-        skipIterator.reset();
-        action.skipShard(skipIterator);
+        action.onShardResult(new SearchPhaseResult() {
+            @Override
+            public int getShardIndex() {
+                return 0;
+            }
+
+            @Override
+            public SearchShardTarget getSearchShardTarget() {
+                return new SearchShardTarget(null, null, null);
+            }
+        });
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());

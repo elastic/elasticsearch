@@ -1,0 +1,38 @@
+{
+  "query_rules.put_ruleset": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-put-ruleset",
+      "description": "Create or update a query ruleset"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_rules/{ruleset_id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "ruleset_id": {
+              "type": "string",
+              "description": "The unique identifier of the ruleset to be created or updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The query ruleset configuration, including `rules`",
+      "required": true
+    }
+  }
+}

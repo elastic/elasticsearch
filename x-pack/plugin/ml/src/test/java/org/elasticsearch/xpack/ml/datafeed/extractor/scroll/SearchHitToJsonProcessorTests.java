@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 import org.elasticsearch.xpack.ml.extractor.TimeField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
@@ -75,9 +76,9 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(fields, outputStream)) {
             for (int i = 0; i < searchHits.length; i++) {
-                hitProcessor.process(searchHits[i]);
+                hitProcessor.process(searchHits[i], new SourceSupplier(searchHits[i]));
             }
         }
-        return outputStream.toString(StandardCharsets.UTF_8.name());
+        return outputStream.toString(StandardCharsets.UTF_8);
     }
 }

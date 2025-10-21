@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -24,31 +22,33 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TauTests extends AbstractFunctionTestCase {
+public class TauTests extends AbstractScalarFunctionTestCase {
     public TauTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Tau Test", () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
-                "LiteralsEvaluator[lit=6.283185307179586]",
-                DataTypes.DOUBLE,
-                equalTo(Tau.TAU)
-            );
-        })));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            List.of(
+                new TestCaseSupplier(
+                    "Tau Test",
+                    List.of(),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(),
+                        "LiteralsEvaluator[lit=6.283185307179586]",
+                        DataType.DOUBLE,
+                        equalTo(Tau.TAU)
+                    )
+                )
+            )
+        );
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Tau(Source.EMPTY);
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Tau.TAU));
     }
 
     @Override

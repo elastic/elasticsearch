@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.LongComparator;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -39,8 +41,8 @@ import java.util.function.Function;
  */
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
-    private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
+    final IndexNumericFieldData indexFieldData;
+    private final Function<SortedNumericLongValues, SortedNumericLongValues> converter;
     private final NumericType targetNumericType;
 
     public LongValuesComparatorSource(
@@ -58,7 +60,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         @Nullable Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
-        Function<SortedNumericDocValues, SortedNumericDocValues> converter,
+        Function<SortedNumericLongValues, SortedNumericLongValues> converter,
         NumericType targetNumericType
     ) {
         super(missingValue, sortMode, nested);
@@ -72,9 +74,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return SortField.Type.LONG;
     }
 
-    private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
+    private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
-        SortedNumericDocValues values;
+        SortedNumericLongValues values;
         if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {
             values = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
         } else {
@@ -83,8 +85,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
-    private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
-        final SortedNumericDocValues values = loadDocValues(context);
+    LongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
+        final SortedNumericLongValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
         }
@@ -107,7 +109,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 return new LongLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return LongValuesComparatorSource.this.getNumericDocValues(context, lMissingValue);
+                        return wrap(getLongValues(context, lMissingValue));
                     }
                 };
             }
@@ -128,7 +130,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDocValues docValues = getNumericDocValues(ctx, lMissingValue);
+                    private final LongValues docValues = getLongValues(ctx, lMissingValue);
                     private long docValue;
 
                     @Override
@@ -159,5 +161,39 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             }
         }
         return super.missingObject(missingValue, reversed);
+    }
+
+    protected static NumericDocValues wrap(LongValues longValues) {
+        return new NumericDocValues() {
+            @Override
+            public long longValue() throws IOException {
+                return longValues.longValue();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return longValues.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

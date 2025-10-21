@@ -35,10 +35,11 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
         return action;
     }
 
-    public abstract EsqlQueryRequestBuilder<Request, Response> esqlVersion(String esqlVersion);
-
     public abstract EsqlQueryRequestBuilder<Request, Response> query(String query);
 
     public abstract EsqlQueryRequestBuilder<Request, Response> filter(QueryBuilder filter);
 
+    public abstract EsqlQueryRequestBuilder<Request, Response> allowPartialResults(boolean allowPartialResults);
+
+    public abstract EsqlQueryRequestBuilder<Request, Response> profile(boolean profile);
 }

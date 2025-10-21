@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
@@ -111,4 +112,98 @@ public class SourceFilterTests extends ESTestCase {
 
     }
 
+    // Verification for issue #109668
+    public void testIncludeParentAndExcludeChildEmptyArray() {
+        Source fromMap = Source.fromMap(Map.of("myArray", List.of()), XContentType.JSON);
+        Source filteredMap = fromMap.filter(new SourceFilter(new String[] { "myArray" }, new String[] { "myArray.myField" }));
+        assertEquals(filteredMap.source(), Map.of("myArray", List.of()));
+        Source fromBytes = Source.fromBytes(new BytesArray("{\"myArray\": []}"), XContentType.JSON);
+        Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] { "myArray" }, new String[] { "myArray.myField" }));
+        assertEquals(filteredBytes.source(), Map.of("myArray", List.of()));
+    }
+
+    public void testIncludeParentAndExcludeChildEmptyObject() {
+        Source fromMap = Source.fromMap(Map.of("myObject", Map.of()), XContentType.JSON);
+        Source filteredMap = fromMap.filter(new SourceFilter(new String[] { "myObject" }, new String[] { "myObject.myField" }));
+        assertEquals(filteredMap.source(), Map.of("myObject", Map.of()));
+        Source fromBytes = Source.fromBytes(new BytesArray("{\"myObject\": {}}"), XContentType.JSON);
+        Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] { "myObject" }, new String[] { "myObject.myField" }));
+        assertEquals(filteredBytes.source(), Map.of("myObject", Map.of()));
+    }
+
+    public void testIncludeParentAndExcludeChildSubFieldsArrays() {
+        Source fromMap = Source.fromMap(
+            Map.of("myArray", List.of(Map.<String, Object>of("myField", "myValue", "other", "otherValue"))),
+            XContentType.JSON
+        );
+        Source filteredMap = fromMap.filter(new SourceFilter(new String[] { "myArray" }, new String[] { "myArray.myField" }));
+        assertEquals(filteredMap.source(), Map.of("myArray", List.of(Map.of("other", "otherValue"))));
+        Source fromBytes = Source.fromBytes(new BytesArray("""
+            { "myArray": [ { "myField": "myValue", "other": "otherValue" } ] }"""), XContentType.JSON);
+        Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] { "myArray" }, new String[] { "myArray.myField" }));
+        assertEquals(filteredBytes.source(), Map.of("myArray", List.of(Map.of("other", "otherValue"))));
+    }
+
+    public void testIncludeParentAndExcludeChildSubFieldsObjects() {
+        Source fromMap = Source.fromMap(
+            Map.of("myObject", Map.<String, Object>of("myField", "myValue", "other", "otherValue")),
+            XContentType.JSON
+        );
+        Source filteredMap = fromMap.filter(new SourceFilter(new String[] { "myObject" }, new String[] { "myObject.myField" }));
+        assertEquals(filteredMap.source(), Map.of("myObject", Map.of("other", "otherValue")));
+        Source fromBytes = Source.fromBytes(new BytesArray("""
+            { "myObject": { "myField": "myValue", "other": "otherValue" } }"""), XContentType.JSON);
+        Source filteredBytes = fromBytes.filter(new SourceFilter(new String[] { "myObject" }, new String[] { "myObject.myField" }));
+        assertEquals(filteredBytes.source(), Map.of("myObject", Map.of("other", "otherValue")));
+    }
+
+    public void testIsExplicitlyIncluded() {
+        var filter = new SourceFilter(null, null);
+        assertFalse(filter.isExplicitlyIncluded("foo"));
+
+        filter = new SourceFilter(new String[] {}, null);
+        assertFalse(filter.isExplicitlyIncluded("foo"));
+
+        filter = new SourceFilter(new String[] { "foo", "bar.*" }, null);
+        assertTrue(filter.isExplicitlyIncluded("foo"));
+        assertTrue(filter.isExplicitlyIncluded("bar.field"));
+        assertFalse(filter.isExplicitlyIncluded("baz"));
+        assertFalse(filter.isExplicitlyIncluded("bar"));
+    }
+
+    public void testIsPathFilteredWithExcludes() {
+        var filter = new SourceFilter(null, new String[] { "foo", "bar.field" });
+        assertTrue(filter.isPathFiltered("foo", true));
+        assertTrue(filter.isPathFiltered("foo", false));
+
+        assertTrue(filter.isPathFiltered("bar.field", false));
+        assertFalse(filter.isPathFiltered("baz", false));
+        assertFalse(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+    }
+
+    public void testIsPathFilteredWithIncludes() {
+        var filter = new SourceFilter(new String[] { "foo", "bar.field" }, null);
+        assertFalse(filter.isPathFiltered("foo", true));
+        assertFalse(filter.isPathFiltered("foo", false));
+
+        assertFalse(filter.isPathFiltered("bar.field", false));
+        assertTrue(filter.isPathFiltered("baz", false));
+        assertTrue(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+    }
+
+    public void testIsPathFilteredWithIncludesAndExcludes() {
+        var filter = new SourceFilter(new String[] { "foo", "bar.*", "nested.field" }, new String[] { "foo", "bar.field" });
+        assertTrue(filter.isPathFiltered("foo", true));
+        assertTrue(filter.isPathFiltered("foo", false));
+
+        assertTrue(filter.isPathFiltered("bar.field", false));
+        assertTrue(filter.isPathFiltered("baz", false));
+        assertTrue(filter.isPathFiltered("bar", false));
+        assertFalse(filter.isPathFiltered("bar", true));
+
+        assertFalse(filter.isPathFiltered("nested.field", false));
+        assertTrue(filter.isPathFiltered("nested.another", false));
+    }
 }

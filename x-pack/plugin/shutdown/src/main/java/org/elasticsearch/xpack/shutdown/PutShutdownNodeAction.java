@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -18,16 +17,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.GRACE_PERIOD_ADDED_VERSION;
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
 import static org.elasticsearch.core.Strings.format;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
@@ -51,22 +46,34 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         @Nullable
         private final TimeValue gracePeriod;
 
+        /**
+         * Factory to create a {@link Request} instance from the parameters read from the request body.
+         */
+        public interface Factory {
+            Request create(
+                SingleNodeShutdownMetadata.Type type,
+                String reason,
+                @Nullable TimeValue allocationDelay,
+                @Nullable String targetNodeName,
+                @Nullable TimeValue gracePeriod
+            );
+        }
+
         private static final ParseField TYPE_FIELD = new ParseField("type");
         private static final ParseField REASON_FIELD = new ParseField("reason");
         private static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
         private static final ParseField TARGET_NODE_FIELD = new ParseField("target_node_name");
         public static final ParseField GRACE_PERIOD_FIELD = new ParseField("grace_period");
 
-        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "put_node_shutdown_request",
             false,
-            (a, nodeId) -> new Request(
-                nodeId,
+            (a, factory) -> factory.create(
                 SingleNodeShutdownMetadata.Type.parse((String) a[0]),
                 (String) a[1],
-                a[2] == null ? null : TimeValue.parseTimeValue((String) a[2], "put-shutdown-node-request-" + nodeId),
+                a[2] == null ? null : TimeValue.parseTimeValue((String) a[2], factory.toString()),
                 (String) a[3],
-                a[4] == null ? null : TimeValue.parseTimeValue((String) a[4], "put-shutdown-node-request-" + nodeId)
+                a[4] == null ? null : TimeValue.parseTimeValue((String) a[4], factory.toString())
             )
         );
 
@@ -78,11 +85,13 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GRACE_PERIOD_FIELD);
         }
 
-        public static Request parseRequest(String nodeId, XContentParser parser) {
-            return PARSER.apply(parser, nodeId);
+        public static Request parseRequest(Factory factory, XContentParser parser) {
+            return PARSER.apply(parser, factory);
         }
 
         public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
             String nodeId,
             SingleNodeShutdownMetadata.Type type,
             String reason,
@@ -90,7 +99,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             @Nullable String targetNodeName,
             @Nullable TimeValue gracePeriod
         ) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            super(masterNodeTimeout, ackTimeout);
             this.nodeId = nodeId;
             this.type = type;
             this.reason = reason;
@@ -99,55 +108,25 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.gracePeriod = gracePeriod;
         }
 
-        @UpdateForV9 // TODO call super(in) instead of explicitly reading superclass contents once bwc no longer needed
         public Request(StreamInput in) throws IOException {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            if (in.getTransportVersion().isPatchFrom(TransportVersions.V_8_13_4)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)
-                || in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {
-                // effectively super(in):
-                setParentTask(TaskId.readFromStream(in));
-                masterNodeTimeout(in.readTimeValue());
-                ackTimeout(in.readTimeValue());
-            }
+            super(in);
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
             this.allocationDelay = in.readOptionalTimeValue();
-            if (in.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-                this.targetNodeName = in.readOptionalString();
-            } else {
-                this.targetNodeName = null;
-            }
-            if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-                this.gracePeriod = in.readOptionalTimeValue();
-            } else {
-                this.gracePeriod = null;
-            }
+            this.targetNodeName = in.readOptionalString();
+            this.gracePeriod = in.readOptionalTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.V_8_13_4)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)
-                || out.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)
-                && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
-                out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
-            } else {
-                out.writeEnum(type);
-            }
+            out.writeEnum(type);
             out.writeString(reason);
             out.writeOptionalTimeValue(allocationDelay);
-            if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-                out.writeOptionalString(targetNodeName);
-            }
-            if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-                out.writeOptionalTimeValue(gracePeriod);
-            }
+            out.writeOptionalString(targetNodeName);
+            out.writeOptionalTimeValue(gracePeriod);
         }
 
         public String getNodeId() {

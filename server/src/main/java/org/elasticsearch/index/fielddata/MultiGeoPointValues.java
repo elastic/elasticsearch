@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -32,7 +31,7 @@ import java.io.IOException;
 public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
     private final GeoPoint point = new GeoPoint();
 
-    public MultiGeoPointValues(SortedNumericDocValues numericValues) {
+    public MultiGeoPointValues(SortedNumericLongValues numericValues) {
         super(numericValues);
     }
 
@@ -44,9 +43,8 @@ public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
     /**
      * Returns a single-valued view of the {@link MultiPointValues} if possible, otherwise null.
      */
-    @Override
     protected GeoPointValues getPointValues() {
-        final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(numericValues);
         return singleton != null ? new GeoPointValues(singleton) : null;
     }
 }

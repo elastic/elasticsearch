@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -27,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
@@ -112,7 +113,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
+        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean(), false);
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
@@ -330,6 +331,89 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig", "runtime")));
     }
 
+    public void testSearchRequestRuntimeFieldsWithNamespaceValidator() {
+        final String errorMessage = "error 12345";
+        final String disallowed = "_project";
+
+        RootObjectMapperNamespaceValidator validator = new RootObjectMapperNamespaceValidator() {
+            @Override
+            public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
+                if (name.equals(disallowed)) {
+                    throw new IllegalArgumentException(errorMessage);
+                } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                    // name here will be something like _project.my_field, rather than just _project
+                    if (name.startsWith(disallowed + ".")) {
+                        throw new IllegalArgumentException(errorMessage);
+                    }
+                }
+            }
+        };
+
+        {
+            Map<String, Object> runtimeMappings = Map.ofEntries(
+                Map.entry(disallowed, Map.of("type", randomFrom("keyword", "long"))),
+                Map.entry("dog", Map.of("type", "long"))
+            );
+
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createSearchExecutionContext(
+                    "uuid",
+                    null,
+                    createMappingLookup(
+                        List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                        List.of(new TestRuntimeField("runtime", "long"))
+                    ),
+                    runtimeMappings,
+                    validator
+                )
+            );
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        {
+            Map<String, Object> runtimeMappings = Map.ofEntries(
+                Map.entry(disallowed + ".subfield", Map.of("type", randomFrom("keyword", "long"))),
+                Map.entry("dog", Map.of("type", "long"))
+            );
+
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createSearchExecutionContext(
+                    "uuid",
+                    null,
+                    createMappingLookup(
+                        List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                        List.of(new TestRuntimeField("runtime", "long"))
+                    ),
+                    runtimeMappings,
+                    validator
+                )
+            );
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _projectx should be allowed
+        {
+            Map<String, Object> runtimeMappings = Map.ofEntries(
+                Map.entry(disallowed + "x", Map.of("type", "keyword")),
+                Map.entry("dog", Map.of("type", "long"))
+            );
+
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+                "uuid",
+                null,
+                createMappingLookup(
+                    List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                    List.of(new TestRuntimeField("runtime", "long"))
+                ),
+                runtimeMappings,
+                validator
+            );
+            assertNotNull(searchExecutionContext);
+        }
+    }
+
     public void testSearchRequestRuntimeFieldsWrongFormat() {
         Map<String, Object> runtimeMappings = new HashMap<>();
         runtimeMappings.put("field", Arrays.asList("test1", "test2"));
@@ -383,8 +467,8 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
@@ -500,11 +584,21 @@ public class SearchExecutionContextTests extends ESTestCase {
         MappingLookup mappingLookup,
         Map<String, Object> runtimeMappings
     ) {
+        return createSearchExecutionContext(indexUuid, clusterAlias, mappingLookup, runtimeMappings, null);
+    }
+
+    private static SearchExecutionContext createSearchExecutionContext(
+        String indexUuid,
+        String clusterAlias,
+        MappingLookup mappingLookup,
+        Map<String, Object> runtimeMappings,
+        RootObjectMapperNamespaceValidator namespaceValidator
+    ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        MapperService mapperService = createMapperService(indexSettings, mappingLookup);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, namespaceValidator);
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,
@@ -530,9 +624,13 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
     }
 
-    private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
+    private static MapperService createMapperServiceWithNamespaceValidator(
+        IndexSettings indexSettings,
+        MappingLookup mappingLookup,
+        RootObjectMapperNamespaceValidator namespaceValidator
+    ) {
         IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList(), Collections.emptyList(), namespaceValidator);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
@@ -548,7 +646,12 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true)
+                indexSettings.getMode().buildIdFieldMapper(() -> true),
+                query -> {
+                    throw new UnsupportedOperationException();
+                },
+                null,
+                namespaceValidator
             )
         );
         when(mapperService.isMultiField(anyString())).then(

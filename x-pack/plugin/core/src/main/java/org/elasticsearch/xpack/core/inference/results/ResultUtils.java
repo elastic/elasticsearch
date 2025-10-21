@@ -12,11 +12,12 @@ import org.elasticsearch.rest.RestStatus;
 
 public class ResultUtils {
 
-    public static ElasticsearchStatusException createInvalidChunkedResultException(String receivedResultName) {
+    public static ElasticsearchStatusException createInvalidChunkedResultException(String expectedResultName, String receivedResultName) {
         return new ElasticsearchStatusException(
-            "Expected a chunked inference [{}] received [{}]",
-            RestStatus.INTERNAL_SERVER_ERROR,
-            ChunkedTextEmbeddingResults.NAME,
+            "Received incompatible results. Check that your model_id matches the task_type of this endpoint. "
+                + "Expected chunked output of type [{}] but received [{}].",
+            RestStatus.CONFLICT,
+            expectedResultName,
             receivedResultName
         );
     }

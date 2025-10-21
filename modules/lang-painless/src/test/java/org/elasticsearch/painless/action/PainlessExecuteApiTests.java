@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.painless.action;
 
@@ -67,6 +68,18 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
             innerShardOperation(r, scriptService, null);
         });
         assertThat(e.getCause().getMessage(), equalTo("cannot resolve symbol [doc]"));
+    }
+
+    public void testNestedDocs() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "nested", "type=nested");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "nested": [{"text": "foo"}, {"text": "bar"}]}"""), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless", "doc['rank'].value", Map.of()), "score", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(4.0D));
     }
 
     public void testFilterExecutionContext() throws IOException {

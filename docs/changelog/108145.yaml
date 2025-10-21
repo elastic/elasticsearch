@@ -1,5 +1,0 @@
-pr: 108145
-summary: Async close of `IndexShard`
-area: Engine
-type: bug
-issues: []

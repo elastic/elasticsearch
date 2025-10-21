@@ -1,0 +1,408 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index1
+        body:
+          - index:
+              _id: foo
+          - { "text": "foo - pinned doc for foo" }
+          - index:
+              _id: bar
+          - { "text": "bar - exclude doc for bar" }
+          - index:
+              _id: baz
+          - { "text": "baz - no rule attached" }
+          - index:
+              _id: foo_no_rule
+          - { "text": "text search result for foo with no rule attached" }
+          - index:
+              _id: bar_no_rule
+          - { "text": "text search result for bar with no rule attached" }
+          - index:
+              _id: foo2
+          - { "text": "foo2 - second pinned doc for foo" }
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: foo
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ foo ]
+              actions:
+                ids:
+                  - foo
+                  - foo2
+            - rule_id: bar
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: bar
+                  values: [ bar ]
+              actions:
+                ids:
+                  - bar
+
+---
+"standalone query rules retriever":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+---
+"query rules retriever combined with rrf":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: bar
+                          }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  ]
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+
+
+---
+"query rules retriever combined with rrf and pagination":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          size: 1
+          from: 1
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                rrf:
+                  retrievers: [
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: bar
+                          }
+                        }
+                      }
+                    },
+                    {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  ]
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: foo2 }
+
+---
+"query rules allowed to be defined as a sub-retriever":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  standard: {
+                    query: {
+                      query_string: {
+                        query: bar
+                      }
+                    }
+                  }
+                },
+                {
+                  rule: {
+                    match_criteria: {
+                      foo: foo,
+                      bar: bar
+                    },
+                    ruleset_ids: test-ruleset,
+                    retriever: {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 5 }
+
+---
+"query rules retriever supports explicit sort on score":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+                  sort: [ "_score" ]
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+---
+"query rules retriever supports explicit sort on score with secondary sort allowed":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+                  sort: [ "_score", { "text.keyword": "asc" } ]
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+
+---
+"query rules retriever supports rank window size":
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+              rank_window_size: 1
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+              rank_window_size: 2
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: foo2 }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+              rank_window_size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: bar_no_rule }
+  - match: { hits.hits.2._score: 0.87832844 }
+
+---
+"query rules will error if sorting by anything other than score":
+
+  - do:
+      catch: /\[rule\] retriever only supports sort by score/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+                  sort: [ { "_id": "desc" } ]
+
+---
+"query rules retriever explains pinned documents as constant score queries":
+  - skip:
+      features: [ headers ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+          explain: true
+
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._explanation.value: 1.7014124E38 }
+  - match: { hits.hits.0._explanation.description: "query rules evaluated rules from rulesets [test-ruleset] and match criteria {bar=bar, foo=foo}" }
+  - match: { hits.hits.0._explanation.details.0.value: 1 }
+  - match: { hits.hits.0._explanation.details.0.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }
+  - match: { hits.hits.0._explanation.details.0.details.0.description: "sum of:" }
+  - match: { hits.hits.0._explanation.details.0.details.0.details.0.description: "max of:" }
+  - match: { hits.hits.0._explanation.details.0.details.0.details.0.details.0.description: "max of:" }
+  - match: { hits.hits.0._explanation.details.0.details.0.details.0.details.0.details.0.description: "ConstantScore(_id:([7e 8a]))^1.7014124E38" }

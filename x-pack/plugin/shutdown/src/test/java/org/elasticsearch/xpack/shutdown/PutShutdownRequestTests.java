@@ -35,10 +35,17 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
     ) implements Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            final var request = new PutShutdownNodeAction.Request(nodeId, type, reason, allocationDelay, targetNodeName, gracePeriod);
+            final var request = new PutShutdownNodeAction.Request(
+                masterNodeTimeout,
+                ackTimeout,
+                nodeId,
+                type,
+                reason,
+                allocationDelay,
+                targetNodeName,
+                gracePeriod
+            );
             request.setParentTask(parentTask);
-            request.ackTimeout(ackTimeout);
-            request.masterNodeTimeout(masterNodeTimeout);
             request.writeTo(out);
         }
     }

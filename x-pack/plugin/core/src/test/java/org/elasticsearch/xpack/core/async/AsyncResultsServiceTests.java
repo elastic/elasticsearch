@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestAsyncResponse;
 import org.junit.Before;
@@ -113,7 +113,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public class TestRequest extends TransportRequest {
+    public class TestRequest extends AbstractTransportRequest {
         private final String string;
 
         public TestRequest(String string) {
@@ -231,8 +231,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         try {
             long startTime = System.currentTimeMillis();
             task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
-
-            if (updateInitialResultsInStore) {
+            boolean taskCompleted = randomBoolean();
+            if (taskCompleted) {
+                taskManager.unregister(task);
+            }
+            if (taskCompleted || updateInitialResultsInStore) {
                 // we need to store initial result
                 PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(
@@ -249,10 +252,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             // not waiting for completion, so should return immediately with timeout
             service.retrieveResult(new GetAsyncResultRequest(task.getExecutionId().getEncoded()).setKeepAlive(newKeepAlive), listener);
             listener.actionGet(TimeValue.timeValueSeconds(10));
-            assertThat(task.getExpirationTime(), greaterThanOrEqualTo(startTime + newKeepAlive.getMillis()));
-            assertThat(task.getExpirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + newKeepAlive.getMillis()));
-
-            if (updateInitialResultsInStore) {
+            if (taskCompleted == false) {
+                assertThat(task.getExpirationTime(), greaterThanOrEqualTo(startTime + newKeepAlive.getMillis()));
+                assertThat(task.getExpirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + newKeepAlive.getMillis()));
+            }
+            if (updateInitialResultsInStore || taskCompleted) {
                 PlainActionFuture<TestAsyncResponse> future = new PlainActionFuture<>();
                 indexService.getResponse(task.executionId, randomBoolean(), future);
                 TestAsyncResponse response = future.actionGet(TimeValue.timeValueMinutes(10));

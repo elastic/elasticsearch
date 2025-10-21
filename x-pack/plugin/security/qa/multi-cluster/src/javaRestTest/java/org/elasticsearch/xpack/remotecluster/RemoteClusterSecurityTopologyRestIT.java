@@ -134,7 +134,7 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
             final Request scrollRequest = new Request("GET", "/_search/scroll");
             final String scrollId;
             try {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(6L));
                 assertThat(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
                 documentFieldValues.add(searchResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
                 scrollId = searchResponse.getScrollId();
@@ -153,7 +153,7 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
                     responseAsParser(performRequestWithRemoteMetricUser(scrollRequest))
                 );
                 try {
-                    assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(6L));
+                    assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo(6L));
                     assertThat(
                         Arrays.stream(scrollResponse.getHits().getHits()).map(SearchHit::getIndex).toList(),
                         contains("shared-metrics")

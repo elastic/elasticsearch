@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -28,7 +31,6 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
     private final List<SnapshotStatus> snapshots;
 
     public SnapshotsStatusResponse(StreamInput in) throws IOException {
-        super(in);
         snapshots = in.readCollectionAsImmutableList(SnapshotStatus::new);
     }
 
@@ -70,5 +72,10 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
             Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
             Iterators.single((b, p) -> b.endArray().endObject())
         );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(this), true, true);
     }
 }

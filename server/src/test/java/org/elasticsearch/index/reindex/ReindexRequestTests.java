@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -185,6 +186,46 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         );
     }
 
+    public void testReindexFromRemoteRejectsUsernameWithNoPassword() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                "user",
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included username but not password;", e.getMessage());
+    }
+
+    public void testReindexFromRemoteRejectsPasswordWithNoUsername() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                new SecureString("password".toCharArray()),
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
+    }
+
     public void testNoSliceBuilderSetWithSlicedRequest() {
         ReindexRequest reindex = newRequest();
         reindex.getSearchRequest().source().slice(new SliceBuilder(0, 4));
@@ -322,6 +363,45 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("https"));
         assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]", exception.getMessage());
+    }
+
+    public void testBuildRemoteInfoWithApiKey() throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(remoteInfo.getHeaders(), Map.of("Authorization", "ApiKey l3t-m3-1n"));
+    }
+
+    public void testBuildRemoteInfoWithApiKeyAndOtherHeaders() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("X-Routing-Magic", "Abracadabra");
+        originalHeaders.put("X-Tracing-Magic", "12345");
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(
+            remoteInfo.getHeaders(),
+            Map.of("X-Routing-Magic", "Abracadabra", "X-Tracing-Magic", "12345", "Authorization", "ApiKey l3t-m3-1n")
+        );
+    }
+
+    public void testBuildRemoteInfoWithConflictingApiKeyAndAuthorizationHeader() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("aUtHoRiZaTiOn", "op3n-s3s4m3"); // non-standard capitalization, but HTTP headers are not case-sensitive
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        assertThrows(IllegalArgumentException.class, () -> ReindexRequest.buildRemoteInfo(source));
     }
 
     public void testReindexFromRemoteRequestParsing() throws IOException {

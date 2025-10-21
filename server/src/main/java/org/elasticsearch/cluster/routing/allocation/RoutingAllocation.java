@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -14,8 +15,10 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -71,12 +74,8 @@ public class RoutingAllocation {
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
-    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver,
-        indexMetadataUpdater,
-        restoreInProgressUpdater,
-        resizeSourceIndexUpdater
-    );
+
+    private final RoutingChangesObserver routingChangesObserver;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
@@ -143,6 +142,20 @@ public class RoutingAllocation {
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+        this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+            isSimulating
+                ? new RoutingChangesObserver[] {
+                    nodesChangedObserver,
+                    indexMetadataUpdater,
+                    restoreInProgressUpdater,
+                    resizeSourceIndexUpdater }
+                : new RoutingChangesObserver[] {
+                    nodesChangedObserver,
+                    indexMetadataUpdater,
+                    restoreInProgressUpdater,
+                    resizeSourceIndexUpdater,
+                    new ShardChangesObserver() }
+        );
     }
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
@@ -164,7 +177,7 @@ public class RoutingAllocation {
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0
-                        && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && clusterState.metadata().indexMetadata(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false
                         && clusterInfo.getShardSize(shard) == null) {
                         totalSize += shard.getExpectedShardSize();
@@ -195,8 +208,17 @@ public class RoutingAllocation {
      * Get routing table of current nodes
      * @return current routing table
      */
+    @Deprecated
     public RoutingTable routingTable() {
-        return clusterState.routingTable();
+        return globalRoutingTable().getRoutingTable();
+    }
+
+    public GlobalRoutingTable globalRoutingTable() {
+        return clusterState.globalRoutingTable();
+    }
+
+    public RoutingTable routingTable(ProjectId projectId) {
+        return globalRoutingTable().routingTable(projectId);
     }
 
     /**
@@ -328,7 +350,7 @@ public class RoutingAllocation {
     /**
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
-    public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
+    public Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable) {
         Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
@@ -417,12 +439,11 @@ public class RoutingAllocation {
     }
 
     public RoutingAllocation immutableClone() {
+        GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
         return new RoutingAllocation(
             deciders,
             routingNodesChanged()
-                ? ClusterState.builder(clusterState)
-                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-                    .build()
+                ? ClusterState.builder(clusterState).routingTable(routingTable.rebuild(routingNodes(), metadata())).build()
                 : clusterState,
             clusterInfo,
             shardSizeInfo,

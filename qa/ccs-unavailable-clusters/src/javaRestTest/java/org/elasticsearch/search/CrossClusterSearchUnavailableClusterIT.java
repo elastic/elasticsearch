@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -11,16 +12,13 @@ package org.elasticsearch.search;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.client.Request;
@@ -32,11 +30,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -44,6 +43,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,6 +59,14 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -83,43 +91,45 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
+                    var searchShardsResponse = new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap());
+                    try {
+                        channel.sendResponse(searchShardsResponse);
+                    } finally {
+                        searchShardsResponse.decRef();
+                    }
                 }
             );
             newService.registerRequestHandler(
                 TransportSearchAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
-                (request, channel, task) -> channel.sendResponse(
-                    new SearchResponse(
-                        SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                        InternalAggregations.EMPTY,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        null,
-                        1,
-                        1,
-                        0,
-                        100,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    )
-                )
+                (request, channel, task) -> {
+                    var searchResponse = SearchResponseUtils.successfulResponse(
+                        SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN)
+                    );
+                    try {
+                        channel.sendResponse(searchResponse);
+                    } finally {
+                        searchResponse.decRef();
+                    }
+                }
             );
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                ClusterStateRequest::new,
+                RemoteClusterStateRequest::new,
                 (request, channel, task) -> {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                     for (DiscoveryNode node : knownNodes) {
                         builder.add(node);
                     }
                     ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
+                    var clusterStateResponse = new ClusterStateResponse(clusterName, build, false);
+                    try {
+                        channel.sendResponse(clusterStateResponse);
+                    } finally {
+                        clusterStateResponse.decRef();
+                    }
                 }
             );
             newService.start();
@@ -143,7 +153,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 threadPool
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
 
@@ -296,7 +306,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 threadPool
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             {
                 // check that skip_unavailable alone cannot be set

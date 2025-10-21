@@ -8,25 +8,33 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -37,6 +45,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -59,6 +68,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .nodes(3)
             .apply(commonClusterConfig)
@@ -74,6 +84,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .build();
 
         queryCluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .name("query-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
@@ -137,6 +148,188 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
         INVALID_SECRET_LENGTH.set(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
     })).around(fulfillingCluster).around(queryCluster);
+
+    public void testTaskCancellation() throws Exception {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
+        configureRemoteCluster();
+
+        final String indexName = "index_fulfilling";
+        final String roleName = "taskCancellationRoleName";
+        final String userName = "taskCancellationUsername";
+        String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
+        try {
+            // create some index on the fulfilling cluster, to be searched from the querying cluster
+            {
+                Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+                bulkRequest.setJsonEntity(Strings.format("""
+                    { "index": { "_index": "%s" } }
+                    { "foo": "bar" }
+                    """, indexName));
+                assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+            }
+
+            // Create user and role with privileges for remote indices
+            var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+            putRoleRequest.setJsonEntity(Strings.format("""
+                {
+                  "description": "Role with privileges for remote index for the test of task cancellation.",
+                  "remote_indices": [
+                    {
+                      "names": ["%s"],
+                      "privileges": ["read", "read_cross_cluster"],
+                      "clusters": ["my_remote_cluster"]
+                    }
+                  ]
+                }""", indexName));
+            assertOK(adminClient().performRequest(putRoleRequest));
+            var putUserRequest = new Request("PUT", "/_security/user/" + userName);
+            putUserRequest.setJsonEntity(Strings.format("""
+                {
+                  "password": "%s",
+                  "roles" : ["%s"]
+                }""", PASS, roleName));
+            assertOK(adminClient().performRequest(putUserRequest));
+            var submitAsyncSearchRequest = new Request(
+                "POST",
+                Strings.format(
+                    "/%s:%s/_async_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    indexName,
+                    randomBoolean()
+                )
+            );
+
+            // submit a stalling remote async search
+            submitAsyncSearchRequest.setJsonEntity("""
+                {
+                  "query": {
+                    "error_query": {
+                      "indices": [
+                        {
+                          "name": "*:*",
+                          "error_type": "exception",
+                          "stall_time_seconds": 10
+                        }
+                      ]
+                    }
+                  }
+                }""");
+            submitAsyncSearchRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", headerFromRandomAuthMethod(userName, PASS))
+                    .addHeader("X-Opaque-Id", asyncSearchOpaqueId)
+            );
+            Response submitAsyncSearchResponse = client().performRequest(submitAsyncSearchRequest);
+            assertOK(submitAsyncSearchResponse);
+            Map<String, Object> submitAsyncSearchResponseMap = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                EntityUtils.toString(submitAsyncSearchResponse.getEntity()),
+                false
+            );
+            assertThat(submitAsyncSearchResponseMap.get("is_running"), equalTo(true));
+            String asyncSearchId = (String) submitAsyncSearchResponseMap.get("id");
+            assertThat(asyncSearchId, notNullValue());
+            // wait for the tasks to show up on the querying cluster
+            assertBusy(() -> {
+                try {
+                    Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                    assertOK(queryingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(queryingClusterTasks.getEntity()),
+                        false
+                    );
+                    AtomicBoolean someTasks = new AtomicBoolean(false);
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        // search tasks should not be cancelled at this point (but some transitory ones might be,
+                        // e.g. for action "indices:admin/seq_no/global_checkpoint_sync")
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            assertThat(task.get("cancelled"), equalTo(false));
+                            someTasks.set(true);
+                        }
+                    });
+                    assertTrue(someTasks.get());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            // wait for the tasks to show up on the fulfilling cluster
+            assertBusy(() -> {
+                try {
+                    Response fulfillingClusterTasks = performRequestAgainstFulfillingCluster(new Request("GET", "/_tasks"));
+                    assertOK(fulfillingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(fulfillingClusterTasks.getEntity()),
+                        false
+                    );
+                    AtomicBoolean someTasks = new AtomicBoolean(false);
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        // search tasks should not be cancelled at this point (but some transitory ones might be,
+                        // e.g. for action "indices:admin/seq_no/global_checkpoint_sync")
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            assertThat(task.get("cancelled"), equalTo(false));
+                            someTasks.set(true);
+                        }
+                    });
+                    assertTrue(someTasks.get());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            // delete the stalling async search
+            var deleteAsyncSearchRequest = new Request("DELETE", Strings.format("/_async_search/%s", asyncSearchId));
+            deleteAsyncSearchRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(userName, PASS))
+            );
+            assertOK(client().performRequest(deleteAsyncSearchRequest));
+            // ensure any remaining tasks are all cancelled on the querying cluster
+            {
+                Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                assertOK(queryingClusterTasks);
+                Map<String, Object> responseMap = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(queryingClusterTasks.getEntity()),
+                    false
+                );
+                selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> assertThat(task.get("cancelled"), equalTo(true)));
+            }
+            // ensure any remaining tasks are all cancelled on the fulfilling cluster
+            {
+                Response fulfillingClusterTasks = performRequestAgainstFulfillingCluster(new Request("GET", "/_tasks"));
+                assertOK(fulfillingClusterTasks);
+                Map<String, Object> responseMap = XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    EntityUtils.toString(fulfillingClusterTasks.getEntity()),
+                    false
+                );
+                selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> assertThat(task.get("cancelled"), equalTo(true)));
+            }
+        } finally {
+            assertOK(adminClient().performRequest(new Request("DELETE", "/_security/user/" + userName)));
+            assertOK(adminClient().performRequest(new Request("DELETE", "/_security/role/" + roleName)));
+            assertOK(performRequestAgainstFulfillingCluster(new Request("DELETE", indexName)));
+            // wait for search related tasks to finish on the query cluster
+            assertBusy(() -> {
+                try {
+                    Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                    assertOK(queryingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(queryingClusterTasks.getEntity()),
+                        false
+                    );
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            fail("there are still search tasks running");
+                        }
+                    });
+                } catch (ResponseException e) {
+                    fail(e.getMessage());
+                }
+            });
+        }
+    }
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteCluster();
@@ -249,7 +442,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
             try {
-                assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+                assertThat(metricSearchResponse.getHits().getTotalHits().value(), equalTo(4L));
                 assertThat(
                     Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
                     containsInAnyOrder("shared-metrics")
@@ -437,6 +630,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
             }
         }
+        assertNoRcs1DeprecationWarnings();
     }
 
     @SuppressWarnings("unchecked")
@@ -454,7 +648,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             // remote cluster is not reported in transport profiles
             assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
 
-            if (Boolean.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
+            if (Booleans.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
                 numberOfRemoteClusterServerNodes += 1;
                 final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
                 assertThat(boundAddresses, notNullValue());
@@ -490,5 +684,44 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
         );
         return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void selectTasksWithOpaqueId(
+        Map<String, Object> tasksResponse,
+        String opaqueId,
+        Consumer<Map<String, Object>> taskConsumer
+    ) {
+        Map<String, Map<String, Object>> nodes = (Map<String, Map<String, Object>>) tasksResponse.get("nodes");
+        for (Map<String, Object> node : nodes.values()) {
+            Map<String, Map<String, Object>> tasks = (Map<String, Map<String, Object>>) node.get("tasks");
+            for (Map<String, Object> task : tasks.values()) {
+                if (task.get("headers") != null) {
+                    Map<String, Object> headers = (Map<String, Object>) task.get("headers");
+                    if (opaqueId.equals(headers.get("X-Opaque-Id"))) {
+                        taskConsumer.accept(task);
+                    }
+                }
+            }
+        }
+    }
+
+    private void assertNoRcs1DeprecationWarnings() throws IOException {
+        for (int i = 0; i < queryCluster.getNumNodes(); i++) {
+            try (InputStream log = queryCluster.getNodeLog(i, LogType.DEPRECATION)) {
+                Streams.readAllLines(
+                    log,
+                    line -> assertThat(
+                        line,
+                        not(
+                            containsString(
+                                "The certificate-based security model is deprecated and will be removed in a future major version. "
+                                    + "Migrate the remote cluster from the certificate-based to the API key-based security model."
+                            )
+                        )
+                    )
+                );
+            }
+        }
     }
 }

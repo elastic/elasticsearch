@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     private String nodeAddresses;
 

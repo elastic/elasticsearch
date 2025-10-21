@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.time.Clock;
@@ -65,7 +67,7 @@ public final class TransformIndex {
      *                 Returns {@code true} if the given index was created by the transform and {@code false} otherwise.
      */
     public static void isDestinationIndexCreatedByTransform(Client client, String destIndex, ActionListener<Boolean> listener) {
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(destIndex)
+        GetIndexRequest getIndexRequest = new GetIndexRequest(Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT).indices(destIndex)
             // We only need mappings, more specifically its "_meta" part
             .features(GetIndexRequest.Feature.MAPPINGS);
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, GetIndexAction.INSTANCE, getIndexRequest, ActionListener.wrap(getIndexResponse -> {
@@ -155,11 +157,16 @@ public final class TransformIndex {
                 ClientHelper.TRANSFORM_ORIGIN,
                 client.admin().indices().prepareStats(dest).clear().setDocs(true).request(),
                 ActionListener.<IndicesStatsResponse>wrap(r -> {
-                    long docTotal = r.getTotal().docs.getCount();
-                    if (docTotal > 0L) {
+                    var docsStats = r.getTotal().docs;
+                    if (docsStats != null && docsStats.getCount() > 0L) {
                         auditor.warning(
                             config.getId(),
-                            "Non-empty destination index [" + destinationIndex + "]. " + "Contains [" + docTotal + "] total documents."
+                            "Non-empty destination index ["
+                                + destinationIndex
+                                + "]. "
+                                + "Contains ["
+                                + docsStats.getCount()
+                                + "] total documents."
                         );
                     }
                     createDestinationIndexListener.onResponse(false);
@@ -196,7 +203,7 @@ public final class TransformIndex {
             ActionListener.wrap(createIndexResponse -> {
                 listener.onResponse(true);
             }, e -> {
-                if (e instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     // Already existing index is ok, it could have been created by the indexing process of the running transform.
                     listener.onResponse(false);
                     return;
@@ -206,7 +213,7 @@ public final class TransformIndex {
                     config.getDestination().getIndex(),
                     config.getId()
                 );
-                logger.error(message, e);
+                logger.warn(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );
@@ -219,7 +226,10 @@ public final class TransformIndex {
             return;
         }
 
-        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        IndicesAliasesRequest request = new IndicesAliasesRequest(
+            Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT,
+            Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT
+        );
         for (DestAlias destAlias : config.getDestination().getAliases()) {
             if (destAlias.isMoveOnCreation()) {
                 request.addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(destAlias.getAlias()).index("*"));
@@ -245,7 +255,7 @@ public final class TransformIndex {
                     config.getDestination().getIndex(),
                     config.getId()
                 );
-                logger.error(message, e);
+                logger.warn(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );

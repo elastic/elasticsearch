@@ -6,21 +6,27 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
-public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
+import java.io.IOException;
+
+public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction implements TranslationAware.SingleValueTranslationAware {
 
     protected InsensitiveBinaryComparison(Source source, Expression left, Expression right) {
         super(source, left, right);
     }
 
-    @Override
-    public DataType dataType() {
-        return DataTypes.BOOLEAN;
+    protected InsensitiveBinaryComparison(StreamInput in) throws IOException {
+        super(in);
     }
 
+    @Override
+    public DataType dataType() {
+        return DataType.BOOLEAN;
+    }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -17,10 +18,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores $type$ values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
@@ -51,10 +53,26 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
      */
     OrdinalBytesRefVector asOrdinals();
-$endif$
 
+$endif$
     @Override
     $Type$Vector filter(int... positions);
+
+    @Override
+    $Type$Block keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default $Type$Vector deepCopy(BlockFactory blockFactory) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -69,6 +87,17 @@ $if(int)$
      * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
      */
     int max();
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    boolean allTrue();
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    boolean allFalse();
 $endif$
 
     /**
@@ -121,6 +150,8 @@ $elseif(boolean)$
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
 $elseif(int)$
             result = 31 * result + vector.getInt(pos);
+$elseif(float)$
+            result = 31 * result + Float.floatToIntBits(vector.getFloat(pos));
 $elseif(long)$
             long element = vector.getLong(pos);
             result = 31 * result + (int) (element ^ (element >>> 32));
@@ -164,15 +195,15 @@ $if(BytesRef)$
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
+        } else if (this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+        } else if (this instanceof OrdinalBytesRefVector v && v.isDense()) {
             out.writeByte(SERIALIZE_VECTOR_ORDINAL);
             v.writeOrdinalVector(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof $Type$BigArrayVector v) {
+        } else if (this instanceof $Type$BigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
 $endif$
@@ -185,7 +216,7 @@ $endif$
     private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+                builder.append$Type$($if(BytesRef)$$else$i, $endif$in.read$Type$());
             }
             return builder.build();
         }
@@ -243,6 +274,9 @@ $else$
          */
         @Override
         FixedBuilder append$Type$($type$ value);
+
+        FixedBuilder append$Type$(int index, $type$ value);
+
     }
 $endif$
 }

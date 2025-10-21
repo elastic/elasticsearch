@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collection;
@@ -48,8 +50,25 @@ public interface IndicesRequest {
         IndicesRequest indices(String... indices);
 
         /**
+         * Record the results of index resolution. See {@link ResolvedIndexExpressions} for details.
+         * Note: this method does not replace {@link #indices(String...)}. {@link #indices(String...)} must still be called to update
+         * the actual list of indices the request relates to.
+         * Note: the field is transient and not serialized.
+         */
+        default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}
+
+        /**
+         * Returns the results of index resolution, if recorded via
+         * {@link #setResolvedIndexExpressions(ResolvedIndexExpressions)}. Null if not recorded.
+         */
+        @Nullable
+        default ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return null;
+        }
+
+        /**
          * Determines whether the request can contain indices on a remote cluster.
-         *
+         * <p>
          * NOTE in theory this method can belong to the {@link IndicesRequest} interface because whether a request
          * allowing remote indices has no inherent relationship to whether it is {@link Replaceable} or not.
          * However, we don't have an existing request that is non-replaceable but allows remote indices.
@@ -59,6 +78,15 @@ public interface IndicesRequest {
          * proceed with extra caution.
          */
         default boolean allowsRemoteIndices() {
+            return false;
+        }
+
+        /**
+         * Determines whether the request type allows cross-project processing. Cross-project processing entails cross-project search
+         * index resolution and error handling. Note: this method only determines in the request _supports_ cross-project.
+         * Whether cross-project processing is actually performed is determined by {@link IndicesOptions}.
+         */
+        default boolean allowsCrossProject() {
             return false;
         }
     }

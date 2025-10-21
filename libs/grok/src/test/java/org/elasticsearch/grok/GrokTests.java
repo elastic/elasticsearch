@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.grok;
@@ -924,6 +925,25 @@ public class GrokTests extends ESTestCase {
         grok.match("[foo]");
         // this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
+    }
+
+    public void testCombinedPatterns() {
+        String matchKey = "_ingest._grok_match_index";
+        String combined;
+        combined = Grok.combinePatterns(List.of(""), null);
+        assertThat(combined, equalTo(""));
+        combined = Grok.combinePatterns(List.of(""), matchKey);
+        assertThat(combined, equalTo(""));
+        combined = Grok.combinePatterns(List.of("foo"), null);
+        assertThat(combined, equalTo("foo"));
+        combined = Grok.combinePatterns(List.of("foo"), matchKey);
+        assertThat(combined, equalTo("foo"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"), null);
+        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"));
+        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"), matchKey);
+        assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
     }
 
     private void assertGrokedField(String fieldName) {

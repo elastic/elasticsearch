@@ -1,0 +1,31 @@
+{
+  "query_rules.delete_ruleset": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset",
+      "description": "Delete a query ruleset"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_rules/{ruleset_id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "ruleset_id": {
+              "type": "string",
+              "description": "The unique identifier of the query ruleset to delete"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

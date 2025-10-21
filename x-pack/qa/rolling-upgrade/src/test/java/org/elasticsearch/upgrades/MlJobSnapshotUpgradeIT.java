@@ -7,6 +7,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -65,7 +66,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98560")
     public void testSnapshotUpgrader() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""
@@ -75,6 +75,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+                assumeTrue(
+                    "Older versions could not always reliably determine if we were in a mixed cluster state",
+                    Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_9_3_0)
+                );
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
@@ -154,7 +158,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         List<Map<String, Object>> upgradedSnapshot = (List<Map<String, Object>>) entityAsMap(getModelSnapshots(JOB_ID, snapshotToUpgradeId))
             .get("model_snapshots");
-        assertThat(upgradedSnapshot, hasSize(1));
+        assertThat(upgradedSnapshot.toString(), upgradedSnapshot, hasSize(1));
         assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?
@@ -273,7 +277,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         return client().performRequest(request);
     }
 
-    private static List<String> generateData(
+    static List<String> generateData(
         long timestamp,
         TimeValue bucketSpan,
         int bucketCount,
@@ -338,7 +342,23 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     protected void flushJob(String jobId) throws IOException {
-        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_flush"));
+        // Flush job is deprecated, so a deprecation warning is possible (depending on the old version)
+        RequestOptions flushOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                // No warning is OK - it means we hit an old node where flush is not deprecated
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            }
+            return warnings.get(0)
+                .equals(
+                    "Forcing any buffered data to be processed is deprecated, "
+                        + "in a future major version it will be compulsory to use a datafeed"
+                ) == false;
+        }).build();
+        Request flushRequest = new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_flush");
+        flushRequest.setOptions(flushOptions);
+        client().performRequest(flushRequest);
     }
 
     private void closeJob(String jobId) throws IOException {

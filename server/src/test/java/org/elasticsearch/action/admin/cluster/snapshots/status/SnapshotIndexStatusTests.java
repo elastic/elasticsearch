@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -56,10 +57,14 @@ public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotI
             (p, c) -> SnapshotShardsStatsTests.PARSER.apply(p, null),
             new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS)
         );
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
+        innerParser.declareObject(
+            constructorArg(),
+            (p, c) -> SnapshotStatsTests.fromXContent(p),
+            new ParseField(SnapshotStats.Fields.STATS)
+        );
         innerParser.declareNamedObjects(
             constructorArg(),
-            SnapshotIndexShardStatus.PARSER,
+            SnapshotIndexShardStatusTests.PARSER,
             new ParseField(SnapshotIndexStatus.Fields.SHARDS)
         );
         PARSER = ((p, c, name) -> innerParser.apply(p, name));

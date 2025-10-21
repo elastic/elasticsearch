@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -29,10 +30,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -102,7 +101,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
             }));
 
         // briefly fill up the management pool so that (a) we know the wait has started and (b) we know it's not blocking
-        flushThreadPool(threadPool, ThreadPool.Names.MANAGEMENT);
+        flushThreadPoolExecutor(threadPool, ThreadPool.Names.MANAGEMENT);
 
         final var getWaitFuture = new PlainActionFuture<Void>();
         clusterAdmin().prepareGetTask(task.taskId()).setWaitForCompletion(true).execute(getWaitFuture.delegateFailure((l, getResult) -> {
@@ -127,16 +126,6 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         getWaitFuture.get(10, TimeUnit.SECONDS);
     }
 
-    private void flushThreadPool(ThreadPool threadPool, String executor) throws InterruptedException, BrokenBarrierException,
-        TimeoutException {
-        var maxThreads = threadPool.info(executor).getMax();
-        var barrier = new CyclicBarrier(maxThreads + 1);
-        for (int i = 0; i < maxThreads; i++) {
-            threadPool.executor(executor).execute(() -> safeAwait(barrier));
-        }
-        barrier.await(10, TimeUnit.SECONDS);
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(TestPlugin.class);
@@ -148,12 +137,12 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         volatile CyclicBarrier barrier;
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TEST_ACTION, TestTransportAction.class));
+        public List<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TEST_ACTION, TestTransportAction.class));
         }
     }
 
-    public static class TestRequest extends ActionRequest {
+    public static class TestRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

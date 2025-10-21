@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -35,7 +36,7 @@ public final class LegacyReaderContext extends ReaderContext {
         super(id, indexService, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
-        assert id.getSearcherId() == null : "Legacy reader context must not have searcher id";
+        assert id.isRetryable() == false : "Legacy reader context is not retryable";
         this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest, "ShardSearchRequest must be provided");
         if (shardSearchRequest.scroll() != null) {
             // Search scroll requests are special, they don't hold indices names so we have
@@ -71,6 +72,11 @@ public final class LegacyReaderContext extends ReaderContext {
 
     @Override
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
+        if (other != null) {
+            // The top level knn search modifies the source after the DFS phase.
+            // so we need to update the source stored in the context.
+            shardSearchRequest.source(other.source());
+        }
         return shardSearchRequest;
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,10 +15,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
     ConstantNullVector {
@@ -28,6 +30,22 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
 
     @Override
     DoubleVector filter(int... positions);
+
+    @Override
+    DoubleBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default DoubleVector deepCopy(BlockFactory blockFactory) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
 
     @Override
     ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -102,10 +120,10 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeDouble(getDouble(0));
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof DoubleArrayVector v) {
+        } else if (this instanceof DoubleArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof DoubleBigArrayVector v) {
+        } else if (this instanceof DoubleBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
@@ -117,7 +135,7 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     private static DoubleVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newDoubleVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendDouble(in.readDouble());
+                builder.appendDouble(i, in.readDouble());
             }
             return builder.build();
         }
@@ -151,5 +169,8 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
          */
         @Override
         FixedBuilder appendDouble(double value);
+
+        FixedBuilder appendDouble(int index, double value);
+
     }
 }

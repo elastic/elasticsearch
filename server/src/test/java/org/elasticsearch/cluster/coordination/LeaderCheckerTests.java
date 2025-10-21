@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -12,6 +13,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,8 +35,6 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -553,7 +554,7 @@ public class LeaderCheckerTests extends ESTestCase {
         }
     }
 
-    private static class CapturingTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
+    private static class CapturingTransportResponseHandler implements TransportResponseHandler<ActionResponse.Empty> {
 
         TransportException transportException;
         boolean successfulResponseReceived;
@@ -564,7 +565,7 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public void handleResponse(ActionResponse.Empty response) {
             successfulResponseReceived = true;
         }
 
@@ -579,8 +580,8 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
+        public ActionResponse.Empty read(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
         }
     }
 

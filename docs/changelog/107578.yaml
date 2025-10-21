@@ -1,5 +1,0 @@
-pr: 107578
-summary: "ESQL: Allow reusing BUCKET grouping expressions in aggs"
-area: ES|QL
-type: bug
-issues: []

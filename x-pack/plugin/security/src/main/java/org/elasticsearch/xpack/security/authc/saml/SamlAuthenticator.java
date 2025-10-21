@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -50,9 +51,17 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private static final String RESPONSE_TAG_NAME = "Response";
     private static final Set<String> SPECIAL_ATTRIBUTE_NAMES = Set.of(NAMEID_SYNTHENTIC_ATTRIBUTE, PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
+    private final Predicate<Attribute> privateAttributePredicate;
 
-    SamlAuthenticator(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
+    SamlAuthenticator(
+        Clock clock,
+        IdpConfiguration idp,
+        SpConfiguration sp,
+        TimeValue maxSkew,
+        Predicate<Attribute> privateAttributePredicate
+    ) {
         super(clock, idp, sp, maxSkew);
+        this.privateAttributePredicate = privateAttributePredicate;
     }
 
     /**
@@ -93,7 +102,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         }
         final boolean requireSignedAssertions;
         if (response.isSigned()) {
-            validateSignature(response.getSignature());
+            validateSignature(response.getSignature(), response.getIssuer());
             requireSignedAssertions = false;
         } else {
             requireSignedAssertions = true;
@@ -108,26 +117,41 @@ class SamlAuthenticator extends SamlResponseHandler {
         final Assertion assertion = details.v1();
         final SamlNameId nameId = SamlNameId.forSubject(assertion.getSubject());
         final String session = getSessionIndex(assertion);
-        final List<SamlAttributes.SamlAttribute> attributes = details.v2().stream().map(SamlAttributes.SamlAttribute::new).toList();
+        final SamlAttributes samlAttributes = buildSamlAttributes(nameId, session, details.v2());
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             sb.append("The SAML Assertion contained the following attributes: \n");
-            for (SamlAttributes.SamlAttribute attr : attributes) {
+            for (SamlAttributes.SamlAttribute attr : samlAttributes.attributes()) {
+                sb.append(attr).append("\n");
+            }
+            for (SamlAttributes.SamlPrivateAttribute attr : samlAttributes.privateAttributes()) {
                 sb.append(attr).append("\n");
             }
             logger.trace(sb.toString());
         }
-        if (attributes.isEmpty() && nameId == null) {
+        if (samlAttributes.isEmpty() && nameId == null) {
             logger.debug(
                 "The Attribute Statements of SAML Response with ID [{}] contained no attributes and the SAML Assertion Subject "
                     + "did not contain a SAML NameID. Please verify that the Identity Provider configuration with regards to attribute "
-                    + "release is correct. ",
+                    + "release is correct.",
                 response.getID()
             );
             throw samlException("Could not process any SAML attributes in {}", response.getElementQName());
         }
+        return samlAttributes;
+    }
 
-        return new SamlAttributes(nameId, session, attributes);
+    private SamlAttributes buildSamlAttributes(SamlNameId nameId, String session, List<Attribute> attributes) {
+        List<SamlAttributes.SamlAttribute> samlAttributes = new ArrayList<>();
+        List<SamlAttributes.SamlPrivateAttribute> samlPrivateAttributes = new ArrayList<>();
+        for (Attribute attribute : attributes) {
+            if (privateAttributePredicate.test(attribute)) {
+                samlPrivateAttributes.add(new SamlAttributes.SamlPrivateAttribute(attribute));
+            } else {
+                samlAttributes.add(new SamlAttributes.SamlAttribute(attribute));
+            }
+        }
+        return new SamlAttributes(nameId, session, samlAttributes, samlPrivateAttributes);
     }
 
     private static String getSessionIndex(Assertion assertion) {
@@ -194,12 +218,11 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private List<Attribute> processAssertion(Assertion assertion, boolean requireSignature, Collection<String> allowedSamlRequestIds) {
         if (logger.isTraceEnabled()) {
-            logger.trace("(Possibly decrypted) Assertion: {}", SamlUtils.getXmlContent(assertion, true));
             logger.trace(SamlUtils.describeSamlObject(assertion));
         }
         // Do not further process unsigned Assertions
         if (assertion.isSigned()) {
-            validateSignature(assertion.getSignature());
+            validateSignature(assertion.getSignature(), assertion.getIssuer());
         } else if (requireSignature) {
             throw samlException("Assertion [{}] is not signed, but a signature is required", assertion.getElementQName());
         }
@@ -220,7 +243,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             for (EncryptedAttribute enc : statement.getEncryptedAttributes()) {
                 final Attribute attribute = decrypt(enc);
                 if (attribute != null) {
-                    logger.trace("Successfully decrypted attribute: {}" + SamlUtils.getXmlContent(attribute, true));
+                    logger.trace("Successfully decrypted attribute: {}", attribute.getName());
                     attributes.add(attribute);
                 }
             }

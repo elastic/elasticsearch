@@ -15,12 +15,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,17 +42,15 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
-            GetSecuritySettingsAction.NAME,
+            GetSecuritySettingsAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            GetSecuritySettingsAction.Request::new,
-            indexNameExpressionResolver,
+            GetSecuritySettingsAction.Request::readFrom,
             GetSecuritySettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -81,11 +78,11 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
     private static Settings getFilteredSettingsForIndex(String indexName, ClusterState state) {
         // Check the indices lookup to resolve the alias
 
-        return resolveConcreteIndex(indexName, state).map(idx -> state.metadata().index(idx))
+        return resolveConcreteIndex(indexName, state).map(idx -> state.metadata().getProject().index(idx))
             .map(IndexMetadata::getSettings)
             .map(settings -> {
                 Settings.Builder builder = Settings.builder();
-                for (String settingName : UpdateSecuritySettingsAction.ALLOWED_SETTING_KEYS) {
+                for (String settingName : UpdateSecuritySettingsAction.ALLOWED_SETTING_VALIDATORS.keySet()) {
                     if (settings.hasValue(settingName)) {
                         builder.put(settingName, settings.get(settingName));
                     }
@@ -97,7 +94,7 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
 
     static Optional<Index> resolveConcreteIndex(String indexAbstractionName, ClusterState state) {
         // Don't use the indexNameExpressionResolver here so we don't trigger a system index deprecation warning
-        IndexAbstraction abstraction = state.metadata().getIndicesLookup().get(indexAbstractionName);
+        IndexAbstraction abstraction = state.metadata().getProject().getIndicesLookup().get(indexAbstractionName);
         if (abstraction == null) {
             return Optional.empty();
         }

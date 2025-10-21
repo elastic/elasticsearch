@@ -38,6 +38,14 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     Vector filter(int... positions);
 
     /**
+     * Build a {@link Block} the same values as this {@link Vector}, but replacing
+     * all values for which {@code mask.getBooleanValue(position)} returns
+     * {@code false} with {@code null}. The {@code mask} vector must be at least
+     * as long as this {@linkplain Vector}.
+     */
+    Block keepMask(BooleanVector mask);
+
+    /**
      * Builds an Iterator of new {@link Block}s with the same {@link #elementType}
      * as this {@link Vector} whose values are copied from positions in this Vector.
      * It has the same number of {@link #getPositionCount() positions} as the
@@ -85,6 +93,12 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      * not thread safe and doesn't support simultaneous access by more than one thread.
      */
     void allowPassingToDifferentDriver();
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    Vector deepCopy(BlockFactory blockFactory);
 
     /**
      * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -301,18 +302,13 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             // we could not read the previous state information from said index.
             persistStateToClusterState(state, ActionListener.wrap(task -> {
                 auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
-                transformScheduler.registerTransform(transform, this);
                 listener.onResponse(new StartTransformAction.Response(true));
             }, exc -> {
-                auditor.warning(
-                    transform.getId(),
-                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-                );
                 logger.error(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
-                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                        "Error while updating state for transform [" + transform.getId() + "] to [" + TransformTaskState.STARTED + "].",
                         exc
                     )
                 );
@@ -412,6 +408,23 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     public void applyNewAuthState(AuthorizationState authState) {
         synchronized (context) {
             context.setAuthState(authState);
+        }
+    }
+
+    public void checkAndResetDestinationIndexBlock(TransformConfig config) {
+        if (context.isWaitingForIndexToUnblock()) {
+            var currentIndex = getIndexer() == null ? null : getIndexer().getConfig().getDestination().getIndex();
+            var updatedIndex = config.getDestination().getIndex();
+            if (updatedIndex.equals(currentIndex) == false) {
+                context.setIsWaitingForIndexToUnblock(false);
+            }
+        }
+    }
+
+    public void applyNewFrequency(TransformConfig config) {
+        var frequency = config != null ? config.getFrequency() : null;
+        if (frequency != null) {
+            transformScheduler.updateFrequency(config.getId(), frequency);
         }
     }
 
@@ -584,6 +597,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         }
     }
 
+    public boolean isRetryingStartup() {
+        return getContext().getStartUpFailureCount() > 0;
+    }
+
     TransformTask setNumFailureRetries(int numFailureRetries) {
         context.setNumFailureRetries(numFailureRetries);
         return this;
@@ -648,7 +665,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        final var project = clusterState.metadata().getDefaultProject();
+        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.get(project);
         if (pTasksMeta == null) {
             return Collections.emptyList();
         }

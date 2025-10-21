@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class ListConnectorSyncJobsAction {
 
-    public static final String NAME = "indices:data/read/xpack/connector/sync_job/list";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/list";
     public static final ActionType<ListConnectorSyncJobsAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private ListConnectorSyncJobsAction() {/* no instances */}
@@ -105,9 +105,7 @@ public class ListConnectorSyncJobsAction {
             return Objects.equals(pageParams, request.pageParams)
                 && Objects.equals(connectorId, request.connectorId)
                 && connectorSyncStatus == request.connectorSyncStatus
-                && connectorSyncJobTypeList == null
-                    ? request.connectorSyncJobTypeList == null
-                    : connectorSyncJobTypeList.equals(request.connectorSyncJobTypeList);
+                && Objects.equals(connectorSyncJobTypeList, request.connectorSyncJobTypeList);
         }
 
         @Override
@@ -171,7 +169,6 @@ public class ListConnectorSyncJobsAction {
         final QueryPage<ConnectorSyncJobSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, ConnectorSyncJobSearchResult::new);
         }
 

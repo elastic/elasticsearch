@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -137,7 +138,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.get());
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.get());
+        final Parameter<Boolean> norms = Parameter.normsParam(m -> builder(m).norms.get(), true);
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.get());
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -187,7 +188,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 fieldType,
                 similarity.getValue(),
                 analyzers.getSearchAnalyzer(),
@@ -202,7 +203,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
-            final String fullName = context.buildFullName(name());
+            final String fullName = context.buildFullName(leafName());
             // wrap the root field's index analyzer with shingles and edge ngrams
             final Analyzer prefixIndexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(
                 indexAnalyzer.analyzer(),
@@ -228,7 +229,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final int shingleSize = i + 2;
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
-                String fieldName = getShingleFieldName(context.buildFullName(name()), shingleSize);
+                String fieldName = getShingleFieldName(context.buildFullName(leafName()), shingleSize);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper = SearchAsYouTypeAnalyzer.withShingle(
                     indexAnalyzer.analyzer(),
@@ -260,13 +261,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
             return new SearchAsYouTypeFieldMapper(
-                name(),
+                leafName(),
                 ft,
-                copyTo,
+                builderParams(this, context),
                 indexAnalyzers,
                 prefixFieldMapper,
                 shingleFieldMappers,
-                multiFieldsBuilder.build(this, context),
                 this
             );
         }
@@ -362,7 +362,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private void checkForPositions() {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalArgumentException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
 
@@ -468,8 +468,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = method == null
-                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, false)
+                : new AutomatonQuery(new Term(name(), value + "*"), automaton, false, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -498,7 +498,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final FieldType fieldType;
 
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
-            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
             this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
         }
 
@@ -537,7 +537,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         private final FieldType fieldType;
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
-            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldtype.name(), mappedFieldtype, BuilderParams.empty());
             this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         }
 
@@ -672,14 +672,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public SearchAsYouTypeFieldMapper(
         String simpleName,
         SearchAsYouTypeFieldType mappedFieldType,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Map<String, NamedAnalyzer> indexAnalyzers,
         PrefixFieldMapper prefixField,
         ShingleFieldMapper[] shingleFields,
-        MultiFields multiFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
@@ -721,7 +720,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

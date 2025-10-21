@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -31,13 +32,12 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -120,25 +120,20 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         int portNumber = PORT.get(settings);
         assert portNumber >= 0;
 
-        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
-            try {
-                return socketAddress(InetAddress.getByName("0"), portNumber);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
-            }
-        });
+        InetSocketAddress socketAddress;
+        try {
+            socketAddress = socketAddress(InetAddress.getByName("0"), portNumber);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+        }
 
         try {
             serverChannel = socketChannelFactory.get();
-
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    serverChannel.bind(socketAddress);
-                } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
-                }
-                return null;
-            });
+            try {
+                serverChannel.bind(socketAddress);
+            } catch (IOException e) {
+                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
+            }
 
             // First time bounding the socket, we notify any listeners
             if (boundSocket.get() == null) {
@@ -178,14 +173,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             assert serverChannel != null;
             try {
                 while (serverChannel.isOpen()) {
-                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                        try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
-                            logger.debug("encountered exception while responding to readiness check request", e);
-                        } catch (Exception other) {
-                            logger.warn("encountered unknown exception while responding to readiness check request", other);
-                        }
-                        return null;
-                    });
+                    try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
+                        logger.debug("encountered exception while responding to readiness check request", e);
+                    } catch (Exception other) {
+                        logger.warn("encountered unknown exception while responding to readiness check request", other);
+                    }
                 }
             } finally {
                 listenerThreadLatch.countDown();
@@ -244,11 +236,33 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("marking node as not ready because it's shutting down");
             }
         } else {
-            boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
-            boolean fileSettingsApplied = areFileSettingsApplied(clusterState);
-            logger.info("readiness: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
+            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean fileSettingsApplied = getReadinessState(
+                clusterState,
+                event.previousState(),
+                this::areFileSettingsApplied,
+                "fileSettingsApplied"
+            );
             setReady(masterElected && fileSettingsApplied);
         }
+    }
+
+    private boolean getReadinessState(
+        ClusterState clusterState,
+        ClusterState previousState,
+        Function<ClusterState, Boolean> accessor,
+        String description
+    ) {
+        boolean newStateValue = accessor.apply(clusterState);
+        boolean oldStateValue = accessor.apply(previousState);
+        if (oldStateValue != newStateValue) {
+            logger.info("readiness change: {}={}", description, newStateValue);
+        }
+        return newStateValue;
+    }
+
+    private boolean isMasterElected(ClusterState clusterState) {
+        return clusterState.nodes().getMasterNodeId() != null;
     }
 
     // protected to allow mock service to override

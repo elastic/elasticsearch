@@ -1,5 +1,0 @@
-pr: 108761
-summary: Add some missing timeout params to REST API specs
-area: Infra/REST API
-type: bug
-issues: []

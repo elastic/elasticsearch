@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -29,6 +29,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +54,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -67,9 +69,11 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             BulkShardOperationsRequest::new,
             BulkShardOperationsRequest::new,
             ExecutorSelector.getWriteExecutorForShard(threadPool),
-            false,
+            PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            projectResolver,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 
@@ -123,13 +127,18 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         return request.getOperations().size();
     }
 
+    @Override
+    protected long primaryLargestOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).max().orElse(0);
+    }
+
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
             case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.id(),
+                    index.uid(),
                     index.seqNo(),
                     primaryTerm,
                     index.version(),
@@ -140,7 +149,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
-                operationWithPrimaryTerm = new Translog.Delete(delete.id(), delete.seqNo(), primaryTerm, delete.version());
+                operationWithPrimaryTerm = new Translog.Delete(delete.uid(), delete.seqNo(), primaryTerm, delete.version());
             }
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;

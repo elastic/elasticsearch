@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -11,6 +12,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.common.regex.Regex;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -18,8 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
@@ -83,8 +85,12 @@ class ErrorPumpThread extends Thread implements Closeable {
         nonInterruptibleVoid(this::join);
     }
 
-    /** List of messages / lines to filter from the output. */
-    List<String> filter = List.of("WARNING: Using incubator modules: jdk.incubator.vector");
+    /** Messages / lines predicate to filter from the output. */
+    private static Predicate<String> filter = Regex.simpleMatcher(
+        "WARNING: Using incubator modules: jdk.incubator.vector",
+        // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
+        "WARNING: Use of the three-letter time zone ID * is deprecated and it will be removed in a future release"
+    );
 
     @Override
     public void run() {
@@ -94,7 +100,7 @@ class ErrorPumpThread extends Thread implements Closeable {
                 if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else if (filter.contains(line) == false) {
+                } else if (filter.test(line) == false) {
                     terminal.errorPrintln(Verbosity.SILENT, line, false);
                 }
             }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -14,10 +15,12 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -80,10 +83,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        return createShardSearchReqest(createSearchRequest());
+        return createShardSearchRequest(createSearchRequest());
     }
 
-    private ShardSearchRequest createShardSearchReqest(SearchRequest searchRequest) {
+    private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
@@ -112,7 +115,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             Math.abs(randomLong()),
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
-            keepAlive
+            keepAlive,
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
@@ -209,7 +213,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
         return ShardSearchRequest.parseAliasFilter(bytes -> {
             try (
-                InputStream inputStream = bytes.streamInput();
+                InputStream inputStream = CompressorFactory.COMPRESSOR.uncompress(bytes).streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)
@@ -268,7 +272,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             }
         }
         request.setForceSyntheticSource(true);
-        ShardSearchRequest shardRequest = createShardSearchReqest(request);
+        ShardSearchRequest shardRequest = createShardSearchRequest(request);
         StreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));

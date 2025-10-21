@@ -1,16 +1,17 @@
 ---
 keywords:
   - requires:
-      cluster_features: ["gte_v7.12.0"]
-      reason: Runtime mappings support was added in 7.12
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: index1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               field1:
                 type: keyword
@@ -69,16 +70,17 @@ keywords:
 ---
 doubles:
   - requires:
-      cluster_features: ["gte_v7.12.0"]
-      reason: Runtime mappings support was added in 7.12
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: index1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               field1:
                 type: double

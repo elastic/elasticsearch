@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +65,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
                 MapperTestCase.createIndexSettings(IndexVersion.current(), settings),
+                null,
+                query -> {
+                    throw new UnsupportedOperationException();
+                },
                 null
             ),
             source,
@@ -100,5 +106,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
     @Override
     protected void addDoc(LuceneDocument doc) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BytesRef getTsid() {
+        return null;
     }
 }

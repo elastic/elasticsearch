@@ -26,7 +26,7 @@ public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
     }
 
     protected final BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (LicenseUtils.supportedLicense(this.licenseState)) {
+        if (LicenseUtils.supportedLicense(this.product, this.licenseState)) {
             return innerPrepareRequest(request, client);
         } else {
             // We need to consume parameters and content from the REST request in order to bypass unrecognized param errors

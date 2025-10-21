@@ -1,0 +1,63 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              a_field:
+                type: search_as_you_type
+
+---
+"synthetic source sanity test":
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          a_field: "quick brown fox jumps over a lazy dog"
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          a_field: null
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          a_field: ["quick brown", "fox", "jumps"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.a_field: "quick brown fox jumps over a lazy dog" }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.a_field: null }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.a_field: ["quick brown", "fox", "jumps"] }

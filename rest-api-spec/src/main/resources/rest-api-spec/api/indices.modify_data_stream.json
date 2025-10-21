@@ -1,28 +1,32 @@
 {
-  "indices.modify_data_stream":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Modifies a data stream"
+  "indices.modify_data_stream": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-modify-data-stream",
+      "description": "Update data streams"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_data_stream/_modify",
-          "methods":["POST"]
+          "path": "/_data_stream/_modify",
+          "methods": [
+            "POST"
+          ]
         }
       ]
     },
-    "params":{
-    },
-    "body":{
-      "description":"The data stream modifications",
-      "required":true
+    "body": {
+      "description": "The data stream modifications",
+      "required": true
     }
   }
 }

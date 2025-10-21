@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,13 +14,14 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
-import java.util.Base64;
 import java.util.Locale;
 
 /**
@@ -45,14 +47,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        final IndexableField timestampField = context.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampField == null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        long timestamp = timestampField.numericValue().longValue();
+    public static BytesRef createField(DocumentParserContext context, RoutingHashBuilder routingBuilder, BytesRef tsid) {
+        final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
             byte[] suffix = new byte[16];
@@ -66,7 +62,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
              * at all we just skip the assertion because we can't be sure
              * it always must pass.
              */
-            IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
+            var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
@@ -99,6 +95,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+        return uidEncoded;
     }
 
     public static String createId(int routingHash, BytesRef tsid, long timestamp) {
@@ -110,12 +107,12 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongLE(hash.h1, bytes, 4);
         ByteUtils.writeLongBE(timestamp, bytes, 12);   // Big Ending shrinks the inverted index by ~37%
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static String createId(
         boolean dynamicMappersExists,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        RoutingHashBuilder routingBuilder,
         BytesRef tsid,
         long timestamp,
         byte[] suffix

@@ -30,6 +30,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+
 /**
  * Response for a {@link GetUserPrivilegesRequest}
  */
@@ -44,7 +46,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private final RemoteClusterPermissions remoteClusterPermissions;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         cluster = in.readCollectionAsImmutableSet(StreamInput::readString);
         configurableClusterPrivileges = in.readCollectionAsImmutableSet(ConfigurableClusterPrivileges.READER);
         index = in.readCollectionAsImmutableSet(Indices::new);
@@ -55,7 +56,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         } else {
             remoteIndex = Set.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
             remoteClusterPermissions = RemoteClusterPermissions.NONE;
@@ -113,7 +114,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     }
 
     public boolean hasRemoteClusterPrivileges() {
-        return remoteClusterPermissions.hasPrivileges();
+        return remoteClusterPermissions.hasAnyPrivileges();
     }
 
     @Override
@@ -134,14 +135,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                     + "]"
             );
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         } else if (hasRemoteClusterPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+                    + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
                     + "] can't handle remote cluster privileges and attempted to send to ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }

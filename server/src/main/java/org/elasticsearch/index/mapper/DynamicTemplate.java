@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -29,6 +30,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 
 public class DynamicTemplate implements ToXContentObject {
 
@@ -444,6 +447,24 @@ public class DynamicTemplate implements ToXContentObject {
 
     public List<String> match() {
         return match;
+    }
+
+    public boolean isTimeSeriesDimension() {
+        if (mapping != null) {
+            Object value = mapping.get(TIME_SERIES_DIMENSION_PARAM);
+            if (value instanceof Boolean bool) return bool;
+        }
+        return false;
+    }
+
+    public boolean isSimplePathMatch() {
+        return pathMatch.isEmpty() == false
+            && pathUnmatch.isEmpty()
+            && match.isEmpty()
+            && unmatch.isEmpty()
+            && matchMappingType.isEmpty()
+            && unmatchMappingType.isEmpty()
+            && matchType != MatchType.REGEX;
     }
 
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {

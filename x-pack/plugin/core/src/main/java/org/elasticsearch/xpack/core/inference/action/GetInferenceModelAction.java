@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,19 +32,32 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
     public static class Request extends AcknowledgedRequest<GetInferenceModelAction.Request> {
 
+        private static boolean PERSIST_DEFAULT_CONFIGS = true;
+
         private final String inferenceEntityId;
         private final TaskType taskType;
+        // Default endpoint configurations are persisted on first read.
+        // Set to false to avoid persisting on read.
+        // This setting only applies to GET * requests. It has
+        // no effect when getting a single model
+        private final boolean persistDefaultConfig;
 
         public Request(String inferenceEntityId, TaskType taskType) {
+            this(inferenceEntityId, taskType, PERSIST_DEFAULT_CONFIGS);
+        }
+
+        public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
+            this.persistDefaultConfig = persistDefaultConfig;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
+            this.persistDefaultConfig = in.readBoolean();
         }
 
         public String getInferenceEntityId() {
@@ -57,11 +68,16 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             return taskType;
         }
 
+        public boolean isPersistDefaultConfig() {
+            return persistDefaultConfig;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
+            out.writeBoolean(this.persistDefaultConfig);
         }
 
         @Override
@@ -69,12 +85,14 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(inferenceEntityId, request.inferenceEntityId) && taskType == request.taskType;
+            return Objects.equals(inferenceEntityId, request.inferenceEntityId)
+                && taskType == request.taskType
+                && persistDefaultConfig == request.persistDefaultConfig;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, taskType);
+            return Objects.hash(inferenceEntityId, taskType, persistDefaultConfig);
         }
     }
 
@@ -87,13 +105,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                endpoints = in.readCollectionAsList(ModelConfigurations::new);
-            } else {
-                endpoints = new ArrayList<>();
-                endpoints.add(new ModelConfigurations(in));
-            }
+            endpoints = in.readCollectionAsList(ModelConfigurations::new);
         }
 
         public List<ModelConfigurations> getEndpoints() {
@@ -102,11 +114,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeCollection(endpoints);
-            } else {
-                endpoints.get(0).writeTo(out);
-            }
+            out.writeCollection(endpoints);
         }
 
         @Override

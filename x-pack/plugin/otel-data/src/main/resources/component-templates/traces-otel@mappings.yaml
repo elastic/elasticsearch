@@ -1,0 +1,73 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for OpenTelemetry traces
+  managed: true
+template:
+  settings:
+    index:
+      mode: logsdb
+      sort:
+        field: [ "resource.attributes.host.name", "@timestamp" ]
+  mappings:
+    properties:
+      trace_id:
+        type: keyword
+      trace.id:
+        type: alias
+        path: trace_id
+      span_id:
+        type: keyword
+      span.id:
+        type: alias
+        path: span_id
+      trace_state:
+        type: keyword
+      parent_span_id:
+        type: keyword
+      parent.id:
+        type: alias
+        path: parent_span_id
+      name:
+        type: keyword
+      span.name:
+        type: alias
+        path: name
+      kind:
+        type: keyword
+      duration:
+        type: long
+        meta:
+          unit: nanos
+      dropped_events_count:
+        type: long
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 20
+        properties:
+          elastic.profiler_stack_trace_ids:
+            type: counted_keyword
+      links:
+        synthetic_source_keep: arrays
+        properties:
+          trace_id:
+            type: keyword
+          span_id:
+            type: keyword
+          trace_state:
+            type: keyword
+          attributes:
+            type: object
+            subobjects: false
+            dynamic: true
+          dropped_attributes_count:
+            type: long
+      dropped_links_count:
+        type: long
+      status:
+        properties:
+          message:
+            type: keyword
+          code:
+            type: keyword

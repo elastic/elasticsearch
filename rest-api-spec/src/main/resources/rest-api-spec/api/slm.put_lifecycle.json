@@ -1,34 +1,50 @@
 {
-  "slm.put_lifecycle":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-put-policy.html",
-      "description":"Creates or updates a snapshot lifecycle policy."
+  "slm.put_lifecycle": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-put-lifecycle",
+      "description": "Create or update a policy"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_slm/policy/{policy_id}",
-          "methods":[
+          "path": "/_slm/policy/{policy_id}",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "policy_id":{
-              "type":"string",
-              "description":"The id of the snapshot lifecycle policy"
+          "parts": {
+            "policy_id": {
+              "type": "string",
+              "description": "The id of the snapshot lifecycle policy"
             }
           }
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"The snapshot lifecycle policy definition to register"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    },
+    "body": {
+      "description": "The snapshot lifecycle policy definition to register",
+      "required": true
     }
   }
 }

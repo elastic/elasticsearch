@@ -12,15 +12,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Aggregator state for a single long.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-State.java.st} instead.
  */
 final class LongState implements AggregatorState {
     private long value;
     private boolean seen;
-
-    LongState() {
-        this(0);
-    }
 
     LongState(long init) {
         this.value = init;

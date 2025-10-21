@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -47,6 +48,14 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             CcrSettings.getSettings().stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet())
         );
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
+    }
+
+    @After
+    public void assertWarnings() {
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testOpenSession() throws IOException {
@@ -215,9 +224,9 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             sessionReader.readFileBytes(files.get(1).name(), MockBigArrays.NON_RECYCLING_INSTANCE.newByteArray(10, false));
         }
 
-        assertTrue(EngineTestCase.hasAcquiredIndexCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertTrue(EngineTestCase.hasAcquiredIndexCommitsForTesting(IndexShardTestCase.getEngine(indexShard)));
         restoreSourceService.closeSession(sessionUUID);
-        assertFalse(EngineTestCase.hasAcquiredIndexCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertFalse(EngineTestCase.hasAcquiredIndexCommitsForTesting(IndexShardTestCase.getEngine(indexShard)));
 
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.

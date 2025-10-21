@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -51,6 +52,7 @@ public class PutJobStateMachineTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCreateIndexException() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -69,7 +71,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportCreateIndexAction.TYPE), any(CreateIndexRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.createIndex(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.createIndex(projectId, job, testListener, mock(PersistentTasksService.class), client, logger);
 
         // ResourceAlreadyExists should trigger a GetMapping next
         verify(client).execute(eq(TransportCreateIndexAction.TYPE), any(CreateIndexRequest.class), any());
@@ -77,6 +79,7 @@ public class PutJobStateMachineTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexAlreadyExists() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -99,7 +102,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor2.capture());
 
-        TransportPutRollupJobAction.createIndex(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.createIndex(projectId, job, testListener, mock(PersistentTasksService.class), client, logger);
 
         // ResourceAlreadyExists should trigger a GetMapping next
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
@@ -107,6 +110,7 @@ public class PutJobStateMachineTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testIndexMetadata() throws InterruptedException {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -139,7 +143,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor2.capture());
 
-        TransportPutRollupJobAction.createIndex(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.createIndex(projectId, job, testListener, mock(PersistentTasksService.class), client, logger);
 
         // ResourceAlreadyExists should trigger a GetMapping next
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
@@ -148,6 +152,7 @@ public class PutJobStateMachineTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testGetMappingFails() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -166,12 +171,21 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            projectId,
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testNoMetadataInMapping() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -201,12 +215,21 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            projectId,
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testMetadataButNotRollup() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -238,12 +261,21 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            projectId,
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testJobAlreadyInMapping() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -272,12 +304,21 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            projectId,
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAddJobToMapping() {
+        final var projectId = randomProjectIdOrDefault();
         final RollupJobConfig unrelatedJob = ConfigTestHelpers.randomRollupJobConfig(
             random(),
             ESTestCase.randomAlphaOfLength(10),
@@ -318,13 +359,22 @@ public class PutJobStateMachineTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), requestCaptor2.capture());
 
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        TransportPutRollupJobAction.updateMapping(
+            projectId,
+            job,
+            testListener,
+            mock(PersistentTasksService.class),
+            client,
+            logger,
+            TEST_REQUEST_TIMEOUT
+        );
         verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
         verify(client).execute(eq(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testTaskAlreadyExists() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -338,14 +388,29 @@ public class PutJobStateMachineTests extends ESTestCase {
             requestCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             return null;
         }).when(tasksService)
-            .sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), requestCaptor.capture());
+            .sendProjectStartRequest(
+                eq(projectId),
+                eq(job.getConfig().getId()),
+                eq(RollupField.TASK_NAME),
+                eq(job),
+                isNotNull(),
+                requestCaptor.capture()
+            );
 
-        TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
-        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), any());
+        TransportPutRollupJobAction.startPersistentTask(projectId, job, testListener, tasksService);
+        verify(tasksService).sendProjectStartRequest(
+            eq(projectId),
+            eq(job.getConfig().getId()),
+            eq(RollupField.TASK_NAME),
+            eq(job),
+            isNotNull(),
+            any()
+        );
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testStartTask() {
+        final var projectId = randomProjectIdOrDefault();
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
@@ -366,7 +431,14 @@ public class PutJobStateMachineTests extends ESTestCase {
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(tasksService)
-            .sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), requestCaptor.capture());
+            .sendProjectStartRequest(
+                eq(projectId),
+                eq(job.getConfig().getId()),
+                eq(RollupField.TASK_NAME),
+                eq(job),
+                isNotNull(),
+                requestCaptor.capture()
+            );
 
         ArgumentCaptor<PersistentTasksService.WaitForPersistentTaskListener> requestCaptor2 = ArgumentCaptor.forClass(
             PersistentTasksService.WaitForPersistentTaskListener.class
@@ -375,11 +447,19 @@ public class PutJobStateMachineTests extends ESTestCase {
             // Bail here with an error, further testing will happen through tests of #startPersistentTask
             requestCaptor2.getValue().onFailure(new RuntimeException("Ending"));
             return null;
-        }).when(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
+        }).when(tasksService)
+            .waitForPersistentTaskCondition(eq(projectId), eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
 
-        TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
-        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), eq(null), any());
-        verify(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), any());
+        TransportPutRollupJobAction.startPersistentTask(projectId, job, testListener, tasksService);
+        verify(tasksService).sendProjectStartRequest(
+            eq(projectId),
+            eq(job.getConfig().getId()),
+            eq(RollupField.TASK_NAME),
+            eq(job),
+            isNotNull(),
+            any()
+        );
+        verify(tasksService).waitForPersistentTaskCondition(eq(projectId), eq(job.getConfig().getId()), any(), any(), any());
     }
 
     public void testDeprecatedTimeZone() {

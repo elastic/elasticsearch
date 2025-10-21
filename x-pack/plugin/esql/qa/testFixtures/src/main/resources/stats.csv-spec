@@ -3409,3 +3409,15 @@ employees:long | job_positions:keyword
 15             | Tech Lead    
 ;
 
+fixClassCast
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x), d = count(*)
+;
+
+a:long | b:long | c:long | d:long
+891    | 1782   | 8      | 891
+;
+

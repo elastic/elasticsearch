@@ -50,7 +50,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
     }
 
     @Override
-    protected FlatVectorsScorer flatVectorsScorer() {
+    public FlatVectorsScorer flatVectorsScorer() {
         return vectorsScorer;
     }
 

@@ -34,17 +34,29 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseHnswB
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswBinaryQuantizedVectorsFormat(true, random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, true, random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            random().nextBoolean()
+        );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, true, random().nextBoolean(), numMergeWorkers, service);
+        return new ES93HnswBinaryQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            random().nextBoolean(),
+            numMergeWorkers,
+            service
+        );
     }
 
     public void testToString() {

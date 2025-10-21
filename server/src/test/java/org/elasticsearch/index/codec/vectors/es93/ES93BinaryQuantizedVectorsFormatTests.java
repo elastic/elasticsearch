@@ -84,7 +84,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(false, random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
         super.setUp();
     }
 
@@ -201,7 +201,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
         var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
         var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
 
-        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(false, false);
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 

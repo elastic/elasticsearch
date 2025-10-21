@@ -97,16 +97,16 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
     private final ES93GenericFlatVectorsFormat rawFormat;
 
     public ES93BinaryQuantizedVectorsFormat() {
-        this(false, false);
+        this(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
     }
 
-    public ES93BinaryQuantizedVectorsFormat(boolean useBFloat16, boolean useDirectIO) {
+    public ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType, boolean useDirectIO) {
         super(NAME);
-        rawFormat = new ES93GenericFlatVectorsFormat(useBFloat16, useDirectIO);
+        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
     }
 
     @Override
-    protected FlatVectorsScorer flatVectorsScorer() {
+    public FlatVectorsScorer flatVectorsScorer() {
         return scorer;
     }
 

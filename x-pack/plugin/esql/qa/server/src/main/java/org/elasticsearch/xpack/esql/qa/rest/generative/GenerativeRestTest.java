@@ -66,18 +66,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
+        "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
+        "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
+        "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
+        "Rule execution limit", // https://github.com/elastic/elasticsearch/issues/136599
+        "Output has changed from", // https://github.com/elastic/elasticsearch/issues/136797
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
 
         // TS-command tests
-        "time-series .* the first aggregation .* is not allowed",
+        "time-series.*the first aggregation.*is not allowed",
         "count_star .* can't be used with TS command",
         "time_series aggregate.* can only be used with the TS command",
-        "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
-        // https://github.com/elastic/elasticsearch/issues/134793
-        "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block",
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        "implicit time-series aggregation function .* doesn't support type .*"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

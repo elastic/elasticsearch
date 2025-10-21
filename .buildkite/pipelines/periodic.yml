@@ -363,8 +363,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.19.5 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.5#bwcTest
+      - label: 8.19.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -373,7 +373,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.5
+          BWC_VERSION: 8.19.6
         retry:
           automatic:
             - exit_status: "-1"
@@ -401,8 +401,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.1.5 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.1.5#bwcTest
+      - label: 9.1.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.1.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -411,7 +411,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.1.5
+          BWC_VERSION: 9.1.6
         retry:
           automatic:
             - exit_status: "-1"
@@ -431,6 +431,25 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 9.2.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 9.3.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.3.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.3.0
         retry:
           automatic:
             - exit_status: "-1"
@@ -506,7 +525,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.18.8", "8.19.5", "9.0.8", "9.1.5", "9.2.0"]
+            BWC_VERSION: ["8.19.6", "9.1.6", "9.2.0", "9.3.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -550,7 +569,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.18.8", "8.19.5", "9.0.8", "9.1.5", "9.2.0"]
+            BWC_VERSION: ["8.19.6", "9.1.6", "9.2.0", "9.3.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.InputTypeTranslator;
 import org.elasticsearch.xpack.inference.services.custom.QueryParameters;
+import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ public class CustomRequestTests extends ESTestCase {
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
@@ -77,10 +77,7 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, null),
-                model.getServiceSettings().getInputTypeTranslator()
-            ),
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc", "123"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
         var httpRequest = request.createHttpRequest();
@@ -125,7 +122,7 @@ public class CustomRequestTests extends ESTestCase {
                 )
             ),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
@@ -141,7 +138,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, InputType.INGEST),
+                new EmbeddingsInput(List.of("abc", "123"), InputType.INGEST),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model
@@ -183,7 +180,7 @@ public class CustomRequestTests extends ESTestCase {
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000)
         );
 
@@ -197,7 +194,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), null, InputType.SEARCH),
+                new EmbeddingsInput(List.of("abc", "123"), InputType.SEARCH),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -23,7 +22,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
@@ -39,6 +38,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
     KnnVectorQueryBuilder> {
+
+    private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -61,10 +62,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         KnnVectorQueryBuilder originalQuery,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(
-            new InterceptedInferenceKnnVectorQueryBuilder(originalQuery),
-            inferenceResultsMap
-        );
+        return new InterceptedInferenceKnnVectorQueryBuilder(originalQuery, inferenceResultsMap);
     }
 
     @Override
@@ -85,7 +83,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         QueryRewriteContext queryRewriteContext
     ) {
         assertThat(original, instanceOf(KnnVectorQueryBuilder.class));
-        if (transportVersion.onOrAfter(TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+        if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceKnnVectorQueryBuilder.class));
 
             InterceptedInferenceKnnVectorQueryBuilder intercepted = (InterceptedInferenceKnnVectorQueryBuilder) rewritten;
@@ -160,7 +158,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
             Map.of(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
         QueryBuilder coordinatorRewritten = rewriteAndFetch(knnQuery, queryRewriteContext);
 
@@ -176,8 +175,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)
         );
         assertThat(inferenceResults, notNullValue());
-        assertThat(inferenceResults, instanceOf(MlTextEmbeddingResults.class));
-        VectorData queryVector = new VectorData(((MlTextEmbeddingResults) inferenceResults).getInferenceAsFloat());
+        assertThat(inferenceResults, instanceOf(MlDenseEmbeddingResults.class));
+        VectorData queryVector = new VectorData(((MlDenseEmbeddingResults) inferenceResults).getInferenceAsFloat());
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextTestIndex1 = createIndexMetadataContext(

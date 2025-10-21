@@ -23,16 +23,15 @@ public interface BulkScorableVectorValues {
     interface BulkVectorScorer extends VectorScorer {
 
         /**
-         * Returns a {@link Bulk} scorer that can score in bulk the provided {@code matchingDocs}.
+         * Returns a {@link BulkScorer} scorer that can score in bulk the provided {@code matchingDocs}.
          */
-        Bulk bulk(DocIdSetIterator matchingDocs) throws IOException;
+        BulkScorer bulkScore(DocIdSetIterator matchingDocs) throws IOException;
 
-        interface Bulk {
+        interface BulkScorer {
             /**
              * Scores up to {@code nextCount} docs in the provided {@code buffer}.
-             * Returns the maxScore of docs scored.
              */
-            float nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException;
+            void nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException;
         }
     }
 }

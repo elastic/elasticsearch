@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -16,7 +16,8 @@ import static org.hamcrest.Matchers.not;
 public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
     public void testDevelopmentInline() throws Exception {
-        parse("row a = 1 | inline stats b = min(a) by c, d.e", "inline");
+        LogicalPlan plan = parser().createStatement("row a = 1 | inline stats b = min(a) by c, d.e");
+        assertNotNull(plan);
     }
 
     public void testDevelopmentLookup() throws Exception {
@@ -28,7 +29,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     void parse(String query, String errorMessage) {
-        ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query, EsqlTestUtils.TEST_CFG));
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));
         // check the parser eliminated the DEV_ tokens from the message
         assertThat(pe.getMessage(), not(containsString("DEV_")));

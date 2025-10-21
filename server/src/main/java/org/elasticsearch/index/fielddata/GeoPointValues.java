@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ public final class GeoPointValues extends PointValues<GeoPoint> {
 
     private final GeoPoint point = new GeoPoint();
 
-    GeoPointValues(NumericDocValues values) {
+    GeoPointValues(LongValues values) {
         super(values);
     }
 

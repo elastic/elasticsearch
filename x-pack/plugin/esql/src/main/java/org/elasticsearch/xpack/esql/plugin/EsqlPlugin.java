@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -43,6 +42,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -77,7 +78,7 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -91,46 +92,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
-    public static final boolean INLINE_STATS_FEATURE_FLAG = new FeatureFlag("esql_inline_stats").isEnabled();
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
-
-    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
-        "esql.query.result_truncation_max_size",
-        10000,
-        1,
-        1000000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
-        "esql.query.result_truncation_default_size",
-        1000,
-        1,
-        10000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
-        "esql.query.timeseries_result_truncation_default_size",
-        1_000_000,
-        1,
-        10_000_000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
-        "esql.query.timeseries_result_truncation_max_size",
-        10_000_000,
-        1,
-        1_000_000_000,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
@@ -267,19 +231,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
-            QUERY_RESULT_TRUNCATION_MAX_SIZE,
-            QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
-            QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
             ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
             ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
             ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-            PhysicalSettings.DEFAULT_DATA_PARTITIONING,
-            PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
-            PhysicalSettings.LUCENE_TOPN_LIMIT,
+            PlannerSettings.DEFAULT_DATA_PARTITIONING,
+            PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
+            PlannerSettings.LUCENE_TOPN_LIMIT,
+            PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
@@ -374,5 +340,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
+    }
+
+    @Override
+    public List<SearchPlugin.GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return ExpressionWritables.getGenericNamedWriteables();
     }
 }

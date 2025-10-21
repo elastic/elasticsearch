@@ -28,7 +28,8 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
     public static final String TIMESTAMP = DataStreamTimestampFieldMapper.DEFAULT_PATH;
     public static final String TS_ID = TimeSeriesIdFieldMapper.NAME;
 
-    public static final String FORMAT_NAME = "TSDBSyntheticId";
+    static final String FORMAT_NAME = "TSDBSyntheticId";
+    static final String SUFFIX = "0";
 
     public TSDBSyntheticIdPostingsFormat() {
         super(FORMAT_NAME);
@@ -40,7 +41,7 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
         boolean success = false;
         try {
             var codec = state.segmentInfo.getCodec();
-            // Erase the segment suffix
+            // Erase the segment suffix (used only for reading postings)
             docValuesProducer = codec.docValuesFormat().fieldsProducer(new SegmentReadState(state, ""));
             var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
             success = true;

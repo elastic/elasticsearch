@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageTestUtils;
@@ -50,6 +51,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * the document (typically the {@code @timestamp} and {@code _tsid} fields).
  * </p>
  */
+@LuceneTestCase.SuppressCodecs("*") // requires codecs used in production only
 public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern(STRICT_DATE_OPTIONAL_TIME.getName());
@@ -95,7 +97,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             prepareCreate(indexName).setSettings(
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                     .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
-                    .put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false)
                     .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
                     .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)

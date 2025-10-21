@@ -29,11 +29,19 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.TS_ID;
 
 /**
- * Special codec for time-series Lucene indices that use synthetic ids.
+ * Special codec for time-series datastreams that use synthetic ids.
  * <p>
- *     This codec ensures that the synthetic _id field does not have index options that would build an inverted index for the field during
- *     indexing. It also reverts this index options when reading FieldInfos so that it can use postings for documents soft-updates and other
- *     APIs.
+ *     The role of this codec is to ensure that no inverted index is created when indexing a document id in Lucene, while allowing the usage
+ *     of terms and postings on the field (now called a "synthetic _id" field) as if it was backed by an in inverted index.
+ * </p>
+ * <p>
+ *     In order to do this, it enforces synthetic _id fields to be indexed with the {@link IndexOptions#NONE} option, hence preventing the
+ *     building of a term dictionary with postings lists. The codec also changes this {@link IndexOptions#NONE} option back to
+ *     {@link IndexOptions#DOCS} when reading the {@link FieldInfos} during the opening of a new segment core reader. This allows to use a
+ *     Lucene term dictionary on top of a synthetic _id field that does not have corresponding postings files on disk. Finally, the codec
+ *     injects additional {@link FieldInfos} attributes so that Lucene's {@link PerFieldPostingsFormat} correctly instantiates a
+ *     {@link TSDBSyntheticIdPostingsFormat} to access the term and postings of the synthetic _id field.
+ * </p>
  */
 public class TSDBSyntheticIdCodec extends FilterCodec {
 
@@ -115,12 +123,17 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
             int i = 0;
             for (FieldInfo fi : fieldInfos) {
                 if (SYNTHETIC_ID.equals(fi.getName())) {
-                    assert fieldInfo.attributes().containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
-                    assert fieldInfo.attributes().containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
+                    final var attributes = new HashMap<>(fieldInfo.attributes());
 
-                    var attributes = new HashMap<>(fieldInfo.attributes());
+                    // Assert that PerFieldPostingsFormat are not written to field infos on disk
+                    assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
+                    assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
+
+                    // Inject attributes so that PerFieldPostingsFormat maps the synthetic _id field to the TSDBSyntheticIdPostingsFormat
+                    // This would normally be handled transparently by PerFieldPostingsFormat, but such attributes are only added if terms
+                    // are produced during indexing, which is not the case for the synthetic _id field.
                     attributes.put(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
-                    attributes.put(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, "0");
+                    attributes.put(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
 
                     fi = new FieldInfo(
                         fi.getName(),

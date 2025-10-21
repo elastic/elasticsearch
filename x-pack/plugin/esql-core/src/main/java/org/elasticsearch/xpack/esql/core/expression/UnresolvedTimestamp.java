@@ -53,7 +53,10 @@ public class UnresolvedTimestamp extends UnresolvedAttribute {
 
     @Override
     public String unresolvedMessage() {
-        return errorMessage;
+        if (super.unresolvedMessage() != null) {
+            return errorMessage;
+        }
+        return null;
     }
 
     @Override

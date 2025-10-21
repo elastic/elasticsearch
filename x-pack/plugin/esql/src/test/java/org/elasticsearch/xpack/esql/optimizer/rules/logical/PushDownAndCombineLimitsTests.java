@@ -252,6 +252,6 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
     }
 
     private LogicalPlan optimizePlan(LogicalPlan plan) {
-        return new PushDownAndCombineLimits(false).apply(plan, unboundLogicalOptimizerContext());
+        return new PushDownAndCombineLimits().apply(plan, unboundLogicalOptimizerContext());
     }
 }

@@ -1060,12 +1060,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
-            new PushDownAndCombineLimits(false).rule(anotherLimit, logicalOptimizerCtx)
+            new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
         );
     }
 
     public void testPushdownLimitsPastLeftJoin() {
-        var rule = new PushDownAndCombineLimits(false);
+        var rule = new PushDownAndCombineLimits();
 
         var leftChild = emptySource();
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), EmptyLocalSupplier.EMPTY);

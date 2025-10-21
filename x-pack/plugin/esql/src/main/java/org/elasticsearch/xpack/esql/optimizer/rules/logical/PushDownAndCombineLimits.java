@@ -25,15 +25,22 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext>
+    implements
+        OptimizerRules.LocalAware<Limit> {
 
     private final boolean local;
 
-    public PushDownAndCombineLimits(boolean local) {
+    public PushDownAndCombineLimits() {
+        this(false);
+    }
+
+    private PushDownAndCombineLimits(boolean local) {
         super(OptimizerRules.TransformDirection.DOWN);
         this.local = local;
     }
@@ -163,5 +170,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
         LogicalPlan newChild = limit.child().replaceChildren(newGrandChildren);
         return limit.replaceChild(newChild).withDuplicated(true);
+    }
+
+    @Override
+    public Rule<Limit, LogicalPlan> local() {
+        return new PushDownAndCombineLimits(true);
     }
 }

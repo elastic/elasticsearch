@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -25,14 +22,11 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext>
-    implements
-        OptimizerRules.LocalAware<Limit> {
+public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
     public PushDownAndCombineLimits() {
         super(OptimizerRules.TransformDirection.DOWN);
@@ -43,10 +37,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         if (limit.child() instanceof Limit childLimit) {
             return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
-            if (unary instanceof Eval
-                || unary instanceof Project
-                || unary instanceof RegexExtract
-                || unary instanceof InferencePlan<?>) {
+            if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
@@ -146,10 +137,5 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
         LogicalPlan newChild = limit.child().replaceChildren(newGrandChildren);
         return limit.replaceChild(newChild).withDuplicated(true);
-    }
-
-    @Override
-    public Rule<Limit, LogicalPlan> local() {
-        return new PushDownAndCombineLimits(true);
     }
 }

@@ -836,7 +836,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *         \_TopNExec[[Order[s{r}#4,ASC,LAST]],42[INTEGER],2304]
      *           \_EvalExec[[SCORE(MATCH(first_name{f}#9,foo[KEYWORD])) AS s#4]]
      *             \_FieldExtractExec[first_name{f}#9]
-     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[{
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#31], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags
+     *               [[QueryBuilderAndTags{queryBuilder=[{
      *   "exists" : {
      *     "field" : "last_name",
      *     "boost" : 0.0

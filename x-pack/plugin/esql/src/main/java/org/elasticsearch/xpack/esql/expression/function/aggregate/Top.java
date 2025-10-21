@@ -62,6 +62,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
@@ -181,16 +182,28 @@ public class Top extends AggregateFunction
             .and(isNotNull(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
         if (outputField() != null) {
-            typeResolution.and(
+            typeResolution = typeResolution.and(
                 isType(
                     outputField(),
                     dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
                     sourceText(),
-                    FIRST,
+                    FOURTH,
                     "date",
                     "numeric except unsigned_long or counter types"
                 )
-            );
+            )
+                .and(
+                    isType(
+                        field(),
+                        dt -> dt == DataType.DATETIME || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                        "when fourth argument is set, ",
+                        sourceText(),
+                        FIRST,
+                        false,
+                        "date",
+                        "numeric except unsigned_long or counter types"
+                    )
+                );
         }
 
         if (typeResolution.unresolved()) {

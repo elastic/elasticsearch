@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -83,12 +84,18 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
     }
 
     public NlpConfigUpdate(StreamInput in) throws IOException {
-        tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
+        } else {
+            tokenizationUpdate = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(tokenizationUpdate);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeOptionalNamedWriteable(tokenizationUpdate);
+        }
     }
 
     protected boolean isNoop() {

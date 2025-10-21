@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -81,7 +82,11 @@ public final class ImmutableTransactionStore extends TransactionStore {
             }
             this.totalTransactionCount = in.readVLong();
 
-            this.filteredTransactionCount = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+                this.filteredTransactionCount = in.readVLong();
+            } else {
+                this.filteredTransactionCount = 0;
+            }
 
             success = true;
         } finally {
@@ -153,7 +158,9 @@ public final class ImmutableTransactionStore extends TransactionStore {
             out.writeVLong(transactionCounts.get(i));
         }
         out.writeVLong(totalTransactionCount);
-        out.writeVLong(filteredTransactionCount);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            out.writeVLong(filteredTransactionCount);
+        }
     }
 
 }

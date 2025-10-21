@@ -1,0 +1,198 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to delete random samples
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "*test*"
+        ignore_unavailable: true
+        allow_no_indices: true
+
+---
+"Test Delete existing sampling configuration":
+  - do:
+      indices.create:
+        index: test-delete-index
+        body:
+          settings:
+            number_of_shards: 1
+
+  # First create a sampling configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-delete-index
+        body:
+          rate: 0.5
+          max_samples: 100
+          max_size: "10mb"
+          time_to_live: "1h"
+
+  - match: { acknowledged: true }
+
+  # Now delete the sampling configuration
+  - do:
+      indices.delete_sample_configuration:
+        index: test-delete-index
+
+  - match: { acknowledged: true }
+
+---
+"Delete sampling configuration for non-existent index":
+  - do:
+      catch: missing
+      indices.delete_sample_configuration:
+        index: non-existent-index
+
+---
+"Delete non-existent sampling configuration":
+  - do:
+      indices.create:
+        index: test-no-config-index
+
+  # Try to delete configuration that doesn't exist
+  - do:
+      catch: missing
+      indices.delete_sample_configuration:
+        index: test-no-config-index
+
+---
+"Delete sampling configuration with custom timeouts":
+  - do:
+      indices.create:
+        index: test-timeout-index
+
+  # Create a sampling configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-timeout-index
+        body:
+          rate: 0.3
+          max_samples: 50
+
+  - match: { acknowledged: true }
+
+  # Delete with custom timeouts
+  - do:
+      indices.delete_sample_configuration:
+        index: test-timeout-index
+        master_timeout: "2m"
+        timeout: "45s"
+
+  - match: { acknowledged: true }
+
+---
+"Delete one configuration leaves others intact":
+  - do:
+      indices.create:
+        index: test-multi-index-1
+
+  - do:
+      indices.create:
+        index: test-multi-index-2
+
+  # Create sampling configurations for both indices
+  - do:
+      indices.put_sample_configuration:
+        index: test-multi-index-1
+        body:
+          rate: 0.4
+          max_samples: 40
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: test-multi-index-2
+        body:
+          rate: 0.6
+          max_samples: 60
+
+  - match: { acknowledged: true }
+
+  # Delete configuration for first index only
+  - do:
+      indices.delete_sample_configuration:
+        index: test-multi-index-1
+
+  - match: { acknowledged: true }
+
+  # Verify second index configuration still exists by trying to delete it
+  - do:
+      indices.delete_sample_configuration:
+        index: test-multi-index-2
+
+  - match: { acknowledged: true }
+
+---
+"Delete then attempt to delete again":
+  - do:
+      indices.create:
+        index: test-double-delete-index
+
+  # Create configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-double-delete-index
+        body:
+          rate: 0.7
+          max_samples: 70
+
+  - match: { acknowledged: true }
+
+  # First delete should succeed
+  - do:
+      indices.delete_sample_configuration:
+        index: test-double-delete-index
+
+  - match: { acknowledged: true }
+
+  # Second delete should fail
+  - do:
+      catch: missing
+      indices.delete_sample_configuration:
+        index: test-double-delete-index
+
+---
+"Delete and recreate workflow":
+  - do:
+      indices.create:
+        index: test-recreate-index
+
+  # Create initial configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-recreate-index
+        body:
+          rate: 0.2
+          max_samples: 20
+
+  - match: { acknowledged: true }
+
+  # Delete the configuration
+  - do:
+      indices.delete_sample_configuration:
+        index: test-recreate-index
+
+  - match: { acknowledged: true }
+
+  # Recreate with different configuration
+  - do:
+      indices.put_sample_configuration:
+        index: test-recreate-index
+        body:
+          rate: 0.9
+          max_samples: 90
+          max_size: "20mb"
+
+  - match: { acknowledged: true }
+
+  # Delete the new configuration
+  - do:
+      indices.delete_sample_configuration:
+        index: test-recreate-index
+
+  - match: { acknowledged: true }

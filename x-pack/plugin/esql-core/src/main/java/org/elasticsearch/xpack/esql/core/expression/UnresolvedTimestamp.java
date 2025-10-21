@@ -12,46 +12,61 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class UnresolvedTimestamp extends UnresolvedAttribute {
-    public UnresolvedTimestamp(Source source, String name) {
-        super(source, name);
+    private final String errorMessage;
+
+    public UnresolvedTimestamp(Source source, String errorMessage) {
+        this(source, null, MetadataAttribute.TIMESTAMP_FIELD, null, null, null, errorMessage);
     }
 
-    public UnresolvedTimestamp(Source source, String name, String unresolvedMessage) {
-        super(source, name, unresolvedMessage);
-    }
-
-    public UnresolvedTimestamp(Source source, String qualifier, String name, String unresolvedMessage) {
-        super(source, qualifier, name, unresolvedMessage);
-    }
-
-    public UnresolvedTimestamp(Source source, String name, NameId id, String unresolvedMessage, Object resolutionMetadata) {
-        super(source, name, id, unresolvedMessage, resolutionMetadata);
-    }
-
-    public UnresolvedTimestamp(
+    private UnresolvedTimestamp(
         Source source,
         String qualifier,
         String name,
         NameId id,
         String unresolvedMessage,
-        Object resolutionMetadata
+        Object resolutionMetadata,
+        String errorMessage
     ) {
         super(source, qualifier, name, id, unresolvedMessage, resolutionMetadata);
+        this.errorMessage = errorMessage;
+    }
+
+    @Override
+    protected NodeInfo<UnresolvedTimestamp> info() {
+        return NodeInfo.create(
+            this,
+            UnresolvedTimestamp::new,
+            qualifier(),
+            name(),
+            id(),
+            unresolvedMessage(),
+            resolutionMetadata(),
+            errorMessage
+        );
+    }
+
+    @Override
+    public UnresolvedTimestamp withUnresolvedMessage(String unresolvedMessage) {
+        return new UnresolvedTimestamp(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata(), errorMessage);
     }
 
     @Override
     public String unresolvedMessage() {
-        String parentUnreslovedMsg = super.unresolvedMessage();
-        if (parentUnreslovedMsg != null) {
-            return "Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped";
-        }
-        return null;
+        return errorMessage;
     }
 
     @Override
-    protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedTimestamp::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), errorMessage);
+    }
+
+    @Override
+    protected boolean innerEquals(Object o) {
+        var other = (UnresolvedTimestamp) o;
+        return super.innerEquals(other) && Objects.equals(errorMessage, other.errorMessage);
     }
 }

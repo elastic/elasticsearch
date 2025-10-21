@@ -85,7 +85,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected NodeInfo<UnresolvedAttribute> info() {
+    protected NodeInfo<? extends UnresolvedAttribute> info() {
         return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
     }
 

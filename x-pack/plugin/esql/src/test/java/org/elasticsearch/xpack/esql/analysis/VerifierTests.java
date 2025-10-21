@@ -2566,7 +2566,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testInvalidTBucketCalls() {
-        assertThat(error("from test | stats max(emp_no) by tbucket(1 hour)"), equalTo("1:34: Unknown column [@timestamp]"));
+        assertThat(
+            error("from test | stats max(emp_no) by tbucket(1 hour)"),
+            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+        );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
             equalTo("1:42: error building [tbucket]: expects exactly one argument")

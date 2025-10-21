@@ -555,6 +555,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationFloatAggregatorFunctionTests
   method: testSimpleSmallInput
   issue: https://github.com/elastic/elasticsearch/issues/136902
+- class: org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionTests
+  method: testSimpleSmallInput
+  issue: https://github.com/elastic/elasticsearch/issues/136903
 
 # Examples:
 #

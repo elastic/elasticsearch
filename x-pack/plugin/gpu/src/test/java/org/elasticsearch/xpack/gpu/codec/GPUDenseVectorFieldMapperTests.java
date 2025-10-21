@@ -63,7 +63,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
             b.field("type", "dense_vector");
             b.field("dims", dims);
             b.field("index", true);
-            b.field("similarity", "cosine");
+            b.field("similarity", "dot_product");
             b.startObject("index_options");
             b.field("type", indexOptionsType);
             b.endObject();

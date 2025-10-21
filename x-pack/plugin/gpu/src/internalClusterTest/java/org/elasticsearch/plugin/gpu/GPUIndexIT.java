@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
-import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -162,8 +161,8 @@ public class GPUIndexIT extends ESIntegTestCase {
         assertSearch(indexName, randomFloatVector(dims), numDocs);
     }
 
-    public void testInt8HnswDotProductFails() {
-        String indexName = "index_int8_dot_product_fails";
+    public void testInt8HnswMaxInnerProductProductFails() {
+        String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);
 
         Settings.Builder settingsBuilder = Settings.builder().put(indexSettings());
@@ -176,7 +175,7 @@ public class GPUIndexIT extends ESIntegTestCase {
                 "my_vector": {
                   "type": "dense_vector",
                   "dims": %d,
-                  "similarity": "dot_product",
+                  "similarity": "max_inner_product",
                   "index_options": {
                     "type": "int8_hnsw"
                   }
@@ -192,11 +191,11 @@ public class GPUIndexIT extends ESIntegTestCase {
         // Attempt to index a document and expect it to fail
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomNormalizedVector(dims)).get()
+            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomFloatVector(dims)).get()
         );
         assertThat(
             ex.getMessage(),
-            containsString("GPU vector indexing does not support [dot_product] similarity for [int8_hnsw] index type.")
+            containsString("GPU vector indexing does not support [max_inner_product] similarity for [int8_hnsw] index type.")
         );
     }
 

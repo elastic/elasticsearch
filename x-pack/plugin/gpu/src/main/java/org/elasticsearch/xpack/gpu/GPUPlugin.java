@@ -102,8 +102,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             }
             return new ES92GpuHnswVectorsFormat(hnswIndexOptions.m(), efConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
-            if (similarity == DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT
-                || similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
+            if (similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
                 throw new IllegalArgumentException(
                     "GPU vector indexing does not support ["
                         + similarity

@@ -100,7 +100,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions
     ) {
         if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
-            return randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.COSINE);
+            return randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT);
         }
         return randomFrom(VectorSimilarity.values());
     }

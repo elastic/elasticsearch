@@ -178,7 +178,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String unresolvedMessage() {
-        if (customMessageText != null) {
+        if (unresolvedMsg != null && customMessageText != null) {
             return customMessageText;
         }
         return unresolvedMsg;

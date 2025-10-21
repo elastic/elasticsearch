@@ -796,7 +796,7 @@ error on rename timestamp:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0 ]
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message ]
       reason: "TS specific check"
 
   - do:
@@ -830,7 +830,7 @@ TS Command grouping on text field:
           settings:
             index:
               mode: time_series
-              routing_path: [metricset, k8s.pod.uid]
+              routing_path: [ metricset, k8s.pod.uid ]
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
@@ -891,20 +891,20 @@ TS Command grouping on text field:
             | SORT max, text_field
             | LIMIT 3
 
-  - length: {values: 3}
-  - length: {values.0: 3}
-  - match: {columns.0.name: "max"}
-  - match: {columns.0.type: "integer"}
-  - match: {columns.1.name: "text_field"}
-  - match: {columns.1.type: "keyword"}
-  - match: {columns.2.name: "bucket"}
-  - match: {columns.2.type: "date"}
-  - match: {values.0.0: 530575198}
-  - match: {values.0.1: "we are just overflowing with text"}
-  - match: {values.0.2: "2021-04-28T16:00:00.000Z"}
-  - match: {values.1.0: 530600088}
-  - match: {values.1.1: "is this text?"}
-  - match: {values.1.2: "2021-04-28T17:00:00.000Z"}
-  - match: {values.2.0: 530604797}
-  - match: {values.2.1: "why cant i hold all these text"}
-  - match: {values.2.2: "2021-04-28T18:00:00.000Z"}
+  - length: { values: 3 }
+  - length: { values.0: 3 }
+  - match: { columns.0.name: "max" }
+  - match: { columns.0.type: "integer" }
+  - match: { columns.1.name: "text_field" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "bucket" }
+  - match: { columns.2.type: "date" }
+  - match: { values.0.0: 530575198 }
+  - match: { values.0.1: "we are just overflowing with text" }
+  - match: { values.0.2: "2021-04-28T16:00:00.000Z" }
+  - match: { values.1.0: 530600088 }
+  - match: { values.1.1: "is this text?" }
+  - match: { values.1.2: "2021-04-28T17:00:00.000Z" }
+  - match: { values.2.0: 530604797 }
+  - match: { values.2.1: "why cant i hold all these text" }
+  - match: { values.2.2: "2021-04-28T18:00:00.000Z" }

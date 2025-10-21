@@ -201,7 +201,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     private void runWithRandomDelay(Runnable runnable) {
-        threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 10)), threadPool.generic());
+        threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
     }
 
     public static class BlockStringReader {

@@ -344,7 +344,7 @@ public class AzureBlobStore implements BlobStore {
         return false;
     }
 
-    public int getMaxReadRetries() {
+    int getMaxReadRetries() {
         return service.getMaxReadRetries(projectId, clientName);
     }
 

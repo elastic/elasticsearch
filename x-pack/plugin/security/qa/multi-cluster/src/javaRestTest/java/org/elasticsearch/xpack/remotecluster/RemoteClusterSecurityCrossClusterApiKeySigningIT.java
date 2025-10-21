@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import io.netty.handler.codec.http.HttpMethod;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -40,6 +39,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> MY_REMOTE_API_KEY_MAP_REF = new AtomicReference<>();
+    private static final String TEST_ACCESS_JSON = """
+        {
+            "search": [
+              {
+                "names": ["index*", "not_found_index"]
+              }
+            ]
+        }""";
+    private static final String[] MATCHING_CERTIFICATE_IDENTITY_PATTERNS = new String[] {
+        "CN=instance",
+        "^CN=instance$",
+        "(?i)" + "^CN=instance$",
+        "^CN=[A-Za-z0-9_]+$" };
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -68,19 +80,8 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
             .configFile("signing.key", Resource.fromClasspath("signing/signing.key"))
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (MY_REMOTE_API_KEY_MAP_REF.get() == null) {
-                    final var accessJson = """
-                        {
-                            "search": [
-                              {
-                                "names": ["index*", "not_found_index"]
-                              }
-                            ]
-                        }""";
                     MY_REMOTE_API_KEY_MAP_REF.set(
-                        createCrossClusterAccessApiKey(
-                            accessJson,
-                            randomFrom("CN=instance", "^CN=instance$", "(?i)^CN=instance$", "^CN=[A-Za-z0-9_]+$")
-                        )
+                        createCrossClusterAccessApiKey(TEST_ACCESS_JSON, randomFrom(MATCHING_CERTIFICATE_IDENTITY_PATTERNS))
                     );
                 }
                 return (String) MY_REMOTE_API_KEY_MAP_REF.get().get("encoded");
@@ -169,15 +170,7 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
 
         // Test API key without certificate identity and send signature anyway
         {
-            final var accessJson = """
-                {
-                    "search": [
-                        {
-                        "names": ["index*", "not_found_index"]
-                        }
-                    ]
-                }""";
-            MY_REMOTE_API_KEY_MAP_REF.set(createCrossClusterAccessApiKey(accessJson));
+            updateCrossClusterAccessApiKey(null);
             assertCrossClusterSearchSuccessfulWithResult();
 
             // Change the CA to the default trust store to make sure untrusted signature fails auth even if it's not required
@@ -188,6 +181,20 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
             updateClusterSettingsFulfillingCluster(
                 Settings.builder().put("cluster.remote.signing.certificate_authorities", "signing_ca.crt").build()
             );
+            updateCrossClusterAccessApiKey(randomFrom(MATCHING_CERTIFICATE_IDENTITY_PATTERNS));
+        }
+
+        // Test API key with non-matching certificate identity is rejected
+        {
+            var nonMatchingCertificateIdentity = randomFrom("", "no-match", "^CN= instance$", "^CN=instance.$", "^cn=instance$");
+            updateCrossClusterAccessApiKey(nonMatchingCertificateIdentity);
+            assertCrossClusterAuthFail(
+                "DN from provided certificate [CN=instance] does not match API Key certificate identity pattern ["
+                    + nonMatchingCertificateIdentity
+                    + "]"
+            );
+            // Reset
+            updateCrossClusterAccessApiKey(randomFrom(MATCHING_CERTIFICATE_IDENTITY_PATTERNS));
         }
     }
 
@@ -319,6 +326,27 @@ public class RemoteClusterSecurityCrossClusterApiKeySigningIT extends AbstractRe
               "certificate_identity": "%s",
               "access": %s
             }""", certificateIdentity, accessJson));
+        try {
+            final Response createCrossClusterApiKeyResponse = performRequestWithAdminUser(
+                fulfillingClusterClient,
+                createCrossClusterApiKeyRequest
+            );
+            assertOK(createCrossClusterApiKeyResponse);
+            return responseAsMap(createCrossClusterApiKeyResponse);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    protected static Map<String, Object> updateCrossClusterAccessApiKey(String certificateIdentity) {
+        initFulfillingClusterClient();
+        final var createCrossClusterApiKeyRequest = new Request(
+            "PUT",
+            "/_security/cross_cluster/api_key/" + MY_REMOTE_API_KEY_MAP_REF.get().get("id")
+        );
+        createCrossClusterApiKeyRequest.setJsonEntity(
+            "{\"certificate_identity\": " + (certificateIdentity != null ? "\"" + certificateIdentity + "\"" : "null") + "}"
+        );
         try {
             final Response createCrossClusterApiKeyResponse = performRequestWithAdminUser(
                 fulfillingClusterClient,

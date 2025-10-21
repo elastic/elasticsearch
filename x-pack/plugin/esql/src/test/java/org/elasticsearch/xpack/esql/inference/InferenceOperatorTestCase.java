@@ -65,8 +65,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
+    protected int largeInputSize() {
+        return between(100, 1_000);
+    }
+
+    @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, between(100, 8 * 1024)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;
@@ -196,11 +201,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     private void runWithRandomDelay(Runnable runnable) {
-        if (randomBoolean()) {
-            runnable.run();
-        } else {
-            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
-        }
+        threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 10)), threadPool.generic());
     }
 
     public static class BlockStringReader {

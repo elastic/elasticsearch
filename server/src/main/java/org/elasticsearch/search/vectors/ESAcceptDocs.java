@@ -38,8 +38,7 @@ public abstract class ESAcceptDocs extends AcceptDocs {
 
     public abstract int approximateCost() throws IOException;
 
-    private static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc)
-        throws IOException {
+    private static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
         if (liveDocs == null && iterator instanceof BitSetIterator bitSetIterator) {
             // If we already have a BitSet and no deletions, reuse the BitSet
             return bitSetIterator.getBitSet();
@@ -53,16 +52,12 @@ public abstract class ESAcceptDocs extends AcceptDocs {
                 }
                 return bitSet;
             } else {
-                return BitSet.of(
-                    liveDocs == null ?
-                        iterator :
-                        new FilteredDocIdSetIterator(iterator) {
-                            @Override
-                            protected boolean match(int doc) {
-                                return liveDocs.get(doc);
-                            }
-                        },
-                    maxDoc); // create a sparse bitset
+                return BitSet.of(liveDocs == null ? iterator : new FilteredDocIdSetIterator(iterator) {
+                    @Override
+                    protected boolean match(int doc) {
+                        return liveDocs.get(doc);
+                    }
+                }, maxDoc); // create a sparse bitset
             }
         }
     }
@@ -71,8 +66,7 @@ public abstract class ESAcceptDocs extends AcceptDocs {
 
         public static final AllDocs INSTANCE = new AllDocs();
 
-        private AllDocs() {
-        }
+        private AllDocs() {}
 
         @Override
         public Bits bits() {
@@ -102,8 +96,7 @@ public abstract class ESAcceptDocs extends AcceptDocs {
 
         BitsAcceptDocs(Bits bits, int maxDoc) {
             if (bits != null && bits.length() != maxDoc) {
-                throw new IllegalArgumentException(
-                    "Bits length = " + bits.length() + " != maxDoc = " + maxDoc);
+                throw new IllegalArgumentException("Bits length = " + bits.length() + " != maxDoc = " + maxDoc);
             }
             this.bits = bits;
             if (bits instanceof BitSet bitSet) {
@@ -176,9 +169,9 @@ public abstract class ESAcceptDocs extends AcceptDocs {
             if (acceptBitSet != null) {
                 return new BitSetIterator(acceptBitSet, cardinality);
             }
-            return liveDocs == null ?
-                scorerSupplier.get(NO_MORE_DOCS).iterator() :
-                new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
+            return liveDocs == null
+                ? scorerSupplier.get(NO_MORE_DOCS).iterator()
+                : new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
                     @Override
                     protected boolean match(int doc) {
                         return liveDocs.get(doc);

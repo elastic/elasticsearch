@@ -187,7 +187,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final int maxDoc = reader.maxDoc();
 
         if (filterWeight == null) {
-            return approximateSearch(ctx, liveDocs == null ? ESAcceptDocs.AllDocs.INSTANCE : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc), Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+            return approximateSearch(
+                ctx,
+                liveDocs == null ? ESAcceptDocs.AllDocs.INSTANCE : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
+                Integer.MAX_VALUE,
+                knnCollectorManager,
+                visitRatio
+            );
         }
 
         ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
@@ -195,7 +201,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
 
-        return approximateSearch(ctx, new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc), Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+        return approximateSearch(
+            ctx,
+            new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc),
+            Integer.MAX_VALUE,
+            knnCollectorManager,
+            visitRatio
+        );
     }
 
     abstract TopDocs approximateSearch(

@@ -117,7 +117,11 @@ public class KnnIndexTester {
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
-            format = new ES920DiskBBQVectorsFormat(args.ivfClusterSize(), ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, true);
+            format = new ES920DiskBBQVectorsFormat(
+                args.ivfClusterSize(),
+                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                true
+            );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
             if (args.quantizeBits() == 32) {
                 format = new ES92GpuHnswVectorsFormat();

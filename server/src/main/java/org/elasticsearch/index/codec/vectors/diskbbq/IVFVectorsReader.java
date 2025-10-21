@@ -324,8 +324,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // We consider every centroid and treat their cost as twice as cheap as floating point
         // Additionally, we consider the number of total vectors we expect to visit
         // during the IVF search. We consider the individual cost to be 8x cheaper than floating point
-        long ivfSearchCost = (long) ((long) entry.numCentroids * fieldInfo.getVectorDimension()/2f
-            + (fieldInfo.getVectorDimension()/8f * maxVectorVisited));
+        long ivfSearchCost = (long) ((long) entry.numCentroids * fieldInfo.getVectorDimension() / 2f + (fieldInfo.getVectorDimension() / 8f
+            * maxVectorVisited));
         if (acceptDocs != ESAcceptDocs.AllDocs.INSTANCE && exactSearchCost < ivfSearchCost) {
             // switch to exact search
             exactSearch(values, acceptDocs.iterator(), target, knnCollector);
@@ -375,12 +375,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    private void exactSearch(
-        FloatVectorValues values,
-        DocIdSetIterator filterIterator,
-        float[] target,
-        KnnCollector knnCollector
-    ) throws IOException {
+    private void exactSearch(FloatVectorValues values, DocIdSetIterator filterIterator, float[] target, KnnCollector knnCollector)
+        throws IOException {
         if (values instanceof BulkScorableFloatVectorValues bulkScorable) {
             BulkScorableVectorValues.BulkVectorScorer vectorReScorer = bulkScorable.bulkScorer(target);
             var iterator = vectorReScorer.iterator();
@@ -400,9 +396,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         VectorScorer scorer = values.scorer(target);
         int doc;
         DocIdSetIterator knnVectorIterator = scorer.iterator();
-        var conjunction = filterIterator == null ?
-            knnVectorIterator :
-            ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
+        var conjunction = filterIterator == null
+            ? knnVectorIterator
+            : ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
         while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             assert doc == knnVectorIterator.docID();
             float score = scorer.score();

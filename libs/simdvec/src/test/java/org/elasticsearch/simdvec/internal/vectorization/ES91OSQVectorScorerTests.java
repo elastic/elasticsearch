@@ -17,11 +17,11 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -85,7 +85,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                         (byte) 1,
                         centroid
                     );
-                    BQVectorUtils.packAsBinary(scratch, qVector);
+                    ESVectorUtil.packAsBinary(scratch, qVector);
                     out.writeBytes(qVector, 0, qVector.length);
                     out.writeInt(Float.floatToIntBits(result.lowerInterval()));
                     out.writeInt(Float.floatToIntBits(result.upperInterval()));
@@ -103,7 +103,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 centroid
             );
             final byte[] quantizeQuery = new byte[4 * length];
-            BQSpaceUtils.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] floatScratch = new float[3];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
@@ -182,7 +182,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                     for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
                         randomVector(vectors[i + j], similarityFunction);
                         results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, scratch, (byte) 1, centroid);
-                        BQVectorUtils.packAsBinary(scratch, qVector);
+                        ESVectorUtil.packAsBinary(scratch, qVector);
                         out.writeBytes(qVector, 0, qVector.length);
                     }
                     writeCorrections(results, out);
@@ -198,7 +198,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 centroid
             );
             final byte[] quantizeQuery = new byte[4 * length];
-            BQSpaceUtils.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] scoresDefault = new float[ES91OSQVectorsScorer.BULK_SIZE];
             final float[] scoresPanama = new float[ES91OSQVectorsScorer.BULK_SIZE];

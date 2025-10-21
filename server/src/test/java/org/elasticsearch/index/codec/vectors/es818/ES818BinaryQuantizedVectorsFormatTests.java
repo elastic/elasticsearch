@@ -255,7 +255,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                             (byte) 1,
                             centroid
                         );
-                        BQVectorUtils.packAsBinary(quantizedVector, expectedVector);
+                        ESVectorUtil.packAsBinary(quantizedVector, expectedVector);
                         assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
                         assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
                     }

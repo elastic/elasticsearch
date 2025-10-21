@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
@@ -71,7 +70,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                BQVectorUtils.packAsBinary(quantized, destination);
+                ESVectorUtil.packAsBinary(quantized, destination);
             }
 
             @Override

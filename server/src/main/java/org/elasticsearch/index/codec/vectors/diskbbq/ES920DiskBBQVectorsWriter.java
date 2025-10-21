@@ -218,13 +218,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                     (byte) 1,
                     centroid
                 );
-                BQVectorUtils.packAsBinary(quantized, binary);
+                ESVectorUtil.packAsBinary(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
                     // write the overspill vector as well
                     result = quantizer.scalarQuantize(vector, scratch, quantized, (byte) 1, centroidSupplier.centroid(s));
-                    BQVectorUtils.packAsBinary(quantized, binary);
+                    ESVectorUtil.packAsBinary(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
                     // write a zero vector for the overspill
@@ -702,7 +702,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
             corrections = quantizer.scalarQuantize(vector, floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
-            BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
+            ESVectorUtil.packAsBinary(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }
 

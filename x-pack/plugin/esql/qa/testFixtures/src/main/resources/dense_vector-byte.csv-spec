@@ -1,5 +1,5 @@
 retrieveByteVectorData
-required_capability: dense_vector_agg_metric_double_if_versions
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -15,7 +15,7 @@ id:l | byte_vector:dense_vector
 ;
 
 denseByteVectorWithEval
-required_capability: dense_vector_agg_metric_double_if_versions
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -32,7 +32,7 @@ id:l | v:dense_vector
 ;
 
 denseByteVectorWithRenameAndDrop
-required_capability: dense_vector_agg_metric_double_if_versions
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector 

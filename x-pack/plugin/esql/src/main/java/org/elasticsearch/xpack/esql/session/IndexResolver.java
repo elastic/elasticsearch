@@ -129,9 +129,6 @@ public class IndexResolver {
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
-                TransportVersion minimumVersion = response.minTransportVersion();
-
-                LOGGER.debug("minimum transport version {}", minimumVersion);
                 FieldsInfo info = new FieldsInfo(
                     response.caps(),
                     response.minTransportVersion(),
@@ -139,6 +136,7 @@ public class IndexResolver {
                     supportsAggregateMetricDouble,
                     supportsDenseVector
                 );
+                LOGGER.debug("minimum transport version {} {}", response.minTransportVersion(), info.effectiveMinTransportVersion());
                 l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
             })
         );

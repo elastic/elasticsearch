@@ -1,6 +1,6 @@
 retrieveDenseVectorData
 required_capability: dense_vector_field_type_released
-required_capability: dense_vector_agg_metric_double_if_versions
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -16,7 +16,7 @@ id:l | float_vector:dense_vector
 ;
 
 denseVectorWithEval
-required_capability: dense_vector_agg_metric_double_if_versions
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
@@ -33,7 +33,7 @@ id:l | v:dense_vector
 ;
 
 denseVectorWithRenameAndDrop
-required_capability: dense_vector_agg_metric_double_if_versions
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector 

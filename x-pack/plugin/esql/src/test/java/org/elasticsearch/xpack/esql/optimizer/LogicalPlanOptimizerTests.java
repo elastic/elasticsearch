@@ -9266,7 +9266,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateTRangeFoldsToLiteral() {
         String timestampValue = "2024-05-10T00:17:39.000Z";
-        LogicalPlan statement = parser.createStatement(String.format("""
+        LogicalPlan statement = parser.createStatement(String.format(Locale.ROOT, """
             TS k8s
             | EVAL @timestamp = to_datetime(\"%s\")
             | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")

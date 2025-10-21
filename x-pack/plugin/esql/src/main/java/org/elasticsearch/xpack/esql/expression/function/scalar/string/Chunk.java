@@ -162,7 +162,7 @@ public class Chunk extends EsqlScalarFunction implements TwoOptionalArguments {
             builder.beginPositionEntry();
         }
         for (String chunk : chunks) {
-            builder.appendBytesRef(new BytesRef(chunk));
+            builder.appendBytesRef(new BytesRef(chunk.trim()));
         }
 
         if (multivalued) {

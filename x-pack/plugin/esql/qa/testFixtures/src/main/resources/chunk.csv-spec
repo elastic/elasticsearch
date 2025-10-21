@@ -17,11 +17,11 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 
 // tag::chunk-with-field-result[]
 book_no:keyword | title:text                                            | chunks:keyword
-1211            | The brothers Karamazov                                | null
-1463            | Realms of Tolkien: Images of Middle-earth             | null
-1502            | Selected Passages from Correspondence with Friends    | null
-1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
-1985            | Brothers Karamazov                                    | null
+1211            | The brothers Karamazov                                | In 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all his life.
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58
+1502            | Selected Passages from Correspondence with Friends    | Nikolai Gogol wrote some letters to his friends, none of which were a nose of high rank.
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | This collection, unique to the Modern Library, gathers seven of Dostoevsky's key works and shows him to be equally adept
+1985            | Brothers Karamazov                                    | Four brothers reunite in their hometown in Russia.
 // end::chunk-with-field-result[]
 ;
 
@@ -36,9 +36,9 @@ FROM books
 ignoreOrder:true
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-book_no:keyword | title:text                                                        | chunks:keyword
-2714            | Return of the King Being the Third Part of The Lord of the Rings  | null
-7350            | Return of the Shadow                                              | null
+book_no:keyword | title:text                                                       | chunks:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of
+7350            | Return of the Shadow                                             | In this sixth volume of The History of Middle-earth the story reaches The Lord of the Rings.
 ;
 
 

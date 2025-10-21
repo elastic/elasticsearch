@@ -238,7 +238,14 @@ public final class TypeResolutions {
         }
 
         return new TypeResolution(
-            errorStringIncompatibleTypes(errorMessagePrefix, operationName, paramOrd, name(e), e.dataType(), acceptedTypesForErrorMsg(acceptedTypes))
+            errorStringIncompatibleTypes(
+                errorMessagePrefix,
+                operationName,
+                paramOrd,
+                name(e),
+                e.dataType(),
+                acceptedTypesForErrorMsg(acceptedTypes)
+            )
         );
     }
 
